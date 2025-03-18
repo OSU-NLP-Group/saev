@@ -38,7 +38,7 @@ uv run python -m saev activations \
   --vit-ckpt ViT-B-32/openai \
   --d-vit 768 \
   --n-patches-per-img 49 \
-  --layers -2 \
+  --vit-layers -2 \
   --dump-to /local/scratch/$USER/cache/saev \
   --n-patches-per-shard 2_4000_000 \
   data:imagenet-dataset
