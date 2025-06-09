@@ -55,6 +55,7 @@ dev = [
     "pytest-cov>=6.1.1",
     "pytest-json-report>=1.5.0",
     "coverage-badge>=1.1.2",
+    "vl-convert-python>=1.8.0",
 ]
 
 [tool.pytest.ini_options]
