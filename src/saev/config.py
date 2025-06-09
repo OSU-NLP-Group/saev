@@ -90,7 +90,7 @@ class Activations:
     """Which dataset to use."""
     dump_to: str = os.path.join(".", "shards")
     """Where to write shards."""
-    vit_family: typing.Literal["clip", "siglip", "dinov2"] = "clip"
+    vit_family: typing.Literal["clip", "dinov2"] = "clip"
     """Which model family."""
     vit_ckpt: str = "ViT-L-14/openai"
     """Specific model checkpoint."""
