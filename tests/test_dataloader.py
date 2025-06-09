@@ -1,5 +1,8 @@
+import gc
 import random
+import time
 
+import psutil
 import pytest
 import torch
 
@@ -10,15 +13,22 @@ from saev.data.torch import Dataset
 
 N_SAMPLES = 25_000  # quick but representative
 BATCH_SIZE = 4_096
-PATCHES_PER_IMG = {256, 196}  # acceptable values; read from metadata
+
+
+@pytest.fixture(scope="session")
+def shard_root(pytestconfig):
+    p = pytestconfig.getoption("--shards")
+    if p is None:
+        pytest.skip("--shards not supplied")
+    return p
 
 
 @pytest.fixture(scope="module")
-def loaders():
+def loaders(shard_root):
     # minimal cfg pointing to a few shards
     ref_ds = Dataset(
         TorchConfig(
-            shard_root="/fs/scratch/PAS2136/samuelstevens/cache/saev/713c9e11788e5a4258d4201704cf083047b3fccacc2a25224cdd326520cd0d18",
+            shard_root=shard_root,
             patches="patches",
             layer=23,
             scale_mean=False,
@@ -37,12 +47,65 @@ def _global_index(img_i: int, patch_i: int, n_patches: int) -> int:
     return img_i * n_patches + patch_i
 
 
+def test_smoke(shard_root):
+    cfg = IterableConfig(shard_root)
+    dl = DataLoader(cfg)
+    # simply iterating one element should succeed
+    batch = next(iter(dl))
+    assert "act" in batch and "image_i" in batch and "patch_i" in batch
+
+
+def test_batches(shard_root):
+    cfg = IterableConfig(shard_root)
+    dl = DataLoader(cfg)
+    it = iter(dl)
+    for _ in range(8):
+        batch = next(it)
+        assert "act" in batch and "image_i" in batch and "patch_i" in batch
+
+
+@pytest.mark.parametrize("bs", [8, 32, 128, 512, 2048])
+def test_batch_size_matches(shard_path, bs):
+    cfg = IterableConfig(shard_root, batch_size=bs)
+    dl = DataLoader(cfg)
+    it = iter(dl)
+    for _ in range(4):
+        batch = next(it)
+        assert batch["act"].shape[0] == bs
+        assert batch["image_i"].shape[0] == bs
+        assert batch["patch_i"].shape[0] == bs
+
+
+def peak_children():
+    """Return set(pid) of live child processes."""
+    return {p.pid for p in psutil.Process().children(recursive=True)}
+
+
+def test_no_child_leak(shard_path):
+    """Loader must clean up its workers after iteration terminates."""
+    before = peak_children()
+
+    cfg = IterableConfig(shard_root, batch_size=16)
+    dl = DataLoader(cfg)
+
+    for _ in range(2):  # minimal work
+        next(iter(dl))
+
+    if hasattr(dl, "shutdown"):
+        dl.shutdown()  # explicit close
+    del dl
+    gc.collect()
+    time.sleep(1.0)  # give OS a tick
+
+    after = peak_children()
+    assert after <= before  # no new zombies
+
+
 def test_loader_matches_reference(loaders):
     ds, dl = loaders
 
     # pick n_patches_per_img directly from metadata to avoid hard-coding
     n_patches = ds.metadata.n_patches_per_img
-    assert n_patches in PATCHES_PER_IMG
 
     random.seed(0)
     n_checked = 0
