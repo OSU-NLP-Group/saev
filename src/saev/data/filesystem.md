@@ -1,4 +1,18 @@
+# File System & Performance
 
+## Testing
+
+Correctness:
+
+Reproducibility
+
+Randomness
+
+Performance
+
+## Notes
+
+Read performance for `/fs/scratch` on OSC on an Ascend node:
 
 ```
 [I] samuelstevens@a0001 ~/p/saev (main)> fio --name=net --filename=/fs/scratch/PAS2136/samuelstevens/cache/saev/366017a10220b85014ae0a594276b25f6ea3d756b74d1d3218da1e34ffcf32e9/acts000000.bin --rw=read --bs=1M --direct=1 --iodepth=16 --runtime=30 --time_based

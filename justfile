@@ -6,7 +6,7 @@ docs: lint
     -lychee docs/api
 
 test: lint
-    uv run pytest --cov src/saev --cov-report term --cov-report json --json-report --json-report-file pytest.json -n 32 saev || true
+    uv run pytest --cov src/saev --cov-report term --cov-report json --json-report --json-report-file pytest.json -n 32 tests || true
     uv run coverage-badge -o docs/assets/coverage.svg -f
     uv run scripts/regressions.py
 

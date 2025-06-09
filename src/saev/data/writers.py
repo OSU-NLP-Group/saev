@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import typing
+from collections.abc import Callable
 
 import beartype
 import numpy as np
@@ -297,7 +298,7 @@ class Metadata:
 
 @beartype.beartype
 def get_dataloader(
-    cfg: Config, *, img_transform: typing.Callable | None = None
+    cfg: Config, *, img_transform: Callable | None = None
 ) -> torch.utils.data.DataLoader:
     """
     Get a dataloader for a default map-style dataset.

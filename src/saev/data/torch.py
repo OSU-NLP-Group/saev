@@ -1,3 +1,4 @@
+import dataclasses
 import logging
 import math
 import os
@@ -9,9 +10,34 @@ import torch
 from jaxtyping import Float, jaxtyped
 from torch import Tensor
 
+from saev import helpers
+
 from . import writers
 
 logger = logging.getLogger(__name__)
+
+
+@beartype.beartype
+@dataclasses.dataclass(frozen=True)
+class Config:
+    """
+    Configuration for loading activation data from disk.
+    """
+
+    shard_root: str = os.path.join(".", "shards")
+    """Directory with .bin shards and a metadata.json file."""
+    patches: typing.Literal["cls", "patches", "meanpool"] = "patches"
+    """Which kinds of patches to use. 'cls' indicates just the [CLS] token (if any). 'patches' indicates it will return all patches. 'meanpool' returns the mean of all image patches."""
+    layer: int | typing.Literal["all", "meanpool"] = -2
+    """Which ViT layer(s) to read from disk. ``-2`` selects the second-to-last layer. ``"all"`` enumerates every recorded layer, and ``"meanpool"`` averages activations across layers."""
+    clamp: float = 1e5
+    """Maximum value for activations; activations will be clamped to within [-clamp, clamp]`."""
+    n_random_samples: int = 2**19
+    """Number of random samples used to calculate approximate dataset means at startup."""
+    scale_mean: bool | str = True
+    """Whether to subtract approximate dataset means from examples. If a string, manually load from the filepath."""
+    scale_norm: bool | str = True
+    """Whether to scale average dataset norm to sqrt(d_vit). If a string, manually load from the filepath."""
 
 
 @jaxtyped(typechecker=beartype.beartype)
@@ -27,7 +53,7 @@ class Dataset(torch.utils.data.Dataset):
         image_i: int
         patch_i: int
 
-    cfg: config.DataLoad
+    cfg: Config
     """Configuration; set via CLI args."""
     metadata: writers.Metadata
     """Activations metadata; automatically loaded from disk."""
@@ -38,13 +64,13 @@ class Dataset(torch.utils.data.Dataset):
     act_mean: Float[Tensor, " d_vit"]
     """Mean activation."""
 
-    def __init__(self, cfg: config.DataLoad):
+    def __init__(self, cfg: Config):
         self.cfg = cfg
         if not os.path.isdir(self.cfg.shard_root):
             raise RuntimeError(f"Activations are not saved at '{self.cfg.shard_root}'.")
 
         metadata_fpath = os.path.join(self.cfg.shard_root, "metadata.json")
-        self.metadata = Metadata.load(metadata_fpath)
+        self.metadata = writers.Metadata.load(metadata_fpath)
 
         # Pick a really big number so that if you accidentally use this when you shouldn't, you get an out of bounds IndexError.
         self.layer_index = 1_000_000
