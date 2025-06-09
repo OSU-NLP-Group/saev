@@ -9,10 +9,8 @@ import torch
 from jaxtyping import Float, jaxtyped
 from torch import Tensor
 
-from . import config, helpers
+from . import writers
 
-log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
-logging.basicConfig(level=logging.INFO, format=log_format)
 logger = logging.getLogger(__name__)
 
 
@@ -31,7 +29,7 @@ class Dataset(torch.utils.data.Dataset):
 
     cfg: config.DataLoad
     """Configuration; set via CLI args."""
-    metadata: "Metadata"
+    metadata: writers.Metadata
     """Activations metadata; automatically loaded from disk."""
     layer_index: int
     """Layer index into the shards if we are choosing a specific layer."""

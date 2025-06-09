@@ -7,10 +7,8 @@ import torch
 from jaxtyping import Float, jaxtyped
 from torch import Tensor
 
-from . import config, helpers
+from saev import helpers
 
-log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
-logging.basicConfig(level=logging.INFO, format=log_format)
 logger = logging.getLogger(__name__)
 
 
@@ -73,7 +71,7 @@ class Clip(torch.nn.Module):
     def get_residuals(self) -> list[torch.nn.Module]:
         return self.model.transformer.resblocks
 
-    def get_patches(self, cfg: config.Activations) -> slice:
+    def get_patches(self, n_patches_per_img: int) -> slice:
         return slice(None, None, None)
 
     def forward(
@@ -82,10 +80,51 @@ class Clip(torch.nn.Module):
         return self.model(batch)
 
 
+@jaxtyped(typechecker=beartype.beartype)
+class Siglip(torch.nn.Module):
+    def __init__(self, vit_ckpt: str):
+        super().__init__()
+
+        import open_clip
+
+        if vit_ckpt.startswith("hf-hub:"):
+            clip, _ = open_clip.create_model_from_pretrained(
+                vit_ckpt, cache_dir=helpers.get_cache_dir()
+            )
+        else:
+            arch, ckpt = vit_ckpt.split("/")
+            clip, _ = open_clip.create_model_from_pretrained(
+                arch, pretrained=ckpt, cache_dir=helpers.get_cache_dir()
+            )
+
+        model = clip.visual
+        model.proj = None
+        model.output_tokens = True  # type: ignore
+        self.model = model
+
+        assert isinstance(self.model, open_clip.timm_model.TimmModel)
+
+        self.name = f"siglip/{vit_ckpt}"
+
+    def get_residuals(self) -> list[torch.nn.Module]:
+        return self.model.trunk.blocks
+
+    def get_patches(self, n_patches_per_img: int) -> slice:
+        return slice(None, None, None)
+
+    def forward(
+        self, batch: Float[Tensor, "batch 3 width height"]
+    ) -> Float[Tensor, "batch patches dim"]:
+        result = self.model(batch)
+        return result
+
+
 @beartype.beartype
 def make_vit(vit_family: str, vit_ckpt: str):
     if vit_family == "clip":
         return Clip(vit_ckpt)
+    if vit_family == "siglip":
+        return Siglip(vit_ckpt)
     elif vit_family == "dinov2":
         return DinoV2(vit_ckpt)
     else:
@@ -94,7 +133,7 @@ def make_vit(vit_family: str, vit_ckpt: str):
 
 @beartype.beartype
 def make_img_transform(vit_family: str, vit_ckpt: str) -> Callable:
-    if vit_family == "clip":
+    if vit_family == "clip" or vit_family == "siglip":
         import open_clip
 
         if vit_ckpt.startswith("hf-hub:"):

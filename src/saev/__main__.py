@@ -14,19 +14,6 @@ logger = logging.getLogger("saev")
 
 
 @beartype.beartype
-def activations(cfg: typing.Annotated[config.Activations, tyro.conf.arg(name="")]):
-    """
-    Save ViT activations for use later on.
-
-    Args:
-        cfg: Configuration for activations.
-    """
-    import saev.activations
-
-    saev.activations.main(cfg)
-
-
-@beartype.beartype
 def train(
     cfg: typing.Annotated[config.Train, tyro.conf.arg(name="")],
     sweep: str | None = None,
@@ -91,9 +78,5 @@ def visuals(cfg: typing.Annotated[config.Visuals, tyro.conf.arg(name="")]):
 
 
 if __name__ == "__main__":
-    tyro.extras.subcommand_cli_from_dict({
-        "activations": activations,
-        "train": train,
-        "visuals": visuals,
-    })
+    tyro.extras.subcommand_cli_from_dict({"train": train, "visuals": visuals})
     logger.info("Done.")
