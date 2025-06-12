@@ -201,8 +201,8 @@ def benchmark(
     with ex.batch():
         # for kind in ["iterable", "torch"]:
         for kind in ["torch"]:
-            for n_workers in [2, 4, 8, 16, 32, 64]:
-                for batch_size in [4, 8, 16, 32]:
+            for n_workers in [2, 4, 8, 16, 32]:
+                for batch_size in [2, 4, 8, 16]:
                     for _ in range(n_iter):
                         jobs.append(
                             ex.submit(
