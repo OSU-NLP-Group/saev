@@ -1,5 +1,5 @@
 """
-Slurm benchmark harness for SAEv data loaders.
+Slurm benchmark harness for saev data loaders.
 
 Usage
 -----
@@ -150,9 +150,11 @@ def benchmark(
     minutes: int = 10,
     warmup: int = 5,
     out: pathlib.Path = pathlib.Path("logs", "benchmarking"),
-    slurm_partition: str = "gpu",
+    slurm_partition: str = "cpuonly",
     slurm_acct: str = "",
 ):
+    import saev.helpers
+
     commit = get_git_commit()
 
     out = out / commit
@@ -169,24 +171,25 @@ def benchmark(
     )
     jobs = []
     with ex.batch():
-        # for kind in ["iterable", "torch"]:
-        for kind in ["torch"]:
-            for n_workers in [2, 4, 8, 16, 32, 64]:
-                for batch_size in [4, 8, 16, 32]:
-                    jobs.append(
-                        ex.submit(
-                            benchmark_fn,
-                            kind,
-                            shard_root=shards,
-                            layer=layer,
-                            n_workers=n_workers,
-                            batch_size=batch_size * 1024,
-                            warmup_min=warmup,
-                            run_min=minutes,
+        for _ in range(8):
+            # for kind in ["iterable", "torch"]:
+            for kind in ["torch"]:
+                for n_workers in [2, 4, 8, 16, 32, 64]:
+                    for batch_size in [4, 8, 16, 32]:
+                        jobs.append(
+                            ex.submit(
+                                benchmark_fn,
+                                kind,
+                                shard_root=shards,
+                                layer=layer,
+                                n_workers=n_workers,
+                                batch_size=batch_size * 1024,
+                                warmup_min=warmup,
+                                run_min=minutes,
+                            )
                         )
-                    )
 
-    results = [j.result() for j in jobs]
+    results = [j.result() for j in saev.helpers.progress(jobs)]
 
     import saev.data.writers
 
@@ -195,7 +198,7 @@ def benchmark(
         meta=dataclasses.asdict(meta), results=[dataclasses.asdict(r) for r in results]
     )
     with open(out / "results.json", "w") as f:
-        json.dump(payload, f, indent=2)
+        json.dump(payload, f, indent=4)
 
 
 @beartype.beartype
