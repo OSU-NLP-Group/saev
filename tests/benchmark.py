@@ -52,6 +52,22 @@ def get_git_commit() -> str:
     return result.stdout.strip()
 
 
+def infinite(dataloader):
+    """Creates an infinite iterator from a dataloader by creating a new iterator each time the previous one is exhausted.
+
+    Args:
+        dataloader: A PyTorch dataloader or similar iterable
+
+    Yields:
+        Batches from the dataloader, indefinitely
+    """
+    while True:
+        # Create a fresh iterator from the dataloader
+        it = iter(dataloader)
+        for batch in it:
+            yield batch
+
+
 @beartype.beartype
 def benchmark_fn(
     kind: str,
@@ -71,7 +87,7 @@ def benchmark_fn(
 
     log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
     logging.basicConfig(level=logging.INFO, format=log_format)
-    logger = logging.getLogger("benchmark")
+    logger = logging.getLogger("benchmark_fn")
 
     if kind == "torch":
         cfg = saev.data.torch.Config(
@@ -107,33 +123,34 @@ def benchmark_fn(
 
     # warm-up
     logger.info("Warming up for %d minutes.", warmup_min)
-    end = time.perf_counter() + warmup_min * 60
-    it = iter(dl)
-    while time.perf_counter() < end:
-        try:
-            next(it)
-        except StopIteration:
-            it = iter(dl)
-    logger.info("Warmed up.")
+    start = time.perf_counter()
+    tgt_end = start + warmup_min * 60
+    it = infinite(dl)
+    n_warmup = 0
+    while time.perf_counter() < tgt_end:
+        next(it)
+        n_warmup += 1
+        logger.info("warmup batches: %d", n_warmup)
+
+    true_end = time.perf_counter()
+    warmup_duration_m = (true_end - start) / 60
+    logger.info("Warmed up (took %.1f minutes).", warmup_duration_m)
 
     # measured run
     n_batches = 0
     rss_max = 0
     proc = psutil.Process()
-    end = time.perf_counter() + run_min * 60
-    it = iter(dl)
-    while time.perf_counter() < end:
-        try:
-            next(it)
-        except StopIteration:
-            it = iter(dl)
-            next(it)
-
+    start = time.perf_counter()
+    tgt_end = start + run_min * 60
+    while time.perf_counter() < tgt_end:
+        next(it)
         n_batches += 1
         rss_max = max(rss_max, proc.memory_info().rss)
         logger.info("batches: %d, peak GB: %.1f", n_batches, rss_max / 1e9)
 
-    bps = n_batches / (run_min * 60)
+    true_end = time.perf_counter()
+
+    bps = n_batches / (true_end - start)
     return Result(
         kind=kind,
         n_workers=n_workers,
@@ -150,10 +167,16 @@ def benchmark(
     minutes: int = 10,
     warmup: int = 5,
     out: pathlib.Path = pathlib.Path("logs", "benchmarking"),
-    slurm_partition: str = "cpuonly",
+    slurm_partition: str = "gpu",
     slurm_acct: str = "",
+    n_iter: int = 8,
 ):
+    import saev.data.writers
     import saev.helpers
+
+    log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
+    logging.basicConfig(level=logging.INFO, format=log_format)
+    logger = logging.getLogger("benchmark")
 
     commit = get_git_commit()
 
@@ -171,7 +194,7 @@ def benchmark(
     )
     jobs = []
     with ex.batch():
-        for _ in range(8):
+        for _ in range(n_iter):
             # for kind in ["iterable", "torch"]:
             for kind in ["torch"]:
                 for n_workers in [2, 4, 8, 16, 32, 64]:
@@ -189,9 +212,9 @@ def benchmark(
                             )
                         )
 
-    results = [j.result() for j in saev.helpers.progress(jobs)]
+    logger.info("Submitted %d jobs.", len(jobs))
 
-    import saev.data.writers
+    results = [j.result() for j in saev.helpers.progress(jobs)]
 
     meta = saev.data.writers.Metadata.load(os.path.join(shards, "metadata.json"))
     payload = dict(
