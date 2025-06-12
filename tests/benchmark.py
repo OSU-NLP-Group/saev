@@ -240,18 +240,45 @@ def plot(results: pathlib.Path):
 
     alt.renderers.enable("png")
 
-    with open(results) as fd:
-        df = pl.DataFrame(json.load(fd)["results"]).with_columns(
-            patches_per_s=pl.col("batch_size") * pl.col("batches_per_s")
-        )
+    df = (
+        pl.read_json(results)
+        .select("results")
+        .explode("results")
+        .unnest("results")
+        .with_columns(patches_per_s=pl.col("batch_size") * pl.col("batches_per_s"))
+    )
 
-    alt.Chart(df).mark_line().encode(
-        alt.X("n_workers", type="quantitative"),
-        alt.Y("patches_per_s", type="quantitative"),
-        alt.Color("batch_size", type="nominal"),
-        alt.Shape("kind", type="nominal"),
-        alt.Detail("kind", type="nominal"),
-    ).save("scaling.png")
+    title = str(results.parent)
+
+    band = (
+        alt.Chart(df)
+        .mark_errorband(extent="stdev")  # mean ± 1 σ
+        .encode(
+            alt.X("n_workers", type="quantitative"),
+            alt.Y("patches_per_s", type="quantitative"),
+            alt.Color("batch_size", type="nominal"),
+            alt.Shape("kind", type="nominal"),
+            alt.Detail("kind", type="nominal"),
+        )
+    )
+
+    line = (
+        alt.Chart(df, title=title)
+        .mark_line(point=True)
+        .encode(
+            alt.X("n_workers", type="quantitative"),
+            alt.Y("patches_per_s", aggregate="mean", type="quantitative"),
+            alt.Color("batch_size", type="nominal"),
+            alt.Shape("kind", type="nominal"),
+            alt.Detail("kind", type="nominal"),
+        )
+    )
+
+    fpath = results.parent / "plot.png"
+
+    (band + line).save(fpath, ppi=300)
+
+    print(f"Saved to {fpath}", file=sys.stderr)
 
 
 if __name__ == "__main__":
