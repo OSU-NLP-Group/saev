@@ -145,7 +145,12 @@ def benchmark_fn(
     while time.perf_counter() < tgt_end:
         next(it)
         n_batches += 1
-        rss_max = max(rss_max, proc.memory_info().rss)
+
+        rss = proc.memory_info().rss + sum(
+            c.memory_info().rss for c in proc.children(recursive=True)
+        )
+        rss_max = max(rss_max, rss)
+
         logger.info("batches: %d, peak GB: %.1f", n_batches, rss_max / 1e9)
 
     true_end = time.perf_counter()
@@ -189,16 +194,16 @@ def benchmark(
         gpus_per_node=0,
         ntasks_per_node=1,
         cpus_per_task=16,
-        time=minutes + warmup + 20,
+        time=minutes + warmup + 30,
         stderr_to_stdout=True,
     )
     jobs = []
     with ex.batch():
-        for _ in range(n_iter):
-            # for kind in ["iterable", "torch"]:
-            for kind in ["torch"]:
-                for n_workers in [2, 4, 8, 16, 32, 64]:
-                    for batch_size in [4, 8, 16, 32]:
+        # for kind in ["iterable", "torch"]:
+        for kind in ["torch"]:
+            for n_workers in [2, 4, 8, 16, 32, 64]:
+                for batch_size in [4, 8, 16, 32]:
+                    for _ in range(n_iter):
                         jobs.append(
                             ex.submit(
                                 benchmark_fn,
@@ -213,8 +218,12 @@ def benchmark(
                         )
 
     logger.info("Submitted %d jobs.", len(jobs))
-
-    results = [j.result() for j in saev.helpers.progress(jobs)]
+    results = []
+    for j, job in enumerate(saev.helpers.progress(jobs)):
+        try:
+            results.append(job.result())
+        except submitit.core.utils.UncompletedJobError:
+            logger.warning("Job %d did not finish.", j)
 
     meta = saev.data.writers.Metadata.load(os.path.join(shards, "metadata.json"))
     payload = dict(
