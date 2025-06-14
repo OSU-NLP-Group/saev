@@ -35,7 +35,7 @@ def loaders(shard_root):
             scale_norm=False,
         )
     )
-    fast_dl = DataLoader(IterableConfig())
+    fast_dl = DataLoader(IterableConfig(shard_))
     return ref_ds, fast_dl
 
 
@@ -65,7 +65,7 @@ def test_batches(shard_root):
 
 
 @pytest.mark.parametrize("bs", [8, 32, 128, 512, 2048])
-def test_batch_size_matches(shard_path, bs):
+def test_batch_size_matches(shard_root, bs):
     cfg = IterableConfig(shard_root, batch_size=bs)
     dl = DataLoader(cfg)
     it = iter(dl)
@@ -81,7 +81,7 @@ def peak_children():
     return {p.pid for p in psutil.Process().children(recursive=True)}
 
 
-def test_no_child_leak(shard_path):
+def test_no_child_leak(shard_root):
     """Loader must clean up its workers after iteration terminates."""
     before = peak_children()
 
@@ -101,8 +101,17 @@ def test_no_child_leak(shard_path):
     assert after <= before  # no new zombies
 
 
-def test_loader_matches_reference(loaders):
-    ds, dl = loaders
+def test_loader_matches_reference(shard_root):
+    ds = Dataset(
+        TorchConfig(
+            shard_root=shard_root,
+            patches="patches",
+            layer=23,
+            scale_mean=False,
+            scale_norm=False,
+        )
+    )
+    dl = DataLoader(IterableConfig(shard_root, batch_size=16))
 
     # pick n_patches_per_img directly from metadata to avoid hard-coding
     n_patches = ds.metadata.n_patches_per_img

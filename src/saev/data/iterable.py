@@ -7,6 +7,8 @@ import beartype
 from jaxtyping import Float, Int, jaxtyped
 from torch import Tensor
 
+from . import writers
+
 
 @beartype.beartype
 @dataclasses.dataclass(frozen=True)
@@ -41,16 +43,53 @@ class DataLoader:
         image_i: Int[Tensor, " batch"]
         patch_i: Int[Tensor, " batch"]
 
-    def __init__(self, cfg): ...
+    def __init__(self, cfg):
+        self.cfg = cfg
+        if not os.path.isdir(self.cfg.shard_root):
+            raise RuntimeError(f"Activations are not saved at '{self.cfg.shard_root}'.")
+
+        metadata_fpath = os.path.join(self.cfg.shard_root, "metadata.json")
+        self.metadata = writers.Metadata.load(metadata_fpath)
 
     def __iter__(self) -> collections.abc.Iterable[Example]:
-        """Yields batches shaped:
-        {
-            "act":      Float[Tensor, "B d_vit"],   # fp32, contiguous
-            "image_i":  LongTensor[B],              # image index  [0 … n_imgs-1]
-            "patch_i":  LongTensor[B],              # patch index  [0 … n_patches-1] or -1 for CLS/mean-pool
-        }
-        """
+        """Yields batches."""
         yield self.Example(act=None, image_i=0, patch_i=0)
 
-    def __len__(self) -> int: ...
+    def __len__(self) -> int:
+        """
+        Dataset length depends on `patches` and `layer`.
+        """
+        match (self.cfg.patches, self.cfg.layer):
+            case ("cls", "all"):
+                # Return a CLS token from a random image and random layer.
+                return self.metadata.n_imgs * len(self.metadata.layers)
+            case ("cls", int()):
+                # Return a CLS token from a random image and fixed layer.
+                return self.metadata.n_imgs
+            case ("cls", "meanpool"):
+                # Return a CLS token from a random image and meanpool over all layers.
+                return self.metadata.n_imgs
+            case ("meanpool", "all"):
+                # Return the meanpool of all patches from a random image and random layer.
+                return self.metadata.n_imgs * len(self.metadata.layers)
+            case ("meanpool", int()):
+                # Return the meanpool of all patches from a random image and fixed layer.
+                return self.metadata.n_imgs
+            case ("meanpool", "meanpool"):
+                # Return the meanpool of all patches from a random image and meanpool over all layers.
+                return self.metadata.n_imgs
+            case ("patches", int()):
+                # Return a patch from a random image, fixed layer, and random patch.
+                return self.metadata.n_imgs * (self.metadata.n_patches_per_img)
+            case ("patches", "meanpool"):
+                # Return a patch from a random image, meanpooled over all layers, and a random patch.
+                return self.metadata.n_imgs * (self.metadata.n_patches_per_img)
+            case ("patches", "all"):
+                # Return a patch from a random image, random layer and random patch.
+                return (
+                    self.metadata.n_imgs
+                    * len(self.metadata.layers)
+                    * self.metadata.n_patches_per_img
+                )
+            case _:
+                typing.assert_never((self.cfg.patches, self.cfg.layer))
