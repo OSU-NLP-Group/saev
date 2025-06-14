@@ -20,6 +20,8 @@ import beartype
 import submitit
 import tyro
 
+log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
+
 
 @beartype.beartype
 @dataclasses.dataclass(frozen=True)
@@ -70,7 +72,7 @@ def infinite(dataloader):
 
 @beartype.beartype
 def benchmark_fn(
-    kind: str,
+    kind: typing.Literal["iterable", "torch"],
     *,
     shard_root: str,
     layer: int,
@@ -85,7 +87,6 @@ def benchmark_fn(
     import saev.data.iterable
     import saev.data.torch
 
-    log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
     logging.basicConfig(level=logging.INFO, format=log_format)
     logger = logging.getLogger("benchmark_fn")
 
@@ -169,8 +170,9 @@ def benchmark_fn(
 def benchmark(
     shards: str,
     layer: int,
-    minutes: int = 10,
-    warmup: int = 5,
+    run_min: int = 10,
+    warmup_min: int = 5,
+    margin_min: int = 45,
     out: pathlib.Path = pathlib.Path("logs", "benchmarking"),
     slurm_partition: str = "gpu",
     slurm_acct: str = "",
@@ -179,7 +181,6 @@ def benchmark(
     import saev.data.writers
     import saev.helpers
 
-    log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
     logging.basicConfig(level=logging.INFO, format=log_format)
     logger = logging.getLogger("benchmark")
 
@@ -194,28 +195,26 @@ def benchmark(
         gpus_per_node=0,
         ntasks_per_node=1,
         cpus_per_task=16,
-        time=minutes + warmup + 30,
+        time=run_min + warmup_min + margin_min,
         stderr_to_stdout=True,
     )
     jobs = []
     with ex.batch():
-        # for kind in ["iterable", "torch"]:
-        for kind in ["torch"]:
+        for kind in ["iterable", "torch"]:
             for n_workers in [2, 4, 8, 16, 32]:
                 for batch_size in [2, 4, 8, 16]:
                     for _ in range(n_iter):
-                        jobs.append(
-                            ex.submit(
-                                benchmark_fn,
-                                kind,
-                                shard_root=shards,
-                                layer=layer,
-                                n_workers=n_workers,
-                                batch_size=batch_size * 1024,
-                                warmup_min=warmup,
-                                run_min=minutes,
-                            )
+                        job = ex.submit(
+                            benchmark_fn,
+                            kind,
+                            shard_root=shards,
+                            layer=layer,
+                            n_workers=n_workers,
+                            batch_size=batch_size * 1024,
+                            warmup_min=warmup_min,
+                            run_min=run_min,
                         )
+                        jobs.append(job)
 
     logger.info("Submitted %d jobs.", len(jobs))
     results = []
