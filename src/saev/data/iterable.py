@@ -53,7 +53,8 @@ class DataLoader:
 
     def __iter__(self) -> collections.abc.Iterable[Example]:
         """Yields batches."""
-        yield self.Example(act=None, image_i=0, patch_i=0)
+        for _ in range(len(self)):
+            yield self.Example(act=None, image_i=0, patch_i=0)
 
     def __len__(self) -> int:
         """

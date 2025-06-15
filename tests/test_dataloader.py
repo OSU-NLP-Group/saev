@@ -23,22 +23,6 @@ def shard_root(pytestconfig):
     return p
 
 
-@pytest.fixture(scope="module")
-def loaders(shard_root):
-    # minimal cfg pointing to a few shards
-    ref_ds = Dataset(
-        TorchConfig(
-            shard_root=shard_root,
-            patches="patches",
-            layer=23,
-            scale_mean=False,
-            scale_norm=False,
-        )
-    )
-    fast_dl = DataLoader(IterableConfig(shard_))
-    return ref_ds, fast_dl
-
-
 def _global_index(img_i: int, patch_i: int, n_patches: int) -> int:
     """
     Map (image_i, patch_i) to linear index used by Dataset when
