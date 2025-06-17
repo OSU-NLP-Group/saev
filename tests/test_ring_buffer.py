@@ -1,18 +1,22 @@
+import os
+import queue
+import signal
 import threading
+import time
 
 import beartype
 import pytest
 import torch
 import torch.multiprocessing as mp
-from hypothesis import given
+from hypothesis import given, settings
 from hypothesis import strategies as st
+
+from saev.data.utils import RingBuffer
 
 mp.set_start_method("spawn", force=True)
 
 INT32_MIN = -(2**31)
 INT32_MAX = 2**31 - 1
-
-from saev.data.utils import RingBuffer
 
 
 @pytest.fixture(params=["thread", "proc"])
@@ -26,6 +30,7 @@ def backend(request):
         class Namespace:  # lightweight namespace
             Event = threading.Event
             Worker = threading.Thread
+            Queue = queue.Queue
             kwargs: dict = dict(daemon=True)
 
         return Namespace
@@ -37,6 +42,7 @@ def backend(request):
         class Namespace:
             Event = mp.Event
             Worker = mp.Process
+            Queue = mp.Queue
             kwargs: dict = dict(daemon=True)
 
         return Namespace
@@ -135,17 +141,23 @@ def _produce_blocking(ring: RingBuffer, started, finished, tensor):
 
 
 @beartype.beartype
-def _produce_n(ring: RingBuffer, n: int):
+def _produce_n(ring: RingBuffer, n: int, start: int = 0):
     for i in range(n):
-        ring.put(torch.tensor([i], dtype=torch.int32))
+        ring.put(torch.tensor([i + start], dtype=torch.int32))
 
 
 @beartype.beartype
-def _consume_n(ring: RingBuffer, n: int, q):
+def _collect_n(ring: RingBuffer, n: int, q):
     vals = []
     for _ in range(n):
         vals.append(ring.get().item())
     q.put(vals)
+
+
+@beartype.beartype
+def _consume_n(ring: RingBuffer, n: int):
+    for _ in range(n):
+        ring.get()
 
 
 def test_blocking_put_when_full(backend):
@@ -211,17 +223,120 @@ def test_wraparound_large_volume():
     assert ring.qsize() == 0
 
 
-def test_across_process_visibility():
+def test_across_process_visibility(backend):
     """Producer in one process, consumer in another share the same data."""
     slots, total = 4, 10
     ring = RingBuffer(slots, (1,), dtype=torch.int32)
 
-    q = mp.Queue()
-    w1 = mp.Process(target=_produce_n, args=(ring, total))
-    w2 = mp.Process(target=_consume_n, args=(ring, total, q))
+    q = backend.Queue()
+    w1 = backend.Worker(target=_produce_n, args=(ring, total), **backend.kwargs)
+    w2 = backend.Worker(target=_collect_n, args=(ring, total, q), **backend.kwargs)
     w1.start()
     w2.start()
     w1.join()
     w2.join()
 
     assert q.get() == list(range(10))
+
+
+def test_put_shape_dtype_mismatch():
+    rb = RingBuffer(2, (3,), dtype=torch.float32)
+    with pytest.raises(ValueError):
+        rb.put(torch.zeros(4, dtype=torch.float32))  # wrong shape
+    with pytest.raises(ValueError):
+        rb.put(torch.zeros(3, dtype=torch.int32))  # wrong dtype
+
+
+def test_qsize_monotone_under_race(backend):
+    """spawn two produces and two consumers; assert that qsize is never negative and never > capacity."""
+    cap = 4
+    ring = RingBuffer(cap, (1,), dtype=torch.int32)
+    n = 200
+
+    workers = [
+        backend.Worker(target=_produce_n, args=(ring, n), **backend.kwargs)
+        for _ in range(2)
+    ] + [
+        backend.Worker(target=_consume_n, args=(ring, n), **backend.kwargs)
+        for _ in range(2)
+    ]
+    for w in workers:
+        w.start()
+
+    # sample qsize periodically
+    for _ in range(50):
+        qs = ring.qsize()
+        assert 0 <= qs <= cap
+        time.sleep(0.01)
+
+    for w in workers:
+        w.join()
+
+
+def test_many_producers_consumers(backend):
+    slots = 8
+    ring = RingBuffer(slots, (1,), torch.int32)
+    per_proc = 100
+    # Define `expected` to be an integer, given the args to _produce_n. It should be an expression that depends on per_proc and 2 (number of producer workers). AI!
+
+    q = backend.Queue()
+    producers = [
+        backend.Worker(
+            target=_produce_n,
+            args=(ring, per_proc),
+            kwargs=dict(start=i),
+            **backend.kwargs,
+        )
+        for i in range(2)
+    ]
+    consumers = [
+        backend.Worker(target=_collect_n, args=(ring, per_proc, q), **backend.kwargs)
+        for _ in range(2)
+    ]
+    for w in producers + consumers:
+        w.start()
+    for w in producers + consumers:
+        w.join()
+    assert sum(sum(q.get()) for _ in consumers) == expected
+
+
+# ──────────────────────────────────────────────────────────────────────────
+def test_producer_crash_does_not_corrupt():
+    rb = RingBuffer(4, (1,), torch.int32)
+
+    def bad_prod():
+        rb.put(torch.tensor([1], dtype=torch.int32))
+        os.kill(os.getpid(), signal.SIGKILL)
+
+    p = mp.Process(target=bad_prod)
+    p.start()
+    p.join()
+
+    # queue should still work
+    rb.put(torch.tensor([2], dtype=torch.int32))
+    assert rb.get().item() in {1, 2}
+
+
+# ──────────────────────────────────────────────────────────────────────────
+@settings(deadline=None, max_examples=20)
+@given(
+    st.lists(
+        st.tuples(st.sampled_from(["put", "get"]), st.integers(0, 100)),
+        min_size=1,
+        max_size=200,
+    )
+)
+def test_fuzz_interleaved_ops(seq):
+    rb = RingBuffer(4, (1,), torch.int32)
+    outstanding = 0
+    for op, val in seq:
+        if op == "put":
+            if outstanding < 4:
+                rb.put(torch.tensor([val], dtype=torch.int32))
+                outstanding += 1
+        else:  # get
+            if outstanding:
+                rb.get()
+                outstanding -= 1
+        qs = rb.qsize()
+        assert qs == outstanding
