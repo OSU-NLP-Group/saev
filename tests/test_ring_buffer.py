@@ -274,10 +274,16 @@ def test_qsize_monotone_under_race(backend):
 
 
 def test_many_producers_consumers(backend):
+    n_producers = 2
     slots = 8
     ring = RingBuffer(slots, (1,), torch.int32)
     per_proc = 100
-    expected = per_proc * (0 + 1) + per_proc * (per_proc + 1)  # Sum of arithmetic sequences
+
+    # Sum of arithmetic sequences
+    expected = (
+        per_proc * sum(range(n_producers))
+        + n_producers * ((per_proc - 1) * (per_proc)) // 2
+    )
 
     q = backend.Queue()
     producers = [
@@ -287,7 +293,7 @@ def test_many_producers_consumers(backend):
             kwargs=dict(start=i),
             **backend.kwargs,
         )
-        for i in range(2)
+        for i in range(n_producers)
     ]
     consumers = [
         backend.Worker(target=_collect_n, args=(ring, per_proc, q), **backend.kwargs)
@@ -297,27 +303,28 @@ def test_many_producers_consumers(backend):
         w.start()
     for w in producers + consumers:
         w.join()
-    assert sum(sum(q.get()) for _ in consumers) == expected
+    collected = [q.get() for _ in consumers]
+    assert sum([sum(c) for c in collected]) == expected
 
 
-# ──────────────────────────────────────────────────────────────────────────
+def _produce_then_die(ring: RingBuffer):
+    ring.put(torch.tensor([1], dtype=torch.int32))
+    os.kill(os.getpid(), signal.SIGKILL)
+
+
 def test_producer_crash_does_not_corrupt():
-    rb = RingBuffer(4, (1,), torch.int32)
+    ring = RingBuffer(4, (1,), torch.int32)
 
-    def bad_prod():
-        rb.put(torch.tensor([1], dtype=torch.int32))
-        os.kill(os.getpid(), signal.SIGKILL)
-
-    p = mp.Process(target=bad_prod)
+    p = mp.Process(target=_produce_then_die, args=(ring,))
     p.start()
     p.join()
 
     # queue should still work
-    rb.put(torch.tensor([2], dtype=torch.int32))
-    assert rb.get().item() in {1, 2}
+    ring.put(torch.tensor([2], dtype=torch.int32))
+    assert ring.get().item() == 1
+    assert ring.get().item() == 2
 
 
-# ──────────────────────────────────────────────────────────────────────────
 @settings(deadline=None, max_examples=20)
 @given(
     st.lists(
@@ -334,9 +341,11 @@ def test_fuzz_interleaved_ops(seq):
             if outstanding < 4:
                 rb.put(torch.tensor([val], dtype=torch.int32))
                 outstanding += 1
-        else:  # get
+        elif op == "get":
             if outstanding:
                 rb.get()
                 outstanding -= 1
+        else:
+            raise ValueError(op)
         qs = rb.qsize()
         assert qs == outstanding
