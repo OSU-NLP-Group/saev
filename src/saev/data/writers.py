@@ -388,3 +388,123 @@ def worker_fn(cfg: Config):
             i += len(cache)
 
     writer.flush()
+
+
+class IndexLookup:
+    """
+    Index <-> shard helper.
+
+    `map()`      – turn a global dataset index into precise physical offsets.
+    `length()`   – dataset size for a particular (patches, layer) view.
+
+    Parameters
+    ----------
+    metadata : Metadata
+        Pre-computed dataset statistics (images, patches, layers, shard size).
+
+    Methods
+    -------
+    map(i, patches, layer) -> tuple[int, int, int, int]
+        (
+            shard_idx,
+            idx_in_shard,
+            global_img_idx,
+            global_patch_idx,
+        )
+
+    length(patches, layer) -> int
+        Exclusive upper bound of valid `i` for the given view."""
+
+    _NO_PATCH = -1
+
+    def __init__(self, metadata: Metadata):
+        self.metadata = metadata
+
+    def map(
+        self,
+        i: int,
+        patches: typing.Literal["cls", "patches", "all"],
+        layer: int | typing.Literal["all"],
+    ) -> tuple[int, int, int, int]:
+        """
+        Return
+        -------
+        (
+            shard_idx,
+            idx_in_shard,
+            global_img_idx,
+            global_patch_idx,
+        )
+        """
+        n = self.length(patches, layer)
+
+        if i < 0 or i >= n:
+            raise IndexError(f"{i=} out of range [0, {n})")
+
+        match (patches, layer):
+            # --------- #
+            # CLS token #
+            # --------- #
+            case ("cls", int()):
+                return (0, 0, 0, 0)
+
+            case ("cls", "all"):
+                return (0, 0, 0, 0)
+
+            # ---------------- #
+            # Explicit patches #
+            # ---------------- #
+            case ("patches", int()):
+                return (0, 0, 0, 0)
+
+            case ("patches", "all"):
+                return (0, 0, 0, 0)
+
+            # ---------- #
+            # Everything #
+            # ---------- #
+            case ("all", int()):
+                return (0, 0, 0, 0)
+
+            case ("all", "all"):
+                return (0, 0, 0, 0)
+            case _:
+                typing.assert_never((patches, layer))
+
+    def length(
+        self,
+        patches: typing.Literal["cls", "patches", "all"],
+        layer: int | typing.Literal["all"],
+    ) -> int:
+        match (patches, layer):
+            case ("cls", "all"):
+                # Return a CLS token from a random image and random layer.
+                return self.metadata.n_imgs * len(self.metadata.layers)
+            case ("cls", int()):
+                # Return a CLS token from a random image and fixed layer.
+                return self.metadata.n_imgs
+            case ("patches", int()):
+                # Return a patch from a random image, fixed layer, and random patch.
+                return self.metadata.n_imgs * (self.metadata.n_patches_per_img)
+                return self.metadata.n_imgs * (self.metadata.n_patches_per_img)
+            case ("patches", "all"):
+                # Return a patch from a random image, random layer and random patch.
+                return (
+                    self.metadata.n_imgs
+                    * len(self.metadata.layers)
+                    * self.metadata.n_patches_per_img
+                )
+            case ("all", int()):
+                # Return a patch from a random image, specific layer and random patch.
+                return self.metadata.n_imgs * (
+                    self.metadata.n_patches_per_img + int(self.metadata.cls_token)
+                )
+            case ("all", "all"):
+                # Return a patch from a random image, random layer and random patch.
+                return (
+                    self.metadata.n_imgs
+                    * len(self.metadata.layers)
+                    * (self.metadata.n_patches_per_img + int(self.metadata.cls_token))
+                )
+            case _:
+                typing.assert_never((patches, layer))

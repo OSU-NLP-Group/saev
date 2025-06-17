@@ -5,11 +5,14 @@ import time
 import psutil
 import pytest
 import torch
+import torch.multiprocessing as mp
 
 from saev.data.iterable import Config as IterableConfig
 from saev.data.iterable import DataLoader
 from saev.data.torch import Config as TorchConfig
 from saev.data.torch import Dataset
+
+mp.set_start_method("spawn", force=True)
 
 N_SAMPLES = 25_000  # quick but representative
 BATCH_SIZE = 4_096
@@ -31,7 +34,18 @@ def _global_index(img_i: int, patch_i: int, n_patches: int) -> int:
     return img_i * n_patches + patch_i
 
 
-def test_smoke(shard_root):
+def test_init_smoke(shard_root):
+    cfg = IterableConfig(shard_root)
+    DataLoader(cfg)
+
+
+def test_len_smoke(shard_root):
+    cfg = IterableConfig(shard_root)
+    dl = DataLoader(cfg)
+    assert isinstance(len(dl), int)
+
+
+def test_iter_smoke(shard_root):
     cfg = IterableConfig(shard_root)
     dl = DataLoader(cfg)
     # simply iterating one element should succeed
