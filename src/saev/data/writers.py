@@ -295,6 +295,11 @@ class Metadata:
         cfg_str = json.dumps(dataclasses.asdict(self), sort_keys=True)
         return hashlib.sha256(cfg_str.encode("utf-8")).hexdigest()
 
+    @property
+    def n_shards(self) -> int:
+        # Return the number of shards. This should be trivial to calculate from the number of layers, the number of patches per img, the number of images, whether we have a cls_token, and the number of patches per shard. AI!
+        return -1
+
 
 @beartype.beartype
 def get_dataloader(
