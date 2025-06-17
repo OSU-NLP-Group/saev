@@ -277,7 +277,7 @@ def test_many_producers_consumers(backend):
     slots = 8
     ring = RingBuffer(slots, (1,), torch.int32)
     per_proc = 100
-    # Define `expected` to be an integer, given the args to _produce_n. It should be an expression that depends on per_proc and 2 (number of producer workers). AI!
+    expected = per_proc * (0 + 1) + per_proc * (per_proc + 1)  # Sum of arithmetic sequences
 
     q = backend.Queue()
     producers = [
