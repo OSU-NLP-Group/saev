@@ -297,8 +297,8 @@ class Metadata:
 
     @property
     def n_shards(self) -> int:
-        # Return the number of shards. This should be trivial to calculate from the number of layers, the number of patches per img, the number of images, whether we have a cls_token, and the number of patches per shard. AI!
-        return -1
+        total_patches = self.n_imgs * len(self.layers) * (self.n_patches_per_img + (1 if self.cls_token else 0))
+        return (total_patches + self.n_patches_per_shard - 1) // self.n_patches_per_shard
 
 
 @beartype.beartype
