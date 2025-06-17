@@ -1,19 +1,60 @@
 import threading
 
+import beartype
+import pytest
 import torch
+import torch.multiprocessing as mp
 from hypothesis import given
 from hypothesis import strategies as st
+
+mp.set_start_method("spawn", force=True)
+
+INT32_MIN = -(2**31)
+INT32_MAX = 2**31 - 1
 
 from saev.data.utils import RingBuffer
 
 
-@given(st.lists(st.integers(), min_size=1, max_size=100))
+@pytest.fixture(params=["thread", "proc"])
+def backend(request):
+    """
+    Returns a namespace with .Event .Worker and .kwargs so the main test is agnostic to threading vs multiprocessing.
+    """
+    if request.param == "thread":
+
+        @beartype.beartype
+        class Namespace:  # lightweight namespace
+            Event = threading.Event
+            Worker = threading.Thread
+            kwargs: dict = dict(daemon=True)
+
+        return Namespace
+
+    elif request.param == "proc":
+        mp.set_start_method("spawn", force=True)  # safe to call repeatedly
+
+        @beartype.beartype
+        class Namespace:
+            Event = mp.Event
+            Worker = mp.Process
+            kwargs: dict = dict(daemon=True)
+
+        return Namespace
+    else:
+        raise ValueError(request.param)
+
+
+@given(
+    st.lists(
+        st.integers(min_value=INT32_MIN, max_value=INT32_MAX), min_size=1, max_size=100
+    )
+)
 def test_fifo(xs):
-    r = RingBuffer(8, (1,), dtype=torch.int32)
+    r = RingBuffer(len(xs), (1,), dtype=torch.int32)
     for x in xs:
         r.put(torch.tensor([x], dtype=torch.int32))
     for x in xs:
-        assert r.get()[0] == x
+        assert r.get().item() == x
 
 
 def test_init_and_close():
@@ -32,11 +73,15 @@ def test_basic_put_get_order():
     for x in seq:
         r.put(torch.tensor([x], dtype=torch.int32))
 
-    out = [r.get()[0] for _ in seq]
+    out = [r.get().item() for _ in seq]
     assert out == seq
 
 
-@given(st.lists(st.integers(), min_size=1, max_size=32))
+@given(
+    st.lists(
+        st.integers(min_value=INT32_MIN, max_value=INT32_MAX), min_size=1, max_size=32
+    )
+)
 def test_capacity_never_exceeded(xs):
     """
     Random round-trip: after each put+get the queue size
@@ -74,34 +119,121 @@ def test_exact_capacity_cycle():
         assert r.get()[0] == i + 100
 
 
-def test_blocking_put_when_full():
+@beartype.beartype
+def _consumer_block(ring: RingBuffer, started, finished):
+    # blocks until producer frees slot
+    started.set()
+    _ = ring.get()
+    finished.set()
+
+
+@beartype.beartype
+def _producer_block(ring: RingBuffer, started, finished, tensor):
+    started.set()
+    ring.put(tensor)
+    finished.set()
+
+
+@beartype.beartype
+def _producer_fill(ring: RingBuffer, n: int):
+    for i in range(n):
+        ring.put(torch.tensor([i], dtype=torch.int32))
+
+
+@beartype.beartype
+def _consume_all(ring: RingBuffer, q, n: int):
+    vals = []
+    for _ in range(n):
+        vals.append(ring.get().item())
+    q.put(vals)
+
+
+def test_blocking_put_when_full(backend):
     """
-    put() must block when the buffer is full.
-    We fill the ring, start a put in another thread, ensure
-    it waits, then free a slot and verify the thread finishes.
+    put() must block when the buffer is full. We fill the ring, start a put in another process/thread, ensure it waits, then free a slot and verify the process/thread finishes.
     """
-    cap = 2
-    r = RingBuffer(slots=cap, shape=(1,), dtype=torch.int32)
+    cap = 16
+    ring = RingBuffer(slots=cap, shape=(1,), dtype=torch.int32)
 
     for i in range(cap):
-        r.put(torch.tensor([i], dtype=torch.int32))  # buffer now full
+        ring.put(torch.tensor([i], dtype=torch.int32))  # buffer now full
 
-    started = threading.Event()
-    finished = threading.Event()
+    started = backend.Event()
+    finished = backend.Event()
 
-    def producer():
-        started.set()
-        r.put(torch.tensor([99], dtype=torch.int32))
-        finished.set()
-
-    t = threading.Thread(target=producer, daemon=True)
-    t.start()
+    w = backend.Worker(
+        target=_producer_block,
+        args=(ring, started, finished, torch.tensor([99], dtype=torch.int32)),
+        **backend.kwargs,
+    )
+    w.start()
 
     started.wait(timeout=1)
     # producer should be blocked because buffer is full
     assert not finished.is_set()
 
     # free one slot -> producer should complete
-    _ = r.get()
+    _ = ring.get()
     finished.wait(timeout=1)
     assert finished.is_set(), "put() did not unblock after space freed"
+
+
+def test_blocking_get_when_empty(backend):
+    """get() must block until an item is produced."""
+    ring = RingBuffer(2, (1,), dtype=torch.int32)
+
+    started = backend.Event()
+    finished = backend.Event()
+
+    w = backend.Worker(
+        target=_consumer_block, args=(ring, started, finished), **backend.kwargs
+    )
+    w.start()
+
+    started.wait(1)
+    assert not finished.is_set()
+
+    ring.put(torch.tensor([42], dtype=torch.int32))
+    finished.wait(1)
+    assert finished.is_set()
+
+
+def test_wraparound_large_volume():
+    """Push >> slots elements; order must still hold."""
+    slots = 8
+    total = 1_000
+    ring = RingBuffer(slots, (1,), dtype=torch.int32)
+    for i in range(total):
+        ring.put(torch.tensor([i], dtype=torch.int32))
+        out = ring.get()
+        assert out.item() == i
+    assert ring.qsize() == 0
+
+
+def test_tensor_view_shares_memory():
+    """Returned tensor should share storage with the backing buffer."""
+    ring = RingBuffer(2, (2,), dtype=torch.float32)
+    src = torch.tensor([1.0, 2.0])
+    ring.put(src)
+    view = ring.get()
+
+    view[:] = torch.tensor([-1.0, -2.0])  # in-place mutate view
+    ring.put(torch.zeros(2))  # push another to reuse slot
+    same_slot = ring.get()
+    assert torch.allclose(same_slot, view)  # mutation visible
+
+
+def test_across_process_visibility():
+    """Producer in one process, consumer in another share the same data."""
+    slots, total = 4, 10
+    ring = RingBuffer(slots, (1,), dtype=torch.int32)
+
+    q = mp.Queue()
+    p1 = mp.Process(target=_producer_fill, args=(ring, total))
+    p2 = mp.Process(target=_consume_all, args=(ring, q, total))
+    p1.start()
+    p2.start()
+    p1.join()
+    p2.join()
+
+    assert q.get() == list(range(10))

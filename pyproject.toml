@@ -56,10 +56,9 @@ dev = [
     "pytest-json-report>=1.5.0",
     "coverage-badge>=1.1.2",
     "vl-convert-python>=1.8.0",
+    "pytest-timeout>=2.2.0",
 ]
 
 [tool.pytest.ini_options]
-markers = [
-    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
-    "serial",
-]
+timeout = 30
+timeout_method = "thread"
