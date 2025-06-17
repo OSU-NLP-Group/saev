@@ -62,3 +62,7 @@ dev = [
 [tool.pytest.ini_options]
 timeout = 30
 timeout_method = "thread"
+filterwarnings = [
+    "error",
+    "ignore:Can't initialize NVML:UserWarning"
+]
