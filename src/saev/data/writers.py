@@ -297,8 +297,14 @@ class Metadata:
 
     @property
     def n_shards(self) -> int:
-        total_patches = self.n_imgs * len(self.layers) * (self.n_patches_per_img + (1 if self.cls_token else 0))
-        return (total_patches + self.n_patches_per_shard - 1) // self.n_patches_per_shard
+        total_patches = (
+            self.n_imgs
+            * len(self.layers)
+            * (self.n_patches_per_img + (1 if self.cls_token else 0))
+        )
+        return (
+            total_patches + self.n_patches_per_shard - 1
+        ) // self.n_patches_per_shard
 
 
 @beartype.beartype
