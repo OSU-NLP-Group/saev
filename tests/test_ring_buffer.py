@@ -128,20 +128,20 @@ def _consume_blocking(ring: RingBuffer, started, finished):
 
 
 @beartype.beartype
-def _producer_block(ring: RingBuffer, started, finished, tensor):
+def _produce_blocking(ring: RingBuffer, started, finished, tensor):
     started.set()
     ring.put(tensor)
     finished.set()
 
 
 @beartype.beartype
-def _producer_fill(ring: RingBuffer, n: int):
+def _produce_n(ring: RingBuffer, n: int):
     for i in range(n):
         ring.put(torch.tensor([i], dtype=torch.int32))
 
 
 @beartype.beartype
-def _consume_all(ring: RingBuffer, q, n: int):
+def _consume_n(ring: RingBuffer, n: int, q):
     vals = []
     for _ in range(n):
         vals.append(ring.get().item())
@@ -162,7 +162,7 @@ def test_blocking_put_when_full(backend):
     finished = backend.Event()
 
     w = backend.Worker(
-        target=_producer_block,
+        target=_produce_blocking,
         args=(ring, started, finished, torch.tensor([99], dtype=torch.int32)),
         **backend.kwargs,
     )
@@ -211,30 +211,17 @@ def test_wraparound_large_volume():
     assert ring.qsize() == 0
 
 
-def test_tensor_view_shares_memory():
-    """Returned tensor should share storage with the backing buffer."""
-    ring = RingBuffer(2, (2,), dtype=torch.float32)
-    src = torch.tensor([1.0, 2.0])
-    ring.put(src)
-    view = ring.get()
-
-    view[:] = torch.tensor([-1.0, -2.0])  # in-place mutate view
-    ring.put(torch.zeros(2))  # push another to reuse slot
-    same_slot = ring.get()
-    assert torch.allclose(same_slot, view)  # mutation visible
-
-
 def test_across_process_visibility():
     """Producer in one process, consumer in another share the same data."""
     slots, total = 4, 10
     ring = RingBuffer(slots, (1,), dtype=torch.int32)
 
     q = mp.Queue()
-    p1 = mp.Process(target=_producer_fill, args=(ring, total))
-    p2 = mp.Process(target=_consume_all, args=(ring, q, total))
-    p1.start()
-    p2.start()
-    p1.join()
-    p2.join()
+    w1 = mp.Process(target=_produce_n, args=(ring, total))
+    w2 = mp.Process(target=_consume_n, args=(ring, total, q))
+    w1.start()
+    w2.start()
+    w1.join()
+    w2.join()
 
     assert q.get() == list(range(10))

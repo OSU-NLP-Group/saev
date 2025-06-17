@@ -6,8 +6,7 @@ import torch.multiprocessing as mp
 @beartype.beartype
 class RingBuffer:
     """
-    Fixed-capacity, multiple-producer / multiple-consumer queue
-    backed by a shared-memory tensor.
+    Fixed-capacity, multiple-producer / multiple-consumer queue backed by a shared-memory tensor.
 
     Parameters
     ----------
@@ -16,7 +15,7 @@ class RingBuffer:
     dtype  : torch.dtype   tensor dtype
 
     put(tensor)  : blocks if full
-    get() -> tensor view : blocks if empty
+    get() -> tensor  : blocks if empty
     qsize() -> int        advisory size (approximate)
     close()               frees shared storage (call in the main process)
     """
@@ -24,7 +23,8 @@ class RingBuffer:
     def __init__(self, slots: int, shape: tuple[int, ...], dtype: torch.dtype):
         assert slots > 0, "slots must be positive"
         self.slots = slots
-        self.buf = torch.empty((slots, *shape), dtype=dtype)
+        # 123456789 -> Should make you very worried.
+        self.buf = torch.full((slots, *shape), 123456789, dtype=dtype)
         self.buf.share_memory_()
 
         ctx = mp.get_context()  # obeys the global start method ("spawn")
@@ -52,18 +52,16 @@ class RingBuffer:
             self.head.value += 1
         self.fill.release()  # signal there is data
 
-    # --------------------------------------------------------------------- #
     def get(self) -> torch.Tensor:
         """Return a view of the next item; blocks if the queue is empty."""
         self.fill.acquire()  # wait for data
         with self.mutex:  # exclusive update of tail
             idx = self.tail.value % self.slots
-            out = self.buf[idx]
+            out = self.buf[idx].clone()
             self.tail.value += 1
         self.free.release()  # signal one more free slot
         return out
 
-    # --------------------------------------------------------------------- #
     def qsize(self) -> int:
         """Approximate number of filled slots (race-safe enough for tests)."""
         return (self.head.value - self.tail.value) % (1 << 64)
