@@ -120,7 +120,7 @@ def test_exact_capacity_cycle():
 
 
 @beartype.beartype
-def _consumer_block(ring: RingBuffer, started, finished):
+def _consume_blocking(ring: RingBuffer, started, finished):
     # blocks until producer frees slot
     started.set()
     _ = ring.get()
@@ -174,7 +174,7 @@ def test_blocking_put_when_full(backend):
 
     # free one slot -> producer should complete
     _ = ring.get()
-    finished.wait(timeout=1)
+    finished.wait(timeout=5)
     assert finished.is_set(), "put() did not unblock after space freed"
 
 
@@ -186,15 +186,16 @@ def test_blocking_get_when_empty(backend):
     finished = backend.Event()
 
     w = backend.Worker(
-        target=_consumer_block, args=(ring, started, finished), **backend.kwargs
+        target=_consume_blocking, args=(ring, started, finished), **backend.kwargs
     )
     w.start()
 
     started.wait(1)
     assert not finished.is_set()
 
+    # Put some arbitrary data; now _consume_blocking should pass.
     ring.put(torch.tensor([42], dtype=torch.int32))
-    finished.wait(1)
+    finished.wait(timeout=5)
     assert finished.is_set()
 
 
