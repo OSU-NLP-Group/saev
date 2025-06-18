@@ -261,6 +261,12 @@ class Metadata:
     max_patches_per_shard: int
     data: str
 
+    def __post_init__(self):
+        # Check that at least one image per shard can fit.
+        assert self.n_imgs_per_shard >= 1, (
+            "At least one image per shard must fit; increase max_patches_per_shard."
+        )
+
     @classmethod
     def from_cfg(cls, cfg: Config) -> "Metadata":
         return cls(
@@ -275,6 +281,7 @@ class Metadata:
             str(cfg.data),
         )
 
+    @property
     def n_imgs_per_shard(self) -> int:
         """
         Calculate the number of images per shard based on the protocol.
@@ -426,7 +433,7 @@ class IndexLookup:
         self.metadata = metadata
         self.patches = patches
 
-        if layer not in metadata.layers:
+        if isinstance(layer, int) and layer not in metadata.layers:
             raise ValueError(f"Layer {layer} not in {metadata.layers}.")
         self.layer = layer
         self.layer_to_idx = {layer: i for i, layer in enumerate(metadata.layers)}
@@ -455,10 +462,19 @@ class IndexLookup:
             case ("image", int()):
                 # For image patches with specific layer, i is (img_idx * n_patches_per_img + patch_idx)
                 img_i = i // self.metadata.n_patches_per_img
-                patch_i = i % self.metadata.n_patches_per_img
+                token_i = i % self.metadata.n_patches_per_img
 
                 shard_i, img_i_in_shard = self.map_img(img_i)
-                return shard_i, (img_i_in_shard, self.layer_to_idx[self.layer], patch_i)
+                return shard_i, (img_i_in_shard, self.layer_to_idx[self.layer], token_i)
+            case ("all", int()):
+                n_tokens_per_img = self.n_patches_per_img + (1 if self.cls_token else 0)
+                img_i = i // n_tokens_per_img
+                token_i = i % n_tokens_per_img
+                shard_i, img_i_in_shard = self.map_img(img_i)
+                return shard_i, (img_i_in_shard, self.layer_to_idx[self.layer], token_i)
+            case ("all", "all"):
+                # Fill this out based on the protocol.md document. AI!
+
             case _:
                 typing.assert_never((self.patches, self.layer))
 
@@ -472,13 +488,8 @@ class IndexLookup:
             raise IndexError(f"{img_i=} out of range [0, {self.metadata.n_imgs})")
 
         # Calculate which shard contains this image
-        imgs_per_shard = self.metadata.max_patches_per_shard // (
-            len(self.metadata.layers) * self.metadata.n_patches_per_img
-            + int(self.metadata.cls_token)
-        )
-
-        shard_i = img_i // imgs_per_shard
-        img_i_in_shard = img_i % imgs_per_shard
+        shard_i = img_i // self.metadata.n_imgs_per_shard
+        img_i_in_shard = img_i % self.metadata.n_imgs_per_shard
 
         return shard_i, img_i_in_shard
 
