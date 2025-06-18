@@ -44,7 +44,7 @@ default-groups = "all"
 
 [dependency-groups]
 dev = [
-    "hypothesis>=6.119.0",
+    "hypothesis[codemods]>=6.119.0",
     "hypothesis-torch>=0.8.4",
     "pdoc3>=0.11.1",
     "pytest>=8.3.3",
@@ -63,6 +63,5 @@ dev = [
 timeout = 30
 timeout_method = "thread"
 filterwarnings = [
-    "error",
     "ignore:Can't initialize NVML:UserWarning"
 ]

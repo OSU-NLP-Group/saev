@@ -7,7 +7,6 @@ for shards in /fs/scratch/PAS2136/samuelstevens/cache/saev/*; uv run pytest test
 import glob
 import os
 
-import beartype
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st
@@ -141,7 +140,7 @@ def test_singleton_dataset():
     assert out[1] == 0  # img in shard
 
 
-def test_img_n2():
+def test_second_img():
     meta = Metadata(
         n_imgs=10_000,
         n_patches_per_img=196,
