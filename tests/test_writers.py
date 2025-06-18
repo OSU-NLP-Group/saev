@@ -163,27 +163,6 @@ def test_shard_writer_and_dataset_e2e():
             print(f"Batch {b} matched.")
 
 
-#######
-# API #
-#######
-
-
-def test_first_patch():
-    md = Metadata(
-        n_imgs=10_000,
-        n_patches_per_img=196,
-        layers=(11,),
-        max_patches_per_shard=200_000_000,
-        vit_family="clip",
-        vit_ckpt="ckpt",
-        cls_token=False,
-        d_vit=512,
-        data="test",
-    )
-    il = IndexLookup(md, "cls", 11)
-    assert il.map_global(0) == (0, (0, 0, 0))
-
-
 ##################
 # Property Tests #
 ##################
@@ -281,6 +260,15 @@ def test_missing_layer(layers, n_patches_per_img, data):
         IndexLookup(md, "cls", missing_layer)
 
 
+@given(md=metadatas(), patches=patches())
+def test_missing_cls_token(md, patches):
+    if not md.cls_token and patches == "cls":
+        with pytest.raises(Exception):
+            IndexLookup(md, patches, md.layers[0])
+    else:
+        IndexLookup(md, patches, md.layers[0])
+
+
 ##############
 # Edge Cases #
 ##############
@@ -303,24 +291,3 @@ def test_singleton_dataset():
     out = il.map(0, "cls", 0)
     assert out[0] == 0  # shard
     assert out[1] == 0  # img in shard
-
-
-def test_second_img():
-    meta = Metadata(
-        n_imgs=10_000,
-        n_patches_per_img=196,
-        layers=(-1,),
-        max_patches_per_shard=200_000_000,
-        vit_family="clip",
-        vit_ckpt="ckpt",
-        cls_token=False,
-        d_vit=512,
-        data="test",
-    )
-    il = IndexLookup(meta)
-    assert il.length("patches", 0) == 1_960_000
-    sh, i_in_sh, g_img, g_patch = il.map(196, "patches", 0)
-    assert sh == 0
-    assert i_in_sh == 1
-    assert g_img == 1
-    assert g_patch == 196

@@ -410,11 +410,16 @@ class IndexLookup:
         patches: typing.Literal["cls", "image", "all"],
         layer: int | typing.Literal["all"],
     ):
+        if not metadata.cls_token and patches == "cls":
+            raise ValueError("Cannot return [CLS] token if one isn't present.")
+
         self.metadata = metadata
         self.patches = patches
-        if layer not in self.metadata.layers:
-            raise ValueError(f"Layer {layer} not in {self.metadata.layers}.")
+
+        if layer not in metadata.layers:
+            raise ValueError(f"Layer {layer} not in {metadata.layers}.")
         self.layer = layer
+        self.layer_to_idx = {layer: i for i, layer in enumerate(metadata.layers)}
 
     def map_global(self, i: int) -> tuple[int, tuple[int, int, int]]:
         """
@@ -436,7 +441,7 @@ class IndexLookup:
                 img_i = i
                 shard_i, img_i_in_shard = self.map_img(img_i)
                 # CLS token is at position 0
-                return shard_i, (img_i_in_shard, self.layer, 0)
+                return shard_i, (img_i_in_shard, self.layer_to_idx[self.layer], 0)
             case _:
                 typing.assert_never((self.patches, self.layer))
 
