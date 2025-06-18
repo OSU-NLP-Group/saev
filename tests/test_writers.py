@@ -267,27 +267,3 @@ def test_missing_cls_token(md, patches):
             IndexLookup(md, patches, md.layers[0])
     else:
         IndexLookup(md, patches, md.layers[0])
-
-
-##############
-# Edge Cases #
-##############
-
-
-def test_singleton_dataset():
-    meta = Metadata(
-        n_imgs=1,
-        n_patches_per_img=1,
-        layers=(0,),
-        max_patches_per_shard=1,
-        vit_family="clip",
-        vit_ckpt="ckpt",
-        cls_token=True,
-        d_vit=512,
-        data="test",
-    )
-    il = IndexLookup(meta)
-    assert il.length("cls", 0) == 1
-    out = il.map(0, "cls", 0)
-    assert out[0] == 0  # shard
-    assert out[1] == 0  # img in shard

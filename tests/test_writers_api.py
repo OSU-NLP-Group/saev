@@ -9,7 +9,7 @@ def test_first_patch():
         max_patches_per_shard=200_000_000,
         vit_family="clip",
         vit_ckpt="ckpt",
-        cls_token=False,
+        cls_token=True,
         d_vit=512,
         data="test",
     )

@@ -278,7 +278,7 @@ class Metadata:
     def n_imgs_per_shard(self) -> int:
         """
         Calculate the number of images per shard based on the protocol.
-        
+
         Returns:
             Number of images that fit in a shard.
         """
@@ -437,7 +437,7 @@ class IndexLookup:
         -------
         (
             shard_i,
-            index in shard (img_i, layer_i, token_i)
+            index in shard (img_i_in_shard, layer_i, token_i)
         )
         """
         n = self.length()
@@ -456,12 +456,9 @@ class IndexLookup:
                 # For image patches with specific layer, i is (img_idx * n_patches_per_img + patch_idx)
                 img_i = i // self.metadata.n_patches_per_img
                 patch_i = i % self.metadata.n_patches_per_img
-                
-                # Account for CLS token if present
-                token_i = patch_i + (1 if self.metadata.cls_token else 0)
-                
+
                 shard_i, img_i_in_shard = self.map_img(img_i)
-                return shard_i, (img_i_in_shard, self.layer_to_idx[self.layer], token_i)
+                return shard_i, (img_i_in_shard, self.layer_to_idx[self.layer], patch_i)
             case _:
                 typing.assert_never((self.patches, self.layer))
 
