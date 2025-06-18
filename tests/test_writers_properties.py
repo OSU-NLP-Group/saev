@@ -5,8 +5,8 @@ for shards in /fs/scratch/PAS2136/samuelstevens/cache/saev/*; uv run pytest test
 """
 
 import glob
+import json
 import os
-import tempfile
 
 import pytest
 import torch
@@ -24,6 +24,7 @@ from saev.data.writers import (
     ShardWriter,
     get_acts_dir,
     get_dataloader,
+    worker_fn,
 )
 
 
@@ -120,52 +121,51 @@ def test_dataloader_batches():
 
 
 @pytest.mark.slow
-def test_shard_writer_and_dataset_e2e():
-    with tempfile.TemporaryDirectory() as tmpdir:
-        cfg = Config(
-            data=images.Imagenet(split="validation"),
-            vit_family="clip",
-            vit_ckpt="hf-hub:UCSC-VLAA/openvision-vit-tiny-patch16-224",
-            d_vit=192,
-            n_patches_per_img=196,
-            vit_layers=[-2, -1],
-            vit_batch_size=8,
-            n_workers=8,
-            dump_to=tmpdir,
+def test_shard_writer_and_dataset_e2e(tmp_path):
+    cfg = Config(
+        data=images.Imagenet(split="validation"),
+        vit_family="clip",
+        vit_ckpt="hf-hub:UCSC-VLAA/openvision-vit-tiny-patch16-224",
+        d_vit=192,
+        n_patches_per_img=196,
+        vit_layers=[-2, -1],
+        vit_batch_size=8,
+        n_workers=8,
+        dump_to=tmp_path,
+    )
+    vit = models.make_vit(cfg.vit_family, cfg.vit_ckpt)
+    vit = RecordedVisionTransformer(
+        vit, cfg.n_patches_per_img, cfg.cls_token, cfg.vit_layers
+    )
+    dataloader = get_dataloader(
+        cfg,
+        img_transform=models.make_img_transform(cfg.vit_family, cfg.vit_ckpt),
+    )
+    writer = ShardWriter(cfg)
+    dataset = TorchDataset(
+        TorchConfig(
+            shard_root=get_acts_dir(cfg),
+            patches="cls",
+            layer=-1,
+            scale_mean=False,
+            scale_norm=False,
         )
-        vit = models.make_vit(cfg.vit_family, cfg.vit_ckpt)
-        vit = RecordedVisionTransformer(
-            vit, cfg.n_patches_per_img, cfg.cls_token, cfg.vit_layers
-        )
-        dataloader = get_dataloader(
-            cfg,
-            img_transform=models.make_img_transform(cfg.vit_family, cfg.vit_ckpt),
-        )
-        writer = ShardWriter(cfg)
-        dataset = TorchDataset(
-            TorchConfig(
-                shard_root=get_acts_dir(cfg),
-                patches="cls",
-                layer=-1,
-                scale_mean=False,
-                scale_norm=False,
-            )
-        )
+    )
 
-        i = 0
-        for b, batch in zip(range(4), dataloader):
-            # Don't care about the forward pass.
-            out, cache = vit(batch["image"])
-            del out
+    i = 0
+    for b, batch in zip(range(4), dataloader):
+        # Don't care about the forward pass.
+        out, cache = vit(batch["image"])
+        del out
 
-            writer[i : i + len(cache)] = cache
-            i += len(cache)
-            assert cache.shape == (cfg.vit_batch_size, len(cfg.vit_layers), 197, 192)
+        writer[i : i + len(cache)] = cache
+        i += len(cache)
+        assert cache.shape == (cfg.vit_batch_size, len(cfg.vit_layers), 197, 192)
 
-            acts = [dataset[i.item()]["act"] for i in batch["index"]]
-            from_dataset = torch.stack(acts)
-            torch.testing.assert_close(cache[:, -1, 0], from_dataset)
-            print(f"Batch {b} matched.")
+        acts = [dataset[i.item()]["act"] for i in batch["index"]]
+        from_dataset = torch.stack(acts)
+        torch.testing.assert_close(cache[:, -1, 0], from_dataset)
+        print(f"Batch {b} matched.")
 
 
 @given(metadatas(), st.data())
@@ -288,3 +288,37 @@ def test_missing_cls_token(md, patches):
             IndexLookup(md, patches, md.layers[0])
     else:
         IndexLookup(md, patches, md.layers[0])
+
+
+def test_shards_json_is_emitted(tmp_path):
+    cfg = Config(
+        data=images.Fake(n_imgs=10),
+        dump_to=str(tmp_path),
+        vit_layers=[0],
+        n_patches_per_img=16,
+        cls_token=True,
+        max_patches_per_shard=256,
+        vit_family="clip",
+        vit_ckpt="hf-hub:hf-internal-testing/tiny-open-clip-model",
+        d_vit=128,
+        vit_batch_size=12,
+    )
+    # Act: run the writer
+    worker_fn(cfg)
+
+    outdir = tmp_path / Metadata.from_cfg(cfg).hash
+    shards_json = outdir / "shards.json"
+
+    # Assert: file exists and has correct contents
+    assert shards_json.exists(), "spec requires shards.json in the output dir"
+
+    arr = json.loads(shards_json.read_text())
+    # Should be a list of one entry per bin file
+    expected_n_shards = Metadata.from_cfg(cfg).n_shards
+    assert isinstance(arr, list) and len(arr) == expected_n_shards
+
+    # And each entry has name & n_imgs
+    for idx, entry in enumerate(arr):
+        assert entry["name"] == f"acts{idx:06d}.bin"
+        # last shard may be smaller
+        assert entry["n_imgs"] > 0 and isinstance(entry["n_imgs"], int)

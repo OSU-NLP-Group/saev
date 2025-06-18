@@ -356,6 +356,7 @@ def worker_fn(cfg: Config):
     Args:
         cfg: Config for activations.
     """
+    from . import models
 
     if torch.cuda.is_available():
         # This enables tf32 on Ampere GPUs which is only 8% slower than
@@ -369,7 +370,9 @@ def worker_fn(cfg: Config):
     logging.basicConfig(level=logging.INFO, format=log_format)
     logger = logging.getLogger("worker_fn")
 
-    from . import models
+    if cfg.device == "cuda" and not torch.cuda.is_available():
+        logger.warning("No CUDA device available, using CPU.")
+        cfg = dataclasses.replace(cfg, device="cpu")
 
     vit = models.make_vit(cfg.vit_family, cfg.vit_ckpt).to(cfg.device)
     vit = RecordedVisionTransformer(
@@ -382,10 +385,6 @@ def worker_fn(cfg: Config):
 
     n_batches = cfg.data.n_imgs // cfg.vit_batch_size + 1
     logger.info("Dumping %d batches of %d examples.", n_batches, cfg.vit_batch_size)
-
-    if cfg.device == "cuda" and not torch.cuda.is_available():
-        logger.warning("No CUDA device available, using CPU.")
-        cfg = dataclasses.replace(cfg, device="cpu")
 
     vit = vit.to(cfg.device)
     # vit = torch.compile(vit)
