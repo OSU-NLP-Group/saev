@@ -125,7 +125,7 @@ def test_shard_writer_and_dataset_e2e(tmp_path):
     cfg = Config(
         data=images.Imagenet(split="validation"),
         vit_family="clip",
-        vit_ckpt="hf-hub:UCSC-VLAA/openvision-vit-tiny-patch16-224",
+        vit_ckpt="hf-hub:hf-internal-testing/tiny-open-clip-model",
         d_vit=192,
         n_patches_per_img=196,
         vit_layers=[-2, -1],
@@ -317,7 +317,7 @@ def test_shards_json_is_emitted(tmp_path):
     expected_n_shards = Metadata.from_cfg(cfg).n_shards
     assert isinstance(arr, list) and len(arr) == expected_n_shards
 
-    # And each entry has name & n_imgs
+    # Each entry has `name` and `n_imgs`
     for idx, entry in enumerate(arr):
         assert entry["name"] == f"acts{idx:06d}.bin"
         # last shard may be smaller

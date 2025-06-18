@@ -174,6 +174,9 @@ class ShardWriter:
             cfg.d_vit,
         )
 
+        self.shard_info_path = os.path.join(self.root, "shards.json")
+        self.shard_info = []
+
         self.shard = -1
         self.acts = None
         self.next_shard()
@@ -209,6 +212,14 @@ class ShardWriter:
     def flush(self) -> None:
         if self.acts is not None:
             self.acts.flush()
+
+            # Flush shard info.
+            self.shard_info.append({
+                "name": os.path.basename(self.acts_path),
+                "n_imgs": self.filled,
+            })
+            with open(self.shard_info_path, "w") as fd:
+                json.dump(self.shard_info, fd, indent=2)
 
         self.acts = None
 
