@@ -6,12 +6,49 @@ for shards in /fs/scratch/PAS2136/samuelstevens/cache/saev/*; uv run pytest test
 
 import glob
 import os
+import tempfile
 
 import pytest
+import torch
 from hypothesis import given
 from hypothesis import strategies as st
 
-from saev.data.writers import IndexLookup, Metadata
+from saev.data import images, models
+from saev.data.torch import Config as TorchConfig
+from saev.data.torch import Dataset as TorchDataset
+from saev.data.writers import (
+    Config,
+    IndexLookup,
+    Metadata,
+    RecordedVisionTransformer,
+    ShardWriter,
+    get_acts_dir,
+    get_dataloader,
+)
+
+
+@st.composite
+def metadatas(draw) -> Metadata:
+    return Metadata(
+        vit_family="clip",
+        vit_ckpt="ckpt",
+        layers=tuple(
+            sorted(
+                draw(
+                    st.sets(
+                        st.integers(min_value=0, max_value=24), min_size=1, max_size=24
+                    )
+                )
+            )
+        ),
+        n_patches_per_img=draw(st.integers(min_value=1, max_value=512)),
+        cls_token=draw(st.booleans()),
+        d_vit=512,
+        seed=0,
+        n_imgs=draw(st.integers(min_value=1, max_value=10_000_000)),
+        max_patches_per_shard=draw(st.integers(min_value=1, max_value=200_000_000)),
+        data="test",
+    )
 
 
 @pytest.fixture(scope="session")
@@ -47,28 +84,76 @@ def test_metadata_n_shards_matches_disk(shard_root):
     assert metadata.n_shards == actual_shards
 
 
-@st.composite
-def metadatas(draw) -> Metadata:
-    return Metadata(
-        vit_family="family",
-        vit_ckpt="ckpt",
-        layers=tuple(
-            sorted(
-                draw(
-                    st.sets(
-                        st.integers(min_value=0, max_value=24), min_size=1, max_size=24
-                    )
-                )
-            )
-        ),
-        n_patches_per_img=draw(st.integers(min_value=1, max_value=512)),
-        cls_token=draw(st.booleans()),
-        d_vit=512,
-        seed=0,
-        n_imgs=draw(st.integers(min_value=1, max_value=10_000_000)),
-        n_patches_per_shard=draw(st.integers(min_value=1, max_value=200_000_000)),
-        data="test",
+@pytest.mark.slow
+def test_dataloader_batches():
+    cfg = Config(
+        data=images.Imagenet(split="validation"),
+        vit_ckpt="ViT-B-32/openai",
+        d_vit=768,
+        vit_layers=[-2, -1],
+        n_patches_per_img=49,
+        vit_batch_size=8,
     )
+    dataloader = get_dataloader(
+        cfg, img_transform=models.make_img_transform(cfg.vit_family, cfg.vit_ckpt)
+    )
+    batch = next(iter(dataloader))
+
+    assert isinstance(batch, dict)
+    assert "image" in batch
+    assert "index" in batch
+
+    torch.testing.assert_close(batch["index"], torch.arange(8))
+    assert batch["image"].shape == (8, 3, 224, 224)
+
+
+@pytest.mark.slow
+def test_shard_writer_and_dataset_e2e():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cfg = Config(
+            data=images.Imagenet(split="validation"),
+            vit_family="clip",
+            vit_ckpt="hf-hub:UCSC-VLAA/openvision-vit-tiny-patch16-224",
+            d_vit=192,
+            n_patches_per_img=196,
+            vit_layers=[-2, -1],
+            vit_batch_size=8,
+            n_workers=8,
+            dump_to=tmpdir,
+        )
+        vit = models.make_vit(cfg.vit_family, cfg.vit_ckpt)
+        vit = RecordedVisionTransformer(
+            vit, cfg.n_patches_per_img, cfg.cls_token, cfg.vit_layers
+        )
+        dataloader = get_dataloader(
+            cfg,
+            img_transform=models.make_img_transform(cfg.vit_family, cfg.vit_ckpt),
+        )
+        writer = ShardWriter(cfg)
+        dataset = TorchDataset(
+            TorchConfig(
+                shard_root=get_acts_dir(cfg),
+                patches="cls",
+                layer=-1,
+                scale_mean=False,
+                scale_norm=False,
+            )
+        )
+
+        i = 0
+        for b, batch in zip(range(4), dataloader):
+            # Don't care about the forward pass.
+            out, cache = vit(batch["image"])
+            del out
+
+            writer[i : i + len(cache)] = cache
+            i += len(cache)
+            assert cache.shape == (cfg.vit_batch_size, len(cfg.vit_layers), 197, 192)
+
+            acts = [dataset[i.item()]["act"] for i in batch["index"]]
+            from_dataset = torch.stack(acts)
+            torch.testing.assert_close(cache[:, -1, 0], from_dataset)
+            print(f"Batch {b} matched.")
 
 
 @given(metadatas())
@@ -92,7 +177,7 @@ def test_roundtrip(data):
 
     # Basic invariants
     assert 0 <= sh < metadata.n_shards
-    assert 0 <= i_in_sh < metadata.n_patches_per_shard
+    assert 0 <= i_in_sh < metadata.max_patches_per_shard
     assert 0 <= g_img < metadata.n_imgs
 
 
@@ -125,8 +210,8 @@ def test_singleton_dataset():
         n_imgs=1,
         n_patches_per_img=1,
         layers=(0,),
-        n_patches_per_shard=1,
-        vit_family="family",
+        max_patches_per_shard=1,
+        vit_family="clip",
         vit_ckpt="ckpt",
         cls_token=True,
         d_vit=512,
@@ -145,8 +230,8 @@ def test_second_img():
         n_imgs=10_000,
         n_patches_per_img=196,
         layers=(-1,),
-        n_patches_per_shard=200_000_000,
-        vit_family="family",
+        max_patches_per_shard=200_000_000,
+        vit_family="clip",
         vit_ckpt="ckpt",
         cls_token=False,
         d_vit=512,

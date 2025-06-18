@@ -46,8 +46,8 @@ class Config:
     """Number of ViT patches per image (depends on model)."""
     cls_token: bool = True
     """Whether the model has a [CLS] token."""
-    n_patches_per_shard: int = 2_400_000
-    """Number of activations per shard; 2.4M is approximately 10GB for 1024-dimensional 4-byte activations."""
+    max_patches_per_shard: int = 2_400_000
+    """Maximum number of activations per shard; 2.4M is approximately 10GB for 1024-dimensional 4-byte activations."""
 
     seed: int = 42
     """Random seed."""
@@ -167,7 +167,7 @@ class ShardWriter:
         if cfg.cls_token:
             n_patches_per_img += 1
         self.n_imgs_per_shard = (
-            cfg.n_patches_per_shard // len(cfg.vit_layers) // n_patches_per_img
+            cfg.max_patches_per_shard // len(cfg.vit_layers) // n_patches_per_img
         )
         self.shape = (
             self.n_imgs_per_shard,
@@ -253,7 +253,7 @@ def get_acts_dir(cfg: Config) -> str:
 @beartype.beartype
 @dataclasses.dataclass(frozen=True)
 class Metadata:
-    vit_family: str
+    vit_family: typing.Literal["clip", "siglip", "dinov2"]
     vit_ckpt: str
     layers: tuple[int, ...]
     n_patches_per_img: int
@@ -261,7 +261,7 @@ class Metadata:
     d_vit: int
     seed: int
     n_imgs: int
-    n_patches_per_shard: int
+    max_patches_per_shard: int
     data: str
 
     @classmethod
@@ -275,7 +275,7 @@ class Metadata:
             cfg.d_vit,
             cfg.seed,
             cfg.data.n_imgs,
-            cfg.n_patches_per_shard,
+            cfg.max_patches_per_shard,
             str(cfg.data),
         )
 
@@ -303,8 +303,8 @@ class Metadata:
             * (self.n_patches_per_img + (1 if self.cls_token else 0))
         )
         return (
-            total_patches + self.n_patches_per_shard - 1
-        ) // self.n_patches_per_shard
+            total_patches + self.max_patches_per_shard - 1
+        ) // self.max_patches_per_shard
 
 
 @beartype.beartype
@@ -446,7 +446,14 @@ class IndexLookup:
             # CLS token #
             # --------- #
             case ("cls", int()):
-                return (0, 0, 0, 0)
+                # TODO: Should we assert that metadata has a class token?
+                n_imgs_per_shard = (
+                    self.metadata.max_patches_per_shard
+                    // len(self.metadata.layers)
+                    // (self.metadata.n_patches_per_img + 1)
+                )
+                shard = i // n_imgs_per_shard
+                return (shard, 0, 0, 0)
 
             case ("cls", "all"):
                 return (0, 0, 0, 0)

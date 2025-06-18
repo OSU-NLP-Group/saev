@@ -173,7 +173,7 @@ class Dataset(torch.utils.data.Dataset):
                 return self.Example(act=self.transform(act), image_i=i, patch_i=-1)
             case ("patches", int()):
                 n_imgs_per_shard = (
-                    self.metadata.n_patches_per_shard
+                    self.metadata.max_patches_per_shard
                     // len(self.metadata.layers)
                     // (self.metadata.n_patches_per_img + 1)
                 )
@@ -214,7 +214,7 @@ class Dataset(torch.utils.data.Dataset):
         self, i: int
     ) -> Float[np.ndarray, "n_layers all_patches d_vit"]:
         n_imgs_per_shard = (
-            self.metadata.n_patches_per_shard
+            self.metadata.max_patches_per_shard
             // len(self.metadata.layers)
             // (self.metadata.n_patches_per_img + 1)
         )

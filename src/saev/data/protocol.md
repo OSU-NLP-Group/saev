@@ -33,18 +33,18 @@ Guards against silent config drift.
 
 ## 2 `metadata.json` schema
 
-| field                 | type   | semantic                                     |
-| --------------------- | ------ | -------------------------------------------- |
-| `vit_family`          | string | `"clip" \| "siglip" \| "dinov2"`             |
-| `vit_ckpt`            | string | model identifier (OpenCLIP, HF, etc.)        |
-| `layers`              | int[]  | ViT residual‐block indices recorded          |
-| `n_patches_per_img`   | int    | **image patches only** (excludes CLS)        |
-| `cls_token`           | bool   | `true` -> patch 0 is CLS, else no CLS        |
-| `d_vit`               | int    | activation dimensionality                    |
-| `seed`                | int    | RNG seed used during dump                    |
-| `n_imgs`              | int    | total images in dataset                      |
-| `n_patches_per_shard` | int    | **logical** activations per shard (see #3)   |
-| `data`                | string | opaque dataset description (`str(cfg.data)`) |
+| field                   | type   | semantic                                     |
+| ------------------------| ------ | -------------------------------------------- |
+| `vit_family`            | string | `"clip" \| "siglip" \| "dinov2"`             |
+| `vit_ckpt`              | string | model identifier (OpenCLIP, HF, etc.)        |
+| `layers`                | int[]  | ViT residual‐block indices recorded          |
+| `n_patches_per_img`     | int    | **image patches only** (excludes CLS)        |
+| `cls_token`             | bool   | `true` -> patch 0 is CLS, else no CLS        |
+| `d_vit`                 | int    | activation dimensionality                    |
+| `seed`                  | int    | RNG seed used during dump                    |
+| `n_imgs`                | int    | total images in dataset                      |
+| `max_patches_per_shard` | int    | **logical** activations per shard (see #3)   |
+| `data`                  | string | opaque dataset description (`str(cfg.data)`) |
 
 ---
 
@@ -55,13 +55,13 @@ n_tokens_per_img = n_patches_per_img + (1 if cls_token else 0)
 n_tokens_per_layer_per_img = n_tokens_per_img
 tokens_per_img = len(layers) * n_tokens_per_img
 
-n_imgs_per_shard = floor(n_patches_per_shard / tokens_per_img)
+n_imgs_per_shard = floor(max_patches_per_shard / tokens_per_img)
 shape_per_shard = (
     n_imgs_per_shard, len(layers), n_tokens_per_img, d_vit,
 )
 ```
 
-*`n_patches_per_shard` is a **budget** (default ~2.4 M) chosen so a shard is approximately 10 GiB for Float32 @ `d_vit = 1024`.*
+*`max_patches_per_shard` is a **budget** (default ~2.4 M) chosen so a shard is approximately 10 GiB for Float32 @ `d_vit = 1024`.*
 
 ---
 
@@ -69,7 +69,7 @@ shape_per_shard = (
 
 * Raw little-endian `float32`
 * C-contiguous in the order **\[img, layer, token, dim]**
-* File size = `∏ shape_per_shard * 4` bytes
+* File size = number of patches x d_vit x 4 bytes (float32)
 * Valid to open with `np.memmap(path, dtype='float32', mode='r+', shape=shape_per_shard)`
 
 Token axis (`token`):
@@ -141,15 +141,7 @@ Sentinel: when a dimension is semantically "not applicable" (e.g. pooled over pa
 
 ---
 
-## 7 Extensibility guidelines
-
-* Add new token categories (e.g. register tokens) by bumping `T` logic and documenting token index map.
-* New dtypes: encode via new file suffix (`.f16`, `.bf16`) or an auxiliary per-shard sidecar; never overload `.bin` silently.
-* Compression layers (zstd, fsspec, etc.) should wrap shard *files*, not mutate the on-disk binary layout.
-
----
-
-That’s the whole deal. 
-No hidden invariants. 
+That's the whole deal.
+No hidden invariants.
 Anything else you find in code that contradicts this sheet, fix the code or update the spec.
 
