@@ -68,7 +68,13 @@ class Ade20k:
             return 20210
 
 
-Config = Imagenet | ImageFolder | Ade20k
+@beartype.beartype
+@dataclasses.dataclass(frozen=True)
+class Fake:
+    n_imgs: int = 10
+
+
+Config = Imagenet | ImageFolder | Ade20k | Fake
 
 
 @beartype.beartype
@@ -82,6 +88,8 @@ def setup(cfg: Config):
         setup_imagefolder(cfg)
     elif isinstance(cfg, Ade20k):
         setup_ade20k(cfg)
+    elif isinstance(cfg, Fake):
+        pass
     else:
         typing.assert_never(cfg.data)
 
@@ -120,6 +128,8 @@ def get_dataset(cfg: Config, *, img_transform):
         return Ade20kDataset(cfg, img_transform=img_transform)
     elif isinstance(cfg, ImageFolder):
         return ImageFolderDataset(cfg.root, transform=img_transform)
+    elif isinstance(cfg, Fake):
+        return FakeDataset(cfg, img_transform=img_transform)
     else:
         typing.assert_never(cfg)
 
@@ -276,3 +286,21 @@ class Ade20kDataset(torch.utils.data.Dataset):
 
     def __len__(self) -> int:
         return len(self.samples)
+
+
+class FakeDataset(torch.utils.data.Dataset):
+    def __init__(self, cfg: Fake, *, img_transform=None):
+        self.n_imgs = cfg.n_imgs
+        self.img_transform = img_transform
+
+    def __len__(self):
+        return self.n_imgs
+
+    def __getitem__(self, i):
+        img = Image.new("RGB", (256, 256))
+        return {
+            "image": self.img_transform(img),
+            "index": i,
+            "target": 0,
+            "label": "dummy",
+        }
