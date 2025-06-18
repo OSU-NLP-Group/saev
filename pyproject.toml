@@ -65,3 +65,6 @@ timeout_method = "thread"
 filterwarnings = [
     "ignore:Can't initialize NVML:UserWarning"
 ]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+]

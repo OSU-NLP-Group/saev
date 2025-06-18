@@ -49,8 +49,6 @@ class Config:
     max_patches_per_shard: int = 2_400_000
     """Maximum number of activations per shard; 2.4M is approximately 10GB for 1024-dimensional 4-byte activations."""
 
-    seed: int = 42
-    """Random seed."""
     ssl: bool = True
     """Whether to use SSL."""
 
@@ -259,7 +257,6 @@ class Metadata:
     n_patches_per_img: int
     cls_token: bool
     d_vit: int
-    seed: int
     n_imgs: int
     max_patches_per_shard: int
     data: str
@@ -273,7 +270,6 @@ class Metadata:
             cfg.n_patches_per_img,
             cfg.cls_token,
             cfg.d_vit,
-            cfg.seed,
             cfg.data.n_imgs,
             cfg.max_patches_per_shard,
             str(cfg.data),
@@ -292,8 +288,10 @@ class Metadata:
 
     @property
     def hash(self) -> str:
-        cfg_str = json.dumps(dataclasses.asdict(self), sort_keys=True)
-        return hashlib.sha256(cfg_str.encode("utf-8")).hexdigest()
+        cfg_bytes = json.dumps(
+            dataclasses.asdict(self), sort_keys=True, separators=(",", ":")
+        ).encode("utf-8")
+        return hashlib.sha256(cfg_bytes).hexdigest()
 
     @property
     def n_shards(self) -> int:

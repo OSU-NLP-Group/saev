@@ -36,19 +36,21 @@ Guards against silent config drift.
 
 ### 2.1. `metadata.json`
 
-| field                   | type   | semantic                                     |
-| ------------------------| ------ | -------------------------------------------- |
-| `vit_family`            | string | `"clip" \| "siglip" \| "dinov2"`             |
-| `vit_ckpt`              | string | model identifier (OpenCLIP, HF, etc.)        |
-| `layers`                | int[]  | ViT residual‐block indices recorded          |
-| `n_patches_per_img`     | int    | **image patches only** (excludes CLS)        |
-| `cls_token`             | bool   | `true` -> patch 0 is CLS, else no CLS        |
-| `d_vit`                 | int    | activation dimensionality                    |
-| `n_imgs`                | int    | total images in dataset                      |
-| `max_patches_per_shard` | int    | **logical** activations per shard (see #3)   |
-| `data`                  | string | opaque dataset description (`str(cfg.data)`) |
-| `dtype` | string | The numpy dtype used. Fixed at float32 for now. |
+| field                   | type   | semantic                                   |
+| ----------------------- | ------ | ------------------------------------------ |
+| `vit_family`            | string | `"clip" \| "siglip" \| "dinov2"`           |
+| `vit_ckpt`              | string | model identifier (OpenCLIP, HF, etc.)      |
+| `layers`                | int[]  | ViT residual‐block indices recorded        |
+| `n_patches_per_img`     | int    | **image patches only** (excludes CLS)      |
+| `cls_token`             | bool   | `true` -> patch 0 is CLS, else no CLS      |
+| `d_vit`                 | int    | activation dimensionality                  |
+| `n_imgs`                | int    | total images in dataset                    |
+| `max_patches_per_shard` | int    | **logical** activations per shard (see #3) |
+| `data`                  | object | opaque dataset description                 |
+| `dtype`                 | string | numpy dtype. Fixed `"float32"` for now.    |
+| `protocol`              | string | `"1.0.0"` for now.                         |
 
+The `data` object is `dataclasses.asdict(cfg.data)`, with an additional `__class__` field with `cfg.data.__class__.__name__` as the value.
 
 ### 2.2. `shards.json`
 
@@ -66,7 +68,7 @@ A single array of `shard` objects, each of which has the following fields:
 ```python
 n_tokens_per_img = n_patches_per_img + (1 if cls_token else 0)
 
-n_imgs_per_shard = floor(max_patches_per_shard / n_tokens_per_img / len(layers))
+n_imgs_per_shard = floor(max_patches_per_shard / (n_tokens_per_img * len(layers)))
 
 shape_per_shard = (
     n_imgs_per_shard, len(layers), n_tokens_per_img, d_vit,
@@ -87,7 +89,7 @@ Physically, this tensor is split along the first axis (`Image`) into multiple sh
 
 To locate an arbitrary activation vector, a reader must convert a logical coordinate (`global_img_idx`, `layer_value`, `token_idx`) into a file path and an offset within that file.
 
-### 5.1 Definitions
+### 4.1 Definitions
 
 Let the parameters from `metadata.json` be:
 
@@ -95,9 +97,9 @@ Let the parameters from `metadata.json` be:
 * P = `n_patches_per_img`
 * T = `P + (1 if cls_token else 0)` (Total tokens per image)
 * D = `d_vit`
-* S = `n_imgs` from `shards.json` or Section 3 (shard sizing).
+* S = `n_imgs` from `shards.json` or `n_imgs_per_shard` from Section 3 (shard sizing).
 
-### 5.2 Coordinate Transformations
+### 4.2 Coordinate Transformations
 
 Given a logical coordinate:
 
@@ -124,7 +126,7 @@ A reader can then seek to `offset_in_bytes` and read $D \times 4$ bytes to retri
 
 *Alternatively, rather than calculate the offset, readers can memmap the shard, then use Numpy indexing to get the activation vector.*
 
-### 5.3 Token Axis Layout
+### 4.3 Token Axis Layout
 
 The `token` axis of length $T$ is ordered as follows:
 * If `cls_token` is `true`:
@@ -137,10 +139,10 @@ The relative order of patch tokens is preserved exactly as produced by the upstr
 
 ---
 
-## 6 Versioning & compatibility
+## 5 Versioning & compatibility
 
-* **Major changes** (shape reorder, dtype switch, new required JSON keys) increment the protocol version number at the top of this document and must emit a *breaking* warning in loader code.
-* **Minor, backward-compatible additions** (new optional JSON key) merely update this doc.
+* **Major changes** (shape reorder, dtype switch, new required JSON keys) increment the major protocol version number at the top of this document and must emit a *breaking* warning in loader code.
+* **Minor, backward-compatible additions** (new optional JSON key) merely update this doc and the minor protocol version number.
 
 ---
 
