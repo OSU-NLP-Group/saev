@@ -254,11 +254,14 @@ def test_invalid_mode_and_layer(metadata):
 @given(
     layers=st.sets(st.integers(min_value=0, max_value=24), min_size=1, max_size=24),
     n_patches_per_img=st.integers(min_value=1, max_value=256),
+    data=st.data(),
 )
-def test_missing_layer(layers, n_patches_per_img):
-    # Find a layer index that's not in the generated layers set
-    all_possible_layers = set(range(25))
-    missing_layer = next(iter(all_possible_layers - layers))
+def test_missing_layer(layers, n_patches_per_img, data):
+    missing_layer = data.draw(
+        st.sampled_from([i for i in range(25) if i not in layers]),
+        label="missing_layer",
+    )
+
     layers = tuple(sorted(layers))
 
     md = Metadata(
@@ -273,8 +276,9 @@ def test_missing_layer(layers, n_patches_per_img):
         data="test",
     )
 
-    il = IndexLookup(md, "cls", 11)
-    assert il.map_global(0) == (0, (0, 0, 0))
+    with pytest.raises(Exception):
+        # IndexLookup should complain
+        IndexLookup(md, "cls", missing_layer)
 
 
 ##############
