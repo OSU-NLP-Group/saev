@@ -429,6 +429,12 @@ class IndexLookup:
             raise IndexError(f"{i=} out of range [0, {n})")
 
         match (self.patches, self.layer):
+            case ("cls", int(layer_idx)):
+                # For CLS token with specific layer, i is the image index
+                img_i = i
+                shard_i, img_i_in_shard = self.map_img(img_i)
+                # CLS token is at position 0
+                return shard_i, (img_i_in_shard, 0, 0)
             case _:
                 typing.assert_never((self.patches, self.layer))
 
@@ -438,9 +444,17 @@ class IndexLookup:
         -------
         (shard_i, img_i_in_shard)
         """
-        match (self.patches, self.layer):
-            case _:
-                typing.assert_never((self.patches, self.layer))
+        if img_i < 0 or img_i >= self.metadata.n_imgs:
+            raise IndexError(f"{img_i=} out of range [0, {self.metadata.n_imgs})")
+            
+        # Calculate which shard contains this image
+        imgs_per_shard = self.metadata.max_patches_per_shard // len(self.metadata.layers)
+        imgs_per_shard //= (self.metadata.n_patches_per_img + int(self.metadata.cls_token))
+        
+        shard_i = img_i // imgs_per_shard
+        img_i_in_shard = img_i % imgs_per_shard
+        
+        return shard_i, img_i_in_shard
 
     def length(self) -> int:
         match (self.patches, self.layer):
