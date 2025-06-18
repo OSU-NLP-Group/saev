@@ -466,8 +466,12 @@ class IndexLookup:
 
                 shard_i, img_i_in_shard = self.map_img(img_i)
                 return shard_i, (img_i_in_shard, self.layer_to_idx[self.layer], token_i)
+            case ("image", "all"):
+                raise NotImplementedError()
             case ("all", int()):
-                n_tokens_per_img = self.n_patches_per_img + (1 if self.cls_token else 0)
+                n_tokens_per_img = self.metadata.n_patches_per_img + (
+                    1 if self.metadata.cls_token else 0
+                )
                 img_i = i // n_tokens_per_img
                 token_i = i % n_tokens_per_img
                 shard_i, img_i_in_shard = self.map_img(img_i)
@@ -475,17 +479,19 @@ class IndexLookup:
             case ("all", "all"):
                 # For all tokens (CLS + patches) with all layers
                 # Calculate total tokens per image across all layers
-                n_tokens_per_img = self.metadata.n_patches_per_img + (1 if self.metadata.cls_token else 0)
+                n_tokens_per_img = self.metadata.n_patches_per_img + (
+                    1 if self.metadata.cls_token else 0
+                )
                 total_tokens_per_img = n_tokens_per_img * len(self.metadata.layers)
-                
+
                 # Calculate which image and which token within that image
                 img_i = i // total_tokens_per_img
                 remainder = i % total_tokens_per_img
-                
+
                 # Calculate which layer and which token within that layer
                 layer_idx = remainder // n_tokens_per_img
                 token_i = remainder % n_tokens_per_img
-                
+
                 # Map to physical location
                 shard_i, img_i_in_shard = self.map_img(img_i)
                 return shard_i, (img_i_in_shard, layer_idx, token_i)

@@ -55,3 +55,43 @@ def test_second_img_without_cls():
     assert img_i == 1
     assert layer_i == 0
     assert token_i == 0
+
+
+def test_third_image_with_cls():
+    meta = Metadata(
+        n_imgs=10_000,
+        n_patches_per_img=64,
+        layers=(0, 1, 2, 3),
+        max_patches_per_shard=200_000_000,
+        vit_family="clip",
+        vit_ckpt="ckpt",
+        cls_token=True,
+        d_vit=1024,
+        data="test",
+    )
+    il = IndexLookup(meta, "all", 2)
+    sh, (img_i, layer_i, token_i) = il.map_global(130)
+    assert sh == 0
+    assert img_i == 2
+    assert layer_i == 2
+    assert token_i == 0
+
+
+def test_image_with_layers():
+    md = Metadata(
+        n_imgs=10_000,
+        n_patches_per_img=64,
+        layers=(0, 1, 2, 3),
+        max_patches_per_shard=200_000_000,
+        vit_family="clip",
+        vit_ckpt="ckpt",
+        cls_token=False,
+        d_vit=1024,
+        data="test",
+    )
+    il = IndexLookup(md, "all", "all")
+    sh, (img_i, layer_i, token_i) = il.map_global(128)
+    assert sh == 0
+    assert img_i == 0
+    assert layer_i == 2
+    assert token_i == 0

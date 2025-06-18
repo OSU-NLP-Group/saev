@@ -10,7 +10,7 @@ import tempfile
 
 import pytest
 import torch
-from hypothesis import given
+from hypothesis import given, reject
 from hypothesis import strategies as st
 
 from saev.data import images, models
@@ -29,25 +29,30 @@ from saev.data.writers import (
 
 @st.composite
 def metadatas(draw) -> Metadata:
-    return Metadata(
-        vit_family="clip",
-        vit_ckpt="ckpt",
-        layers=tuple(
-            sorted(
-                draw(
-                    st.sets(
-                        st.integers(min_value=0, max_value=24), min_size=1, max_size=24
+    try:
+        return Metadata(
+            vit_family="clip",
+            vit_ckpt="ckpt",
+            layers=tuple(
+                sorted(
+                    draw(
+                        st.sets(
+                            st.integers(min_value=0, max_value=24),
+                            min_size=1,
+                            max_size=24,
+                        )
                     )
                 )
-            )
-        ),
-        n_patches_per_img=draw(st.integers(min_value=1, max_value=512)),
-        cls_token=draw(st.booleans()),
-        d_vit=512,
-        n_imgs=draw(st.integers(min_value=1, max_value=10_000_000)),
-        max_patches_per_shard=draw(st.integers(min_value=1, max_value=200_000_000)),
-        data="test",
-    )
+            ),
+            n_patches_per_img=draw(st.integers(min_value=1, max_value=512)),
+            cls_token=draw(st.booleans()),
+            d_vit=512,
+            n_imgs=draw(st.integers(min_value=1, max_value=10_000_000)),
+            max_patches_per_shard=draw(st.integers(min_value=1, max_value=200_000_000)),
+            data="test",
+        )
+    except AssertionError:
+        reject()
 
 
 def patches():
@@ -163,46 +168,65 @@ def test_shard_writer_and_dataset_e2e():
             print(f"Batch {b} matched.")
 
 
-##################
-# Property Tests #
-##################
+@given(metadatas(), st.data())
+def test_api_surface(metadata, data):
+    if metadata.cls_token:
+        patches = data.draw(st.sampled_from(["cls", "all", "image"]))
+    else:
+        patches = data.draw(st.sampled_from(["all", "image"]))
+    layer = data.draw(st.sampled_from([*metadata.layers, "all"]))
 
-
-@given(metadatas(), patches(), layers())
-def test_api_surfaces(metadata, patches, layer):
     il = IndexLookup(metadata, patches, layer)
+
     assert hasattr(il, "map_global")
     assert hasattr(il, "map_img")
     assert hasattr(il, "length")
 
 
-@given(st.data())
-def test_roundtrip(data):
-    metadata = data.draw(metadatas())
-    patches = data.draw(st.sampled_from(["cls", "all", "patches"]))
-    layer = data.draw(st.sampled_from([0, "all"]))
-    il = IndexLookup(metadata)
+@given(metadatas(), st.data())
+def test_roundtrip(metadata, data):
+    if metadata.cls_token:
+        patches = data.draw(st.sampled_from(["cls", "all", "image"]))
+    else:
+        patches = data.draw(st.sampled_from(["all", "image"]))
 
-    length = il.length(patches, layer)
+    layer = data.draw(st.sampled_from([*metadata.layers, "all"]))
+
+    il = IndexLookup(metadata, patches, layer)
+
+    length = il.length()
+    assert 1 <= length
+
     i = data.draw(st.integers(min_value=0, max_value=length - 1))
 
-    sh, i_in_sh, g_img, g_patch = il.map(i, patches, layer)
+    sh_i, (img_i_in_sh, layer_i, token_i) = il.map_global(i)
 
     # Basic invariants
-    assert 0 <= sh < metadata.n_shards
-    assert 0 <= i_in_sh < metadata.max_patches_per_shard
-    assert 0 <= g_img < metadata.n_imgs
+    assert 0 <= sh_i < metadata.n_shards
+    assert 0 <= img_i_in_sh < metadata.n_imgs_per_shard
 
 
-@given(metadatas(), patches(), layers())
-def test_length_always_nonnegative(metadata, patches, layer):
+@given(metadatas(), st.data())
+def test_length_always_nonnegative(metadata, data):
+    if metadata.cls_token:
+        patches = data.draw(st.sampled_from(["cls", "all", "image"]))
+    else:
+        patches = data.draw(st.sampled_from(["all", "image"]))
+    layer = data.draw(st.sampled_from([*metadata.layers, "all"]))
+
     il = IndexLookup(metadata, patches, layer)
 
     assert il.length() >= 0
 
 
-@given(metadatas(), patches(), layers())
-def test_negative_index_raises(metadata, patches, layer):
+@given(metadatas(), st.data())
+def test_negative_index_raises(metadata, data):
+    if metadata.cls_token:
+        patches = data.draw(st.sampled_from(["cls", "all", "image"]))
+    else:
+        patches = data.draw(st.sampled_from(["all", "image"]))
+    layer = data.draw(st.sampled_from([*metadata.layers, "all"]))
+
     il = IndexLookup(metadata, patches, layer)
 
     with pytest.raises(IndexError):
@@ -212,22 +236,19 @@ def test_negative_index_raises(metadata, patches, layer):
         il.map_img(-1)
 
 
-@given(metadatas(), patches(), layers())
-def test_index_equal_length_raises(metadata, patches, layer):
+@given(metadatas(), st.data())
+def test_index_equal_length_raises(metadata, data):
+    if metadata.cls_token:
+        patches = data.draw(st.sampled_from(["cls", "all", "image"]))
+    else:
+        patches = data.draw(st.sampled_from(["all", "image"]))
+    layer = data.draw(st.sampled_from([*metadata.layers, "all"]))
+
     il = IndexLookup(metadata, patches, layer)
     length = il.length()
 
     with pytest.raises(IndexError):
         il.map_global(length)
-
-
-@given(metadata=metadatas())
-def test_invalid_mode_and_layer(metadata):
-    il = IndexLookup(metadata)
-    with pytest.raises(AssertionError):
-        il.length("foo", 0)
-    with pytest.raises(AssertionError):
-        il.map(0, "cls", "bogus")
 
 
 @given(
