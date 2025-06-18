@@ -251,6 +251,32 @@ def test_invalid_mode_and_layer(metadata):
         il.map(0, "cls", "bogus")
 
 
+@given(
+    layers=st.sets(st.integers(min_value=0, max_value=24), min_size=1, max_size=24),
+    n_patches_per_img=st.integers(min_value=1, max_value=256),
+)
+def test_missing_layer(layers, n_patches_per_img):
+    missing_layer = (
+        0  # This value should be drawn from integers and should not be in layers. AI!
+    )
+    layers = tuple(sorted(layers))
+
+    md = Metadata(
+        n_imgs=10_000,
+        n_patches_per_img=n_patches_per_img,
+        layers=layers,
+        max_patches_per_shard=200_000_000,
+        vit_family="clip",
+        vit_ckpt="ckpt",
+        cls_token=False,
+        d_vit=512,
+        data="test",
+    )
+
+    il = IndexLookup(md, "cls", 11)
+    assert il.map_global(0) == (0, (0, 0, 0))
+
+
 ##############
 # Edge Cases #
 ##############
