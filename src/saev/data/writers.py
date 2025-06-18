@@ -275,6 +275,9 @@ class Metadata:
             str(cfg.data),
         )
 
+    def n_imgs_per_shard(self) -> int:
+        # Implement this absed on the protocol.md AI!
+
     @classmethod
     def load(cls, fpath) -> "Metadata":
         with open(fpath) as fd:
@@ -442,6 +445,9 @@ class IndexLookup:
                 shard_i, img_i_in_shard = self.map_img(img_i)
                 # CLS token is at position 0
                 return shard_i, (img_i_in_shard, self.layer_to_idx[self.layer], 0)
+            case ("image", int()):
+                shard_i = 
+                return 0, (0, 0, 0)
             case _:
                 typing.assert_never((self.patches, self.layer))
 
