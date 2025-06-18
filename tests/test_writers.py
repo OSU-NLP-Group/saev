@@ -256,7 +256,9 @@ def test_invalid_mode_and_layer(metadata):
     n_patches_per_img=st.integers(min_value=1, max_value=256),
 )
 def test_missing_layer(layers, n_patches_per_img):
-    missing_layer = 0  # This value should be drawn from st.integers() but in a data-dependent way: it should not be in layers. AI!
+    # Find a layer index that's not in the generated layers set
+    all_possible_layers = set(range(25))
+    missing_layer = next(iter(all_possible_layers - layers))
     layers = tuple(sorted(layers))
 
     md = Metadata(
