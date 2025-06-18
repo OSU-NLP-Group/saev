@@ -150,27 +150,6 @@ class Dataset(torch.utils.data.Dataset):
                 # Select layer's cls token.
                 act = img_act[self.layer_index, 0, :]
                 return self.Example(act=self.transform(act), image_i=i, patch_i=-1)
-            case ("cls", "meanpool"):
-                img_act = self.get_img_patches(i)
-                # Select cls tokens from across all layers
-                cls_act = img_act[:, 0, :]
-                # Meanpool over the layers
-                act = cls_act.mean(axis=0)
-                return self.Example(act=self.transform(act), image_i=i, patch_i=-1)
-            case ("meanpool", int()):
-                img_act = self.get_img_patches(i)
-                # Select layer's patches.
-                layer_act = img_act[self.layer_index, 1:, :]
-                # Meanpool over the patches
-                act = layer_act.mean(axis=0)
-                return self.Example(act=self.transform(act), image_i=i, patch_i=-1)
-            case ("meanpool", "meanpool"):
-                img_act = self.get_img_patches(i)
-                # Select all layer's patches.
-                act = img_act[:, 1:, :]
-                # Meanpool over the layers and patches
-                act = act.mean(axis=(0, 1))
-                return self.Example(act=self.transform(act), image_i=i, patch_i=-1)
             case ("patches", int()):
                 n_imgs_per_shard = (
                     self.metadata.max_patches_per_shard
@@ -242,23 +221,8 @@ class Dataset(torch.utils.data.Dataset):
             case ("cls", int()):
                 # Return a CLS token from a random image and fixed layer.
                 return self.metadata.n_imgs
-            case ("cls", "meanpool"):
-                # Return a CLS token from a random image and meanpool over all layers.
-                return self.metadata.n_imgs
-            case ("meanpool", "all"):
-                # Return the meanpool of all patches from a random image and random layer.
-                return self.metadata.n_imgs * len(self.metadata.layers)
-            case ("meanpool", int()):
-                # Return the meanpool of all patches from a random image and fixed layer.
-                return self.metadata.n_imgs
-            case ("meanpool", "meanpool"):
-                # Return the meanpool of all patches from a random image and meanpool over all layers.
-                return self.metadata.n_imgs
             case ("patches", int()):
                 # Return a patch from a random image, fixed layer, and random patch.
-                return self.metadata.n_imgs * (self.metadata.n_patches_per_img)
-            case ("patches", "meanpool"):
-                # Return a patch from a random image, meanpooled over all layers, and a random patch.
                 return self.metadata.n_imgs * (self.metadata.n_patches_per_img)
             case ("patches", "all"):
                 # Return a patch from a random image, random layer and random patch.

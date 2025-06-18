@@ -23,10 +23,10 @@ from . import utils, writers
 class Config:
     shard_root: str = os.path.join(".", "shards")
     """Directory with .bin shards and a metadata.json file."""
-    patches: typing.Literal["cls", "patches", "meanpool"] = "patches"
-    """Which kinds of patches to use. 'cls' indicates just the [CLS] token (if any). 'patches' indicates it will return all patches. 'meanpool' returns the mean of all image patches."""
-    layer: int | typing.Literal["all", "meanpool"] = -2
-    """Which ViT layer(s) to read from disk. ``-2`` selects the second-to-last layer. ``"all"`` enumerates every recorded layer, and ``"meanpool"`` averages activations across layers."""
+    patches: typing.Literal["cls", "image", "all"] = "image"
+    """Which kinds of patches to use. 'cls' indicates just the [CLS] token (if any). 'image' indicates it will return image patches. 'all' returns all patches."""
+    layer: int | typing.Literal["all"] = -2
+    """Which ViT layer(s) to read from disk. ``-2`` selects the second-to-last layer. ``"all"`` enumerates every recorded layer."""
     clamp: float = 1e5
     """Maximum value for activations; activations will be clamped to within [-clamp, clamp]`."""
     batch_size: int = 1024 * 16
@@ -52,12 +52,14 @@ def _io_worker(
     Pulls work items from the queue, loads data, and pushes it to the ready queue.
     Work item is a tuple: (shard_idx, list_of_global_indices).
     """
+    logger = logging.getLogger("iterable.worker")
+
     logger.info(f"I/O worker {worker_id} started.")
     # Calculate shard layout constants
     n_patches_per_img = metadata.n_patches_per_img
     n_layers = len(metadata.layers)
     n_imgs_per_shard = (
-        metadata.n_patches_per_shard // n_layers // (n_patches_per_img + 1)
+        metadata.max_patches_per_shard // n_layers // (n_patches_per_img + 1)
     )
     n_examples_per_shard = n_imgs_per_shard * n_patches_per_img
     shape = (
@@ -135,7 +137,7 @@ def _manager_main(
         n_patches_per_img = metadata.n_patches_per_img
         n_layers = len(metadata.layers)
         n_imgs_per_shard = (
-            metadata.n_patches_per_shard // n_layers // (n_patches_per_img + 1)
+            metadata.max_patches_per_shard // n_layers // (n_patches_per_img + 1)
         )
         n_examples_per_shard = n_imgs_per_shard * n_patches_per_img
 
@@ -340,7 +342,9 @@ class DataLoader:
         if self.manager_proc and self.manager_proc.is_alive():
             self.manager_proc.join(timeout=5.0)
             if self.manager_proc.is_alive():
-                logger.warning("Manager process did not shut down cleanly, killing.")
+                self.logger.warning(
+                    "Manager process did not shut down cleanly, killing."
+                )
                 self.manager_proc.kill()
 
         # Free shared memory
@@ -362,17 +366,7 @@ class DataLoader:
                 return self.metadata.n_imgs * len(self.metadata.layers)
             case ("cls", int()):
                 return self.metadata.n_imgs
-            case ("cls", "meanpool"):
-                return self.metadata.n_imgs
-            case ("meanpool", "all"):
-                return self.metadata.n_imgs * len(self.metadata.layers)
-            case ("meanpool", int()):
-                return self.metadata.n_imgs
-            case ("meanpool", "meanpool"):
-                return self.metadata.n_imgs
             case ("patches", int()):
-                return self.metadata.n_imgs * self.metadata.n_patches_per_img
-            case ("patches", "meanpool"):
                 return self.metadata.n_imgs * self.metadata.n_patches_per_img
             case ("patches", "all"):
                 return (
