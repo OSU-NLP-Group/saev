@@ -450,11 +450,11 @@ class IndexLookup:
             case ("cls", int()):
                 # Return a CLS token from a random image and fixed layer.
                 return self.metadata.n_imgs
-            case ("patches", int()):
+            case ("image", int()):
                 # Return a patch from a random image, fixed layer, and random patch.
                 return self.metadata.n_imgs * (self.metadata.n_patches_per_img)
                 return self.metadata.n_imgs * (self.metadata.n_patches_per_img)
-            case ("patches", "all"):
+            case ("image", "all"):
                 # Return a patch from a random image, random layer and random patch.
                 return (
                     self.metadata.n_imgs
@@ -474,4 +474,4 @@ class IndexLookup:
                     * (self.metadata.n_patches_per_img + int(self.metadata.cls_token))
                 )
             case _:
-                typing.assert_never((patches, layer))
+                typing.assert_never((self.patches, self.layer))

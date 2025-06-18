@@ -163,6 +163,32 @@ def test_shard_writer_and_dataset_e2e():
             print(f"Batch {b} matched.")
 
 
+#######
+# API #
+#######
+
+
+def test_first_patch():
+    md = Metadata(
+        n_imgs=10_000,
+        n_patches_per_img=196,
+        layers=(11,),
+        max_patches_per_shard=200_000_000,
+        vit_family="clip",
+        vit_ckpt="ckpt",
+        cls_token=False,
+        d_vit=512,
+        data="test",
+    )
+    il = IndexLookup(md, "cls", 11)
+    assert il.map_global(0) == (0, (0, 0, 0))
+
+
+##################
+# Property Tests #
+##################
+
+
 @given(metadatas(), patches(), layers())
 def test_api_surfaces(metadata, patches, layer):
     il = IndexLookup(metadata, patches, layer)
@@ -189,19 +215,31 @@ def test_roundtrip(data):
     assert 0 <= g_img < metadata.n_imgs
 
 
-@given(metadata=metadatas())
-def test_negative_index_raises(metadata):
-    il = IndexLookup(metadata)
-    with pytest.raises(IndexError):
-        il.map(-1, "cls", 0)
+@given(metadatas(), patches(), layers())
+def test_length_always_nonnegative(metadata, patches, layer):
+    il = IndexLookup(metadata, patches, layer)
+
+    assert il.length() >= 0
 
 
-@given(metadata=metadatas())
-def test_index_equal_length_raises(metadata):
-    il = IndexLookup(metadata)
-    length = il.length("cls", 0)
+@given(metadatas(), patches(), layers())
+def test_negative_index_raises(metadata, patches, layer):
+    il = IndexLookup(metadata, patches, layer)
+
     with pytest.raises(IndexError):
-        il.map(length, "cls", 0)
+        il.map_global(-1)
+
+    with pytest.raises(IndexError):
+        il.map_img(-1)
+
+
+@given(metadatas(), patches(), layers())
+def test_index_equal_length_raises(metadata, patches, layer):
+    il = IndexLookup(metadata, patches, layer)
+    length = il.length()
+
+    with pytest.raises(IndexError):
+        il.map_global(length)
 
 
 @given(metadata=metadatas())
@@ -211,6 +249,11 @@ def test_invalid_mode_and_layer(metadata):
         il.length("foo", 0)
     with pytest.raises(AssertionError):
         il.map(0, "cls", "bogus")
+
+
+##############
+# Edge Cases #
+##############
 
 
 def test_singleton_dataset():
