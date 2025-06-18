@@ -388,6 +388,7 @@ def worker_fn(cfg: Config):
     writer.flush()
 
 
+@beartype.beartype
 class IndexLookup:
     """
     Index <-> shard helper.
@@ -399,89 +400,50 @@ class IndexLookup:
     ----------
     metadata : Metadata
         Pre-computed dataset statistics (images, patches, layers, shard size).
+    patches: 'cls' | 'image' | 'all'
+    layer: int | 'all'
+    """
 
-    Methods
-    -------
-    map(i, patches, layer) -> tuple[int, int, int, int]
-        (
-            shard_idx,
-            idx_in_shard,
-            global_img_idx,
-            global_patch_idx,
-        )
-
-    length(patches, layer) -> int
-        Exclusive upper bound of valid `i` for the given view."""
-
-    _NO_PATCH = -1
-
-    def __init__(self, metadata: Metadata):
-        self.metadata = metadata
-
-    def map(
+    def __init__(
         self,
-        i: int,
-        patches: typing.Literal["cls", "patches", "all"],
+        metadata: Metadata,
+        patches: typing.Literal["cls", "image", "all"],
         layer: int | typing.Literal["all"],
-    ) -> tuple[int, int, int, int]:
+    ):
+        self.metadata = metadata
+        self.patches = patches
+        self.layer = layer
+
+    def map_global(self, i: int) -> tuple[int, tuple[int, int, int]]:
         """
         Return
         -------
         (
-            shard_idx,
-            idx_in_shard,
-            global_img_idx,
-            global_patch_idx,
+            shard_i,
+            index in shard (img_i, layer_i, token_i)
         )
         """
-        n = self.length(patches, layer)
+        n = self.length()
 
         if i < 0 or i >= n:
             raise IndexError(f"{i=} out of range [0, {n})")
 
-        match (patches, layer):
-            # --------- #
-            # CLS token #
-            # --------- #
-            case ("cls", int()):
-                # TODO: Should we assert that metadata has a class token?
-                n_imgs_per_shard = (
-                    self.metadata.max_patches_per_shard
-                    // len(self.metadata.layers)
-                    // (self.metadata.n_patches_per_img + 1)
-                )
-                shard = i // n_imgs_per_shard
-                return (shard, 0, 0, 0)
-
-            case ("cls", "all"):
-                return (0, 0, 0, 0)
-
-            # ---------------- #
-            # Explicit patches #
-            # ---------------- #
-            case ("patches", int()):
-                return (0, 0, 0, 0)
-
-            case ("patches", "all"):
-                return (0, 0, 0, 0)
-
-            # ---------- #
-            # Everything #
-            # ---------- #
-            case ("all", int()):
-                return (0, 0, 0, 0)
-
-            case ("all", "all"):
-                return (0, 0, 0, 0)
+        match (self.patches, self.layer):
             case _:
-                typing.assert_never((patches, layer))
+                typing.assert_never((self.patches, self.layer))
 
-    def length(
-        self,
-        patches: typing.Literal["cls", "patches", "all"],
-        layer: int | typing.Literal["all"],
-    ) -> int:
-        match (patches, layer):
+    def map_img(self, img_i: int) -> tuple[int, int]:
+        """
+        Return
+        -------
+        (shard_i, img_i_in_shard)
+        """
+        match (self.patches, self.layer):
+            case _:
+                typing.assert_never((self.patches, self.layer))
+
+    def length(self) -> int:
+        match (self.patches, self.layer):
             case ("cls", "all"):
                 # Return a CLS token from a random image and random layer.
                 return self.metadata.n_imgs * len(self.metadata.layers)

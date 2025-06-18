@@ -44,11 +44,18 @@ def metadatas(draw) -> Metadata:
         n_patches_per_img=draw(st.integers(min_value=1, max_value=512)),
         cls_token=draw(st.booleans()),
         d_vit=512,
-        seed=0,
         n_imgs=draw(st.integers(min_value=1, max_value=10_000_000)),
         max_patches_per_shard=draw(st.integers(min_value=1, max_value=200_000_000)),
         data="test",
     )
+
+
+def patches():
+    return st.sampled_from(["cls", "image", "all"])
+
+
+def layers():
+    return st.one_of(st.just("all"), st.integers())
 
 
 @pytest.fixture(scope="session")
@@ -156,10 +163,11 @@ def test_shard_writer_and_dataset_e2e():
             print(f"Batch {b} matched.")
 
 
-@given(metadatas())
-def test_api_surfaces(metadata):
-    il = IndexLookup(metadata)
-    assert hasattr(il, "map")
+@given(metadatas(), patches(), layers())
+def test_api_surfaces(metadata, patches, layer):
+    il = IndexLookup(metadata, patches, layer)
+    assert hasattr(il, "map_global")
+    assert hasattr(il, "map_img")
     assert hasattr(il, "length")
 
 
@@ -215,7 +223,6 @@ def test_singleton_dataset():
         vit_ckpt="ckpt",
         cls_token=True,
         d_vit=512,
-        seed=0,
         data="test",
     )
     il = IndexLookup(meta)
@@ -235,7 +242,6 @@ def test_second_img():
         vit_ckpt="ckpt",
         cls_token=False,
         d_vit=512,
-        seed=0,
         data="test",
     )
     il = IndexLookup(meta)
