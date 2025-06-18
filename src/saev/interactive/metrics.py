@@ -1,11 +1,11 @@
 import marimo
 
-__generated_with = "0.9.32"
+__generated_with = "0.13.15"
 app = marimo.App(width="medium")
 
 
 @app.cell
-def __():
+def _():
     import json
     import os
 
@@ -22,43 +22,43 @@ def __():
 
 
 @app.cell
-def __(mo):
+def _(mo):
     mo.md(
         """
-        # SAE Metrics Explorer
+    # SAE Metrics Explorer
 
-        This notebook helps you analyze and compare SAE training runs from WandB.
+    This notebook helps you analyze and compare SAE training runs from WandB.
 
-        ## Setup Instructions
+    ## Setup Instructions
 
-        1. Edit the configuration cell at the top to set your WandB username and project
-        2. Make sure you have access to the original ViT activation shards
-        3. Use the filters to narrow down which models to compare
+    1. Edit the configuration cell at the top to set your WandB username and project
+    2. Make sure you have access to the original ViT activation shards
+    3. Use the filters to narrow down which models to compare
 
-        ## Troubleshooting
+    ## Troubleshooting
 
-        - **Missing data error**: This notebook needs access to the original ViT activation shards
-        - **No runs found**: Check your WandB username, project name, and tag filter
-        """
+    - **Missing data error**: This notebook needs access to the original ViT activation shards
+    - **No runs found**: Check your WandB username, project name, and tag filter
+    """
     )
     return
 
 
 @app.cell
-def __():
-    WANDB_USERNAME = "samuelstevens"
+def _():
+    WANDB_USERNAME = "igwilson99-the-ohio-state-university"
     WANDB_PROJECT = "saev"
     return WANDB_PROJECT, WANDB_USERNAME
 
 
 @app.cell
-def __(mo):
-    tag_input = mo.ui.text(value="classification-v1.0", label="Sweep Tag:")
+def _(mo):
+    tag_input = mo.ui.text(value="full_eval", label="Sweep Tag:")
     return (tag_input,)
 
 
 @app.cell
-def __(WANDB_PROJECT, WANDB_USERNAME, mo, tag_input):
+def _(WANDB_PROJECT, WANDB_USERNAME, mo, tag_input):
     mo.vstack([
         mo.md(
             f"Look at [{WANDB_USERNAME}/{WANDB_PROJECT} on WandB](https://wandb.ai/{WANDB_USERNAME}/{WANDB_PROJECT}/table) to pick your tag."
@@ -69,23 +69,32 @@ def __(WANDB_PROJECT, WANDB_USERNAME, mo, tag_input):
 
 
 @app.cell
-def __(alt, df, mo):
+def _(mo):
+    mo.md(r"""When using the section below, the default is the mse or mean squared error, but if you want the the mean absolute error, the mse needs commented out and summary loss needs commented back in as well as y=alt.Y("summary/mse") needs changed to y=alt.Y("summary/loss")""")
+    return
+
+
+@app.cell
+def _(alt, df, mo):
     chart = mo.ui.altair_chart(
         alt.Chart(
             df.select(
                 "summary/eval/l0",
-                "summary/losses/mse",
+                "summary/mse",
+                # "summary/loss",
                 "id",
-                "config/sae/sparsity_coeff",
+                # "config/sae/sparsity_coeff",
                 "config/lr",
                 "config/sae/d_sae",
                 "model_key",
             )
+            # Modified summary/losses/mse to summary/loss to match wandb could also be changed to summary/mse
         )
         .mark_point()
         .encode(
             x=alt.X("summary/eval/l0"),
-            y=alt.Y("summary/losses/mse"),
+            y=alt.Y("summary/mse"),
+            # If changing over to mse summary/loss needs changed to summary/mse
             tooltip=["id", "config/lr"],
             color="config/lr:Q",
             # shape="config/sae/sparsity_coeff:N",
@@ -98,7 +107,7 @@ def __(alt, df, mo):
 
 
 @app.cell
-def __(chart, df, mo, np, plot_dist, plt):
+def _(chart, df, mo, np, plot_dist, plt):
     mo.stop(
         len(chart.value) < 2,
         mo.md(
@@ -160,36 +169,23 @@ def __(chart, df, mo, np, plot_dist, plt):
 
     scatter_fig.tight_layout()
     hist_fig.tight_layout()
-    return (
-        bins,
-        freq_hist_ax,
-        freqs,
-        hist_axes,
-        hist_fig,
-        id,
-        scatter_ax,
-        scatter_axes,
-        scatter_fig,
-        sub_df,
-        values,
-        values_hist_ax,
-    )
+    return hist_fig, scatter_fig
 
 
 @app.cell
-def __(scatter_fig):
+def _(scatter_fig):
     scatter_fig
     return
 
 
 @app.cell
-def __(hist_fig):
+def _(hist_fig):
     hist_fig
     return
 
 
 @app.cell
-def __(chart, df, pl):
+def _(chart, df, pl):
     df.join(chart.value.select("id"), on="id", how="inner").sort(
         by="summary/eval/l0"
     ).select("id", pl.selectors.starts_with("config/"))
@@ -197,7 +193,7 @@ def __(chart, df, pl):
 
 
 @app.cell
-def __(Float, beartype, jaxtyped, np):
+def _(Float, beartype, jaxtyped, np):
     @jaxtyped(typechecker=beartype.beartype)
     def plot_dist(
         freqs: Float[np.ndarray, " d_sae"],
@@ -248,7 +244,9 @@ def __(Float, beartype, jaxtyped, np):
 
 
 @app.cell
-def __(
+def _(
+    WANDB_PROJECT,
+    WANDB_USERNAME,
     beartype,
     get_data_key,
     get_model_key,
@@ -291,9 +289,10 @@ def __(
     def make_df(tag: str):
         filters = {}
         if tag:
-            filters["config.tag"] = tag
-        runs = wandb.Api().runs(path="samuelstevens/saev", filters=filters)
-
+            filters["tags"] = tag
+            # Changed config.tag to tags
+        runs = wandb.Api().runs(path=f"{WANDB_USERNAME}/{WANDB_PROJECT}", filters=filters)
+        # Changed hardcoded username and project to variables for better portability
         rows = []
         for run in mo.status.progress_bar(
             runs,
@@ -303,7 +302,6 @@ def __(
         ):
             row = {}
             row["id"] = run.id
-
             row.update(**{
                 f"summary/{key}": value for key, value in run.summary.items()
             })
@@ -364,35 +362,35 @@ def __(
         return df
 
     df = make_df(tag_input.value)
-    return MetadataAccessError, df, find_metadata, make_df
+    return (df,)
 
 
 @app.cell
-def __(beartype):
+def _(beartype):
     @beartype.beartype
     def get_model_key(metadata: dict[str, object]) -> str:
         family = next(
             metadata[key] for key in ("vit_family", "model_family") if key in metadata
         )
-
         ckpt = next(
             metadata[key] for key in ("vit_ckpt", "model_ckpt") if key in metadata
         )
-
         if family == "dinov2" and ckpt == "dinov2_vitb14_reg":
             return "DINOv2 ViT-B/14 (reg)"
         if family == "clip" and ckpt == "ViT-B-16/openai":
             return "CLIP ViT-B/16"
         if family == "clip" and ckpt == "hf-hub:imageomics/bioclip":
             return "BioCLIP ViT-B/16"
-
+        if family == "siglip" and ckpt == "hf-hub:timm/ViT-B-16-SigLIP2-256":
+            return "SigLIP2-256 ViT-B/16"
         print(f"Unknown model: {(family, ckpt)}")
         return ckpt
 
     @beartype.beartype
     def get_data_key(metadata: dict[str, object]) -> str | None:
         if (
-            "train_mini" in metadata["data"]
+            "train" in metadata["data"]
+            # Removed _mini from train_mini
             and "ImageFolderDataset" in metadata["data"]
         ):
             return "iNat21"
@@ -407,7 +405,7 @@ def __(beartype):
 
 
 @app.cell
-def __(Float, json, np, os):
+def _(Float, json, np, os):
     def load_freqs(run) -> Float[np.ndarray, " d_sae"]:
         try:
             for artifact in run.logged_artifacts():
@@ -446,7 +444,7 @@ def __(Float, json, np, os):
 
 
 @app.cell
-def __(df):
+def _(df):
     df.drop(
         "config/log_every",
         "config/slurm_acct",
@@ -454,11 +452,13 @@ def __(df):
         "config/n_workers",
         "config/wandb_project",
         "config/track",
-        "config/slurm",
+        "config/slurm_partition",
         "config/log_to",
         "config/ckpt_path",
-        "config/sae/ghost_grads",
+        "config/sae/remove_parallel_grads",
     )
+    # Changed ghost_grads to remove_parallel_grads as there is no ghost_grad under sae
+    # Changed slurm to slurm_partition
     return
 
 

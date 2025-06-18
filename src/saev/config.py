@@ -144,10 +144,10 @@ class DataLoad:
     """Maximum value for activations; activations will be clamped to within [-clamp, clamp]`."""
     n_random_samples: int = 2**19
     """Number of random samples used to calculate approximate dataset means at startup."""
-    scale_mean: bool | str = True
-    """Whether to subtract approximate dataset means from examples. If a string, manually load from the filepath."""
-    scale_norm: bool | str = True
-    """Whether to scale average dataset norm to sqrt(d_vit). If a string, manually load from the filepath."""
+    scale_mean: bool | str = False
+    """Whether to subtract approximate dataset means from examples. If a string, manually load from the filepath. Changed from True to False"""
+    scale_norm: bool | str = False
+    """Whether to scale average dataset norm to sqrt(d_vit). If a string, manually load from the filepath. Changed from True to False"""
 
 
 @beartype.beartype

@@ -1,11 +1,11 @@
 import marimo
 
-__generated_with = "0.9.32"
+__generated_with = "0.13.15"
 app = marimo.App(width="full")
 
 
 @app.cell
-def __():
+def _():
     import json
     import os
     import random
@@ -17,15 +17,15 @@ def __():
     import torch
     import tqdm
 
-    return json, mo, np, os, pl, plt, random, torch, tqdm
+    return json, mo, np, os, plt, torch, tqdm
 
 
 @app.cell
-def __(mo, os):
+def _(mo, os):
     def make_ckpt_dropdown():
         try:
             choices = sorted(
-                os.listdir("/research/nfs_su_809/workspace/stevens.994/saev/features")
+                os.listdir("/users/PZS1151/igwilson99/local/src/saev/checkpoints/")
             )
 
         except FileNotFoundError:
@@ -34,17 +34,17 @@ def __(mo, os):
         return mo.ui.dropdown(choices, label="Checkpoint:")
 
     ckpt_dropdown = make_ckpt_dropdown()
-    return ckpt_dropdown, make_ckpt_dropdown
+    return (ckpt_dropdown,)
 
 
 @app.cell
-def __(ckpt_dropdown, mo):
+def _(ckpt_dropdown, mo):
     mo.hstack([ckpt_dropdown], justify="start")
     return
 
 
 @app.cell
-def __(ckpt_dropdown, mo):
+def _(ckpt_dropdown, mo):
     mo.stop(
         ckpt_dropdown.value is None,
         mo.md(
@@ -52,14 +52,14 @@ def __(ckpt_dropdown, mo):
         ),
     )
 
-    webapp_dir = f"/research/nfs_su_809/workspace/stevens.994/saev/features/{ckpt_dropdown.value}/sort_by_patch"
+    webapp_dir = f"/users/PZS1151/igwilson99/local/src/saev/checkpoints/"
 
     get_i, set_i = mo.state(0)
     return get_i, set_i, webapp_dir
 
 
 @app.cell
-def __(mo):
+def _(mo):
     sort_by_freq_btn = mo.ui.run_button(label="Sort by frequency")
 
     sort_by_value_btn = mo.ui.run_button(label="Sort by value")
@@ -69,7 +69,7 @@ def __(mo):
 
 
 @app.cell
-def __(mo, sort_by_freq_btn, sort_by_latent_btn, sort_by_value_btn):
+def _(mo, sort_by_freq_btn, sort_by_latent_btn, sort_by_value_btn):
     mo.hstack(
         [sort_by_freq_btn, sort_by_value_btn, sort_by_latent_btn], justify="start"
     )
@@ -77,7 +77,7 @@ def __(mo, sort_by_freq_btn, sort_by_latent_btn, sort_by_value_btn):
 
 
 @app.cell
-def __(
+def _(
     json,
     mo,
     os,
@@ -111,11 +111,11 @@ def __(
         neurons = sorted(neurons, key=lambda dct: dct["log10_value"], reverse=True)
 
     mo.md(f"Found {len(neurons)} saved neurons.")
-    return get_neurons, neurons
+    return (neurons,)
 
 
 @app.cell
-def __(mo, neurons, set_i):
+def _(mo, neurons, set_i):
     next_button = mo.ui.button(
         label="Next",
         on_change=lambda _: set_i(lambda v: (v + 1) % len(neurons)),
@@ -129,7 +129,7 @@ def __(mo, neurons, set_i):
 
 
 @app.cell
-def __(get_i, mo, neurons, set_i):
+def _(get_i, mo, neurons, set_i):
     neuron_slider = mo.ui.slider(
         0,
         len(neurons),
@@ -141,12 +141,12 @@ def __(get_i, mo, neurons, set_i):
 
 
 @app.cell
-def __():
+def _():
     return
 
 
 @app.cell
-def __(
+def _(
     display_info,
     get_i,
     mo,
@@ -165,12 +165,12 @@ def __(
 
 
 @app.cell
-def __():
+def _():
     return
 
 
 @app.cell
-def __(get_i, mo, neurons):
+def _(get_i, mo, neurons):
     def display_info(log10_freq: float, log10_value: float, neuron: int):
         return mo.md(
             f"Neuron {neuron} ({get_i()}/{len(neurons)}; {get_i() / len(neurons) * 100:.1f}%) | Frequency: {10**log10_freq * 100:.3f}% of inputs | Mean Value: {10**log10_value:.3f}"
@@ -180,7 +180,7 @@ def __(get_i, mo, neurons):
 
 
 @app.cell
-def __(mo, webapp_dir):
+def _(mo, webapp_dir):
     def show_img(n: int, i: int):
         label = "No label found."
         try:
@@ -195,7 +195,7 @@ def __(mo, webapp_dir):
 
 
 @app.cell
-def __(get_i, mo, neurons, show_img):
+def _(get_i, mo, neurons, show_img):
     n = neurons[get_i()]["neuron"]
 
     mo.vstack([
@@ -250,21 +250,21 @@ def __(get_i, mo, neurons, show_img):
             widths="equal",
         ),
     ])
-    return (n,)
+    return
 
 
 @app.cell
-def __(os, torch, webapp_dir):
+def _(os, torch, webapp_dir):
     sparsity_fpath = os.path.join(webapp_dir, "sparsity.pt")
     sparsity = torch.load(sparsity_fpath, weights_only=True, map_location="cpu")
 
     values_fpath = os.path.join(webapp_dir, "mean_values.pt")
     values = torch.load(values_fpath, weights_only=True, map_location="cpu")
-    return sparsity, sparsity_fpath, values, values_fpath
+    return sparsity, values
 
 
 @app.cell
-def __(mo, np, plt, sparsity):
+def _(mo, np, plt, sparsity):
     def plot_hist(counts):
         fig, ax = plt.subplots()
         ax.hist(np.log10(counts.numpy() + 1e-9), bins=100)
@@ -279,17 +279,19 @@ def __(mo, np, plt, sparsity):
 
 
 @app.cell
-def __(mo, plot_hist, values):
-    mo.md(f"""
+def _(mo, plot_hist, values):
+    mo.md(
+        f"""
     Mean Value Log10
 
     {mo.as_html(plot_hist(values))}
-    """)
+    """
+    )
     return
 
 
 @app.cell
-def __(np, plt, sparsity, values):
+def _(np, plt, sparsity, values):
     def plot_dist(
         min_log_sparsity: float,
         max_log_sparsity: float,
@@ -341,53 +343,54 @@ def __(np, plt, sparsity, values):
 
 
 @app.cell
-def __(mo, plot_dist, sparsity_slider, value_slider):
-    mo.md(f"""
+def _(mo, plot_dist, sparsity_slider, value_slider):
+    mo.md(
+        f"""
     Log Sparsity Range: {sparsity_slider}
     {sparsity_slider.value}
 
     Log Value Range: {value_slider}
     {value_slider.value}
-
     {mo.as_html(plot_dist(sparsity_slider.value[0], sparsity_slider.value[1], value_slider.value[0], value_slider.value[1]))}
-    """)
+    """
+    )
     return
 
 
 @app.cell
-def __(mo):
+def _(mo):
     sparsity_slider = mo.ui.range_slider(start=-8, stop=0, step=0.1, value=[-6, -1])
     return (sparsity_slider,)
 
 
 @app.cell
-def __(mo):
+def _(mo):
     value_slider = mo.ui.range_slider(start=-3, stop=1, step=0.1, value=[-0.75, 1.0])
     return (value_slider,)
 
 
 @app.cell
-def __():
+def _():
     return
 
 
 @app.cell
-def __():
+def _():
     return
 
 
 @app.cell
-def __():
+def _():
     return
 
 
 @app.cell
-def __():
+def _():
     return
 
 
 @app.cell
-def __():
+def _():
     return
 
 

@@ -263,28 +263,49 @@ def get_topk_patch(cfg: config.Visuals) -> TopKPatch:
     Returns:
         A tuple of TopKPatch and m randomly sampled activation distributions.
     """
+    print("DEBUG: Starting get_topk_patch")
     assert cfg.sort_by == "patch"
     assert cfg.data.patches == "patches"
 
+    print("DEBUG: Loading SAE and dataset")
     sae = nn.load(cfg.ckpt).to(cfg.device)
-    dataset = activations.Dataset(cfg.data)
+    print("DEBUG: SAE loaded successfully")
 
+    print("DEBUG: Loading dataset...")
+    print(f"DEBUG: cfg.data = {cfg.data}")
+    print(f"DEBUG: cfg.data.shard_root = {cfg.data.shard_root}")
+    print(f"DEBUG: cfg.data.layer = {cfg.data.layer}")
+    try:
+        dataset = activations.Dataset(cfg.data)
+        print(f"DEBUG: SAE loaded, dataset size: {len(dataset)}")
+    except Exception as e:
+        print(f"DEBUG: Dataset loading failed with error: {e}")
+        print(f"DEBUG: Error type: {type(e)}")
+        import traceback
+        traceback.print_exc()
+        raise
+    
     top_values_p = torch.full(
         (sae.cfg.d_sae, cfg.top_k, dataset.metadata.n_patches_per_img),
         -1.0,
         device=cfg.device,
     )
+    print("Top values p:", top_values_p)
     top_i_im = torch.zeros(
         (sae.cfg.d_sae, cfg.top_k), dtype=torch.int, device=cfg.device
     )
-
+    print("Top i im: ", top_i_im)
     sparsity_S = torch.zeros((sae.cfg.d_sae,), device=cfg.device)
+    print("Sparsity S:", sparsity_S)
     mean_values_S = torch.zeros((sae.cfg.d_sae,), device=cfg.device)
-
+    print("Mean Values S:", mean_values_S)
     distributions_MN = torch.zeros((cfg.n_distributions, len(dataset)), device="cpu")
+    # cfg.n_distributions
+    print("Distributions MN", distributions_MN)
     estimator = PercentileEstimator(
         cfg.percentile, len(dataset), shape=(sae.cfg.d_sae,)
     )
+    print("Estimator: ", estimator)
 
     batch_size = (
         cfg.topk_batch_size
@@ -306,12 +327,16 @@ def get_topk_patch(cfg: config.Visuals) -> TopKPatch:
 
     for batch in helpers.progress(dataloader, desc="picking top-k"):
         vit_acts_BD = batch["act"]
+        print("Vit acts BD", vit_acts_BD)
         sae_acts_BS = get_sae_acts(vit_acts_BD, sae, cfg)
-
+        print("SAE acts BS:", sae_acts_BS)
         for sae_act_S in sae_acts_BS:
             estimator.update(sae_act_S)
+            print("Estimator Update:", estimator)
 
         sae_acts_SB = einops.rearrange(sae_acts_BS, "batch d_sae -> d_sae batch")
+        print("SAE acts SB:", sae_acts_SB)
+
         distributions_MN[:, batch["image_i"]] = sae_acts_SB[: cfg.n_distributions].to(
             "cpu"
         )
@@ -366,22 +391,29 @@ def dump_activations(cfg: config.Visuals):
     Returns:
         None. All data is saved to disk.
     """
+    print(f"DEBUG: cfg.dump_to = '{cfg.dump_to}'")
+    print(f"DEBUG: cfg.sort_by = '{cfg.sort_by}'") 
+    print(f"DEBUG: cfg.root = '{cfg.root}'")
     if cfg.sort_by == "img":
         topk = get_topk_img(cfg)
     elif cfg.sort_by == "patch":
+        print("DEBUG: About to call get_topk_patch")
         topk = get_topk_patch(cfg)
+        print("DEBUG: get_topk_patch completed")
     else:
         typing.assert_never(cfg.sort_by)
+    print(f"DEBUG: Creating directory: {cfg.root}")
 
     os.makedirs(cfg.root, exist_ok=True)
 
+    print("DEBUG: Saving files...")
     torch.save(topk.top_values, cfg.top_values_fpath)
     torch.save(topk.top_i, cfg.top_img_i_fpath)
     torch.save(topk.mean_values, cfg.mean_values_fpath)
     torch.save(topk.sparsity, cfg.sparsity_fpath)
     torch.save(topk.distributions, cfg.distributions_fpath)
     torch.save(topk.percentiles, cfg.percentiles_fpath)
-
+    print("DEBUG: All files saved successfully!")
 
 @jaxtyped(typechecker=beartype.beartype)
 def plot_activation_distributions(

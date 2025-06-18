@@ -61,7 +61,7 @@ def train(
     if cfg.slurm_acct:
         executor = submitit.SlurmExecutor(folder=cfg.log_to)
         executor.update_parameters(
-            time=int(cfg.n_hours * 60),
+            time=int(4500),
             partition=cfg.slurm_partition,
             gpus_per_node=1,
             ntasks_per_node=1,
