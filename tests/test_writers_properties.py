@@ -98,7 +98,7 @@ def test_metadata_n_shards_matches_disk(shard_root):
 
 
 @pytest.mark.slow
-def test_dataloader_batches():
+def test_dataloader_batches(tmp_path):
     cfg = Config(
         data=images.Imagenet(split="validation"),
         vit_ckpt="ViT-B-32/openai",
@@ -106,6 +106,7 @@ def test_dataloader_batches():
         vit_layers=[-2, -1],
         n_patches_per_img=49,
         vit_batch_size=8,
+        dump_to=str(tmp_path),
     )
     dataloader = get_dataloader(
         cfg, img_transform=models.make_img_transform(cfg.vit_family, cfg.vit_ckpt)
@@ -126,12 +127,12 @@ def test_shard_writer_and_dataset_e2e(tmp_path):
         data=images.Imagenet(split="validation"),
         vit_family="clip",
         vit_ckpt="hf-hub:hf-internal-testing/tiny-open-clip-model",
-        d_vit=192,
-        n_patches_per_img=196,
+        d_vit=128,
+        n_patches_per_img=16,
         vit_layers=[-2, -1],
         vit_batch_size=8,
         n_workers=8,
-        dump_to=tmp_path,
+        dump_to=str(tmp_path),
     )
     vit = models.make_vit(cfg.vit_family, cfg.vit_ckpt)
     vit = RecordedVisionTransformer(
@@ -160,7 +161,7 @@ def test_shard_writer_and_dataset_e2e(tmp_path):
 
         writer[i : i + len(cache)] = cache
         i += len(cache)
-        assert cache.shape == (cfg.vit_batch_size, len(cfg.vit_layers), 197, 192)
+        assert cache.shape == (cfg.vit_batch_size, len(cfg.vit_layers), 17, cfg.d_vit)
 
         acts = [dataset[i.item()]["act"] for i in batch["index"]]
         from_dataset = torch.stack(acts)
@@ -303,14 +304,13 @@ def test_shards_json_is_emitted(tmp_path):
         d_vit=128,
         vit_batch_size=12,
     )
-    # Act: run the writer
     worker_fn(cfg)
 
     outdir = tmp_path / Metadata.from_cfg(cfg).hash
     shards_json = outdir / "shards.json"
 
-    # Assert: file exists and has correct contents
-    assert shards_json.exists(), "spec requires shards.json in the output dir"
+    # Assert that file exists and has correct contents
+    assert shards_json.exists(), "protocol.md requires shards.json in the output dir"
 
     arr = json.loads(shards_json.read_text())
     # Should be a list of one entry per bin file
