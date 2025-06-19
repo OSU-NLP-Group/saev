@@ -1,8 +1,9 @@
 import beartype
 import torch.utils.data
-from typing import Protocol, Iterator, Any
+from typing import Protocol, Iterator, Any, runtime_checkable
 
 
+@runtime_checkable
 @beartype.beartype
 class Scheduler:
     def step(self) -> float:
@@ -37,7 +38,7 @@ class Warmup(Scheduler):
         return f"Warmup(init={self.init}, final={self.final}, n_steps={self.n_steps})"
 
 
-@beartype.beartype
+@runtime_checkable
 class DataLoaderLike(Protocol):
     drop_last: bool
     batch_size: int  # This is also needed since BatchLimiter uses it
