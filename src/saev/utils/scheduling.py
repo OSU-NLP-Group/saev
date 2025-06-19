@@ -37,12 +37,19 @@ class Warmup(Scheduler):
 
 
 @beartype.beartype
+class DataLoaderLike:
+    drop_last: bool
+
+    def __iter__(self): ...
+
+
+@beartype.beartype
 class BatchLimiter:
     """
     Limits the number of batches to only return `n_samples` total samples.
     """
 
-    def __init__(self, dataloader: torch.utils.data.DataLoader, n_samples: int):
+    def __init__(self, dataloader: DataLoaderLike, n_samples: int):
         self.dataloader = dataloader
         self.n_samples = n_samples
         self.batch_size = dataloader.batch_size
