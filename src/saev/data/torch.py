@@ -170,7 +170,7 @@ class Dataset(torch.utils.data.Dataset):
                 )
                 acts = np.memmap(acts_fpath, mode="c", dtype=np.float32, shape=shape)
                 # Choose the layer and the non-CLS tokens.
-                acts = acts[:, self.layer_index, 1:]
+                acts = acts[:, self.layer_index]
 
                 # Choose a patch among n and the patches.
                 act = acts[

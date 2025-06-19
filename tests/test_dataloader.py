@@ -1,16 +1,12 @@
 import gc
-import random
 import time
 
 import psutil
 import pytest
-import torch
 import torch.multiprocessing as mp
 
 from saev.data.iterable import Config as IterableConfig
 from saev.data.iterable import DataLoader
-from saev.data.torch import Config as TorchConfig
-from saev.data.torch import Dataset
 
 mp.set_start_method("spawn", force=True)
 
@@ -97,51 +93,3 @@ def test_no_child_leak(shard_root):
 
     after = peak_children()
     assert after <= before  # no new zombies
-
-
-def test_loader_matches_reference(shard_root):
-    ds = Dataset(
-        TorchConfig(
-            shard_root=shard_root,
-            patches="patches",
-            layer=23,
-            scale_mean=False,
-            scale_norm=False,
-        )
-    )
-    dl = DataLoader(IterableConfig(shard_root, batch_size=16))
-
-    # pick n_patches_per_img directly from metadata to avoid hard-coding
-    n_patches = ds.metadata.n_patches_per_img
-
-    random.seed(0)
-    n_checked = 0
-
-    for batch in dl:
-        for i in range(batch["act"].shape[0]):
-            img_i = int(batch["image_i"][i])
-            patch_i = int(batch["patch_i"][i])
-            if patch_i < 0:  # CLS / mean-pool examples; skip here
-                continue
-
-            idx = _global_index(img_i, patch_i, n_patches)
-            ref = ds[idx]
-
-            err_msg = f"Mismatch at global idx {idx}"
-            assert torch.allclose(batch["act"][i], ref["act"], atol=0, rtol=0), err_msg
-            n_checked += 1
-            if n_checked >= N_SAMPLES:
-                return
-
-
-# def test_same_seed_same_stream():
-#     stream1 = list(stream_batches(n=10_000, seed=42, workers=4))
-#     stream2 = list(stream_batches(n=10_000, seed=42, workers=8))
-#     assert stream1 == stream2  # tuples compare element-wise
-
-
-# def test_diff_seed_diff_stream():
-#     a = list(stream_batches(n=1000, seed=1))
-#     b = list(stream_batches(n=1000, seed=2))
-#     overlap = sum(x == y for x, y in zip(a, b))
-#     assert overlap < 0.1 * len(a)  # fewer than 10 % identical

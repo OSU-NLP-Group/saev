@@ -2,6 +2,6 @@
 .. include:: ./protocol.md
 """
 
-from .config import Activations
+from .iterable import Config as IterableConfig
 
-__all__ = ["Activations"]
+__all__ = ["IterableConfig"]

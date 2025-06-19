@@ -3,7 +3,7 @@ name = "saev"
 version = "0.1.0"
 description = "Sparse autoencoders for vision transformers in PyTorch"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 dependencies = [
     "altair>=5.4.1",
     "beartype>=0.19.0",
@@ -60,8 +60,8 @@ dev = [
 ]
 
 [tool.pytest.ini_options]
-# timeout = 30
-# timeout_method = "thread"
+timeout = 120
+timeout_method = "thread"
 filterwarnings = [
     "ignore:Can't initialize NVML:UserWarning"
 ]

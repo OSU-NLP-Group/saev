@@ -16,14 +16,14 @@ import einops
 import numpy as np
 import torch
 import tyro
-import wandb
 from jaxtyping import Float
 from torch import Tensor
 
 import saev.data
-import saev.data.torch
+import saev.data.iterable
 import saev.utils.scheduling
 import saev.utils.wandb
+import wandb
 from saev import helpers, nn
 
 log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
@@ -38,8 +38,8 @@ class Config:
     Configuration for training a sparse autoencoder on a vision transformer.
     """
 
-    data: saev.data.Activations = dataclasses.field(
-        default_factory=saev.data.Activations
+    data: saev.data.IterableConfig = dataclasses.field(
+        default_factory=saev.data.IterableConfig
     )
     """Data configuration"""
     n_workers: int = 32
@@ -89,8 +89,11 @@ class Config:
     """Where to log Slurm job stdout/stderr."""
 
 
+# TODO: can we remove this?
 @torch.no_grad()
-def init_b_dec_batched(saes: torch.nn.ModuleList, dataset: saev.data.torch.Dataset):
+def init_b_dec_batched(
+    saes: torch.nn.ModuleList, dataset: saev.data.iterable.DataLoader
+):
     n_samples = max(sae.cfg.n_reinit_samples for sae in saes)
     if not n_samples:
         return
@@ -183,27 +186,25 @@ def train(
         torch.backends.cudnn.benchmark = True
         torch.backends.cudnn.deterministic = False
 
-    dataset = saev.data.torch.Dataset(cfg.data)
+    dataloader = saev.data.iterable.DataLoader(cfg.data)
     saes, objectives, param_groups = make_saes([(c.sae, c.objective) for c in cfgs])
 
     mode = "online" if cfg.track else "disabled"
     tags = [cfg.tag] if cfg.tag else []
-    run = saev.utils.wandb.ParallelWandbRun(cfg.wandb_project, cfgs, mode, tags)
+    run = saev.utils.wandb.ParallelWandbRun(
+        cfg.wandb_project, [dataclasses.asdict(c) for c in cfgs], mode, tags
+    )
 
     optimizer = torch.optim.Adam(param_groups, fused=True)
     lr_schedulers = [
         saev.utils.scheduling.Warmup(0.0, c.lr, c.n_lr_warmup) for c in cfgs
     ]
     sparsity_schedulers = [
-        saev.utils.scheduling.scheduling.Warmup(
+        saev.utils.scheduling.Warmup(
             0.0, c.objective.sparsity_coeff, c.n_sparsity_warmup
         )
         for c in cfgs
     ]
-
-    dataloader = torch.utils.data.DataLoader(
-        dataset, batch_size=cfg.sae_batch_size, num_workers=cfg.n_workers, shuffle=True
-    )
 
     dataloader = saev.utils.scheduling.BatchLimiter(dataloader, cfg.n_patches)
 
@@ -332,10 +333,7 @@ def evaluate(
     almost_dead_lim = 1e-7
     dense_lim = 1e-2
 
-    dataset = saev.data.torch.Dataset(cfg.data)
-    dataloader = torch.utils.data.DataLoader(
-        dataset, batch_size=cfg.sae_batch_size, num_workers=cfg.n_workers, shuffle=False
-    )
+    dataloader = saev.data.iterable.DataLoader(cfg.data)
 
     n_fired = torch.zeros((len(cfgs), saes[0].cfg.d_sae))
     values = torch.zeros((len(cfgs), saes[0].cfg.d_sae))

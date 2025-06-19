@@ -314,6 +314,10 @@ class Metadata:
         return hashlib.sha256(cfg_bytes).hexdigest()
 
     @property
+    def n_tokens_per_img(self) -> int:
+        return self.n_patches_per_img + int(self.cls_token)
+
+    @property
     def n_shards(self) -> int:
         return math.ceil(self.n_imgs / self.n_imgs_per_shard)
 
@@ -327,6 +331,15 @@ class Metadata:
         """
         n_tokens_per_img = self.n_patches_per_img + (1 if self.cls_token else 0)
         return self.max_patches_per_shard // (n_tokens_per_img * len(self.layers))
+
+    @property
+    def shard_shape(self) -> tuple[int, int, int, int]:
+        return (
+            self.n_imgs_per_shard,
+            len(self.layers),
+            self.n_tokens_per_img,
+            self.d_vit,
+        )
 
 
 @beartype.beartype

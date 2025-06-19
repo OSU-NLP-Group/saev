@@ -1,6 +1,12 @@
+import collections.abc
+import itertools
+
 import beartype
+import numpy as np
 import torch
 import torch.multiprocessing as mp
+from jaxtyping import Shaped, jaxtyped
+from torch import Tensor
 
 
 @beartype.beartype
@@ -72,3 +78,95 @@ class RingBuffer:
             self.buf.untyped_storage()._free_shared_mem()
         except (AttributeError, FileNotFoundError):
             pass  # already freed or never allocated
+
+
+@jaxtyped(typechecker=beartype.beartype)
+class ResevoirBuffer:
+    """
+    Pool of (tensor, meta) pairs.
+    Multiple producers call put(batch_x, batch_meta).
+    Multiple consumers call get(batch_size) -> (x, meta).
+    Random order, each sample delivered once, blocking semantics.
+    """
+
+    def __init__(
+        self,
+        capacity: int,
+        shape: tuple[int, ...],
+        dtype=torch.float32,
+        seed: int = 0,
+        collate_fn: collections.abc.Callable | None = None,
+    ):
+        self.n = capacity
+        self.data = torch.full((capacity, *shape), 123456789, dtype=dtype)
+        self.data.share_memory_()
+
+        self.ctx = mp.get_context()
+        mgr = self.ctx.Manager()
+        self.meta = mgr.list([None] * capacity)
+
+        self.size = self.ctx.Value("L", 0)  # current live items
+        self.lock = self.ctx.Lock()  # guards size+swap
+        self.free = self.ctx.Semaphore(capacity)
+        self.full = self.ctx.Semaphore(0)
+        # Each process has its own RNG.
+        self.rng = np.random.default_rng(seed)
+
+        self.collate_fn = collate_fn
+
+    def put(
+        self,
+        xs: Shaped[Tensor, "bsz ..."],
+        metas: collections.abc.Sequence[object] | None = None,
+    ):
+        n = len(xs)
+        if metas is None:
+            metas_it = itertools.repeat(None, n)
+        else:
+            if len(metas) != n:
+                raise ValueError(f"len(xs) = {len(xs)} != len(metas) = {len(metas)}")
+            metas_it = iter(metas)
+
+        for x, m in zip(xs, metas_it):
+            self.free.acquire()  # block if full
+            with self.lock:
+                idx = self.size.value  # append at tail
+                self.data[idx].copy_(x)
+                self.meta[idx] = m
+                self.size.value += 1
+            self.full.release()
+
+    def get(
+        self, bsz: int
+    ) -> tuple[Shaped[Tensor, "bsz ..."], collections.abc.Sequence[object]]:
+        for _ in range(bsz):
+            self.full.acquire()
+
+        out_x = torch.empty((bsz, *self.data.shape[1:]), dtype=self.data.dtype)
+        out_m = [None] * bsz
+        with self.lock:
+            for i in range(bsz):
+                r = self.rng.integers(self.size.value)
+                out_x[i].copy_(self.data[r])
+                out_m[i] = self.meta[r]
+
+                last = self.size.value - 1  # swap-with-tail
+                if r != last:
+                    self.data[r].copy_(self.data[last])
+                    self.meta[r] = self.meta[last]
+                self.size.value -= 1
+                self.free.release()
+        if self.collate_fn:
+            out_m = self.collate_fn(out_m)
+        return out_x, out_m
+
+    def close(self) -> None:
+        """Release the shared-memory backing store (call once in the parent)."""
+        try:
+            self.data.untyped_storage()._free_shared_mem()
+        except (AttributeError, FileNotFoundError):
+            pass  # already freed or never allocated
+
+    def qsize(self) -> int:
+        """Approximate number of filled slots (race-safe enough for tests)."""
+        return self.size.value

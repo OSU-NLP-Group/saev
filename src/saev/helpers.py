@@ -2,6 +2,7 @@
 Useful helpers for `saev`.
 """
 
+import collections.abc
 import logging
 import os
 import time
@@ -111,3 +112,36 @@ def get(dct: dict[str, object], key: str, *, sep: str = ".") -> object:
         dct = dct[popped]
 
     return dct[key.pop()]
+
+
+@beartype.beartype
+class batched_idx:
+    """
+    Iterate over (start, end) indices for total_size examples, where end - start is at most batch_size.
+
+    Args:
+        total_size: total number of examples
+        batch_size: maximum distance between the generated indices.
+
+    Returns:
+        A generator of (int, int) tuples that can slice up a list or a tensor.
+    """
+
+    def __init__(self, total_size: int, batch_size: int):
+        """
+        Args:
+            total_size: total number of examples
+            batch_size: maximum distance between the generated indices
+        """
+        self.total_size = total_size
+        self.batch_size = batch_size
+
+    def __iter__(self) -> collections.abc.Iterator[tuple[int, int]]:
+        """Yield (start, end) index pairs for batching."""
+        for start in range(0, self.total_size, self.batch_size):
+            stop = min(start + self.batch_size, self.total_size)
+            yield start, stop
+
+    def __len__(self) -> int:
+        """Return the number of batches."""
+        return (self.total_size + self.batch_size - 1) // self.batch_size
