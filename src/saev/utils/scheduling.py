@@ -1,9 +1,8 @@
+from typing import Any, Iterator, Protocol, runtime_checkable
+
 import beartype
-import torch.utils.data
-from typing import Protocol, Iterator, Any, runtime_checkable
 
 
-@runtime_checkable
 @beartype.beartype
 class Scheduler:
     def step(self) -> float:
