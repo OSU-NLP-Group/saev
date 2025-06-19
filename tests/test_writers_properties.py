@@ -51,7 +51,7 @@ def metadatas(draw) -> Metadata:
             d_vit=512,
             n_imgs=draw(st.integers(min_value=1, max_value=10_000_000)),
             max_patches_per_shard=draw(st.integers(min_value=1, max_value=200_000_000)),
-            data="test",
+            data={"__class__": "Fake"},
         )
     except AssertionError:
         reject()
@@ -247,7 +247,7 @@ def test_missing_layer(layers, n_patches_per_img, data):
         vit_ckpt="ckpt",
         cls_token=False,
         d_vit=512,
-        data="test",
+        data={"__class__": "Fake"},
     )
 
     with pytest.raises(Exception):
@@ -351,7 +351,7 @@ def test_shard_size_consistency(max_patches, n_patches, n_layers, cls_token):
         d_vit=1,
         n_imgs=1,
         max_patches_per_shard=max_patches,
-        data="dummy",
+        data={"__class__": "Fake"},
     )
     # compute _spec_ value
     T = n_patches + (1 if cls_token else 0)

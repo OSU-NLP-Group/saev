@@ -13,7 +13,7 @@ def test_singleton_dataset():
         vit_ckpt="ckpt",
         cls_token=True,
         d_vit=512,
-        data="test",
+        data={"__class__": "Fake"},
     )
     il = IndexLookup(meta, "cls", 0)
     assert il.length() == 1

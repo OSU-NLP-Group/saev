@@ -150,24 +150,22 @@ class Dataset(torch.utils.data.Dataset):
                 # Select layer's cls token.
                 act = img_act[self.layer_index, 0, :]
                 return self.Example(act=self.transform(act), image_i=i, patch_i=-1)
-            case ("patches", int()):
+            case ("image", int()):
                 n_imgs_per_shard = (
                     self.metadata.max_patches_per_shard
                     // len(self.metadata.layers)
-                    // (self.metadata.n_patches_per_img + 1)
+                    // (self.metadata.n_patches_per_img + int(self.metadata.cls_token))
                 )
-                n_examples_per_shard = (
-                    n_imgs_per_shard * self.metadata.n_patches_per_img
-                )
+                n_patches_per_shard = n_imgs_per_shard * self.metadata.n_patches_per_img
 
-                shard = i // n_examples_per_shard
-                pos = i % n_examples_per_shard
+                shard = i // n_patches_per_shard
+                pos = i % n_patches_per_shard
 
                 acts_fpath = os.path.join(self.cfg.shard_root, f"acts{shard:06}.bin")
                 shape = (
                     n_imgs_per_shard,
                     len(self.metadata.layers),
-                    self.metadata.n_patches_per_img + 1,
+                    self.metadata.n_patches_per_img + int(self.metadata.cls_token),
                     self.metadata.d_vit,
                 )
                 acts = np.memmap(acts_fpath, mode="c", dtype=np.float32, shape=shape)
@@ -221,10 +219,10 @@ class Dataset(torch.utils.data.Dataset):
             case ("cls", int()):
                 # Return a CLS token from a random image and fixed layer.
                 return self.metadata.n_imgs
-            case ("patches", int()):
+            case ("image", int()):
                 # Return a patch from a random image, fixed layer, and random patch.
                 return self.metadata.n_imgs * (self.metadata.n_patches_per_img)
-            case ("patches", "all"):
+            case ("image", "all"):
                 # Return a patch from a random image, random layer and random patch.
                 return (
                     self.metadata.n_imgs

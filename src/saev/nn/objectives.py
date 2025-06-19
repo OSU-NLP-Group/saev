@@ -6,7 +6,28 @@ import torch
 from jaxtyping import Float, jaxtyped
 from torch import Tensor
 
-from .. import config
+
+@beartype.beartype
+@dataclasses.dataclass(frozen=True, slots=True)
+class Vanilla:
+    sparsity_coeff: float = 4e-4
+    """How much to weight sparsity loss term."""
+
+
+@beartype.beartype
+@dataclasses.dataclass(frozen=True, slots=True)
+class Matryoshka:
+    """
+    Config for the Matryoshka loss for another arbitrary SAE class.
+
+    Reference code is here: https://github.com/noanabeshima/matryoshka-saes and the original reading is https://sparselatents.com/matryoshka.html and https://arxiv.org/pdf/2503.17547.
+    """
+
+    n_prefixes: int = 10
+    """Number of random length prefixes to use for loss calculation."""
+
+
+ObjectiveConfig = Vanilla | Matryoshka
 
 
 @jaxtyped(typechecker=beartype.beartype)
@@ -65,7 +86,7 @@ class VanillaLoss(Loss):
 
 @jaxtyped(typechecker=beartype.beartype)
 class VanillaObjective(Objective):
-    def __init__(self, cfg: config.Vanilla):
+    def __init__(self, cfg: Vanilla):
         super().__init__()
         self.cfg = cfg
 
@@ -100,7 +121,7 @@ class MatryoshkaLoss(Loss):
 class MatryoshkaObjective(Objective):
     """Torch module for calculating the matryoshka loss for an SAE."""
 
-    def __init__(self, cfg: config.Matryoshka):
+    def __init__(self, cfg: Matryoshka):
         super().__init__()
         self.cfg = cfg
 
@@ -109,10 +130,10 @@ class MatryoshkaObjective(Objective):
 
 
 @beartype.beartype
-def get_objective(cfg: config.Objective) -> Objective:
-    if isinstance(cfg, config.Vanilla):
+def get_objective(cfg: ObjectiveConfig) -> Objective:
+    if isinstance(cfg, Vanilla):
         return VanillaObjective(cfg)
-    elif isinstance(cfg, config.Matryoshka):
+    elif isinstance(cfg, Matryoshka):
         return MatryoshkaObjective(cfg)
     else:
         typing.assert_never(cfg)

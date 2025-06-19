@@ -11,142 +11,11 @@ Also contains code for expanding configs with lists into lists of configs (grid 
 Might be expanded in the future to support pseudo-random sampling from distributions to support random hyperparameter search, as in [this file](https://github.com/samuelstevens/sax/blob/main/sax/sweep.py).
 """
 
-import collections.abc
 import dataclasses
-import itertools
 import os
 import typing
 
 import beartype
-
-
-@beartype.beartype
-@dataclasses.dataclass(frozen=True, slots=True)
-class DataLoad:
-    """
-    Configuration for loading activation data from disk.
-    """
-
-    shard_root: str = os.path.join(".", "shards")
-    """Directory with .bin shards and a metadata.json file."""
-    patches: typing.Literal["cls", "patches", "meanpool"] = "patches"
-    """Which kinds of patches to use. 'cls' indicates just the [CLS] token (if any). 'patches' indicates it will return all patches. 'meanpool' returns the mean of all image patches."""
-    layer: int | typing.Literal["all", "meanpool"] = -2
-    """Which ViT layer(s) to read from disk. ``-2`` selects the second-to-last layer. ``"all"`` enumerates every recorded layer, and ``"meanpool"`` averages activations across layers."""
-    clamp: float = 1e5
-    """Maximum value for activations; activations will be clamped to within [-clamp, clamp]`."""
-    n_random_samples: int = 2**19
-    """Number of random samples used to calculate approximate dataset means at startup."""
-    scale_mean: bool | str = True
-    """Whether to subtract approximate dataset means from examples. If a string, manually load from the filepath."""
-    scale_norm: bool | str = True
-    """Whether to scale average dataset norm to sqrt(d_vit). If a string, manually load from the filepath."""
-
-
-@beartype.beartype
-@dataclasses.dataclass(frozen=True, slots=True)
-class Relu:
-    d_vit: int = 1024
-    exp_factor: int = 16
-    """Expansion factor for SAE."""
-    n_reinit_samples: int = 1024 * 16 * 32
-    """Number of samples to use for SAE re-init. Anthropic proposes initializing b_dec to the geometric median of the dataset here: https://transformer-circuits.pub/2023/monosemantic-features/index.html#appendix-autoencoder-bias. We use the regular mean."""
-    remove_parallel_grads: bool = True
-    """Whether to remove gradients parallel to W_dec columns (which will be ignored because we force the columns to have unit norm). See https://transformer-circuits.pub/2023/monosemantic-features/index.html#appendix-autoencoder-optimization for the original discussion from Anthropic."""
-    normalize_w_dec: bool = True
-    """Whether to make sure W_dec has unit norm columns. See https://transformer-circuits.pub/2023/monosemantic-features/index.html#appendix-autoencoder for original citation."""
-    seed: int = 0
-    """Random seed."""
-
-    @property
-    def d_sae(self) -> int:
-        return self.d_vit * self.exp_factor
-
-
-@beartype.beartype
-@dataclasses.dataclass(frozen=True, slots=True)
-class JumpRelu:
-    """Implementation of the JumpReLU activation function for SAEs. Not implemented."""
-
-    pass
-
-
-SparseAutoencoder = Relu | JumpRelu
-
-
-@beartype.beartype
-@dataclasses.dataclass(frozen=True, slots=True)
-class Vanilla:
-    sparsity_coeff: float = 4e-4
-    """How much to weight sparsity loss term."""
-
-
-@beartype.beartype
-@dataclasses.dataclass(frozen=True, slots=True)
-class Matryoshka:
-    """
-    Config for the Matryoshka loss for another arbitrary SAE class.
-
-    Reference code is here: https://github.com/noanabeshima/matryoshka-saes and the original reading is https://sparselatents.com/matryoshka.html and https://arxiv.org/pdf/2503.17547.
-    """
-
-    n_prefixes: int = 10
-    """Number of random length prefixes to use for loss calculation."""
-
-
-Objective = Vanilla | Matryoshka
-
-
-@beartype.beartype
-@dataclasses.dataclass(frozen=True, slots=True)
-class Train:
-    """
-    Configuration for training a sparse autoencoder on a vision transformer.
-    """
-
-    data: DataLoad = dataclasses.field(default_factory=DataLoad)
-    """Data configuration"""
-    n_workers: int = 32
-    """Number of dataloader workers."""
-    n_patches: int = 100_000_000
-    """Number of SAE training examples."""
-    sae: SparseAutoencoder = dataclasses.field(default_factory=Relu)
-    """SAE configuration."""
-    objective: Objective = dataclasses.field(default_factory=Vanilla)
-    """SAE loss configuration."""
-    n_sparsity_warmup: int = 0
-    """Number of sparsity coefficient warmup steps."""
-    lr: float = 0.0004
-    """Learning rate."""
-    n_lr_warmup: int = 500
-    """Number of learning rate warmup steps."""
-    sae_batch_size: int = 1024 * 16
-    """Batch size for SAE training."""
-
-    # Logging
-    track: bool = True
-    """Whether to track with WandB."""
-    wandb_project: str = "saev"
-    """WandB project name."""
-    tag: str = ""
-    """Tag to add to WandB run."""
-    log_every: int = 25
-    """How often to log to WandB."""
-    ckpt_path: str = os.path.join(".", "checkpoints")
-    """Where to save checkpoints."""
-
-    device: typing.Literal["cuda", "cpu"] = "cuda"
-    """Hardware device."""
-    seed: int = 42
-    """Random seed."""
-    slurm_acct: str = ""
-    """Slurm account string. Empty means to not use Slurm."""
-    slurm_partition: str = ""
-    """Slurm partition."""
-    n_hours: float = 24.0
-    """Slurm job length in hours."""
-    log_to: str = os.path.join(".", "logs")
-    """Where to log Slurm job stdout/stderr."""
 
 
 @beartype.beartype
@@ -156,9 +25,9 @@ class Visuals:
 
     ckpt: str = os.path.join(".", "checkpoints", "sae.pt")
     """Path to the sae.pt file."""
-    data: DataLoad = dataclasses.field(default_factory=DataLoad)
+    # data: DataLoad = dataclasses.field(default_factory=DataLoad)
     """Data configuration."""
-    images: DatasetConfig = dataclasses.field(default_factory=ImagenetDataset)
+    # images: DatasetConfig = dataclasses.field(default_factory=ImagenetDataset)
     """Which images to use."""
     top_k: int = 128
     """How many images per SAE feature to store."""
@@ -222,73 +91,3 @@ class Visuals:
     @property
     def percentiles_fpath(self) -> str:
         return os.path.join(self.root, f"percentiles_p{self.percentile}.pt")
-
-
-##########
-# SWEEPS #
-##########
-
-
-@beartype.beartype
-def grid(cfg: Train, sweep_dct: dict[str, object]) -> tuple[list[Train], list[str]]:
-    cfgs, errs = [], []
-    for d, dct in enumerate(expand(sweep_dct)):
-        # .sae is a nested field that cannot be naively expanded.
-        sae_dct = dct.pop("sae")
-        if sae_dct:
-            sae_dct["seed"] = sae_dct.pop("seed", cfg.sae.seed) + cfg.seed + d
-            dct["sae"] = dataclasses.replace(cfg.sae, **sae_dct)
-
-        # .objective is a nested field that cannot be naively expanded.
-        objective_dct = dct.pop("objective")
-        if objective_dct:
-            dct["objective"] = dataclasses.replace(cfg.objective, **objective_dct)
-
-        # .data is a nested field that cannot be naively expanded.
-        data_dct = dct.pop("data")
-        if data_dct:
-            dct["data"] = dataclasses.replace(cfg.data, **data_dct)
-
-        try:
-            cfgs.append(dataclasses.replace(cfg, **dct, seed=cfg.seed + d))
-        except Exception as err:
-            errs.append(str(err))
-
-    return cfgs, errs
-
-
-@beartype.beartype
-def expand(config: dict[str, object]) -> collections.abc.Iterator[dict[str, object]]:
-    """
-    Expands dicts with (nested) lists into a list of (nested) dicts.
-    """
-    yield from _expand_discrete(config)
-
-
-@beartype.beartype
-def _expand_discrete(
-    config: dict[str, object],
-) -> collections.abc.Iterator[dict[str, object]]:
-    """
-    Expands any (possibly nested) list values in `config`
-    """
-    if not config:
-        yield config
-        return
-
-    key, value = config.popitem()
-
-    if isinstance(value, list):
-        # Expand
-        for c in _expand_discrete(config):
-            for v in value:
-                yield {**c, key: v}
-    elif isinstance(value, dict):
-        # Expand
-        for c, v in itertools.product(
-            _expand_discrete(config), _expand_discrete(value)
-        ):
-            yield {**c, key: v}
-    else:
-        for c in _expand_discrete(config):
-            yield {**c, key: value}

@@ -17,7 +17,38 @@ import torch
 from jaxtyping import Float, jaxtyped
 from torch import Tensor
 
-from .. import __version__, config
+from .. import __version__
+
+
+@beartype.beartype
+@dataclasses.dataclass(frozen=True, slots=True)
+class Relu:
+    d_vit: int = 1024
+    exp_factor: int = 16
+    """Expansion factor for SAE."""
+    n_reinit_samples: int = 1024 * 16 * 32
+    """Number of samples to use for SAE re-init. Anthropic proposes initializing b_dec to the geometric median of the dataset here: https://transformer-circuits.pub/2023/monosemantic-features/index.html#appendix-autoencoder-bias. We use the regular mean."""
+    remove_parallel_grads: bool = True
+    """Whether to remove gradients parallel to W_dec columns (which will be ignored because we force the columns to have unit norm). See https://transformer-circuits.pub/2023/monosemantic-features/index.html#appendix-autoencoder-optimization for the original discussion from Anthropic."""
+    normalize_w_dec: bool = True
+    """Whether to make sure W_dec has unit norm columns. See https://transformer-circuits.pub/2023/monosemantic-features/index.html#appendix-autoencoder for original citation."""
+    seed: int = 0
+    """Random seed."""
+
+    @property
+    def d_sae(self) -> int:
+        return self.d_vit * self.exp_factor
+
+
+@beartype.beartype
+@dataclasses.dataclass(frozen=True, slots=True)
+class JumpRelu:
+    """Implementation of the JumpReLU activation function for SAEs. Not implemented."""
+
+    pass
+
+
+SparseAutoencoderConfig = Relu | JumpRelu
 
 
 @jaxtyped(typechecker=beartype.beartype)
@@ -26,7 +57,7 @@ class SparseAutoencoder(torch.nn.Module):
     Sparse auto-encoder (SAE) using L1 sparsity penalty.
     """
 
-    def __init__(self, cfg: config.Relu):
+    def __init__(self, cfg: Relu):
         super().__init__()
 
         self.cfg = cfg
@@ -125,10 +156,10 @@ class SparseAutoencoder(torch.nn.Module):
 
 
 @beartype.beartype
-def get_activation(cfg: config.SparseAutoencoder) -> torch.nn.Module:
-    if isinstance(cfg, config.Relu):
+def get_activation(cfg: SparseAutoencoderConfig) -> torch.nn.Module:
+    if isinstance(cfg, Relu):
         return torch.nn.ReLU()
-    elif isinstance(cfg, config.JumpRelu):
+    elif isinstance(cfg, JumpRelu):
         raise NotImplementedError()
     else:
         typing.assert_never(cfg)
@@ -171,9 +202,9 @@ def load(fpath: str, *, device="cpu") -> SparseAutoencoder:
         # Original, pre-schema stuff.
         for keyword in ("sparsity_coeff", "ghost_grads"):
             header.pop(keyword)
-        cfg = config.Relu(**header)
+        cfg = Relu(**header)
     elif header["schema"] == 1:
-        cls = getattr(config, header["cls"])  # default for v0
+        cls = globals()[header["cls"]]  # default for v0
         cfg = cls(**header["cfg"])
     else:
         raise ValueError(f"Unknown schema version: {header['schema']}")

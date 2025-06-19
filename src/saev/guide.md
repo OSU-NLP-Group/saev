@@ -58,7 +58,7 @@ To train an SAE, we need to specify:
 2. SAE architectural stuff.
 3. Optimization-related stuff.
 
-`The `saev.training` module handles this.
+The `saev.training` module handles this.
 
 Run `uv run python -m saev train --help` to see all the configuration.
 

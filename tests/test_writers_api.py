@@ -11,7 +11,7 @@ def test_first_patch():
         vit_ckpt="ckpt",
         cls_token=True,
         d_vit=512,
-        data="test",
+        data={"__class__": "Fake"},
     )
     il = IndexLookup(md, "cls", 11)
     assert il.map_global(0) == (0, (0, 0, 0))
@@ -27,7 +27,7 @@ def test_second_img_with_cls():
         vit_ckpt="ckpt",
         cls_token=True,
         d_vit=512,
-        data="test",
+        data={"__class__": "Fake"},
     )
     il = IndexLookup(meta, "image", -1)
     sh, (img_i, layer_i, token_i) = il.map_global(196)
@@ -47,7 +47,7 @@ def test_second_img_without_cls():
         vit_ckpt="ckpt",
         cls_token=False,
         d_vit=512,
-        data="test",
+        data={"__class__": "Fake"},
     )
     il = IndexLookup(meta, "image", -1)
     sh, (img_i, layer_i, token_i) = il.map_global(196)
@@ -67,7 +67,7 @@ def test_third_image_with_cls():
         vit_ckpt="ckpt",
         cls_token=True,
         d_vit=1024,
-        data="test",
+        data={"__class__": "Fake"},
     )
     il = IndexLookup(meta, "all", 2)
     sh, (img_i, layer_i, token_i) = il.map_global(130)
@@ -87,7 +87,7 @@ def test_image_with_layers():
         vit_ckpt="ckpt",
         cls_token=False,
         d_vit=1024,
-        data="test",
+        data={"__class__": "Fake"},
     )
     il = IndexLookup(md, "all", "all")
     sh, (img_i, layer_i, token_i) = il.map_global(128)

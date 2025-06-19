@@ -271,7 +271,7 @@ class Metadata:
     d_vit: int
     n_imgs: int
     max_patches_per_shard: int
-    data: str
+    data: dict[str, object]
     dtype: typing.Literal["float32"] = "float32"
     protocol: typing.Literal["1.0.0"] = "1.0.0"
 
@@ -292,7 +292,7 @@ class Metadata:
             cfg.d_vit,
             cfg.data.n_imgs,
             cfg.max_patches_per_shard,
-            str(cfg.data),
+            {**dataclasses.asdict(cfg.data), "__class__": cfg.data.__class__.__name__},
         )
 
     @classmethod
