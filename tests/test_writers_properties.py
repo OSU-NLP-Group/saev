@@ -5,6 +5,9 @@ for shards in /fs/scratch/PAS2136/samuelstevens/cache/saev/*; uv run pytest test
 """
 
 import json
+import os
+import pathlib
+import tempfile
 
 import pytest
 import torch
@@ -52,6 +55,11 @@ def metadatas(draw) -> Metadata:
         )
     except AssertionError:
         reject()
+
+
+@st.composite
+def writers_configs(draw) -> Config:
+    return Config(vit_family=draw(st.sampled_from(["clip", "siglip", "dinov2"])))
 
 
 def patches():
@@ -287,3 +295,79 @@ def test_shards_json_is_emitted(tmp_path):
         assert entry["name"] == f"acts{idx:06d}.bin"
         # last shard may be smaller
         assert entry["n_imgs"] > 0 and isinstance(entry["n_imgs"], int)
+
+
+@given(cfg=writers_configs())
+def test_metadata_json_has_required_keys(cfg):
+    # We cannot use the tmp_path fixture because of Hypothesis.
+    # See https://hypothesis.readthedocs.io/en/latest/reference/api.html#hypothesis.HealthCheck.function_scoped_fixture
+    with tempfile.TemporaryDirectory() as tmp_path:
+        outdir = pathlib.Path(tmp_path, Metadata.from_cfg(cfg).hash)
+        os.makedirs(outdir)
+        # Write metadata.json
+        Metadata.from_cfg(cfg).dump(outdir / "metadata.json")
+
+        md = json.loads((outdir / "metadata.json").read_text())
+        # required keys from the protocol
+        expected = {
+            "vit_family",
+            "vit_ckpt",
+            "layers",
+            "n_patches_per_img",
+            "cls_token",
+            "d_vit",
+            "n_imgs",
+            "max_patches_per_shard",
+            "data",
+            "dtype",
+            "protocol",
+        }
+        assert set(md) == expected, (
+            f"metadata.json keys must exactly match spec, got {set(md)}"
+        )
+
+        # dtype & protocol must be fixed strings
+        assert md["dtype"] == "float32"
+        assert md["protocol"] == "1.0.0"
+
+        # data must be a dict with a __class__ key
+        assert isinstance(md["data"], dict)
+        assert "__class__" in md["data"]
+
+
+@given(
+    max_patches=st.integers(min_value=1, max_value=10_000_000),
+    n_patches=st.integers(min_value=1, max_value=1000),
+    n_layers=st.integers(min_value=1, max_value=50),
+    cls_token=st.booleans(),
+)
+def test_shard_size_consistency(max_patches, n_patches, n_layers, cls_token):
+    md = Metadata(
+        vit_family="clip",
+        vit_ckpt="ckpt",
+        layers=tuple(range(n_layers)),
+        n_patches_per_img=n_patches,
+        cls_token=cls_token,
+        d_vit=1,
+        n_imgs=1,
+        max_patches_per_shard=max_patches,
+        data="dummy",
+    )
+    # compute _spec_ value
+    T = n_patches + (1 if cls_token else 0)
+    spec_nv = max_patches // (T * n_layers)
+    # via Metadata property
+    assert md.n_imgs_per_shard == spec_nv
+    # via ShardWriter logic
+    cfg = Config(
+        data=images.Imagenet(),
+        dump_to=".",
+        vit_layers=list(range(n_layers)),
+        n_patches_per_img=n_patches,
+        cls_token=cls_token,
+        max_patches_per_shard=max_patches,
+        vit_family="clip",
+        vit_ckpt="ckpt",
+    )
+    sw = ShardWriter(cfg)
+    assert sw.n_imgs_per_shard == spec_nv
