@@ -1,6 +1,6 @@
 import torch
 
-from . import visuals
+from saev import visuals
 
 
 def test_gather_batched_small():

@@ -1,6 +1,6 @@
 import torch
 
-from . import config, training
+from saev import config, training
 
 
 def test_split_cfgs_on_single_key():

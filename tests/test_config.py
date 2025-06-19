@@ -1,6 +1,6 @@
 import pytest
 
-from . import config
+from saev import config
 
 
 def test_expand():
