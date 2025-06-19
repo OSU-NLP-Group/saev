@@ -2,6 +2,7 @@ import dataclasses
 import hashlib
 import json
 import logging
+import math
 import os
 import typing
 from collections.abc import Callable
@@ -271,6 +272,8 @@ class Metadata:
     n_imgs: int
     max_patches_per_shard: int
     data: str
+    dtype: typing.Literal["float32"] = "float32"
+    protocol: typing.Literal["1.0.0"] = "1.0.0"
 
     def __post_init__(self):
         # Check that at least one image per shard can fit.
@@ -292,17 +295,6 @@ class Metadata:
             str(cfg.data),
         )
 
-    @property
-    def n_imgs_per_shard(self) -> int:
-        """
-        Calculate the number of images per shard based on the protocol.
-
-        Returns:
-            Number of images that fit in a shard.
-        """
-        n_tokens_per_img = self.n_patches_per_img + (1 if self.cls_token else 0)
-        return self.max_patches_per_shard // (n_tokens_per_img * len(self.layers))
-
     @classmethod
     def load(cls, fpath) -> "Metadata":
         with open(fpath) as fd:
@@ -323,14 +315,18 @@ class Metadata:
 
     @property
     def n_shards(self) -> int:
-        total_patches = (
-            self.n_imgs
-            * len(self.layers)
-            * (self.n_patches_per_img + (1 if self.cls_token else 0))
-        )
-        return (
-            total_patches + self.max_patches_per_shard - 1
-        ) // self.max_patches_per_shard
+        return math.ceil(self.n_imgs / self.n_imgs_per_shard)
+
+    @property
+    def n_imgs_per_shard(self) -> int:
+        """
+        Calculate the number of images per shard based on the protocol.
+
+        Returns:
+            Number of images that fit in a shard.
+        """
+        n_tokens_per_img = self.n_patches_per_img + (1 if self.cls_token else 0)
+        return self.max_patches_per_shard // (n_tokens_per_img * len(self.layers))
 
 
 @beartype.beartype

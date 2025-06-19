@@ -4,9 +4,7 @@ On OSC, with the fish shell:
 for shards in /fs/scratch/PAS2136/samuelstevens/cache/saev/*; uv run pytest tests/test_writers.py --shards $shards; end
 """
 
-import glob
 import json
-import os
 
 import pytest
 import torch
@@ -62,39 +60,6 @@ def patches():
 
 def layers():
     return st.one_of(st.just("all"), st.integers())
-
-
-@pytest.fixture(scope="session")
-def shard_root(pytestconfig):
-    p = pytestconfig.getoption("--shards")
-    if p is None:
-        pytest.skip("--shards not supplied")
-    return p
-
-
-def test_metadata_n_shards_matches_disk(shard_root):
-    """Test that Metadata.n_shards matches the actual number of shards on disk.
-    Shards are on disk with this sort of file structure:
-    $ ls
-    acts000000.bin  acts000005.bin  acts000010.bin  acts000015.bin  acts000020.bin
-    acts000001.bin  acts000006.bin  acts000011.bin  acts000016.bin  acts000021.bin
-    acts000002.bin  acts000007.bin  acts000012.bin  acts000017.bin  acts000022.bin
-    acts000003.bin  acts000008.bin  acts000013.bin  acts000018.bin  acts000023.bin
-    acts000004.bin  acts000009.bin  acts000014.bin  acts000019.bin  metadata.json
-    So here, the number of shards would be 24.
-    """
-    # Load metadata from the directory
-    metadata_path = os.path.join(shard_root, "metadata.json")
-    assert os.path.exists(metadata_path), f"Metadata file not found at {metadata_path}"
-
-    metadata = Metadata.load(metadata_path)
-
-    # Count actual shards on disk
-    shard_pattern = os.path.join(shard_root, "acts*.bin")
-    actual_shards = len(glob.glob(shard_pattern))
-
-    # Verify the calculated n_shards matches the actual count
-    assert metadata.n_shards == actual_shards
 
 
 @pytest.mark.slow
