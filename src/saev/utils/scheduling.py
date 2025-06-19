@@ -1,5 +1,6 @@
 import beartype
 import torch.utils.data
+from typing import Protocol, Iterator, Any
 
 
 @beartype.beartype
@@ -37,10 +38,11 @@ class Warmup(Scheduler):
 
 
 @beartype.beartype
-class DataLoaderLike:
+class DataLoaderLike(Protocol):
     drop_last: bool
+    batch_size: int  # This is also needed since BatchLimiter uses it
 
-    def __iter__(self): ...
+    def __iter__(self) -> Iterator[Any]: ...
 
 
 @beartype.beartype
