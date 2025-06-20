@@ -19,7 +19,7 @@ from torch import Tensor
 
 from saev import helpers
 
-from . import Metadata, utils
+from . import utils, writers
 
 
 @beartype.beartype
@@ -39,17 +39,17 @@ class Config:
     """Whether to drop the last batch if it's smaller than the others."""
     n_threads: int = 4
     """Number of dataloading threads."""
-    seed: int = 17
-    """Random seed."""
     buffer_size: int = 64
     """Number of batches to queue in the shared-memory ring buffer. Higher values add latency but improve resilience to brief stalls."""
+    seed: int = 17
+    """Random seed."""
 
 
 @jaxtyped(typechecker=beartype.beartype)
 def _io_worker(
     worker_id: int,
     cfg: Config,
-    metadata: Metadata,
+    metadata: writers.Metadata,
     work_queue: queue.Queue[int | None],
     resevoir: utils.ResevoirBuffer,
     stop_event: threading.Event,
@@ -101,7 +101,7 @@ def _io_worker(
 @beartype.beartype
 def _manager_main(
     cfg: Config,
-    metadata: Metadata,
+    metadata: writers.Metadata,
     resevoir: utils.ResevoirBuffer,
     stop_event: Event,
 ):
@@ -186,7 +186,7 @@ class DataLoader:
             raise RuntimeError(f"Activations are not saved at '{self.cfg.shard_root}'.")
 
         metadata_fpath = os.path.join(self.cfg.shard_root, "metadata.json")
-        self.metadata = Metadata.load(metadata_fpath)
+        self.metadata = writers.Metadata.load(metadata_fpath)
 
         self.logger = logging.getLogger("iterable.DataLoader")
         self.ctx = mp.get_context()
