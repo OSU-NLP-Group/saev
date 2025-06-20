@@ -93,6 +93,7 @@ class ResevoirBuffer:
         self,
         capacity: int,
         shape: tuple[int, ...],
+        *,
         dtype=torch.float32,
         seed: int = 0,
         collate_fn: collections.abc.Callable | None = None,
@@ -116,10 +117,23 @@ class ResevoirBuffer:
 
     def put(
         self,
-        xs: Shaped[Tensor, "bsz ..."],
+        xs: Shaped[Tensor, "n? ..."],
         metas: collections.abc.Sequence[object] | None = None,
     ):
-        n = len(xs)
+        if xs.dtype != self.data.dtype:
+            raise ValueError("tensor dtype mismatch")
+
+        if xs.shape == self.data.shape[1:]:
+            # No batch dim, add one
+            xs = xs[None, ...]
+
+        elif xs.shape[1:] == self.data.shape[1:]:
+            # Already has a batch dim, we're good.
+            pass
+        else:
+            raise ValueError("tensor shape mismatch")
+
+        n, *_ = xs.shape
         if metas is None:
             metas_it = itertools.repeat(None, n)
         else:

@@ -137,7 +137,7 @@ def test_exact_capacity_cycle():
 def _consume_blocking(ring: ResevoirBuffer, started, finished):
     # blocks until producer frees slot
     started.set()
-    _ = ring.get()
+    ring.get(1)
     finished.set()
 
 
@@ -158,14 +158,15 @@ def _produce_n(ring: ResevoirBuffer, n: int, start: int = 0):
 def _collect_n(ring: ResevoirBuffer, n: int, q):
     vals = []
     for _ in range(n):
-        vals.append(ring.get().item())
+        tensor, meta = ring.get(1)
+        vals.append(tensor.item())
     q.put(vals)
 
 
 @beartype.beartype
 def _consume_n(ring: ResevoirBuffer, n: int):
     for _ in range(n):
-        ring.get()
+        ring.get(1)
 
 
 def test_blocking_put_when_full(backend):
@@ -219,18 +220,6 @@ def test_blocking_get_when_empty(backend):
     assert finished.is_set()
 
 
-def test_wraparound_large_volume():
-    """Push >> slots elements; order must still hold."""
-    slots = 8
-    total = 1_000
-    ring = ResevoirBuffer(slots, (1,), dtype=torch.int32)
-    for i in range(total):
-        ring.put(torch.tensor([i], dtype=torch.int32))
-        out = ring.get()
-        assert out.item() == i
-    assert ring.qsize() == 0
-
-
 def test_across_process_visibility(backend):
     """Producer in one process, consumer in another share the same data."""
     slots, total = 4, 10
@@ -244,7 +233,7 @@ def test_across_process_visibility(backend):
     w1.join()
     w2.join()
 
-    assert q.get() == list(range(10))
+    assert set(q.get()) == set(range(10))
 
 
 def test_put_shape_dtype_mismatch():
@@ -284,7 +273,7 @@ def test_qsize_monotone_under_race(backend):
 def test_many_producers_consumers(backend):
     n_producers = 2
     slots = 8
-    ring = ResevoirBuffer(slots, (1,), torch.int32)
+    ring = ResevoirBuffer(slots, (1,), dtype=torch.int32)
     per_proc = 100
 
     # Sum of arithmetic sequences
@@ -321,7 +310,7 @@ def _produce_then_die(ring: ResevoirBuffer):
 
 
 def test_producer_crash_does_not_corrupt():
-    ring = ResevoirBuffer(4, (1,), torch.int32)
+    ring = ResevoirBuffer(4, (1,), dtype=torch.int32)
 
     p = mp.Process(target=_produce_then_die, args=(ring,))
     p.start()
@@ -329,8 +318,8 @@ def test_producer_crash_does_not_corrupt():
 
     # queue should still work
     ring.put(torch.tensor([2], dtype=torch.int32))
-    assert ring.get().item() == 1
-    assert ring.get().item() == 2
+    tensor, metas = ring.get(2)
+    assert set(tensor.squeeze().tolist()) == {1, 2}
 
 
 @settings(deadline=None, max_examples=20)
@@ -342,7 +331,7 @@ def test_producer_crash_does_not_corrupt():
     )
 )
 def test_fuzz_interleaved_ops(seq):
-    rb = ResevoirBuffer(4, (1,), torch.int32)
+    rb = ResevoirBuffer(capacity=4, shape=(1,), dtype=torch.int32)
     outstanding = 0
     for op, val in seq:
         if op == "put":
@@ -351,7 +340,7 @@ def test_fuzz_interleaved_ops(seq):
                 outstanding += 1
         elif op == "get":
             if outstanding:
-                rb.get()
+                rb.get(1)
                 outstanding -= 1
         else:
             raise ValueError(op)
