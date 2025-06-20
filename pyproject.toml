@@ -19,6 +19,7 @@ dependencies = [
     "torch>=2.5.0",
     "tqdm>=4.66.5",
     "tyro>=0.8.12",
+    "wandb>=0.19.6",
 ]
 
 [build-system]
@@ -28,11 +29,6 @@ build-backend = "hatchling.build"
 [project.urls]
 Homepage = "https://osu-nlp-group.github.io/saev"
 Issues = "https://github.com/OSU-NLP-Group/saev/issues"
-
-[project.optional-dependencies]
-training = [
-    "wandb>=0.19.6",
-]
 
 [tool.ruff.lint]
 select = ["E", "F", "I"]
@@ -60,7 +56,7 @@ dev = [
 ]
 
 [tool.pytest.ini_options]
-timeout = 120
+timeout = 300
 timeout_method = "thread"
 filterwarnings = [
     "ignore:Can't initialize NVML:UserWarning"

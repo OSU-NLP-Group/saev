@@ -1,4 +1,5 @@
 import beartype
+
 import wandb
 
 MetricQueue = list[tuple[int, dict[str, object]]]
@@ -11,15 +12,23 @@ class ParallelWandbRun:
     """
 
     def __init__(
-        self, project: str, cfgs: list[dict[str, object]], mode: str, tags: list[str]
+        self,
+        project: str,
+        cfgs: list[dict[str, object]],
+        mode: str,
+        tags: list[str],
+        dir: str = ".wandb",
     ):
         cfg, *cfgs = cfgs
         self.project = project
         self.cfgs = cfgs
         self.mode = mode
         self.tags = tags
+        self.dir = dir
 
-        self.live_run = wandb.init(project=project, config=cfg, mode=mode, tags=tags)
+        self.live_run = wandb.init(
+            project=project, config=cfg, mode=mode, tags=tags, dir=dir
+        )
 
         self.metric_queues: list[MetricQueue] = [[] for _ in self.cfgs]
 
@@ -40,6 +49,7 @@ class ParallelWandbRun:
                 config=cfg,
                 mode=self.mode,
                 tags=self.tags + ["queued"],
+                dir=self.dir,
             )
             for step, metric in queue:
                 run.log(metric, step=step)
