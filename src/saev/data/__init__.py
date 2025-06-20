@@ -3,5 +3,6 @@
 """
 
 from .iterable import Config as IterableConfig
+from .writers import Metadata
 
-__all__ = ["IterableConfig"]
+__all__ = ["IterableConfig", "Metadata"]

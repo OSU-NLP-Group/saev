@@ -212,7 +212,7 @@ class DataLoader:
         self.resevoir = utils.ResevoirBuffer(
             self.cfg.buffer_size * self.cfg.batch_size,
             (self.metadata.d_vit,),
-            torch.float32,
+            dtype=torch.float32,
             collate_fn=torch.utils.data.default_collate,
         )
         self.stop_event = self.ctx.Event()
@@ -245,6 +245,7 @@ class DataLoader:
     def shutdown(self):
         if self.stop_event and not self.stop_event.is_set():
             self.stop_event.set()
+
         if self.manager_proc and self.manager_proc.is_alive():
             self.manager_proc.join(timeout=5.0)
             if self.manager_proc.is_alive():
