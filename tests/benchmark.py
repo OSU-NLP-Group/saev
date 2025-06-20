@@ -113,6 +113,7 @@ def benchmark_fn(
             layer=layer,
             batch_size=batch_size,
             n_threads=n_workers,
+            buffer_size=128,
             seed=0,
         )
         dl = saev.data.iterable.DataLoader(cfg)
