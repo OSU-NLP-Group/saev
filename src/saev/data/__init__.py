@@ -1,5 +1,7 @@
 """
 .. include:: ./protocol.md
+
+.. include:: ./performance.md
 """
 
 from .iterable import Config as IterableConfig
