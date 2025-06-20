@@ -93,7 +93,7 @@ def benchmark_fn(
     if kind == "torch":
         cfg = saev.data.torch.Config(
             shard_root=shard_root,
-            patches="patches",
+            patches="image",
             layer=layer,
             scale_mean=False,
             scale_norm=False,
@@ -109,7 +109,7 @@ def benchmark_fn(
     elif kind == "iterable":
         cfg = saev.data.iterable.Config(
             shard_root=shard_root,
-            patches="patches",
+            patches="image",
             layer=layer,
             batch_size=batch_size,
             n_threads=n_workers,
@@ -199,8 +199,7 @@ def benchmark(
     )
     jobs = []
     with ex.batch():
-        # for kind in ["iterable", "torch"]:
-        for kind in ["torch"]:
+        for kind in ["iterable", "torch"]:
             for n_workers in [2, 4, 8, 16, 32]:
                 for batch_size in [2, 4, 8, 16]:
                     for _ in range(n_iter):
