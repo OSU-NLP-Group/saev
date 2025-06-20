@@ -11,7 +11,7 @@ import torch.multiprocessing as mp
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from saev.data.utils import ResevoirBuffer
+from saev.data.utils import ReservoirBuffer
 
 mp.set_start_method("spawn", force=True)
 
@@ -52,7 +52,7 @@ def backend(request):
 
 def test_init_and_close():
     """Ring creates empty and survives multiple close() calls."""
-    r = ResevoirBuffer(capacity=4, shape=(2,), dtype=torch.float32)
+    r = ReservoirBuffer(capacity=4, shape=(2,), dtype=torch.float32)
     assert r.qsize() == 0
     r.close()
     r.close()  # idempotent
@@ -61,7 +61,7 @@ def test_init_and_close():
 def test_basic_put_get():
     """What goes in is what comes out (any ordering) for a short, known sequence."""
     seq = [11, 22, 33, 44]
-    r = ResevoirBuffer(capacity=4, shape=(1,), dtype=torch.int32)
+    r = ReservoirBuffer(capacity=4, shape=(1,), dtype=torch.int32)
 
     for x in seq:
         r.put(torch.tensor([x], dtype=torch.int32))
@@ -81,7 +81,7 @@ def test_all_put_get(capacity, data):
             max_size=capacity,
         )
     )
-    r = ResevoirBuffer(capacity=capacity, shape=(1,), dtype=torch.int32)
+    r = ReservoirBuffer(capacity=capacity, shape=(1,), dtype=torch.int32)
 
     for x in seq:
         r.put(torch.tensor([x], dtype=torch.int32))
@@ -102,7 +102,7 @@ def test_capacity_never_exceeded(xs):
     never exceeds its declared capacity.
     """
     capacity = 8
-    r = ResevoirBuffer(capacity=capacity, shape=(1,), dtype=torch.int32)
+    r = ReservoirBuffer(capacity=capacity, shape=(1,), dtype=torch.int32)
 
     for x in xs:
         r.put(torch.tensor([x], dtype=torch.int32))
@@ -114,7 +114,7 @@ def test_capacity_never_exceeded(xs):
 def test_exact_capacity_cycle():
     """Fill to capacity, drain to zero, repeat once."""
     capacity = 4
-    r = ResevoirBuffer(capacity=capacity, shape=(1,), dtype=torch.int32)
+    r = ReservoirBuffer(capacity=capacity, shape=(1,), dtype=torch.int32)
 
     # fill
     for i in range(capacity):
@@ -134,7 +134,7 @@ def test_exact_capacity_cycle():
 
 
 @beartype.beartype
-def _consume_blocking(ring: ResevoirBuffer, started, finished):
+def _consume_blocking(ring: ReservoirBuffer, started, finished):
     # blocks until producer frees slot
     started.set()
     ring.get(1)
@@ -142,20 +142,20 @@ def _consume_blocking(ring: ResevoirBuffer, started, finished):
 
 
 @beartype.beartype
-def _produce_blocking(ring: ResevoirBuffer, started, finished, tensor):
+def _produce_blocking(ring: ReservoirBuffer, started, finished, tensor):
     started.set()
     ring.put(tensor)
     finished.set()
 
 
 @beartype.beartype
-def _produce_n(ring: ResevoirBuffer, n: int, start: int = 0):
+def _produce_n(ring: ReservoirBuffer, n: int, start: int = 0):
     for i in range(n):
         ring.put(torch.tensor([i + start], dtype=torch.int32))
 
 
 @beartype.beartype
-def _collect_n(ring: ResevoirBuffer, n: int, q):
+def _collect_n(ring: ReservoirBuffer, n: int, q):
     vals = []
     for _ in range(n):
         tensor, meta = ring.get(1)
@@ -164,7 +164,7 @@ def _collect_n(ring: ResevoirBuffer, n: int, q):
 
 
 @beartype.beartype
-def _consume_n(ring: ResevoirBuffer, n: int):
+def _consume_n(ring: ReservoirBuffer, n: int):
     for _ in range(n):
         ring.get(1)
 
@@ -174,7 +174,7 @@ def test_blocking_put_when_full(backend):
     put() must block when the buffer is full. We fill the ring, start a put in another process/thread, ensure it waits, then free a slot and verify the process/thread finishes.
     """
     capacity = 16
-    ring = ResevoirBuffer(capacity=capacity, shape=(1,), dtype=torch.int32)
+    ring = ReservoirBuffer(capacity=capacity, shape=(1,), dtype=torch.int32)
 
     for i in range(capacity):
         ring.put(torch.tensor([i], dtype=torch.int32))  # buffer now full
@@ -201,7 +201,7 @@ def test_blocking_put_when_full(backend):
 
 def test_blocking_get_when_empty(backend):
     """get() must block until an item is produced."""
-    ring = ResevoirBuffer(2, (1,), dtype=torch.int32)
+    ring = ReservoirBuffer(2, (1,), dtype=torch.int32)
 
     started = backend.Event()
     finished = backend.Event()
@@ -223,7 +223,7 @@ def test_blocking_get_when_empty(backend):
 def test_across_process_visibility(backend):
     """Producer in one process, consumer in another share the same data."""
     slots, total = 4, 10
-    ring = ResevoirBuffer(slots, (1,), dtype=torch.int32)
+    ring = ReservoirBuffer(slots, (1,), dtype=torch.int32)
 
     q = backend.Queue()
     w1 = backend.Worker(target=_produce_n, args=(ring, total), **backend.kwargs)
@@ -237,7 +237,7 @@ def test_across_process_visibility(backend):
 
 
 def test_put_shape_dtype_mismatch():
-    rb = ResevoirBuffer(2, (3,), dtype=torch.float32)
+    rb = ReservoirBuffer(2, (3,), dtype=torch.float32)
     with pytest.raises(ValueError):
         rb.put(torch.zeros(4, dtype=torch.float32))  # wrong shape
     with pytest.raises(ValueError):
@@ -247,7 +247,7 @@ def test_put_shape_dtype_mismatch():
 def test_qsize_monotone_under_race(backend):
     """spawn two produces and two consumers; assert that qsize is never negative and never > capacity."""
     cap = 4
-    ring = ResevoirBuffer(cap, (1,), dtype=torch.int32)
+    ring = ReservoirBuffer(cap, (1,), dtype=torch.int32)
     n = 200
 
     workers = [
@@ -273,7 +273,7 @@ def test_qsize_monotone_under_race(backend):
 def test_many_producers_consumers(backend):
     n_producers = 2
     slots = 8
-    ring = ResevoirBuffer(slots, (1,), dtype=torch.int32)
+    ring = ReservoirBuffer(slots, (1,), dtype=torch.int32)
     per_proc = 100
 
     # Sum of arithmetic sequences
@@ -304,13 +304,13 @@ def test_many_producers_consumers(backend):
     assert sum([sum(c) for c in collected]) == expected
 
 
-def _produce_then_die(ring: ResevoirBuffer):
+def _produce_then_die(ring: ReservoirBuffer):
     ring.put(torch.tensor([1], dtype=torch.int32))
     os.kill(os.getpid(), signal.SIGKILL)
 
 
 def test_producer_crash_does_not_corrupt():
-    ring = ResevoirBuffer(4, (1,), dtype=torch.int32)
+    ring = ReservoirBuffer(4, (1,), dtype=torch.int32)
 
     p = mp.Process(target=_produce_then_die, args=(ring,))
     p.start()
@@ -331,7 +331,7 @@ def test_producer_crash_does_not_corrupt():
     )
 )
 def test_fuzz_interleaved_ops(seq):
-    rb = ResevoirBuffer(capacity=4, shape=(1,), dtype=torch.int32)
+    rb = ReservoirBuffer(capacity=4, shape=(1,), dtype=torch.int32)
     outstanding = 0
     for op, val in seq:
         if op == "put":

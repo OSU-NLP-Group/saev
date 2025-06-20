@@ -51,7 +51,7 @@ def _io_worker(
     cfg: Config,
     metadata: writers.Metadata,
     work_queue: queue.Queue[int | None],
-    resevoir: utils.ResevoirBuffer,
+    reservoir: utils.ReservoirBuffer,
     stop_event: threading.Event,
 ):
     """
@@ -87,7 +87,7 @@ def _io_worker(
                     patch_i = p + int(metadata.cls_token)
                     acts = torch.from_numpy(mmap[start:end, layer_i, patch_i])
                     metas = [{"image_i": i, "patch_i": p} for i in range(start, end)]
-                    resevoir.put(acts, metas)
+                    reservoir.put(acts, metas)
         except queue.Empty:
             # Wait 0.1 seconds for new data.
             time.sleep(0.1)
@@ -102,7 +102,7 @@ def _io_worker(
 def _manager_main(
     cfg: Config,
     metadata: writers.Metadata,
-    resevoir: utils.ResevoirBuffer,
+    reservoir: utils.ReservoirBuffer,
     stop_event: Event,
 ):
     """
@@ -142,7 +142,7 @@ def _manager_main(
         for i in range(cfg.n_threads):
             thread = threading.Thread(
                 target=_io_worker,
-                args=(i, cfg, metadata, work_queue, resevoir, thread_stop_event),
+                args=(i, cfg, metadata, work_queue, reservoir, thread_stop_event),
                 daemon=True,
             )
             thread.start()
@@ -191,7 +191,7 @@ class DataLoader:
         self.logger = logging.getLogger("iterable.DataLoader")
         self.ctx = mp.get_context()
         self.manager_proc = None
-        self.resevoir = None
+        self.reservoir = None
         self.stop_event = None
         self._total_examples = self._calculate_len()
 
@@ -210,7 +210,7 @@ class DataLoader:
         self.logger.info("Starting manager process.")
 
         # Create the shared-memory buffers
-        self.resevoir = utils.ResevoirBuffer(
+        self.reservoir = utils.ReservoirBuffer(
             self.cfg.buffer_size * self.cfg.batch_size,
             (self.metadata.d_vit,),
             dtype=torch.float32,
@@ -220,7 +220,7 @@ class DataLoader:
 
         self.manager_proc = self.ctx.Process(
             target=_manager_main,
-            args=(self.cfg, self.metadata, self.resevoir, self.stop_event),
+            args=(self.cfg, self.metadata, self.reservoir, self.stop_event),
             daemon=True,
         )
         self.manager_proc.start()
@@ -235,7 +235,7 @@ class DataLoader:
                         f"Manager process died unexpectedly after {i}/{len(self)} batches."
                     )
                 # TODO: add a timeout (60s); if nothing happens, continue so that we check manager_proc.is_alive() again.
-                act, metas = self.resevoir.get(self.cfg.batch_size)
+                act, metas = self.reservoir.get(self.cfg.batch_size)
                 yield self.ExampleBatch(act=act, **metas)
         finally:
             self.shutdown()
@@ -252,11 +252,11 @@ class DataLoader:
                 )
                 self.manager_proc.kill()
 
-        if self.resevoir:
-            self.resevoir.close()
+        if self.reservoir:
+            self.reservoir.close()
 
         self.manager_proc = None
-        self.resevoir = None
+        self.reservoir = None
         self.stop_event = None
 
     def __del__(self):

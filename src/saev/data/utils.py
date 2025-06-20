@@ -1,3 +1,4 @@
+# src/saev/data/utils.py
 import collections.abc
 import itertools
 
@@ -81,7 +82,7 @@ class RingBuffer:
 
 
 @jaxtyped(typechecker=beartype.beartype)
-class ResevoirBuffer:
+class ReservoirBuffer:
     """
     Pool of (tensor, meta) pairs.
     Multiple producers call put(batch_x, batch_meta).
