@@ -1,6 +1,18 @@
 # train.py
 """
 Trains many SAEs in parallel to amortize the cost of loading a single batch of data over many SAE training runs.
+
+Checklist for making sure your training doesn't suck:
+
+* [ ] Data scaling: scale vectors so their average L2 norm is sqrt(n).
+* [ ] Initialize W_e to 1/exp_factor * W_d.T
+* [ ] Initialize b_e such that each feature activates 10K/(n * exp_factor) of the time, which means that on average, each example activates 10K features.
+* [ ] Initialize W_d to ~uniform(-1/sqrt(n), 1/sqrt(n))
+* [x] Initialize b_d to 0.
+* [x] Sweep learning rate and sparsity coefficients.
+* [ ] Decay learning rate to 0 over the last 20% of training.
+* [ ] Warmup sparsity over all of training.
+* [ ] Gradient clipping (clip at 1 with clip_grad_norm)
 """
 
 import collections.abc
@@ -21,15 +33,12 @@ import wandb
 from jaxtyping import Float
 from torch import Tensor
 
-import saev.data
 import saev.data.iterable
 import saev.utils.scheduling
 import saev.utils.wandb
 from saev import helpers, nn
 
-log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
-logging.basicConfig(level=logging.INFO, format=log_format)
-logger = logging.getLogger("train")
+logger = logging.getLogger("train.py")
 
 
 @beartype.beartype
@@ -127,6 +136,9 @@ def make_saes(
 
 @beartype.beartype
 def worker_fn(cfgs: list[Config]) -> list[str]:
+    log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
+    logging.basicConfig(level=logging.INFO, format=log_format)
+
     saes, objectives, run, steps = train(cfgs)
     # Cheap(-ish) evaluation
     eval_metrics = evaluate(cfgs, saes, objectives)
@@ -184,8 +196,6 @@ def train(
         # float16 and almost as accurate as float32
         # This was a default in pytorch until 1.12
         torch.backends.cuda.matmul.allow_tf32 = True
-        torch.backends.cudnn.benchmark = True
-        torch.backends.cudnn.deterministic = False
 
     dataloader = saev.data.iterable.DataLoader(cfg.data)
     saes, objectives, param_groups = make_saes([(c.sae, c.objective) for c in cfgs])
@@ -394,7 +404,7 @@ def grid(cfg: Config, sweep_dct: dict[str, object]) -> tuple[list[Config], list[
             dct["objective"] = dataclasses.replace(cfg.objective, **objective_dct)
 
         # .data is a nested field that cannot be naively expanded.
-        data_dct = dct.pop("data")
+        data_dct = dct.pop("data", {})
         if data_dct:
             dct["data"] = dataclasses.replace(cfg.data, **data_dct)
 
@@ -513,6 +523,9 @@ def main(
         cfg: Baseline config for training an SAE.
         sweep: Path to .toml file defining the sweep parameters.
     """
+    log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
+    logging.basicConfig(level=logging.INFO, format=log_format)
+
     import submitit
 
     if sweep is not None:
@@ -545,9 +558,16 @@ def main(
     else:
         executor = submitit.DebugExecutor(folder=cfg.log_to)
 
-    jobs = [executor.submit(worker_fn, group) for group in cfgs]
-    for job in jobs:
+    with executor.batch():
+        jobs = [executor.submit(worker_fn, group) for group in cfgs]
+
+    logger.info("Submitted %d jobs.", len(jobs))
+
+    for j, job in enumerate(jobs):
         job.result()
+        logger.info("Job %d/%d finished.", j + 1, len(jobs))
+
+    logger.info("Done.")
 
 
 if __name__ == "__main__":
