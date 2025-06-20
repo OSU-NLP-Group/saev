@@ -138,7 +138,7 @@ def main(cfg: typing.Annotated[Config, tyro.conf.arg(name="")]):
             "  --data.root <dataset_path>\n"
             "See src/saev/guide.md for more details on creating datasets."
         )
-        # Also log the error, because the error might not just be that we're missing shards; maybe it's some genuine runtime/valueerror/bug in our code. AI!
+        logger.error(f"Original error: {err}")
         return
 
     # Set random seed for reproducibility
