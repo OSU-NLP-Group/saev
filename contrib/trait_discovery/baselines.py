@@ -6,6 +6,7 @@
 """
 
 import dataclasses
+import logging
 import os.path
 import typing
 
@@ -16,6 +17,8 @@ import tyro
 import saev.data
 import saev.nn
 import saev.utils.scheduling
+
+logger = logging.getLogger(__name__)
 
 
 @beartype.beartype
@@ -74,8 +77,22 @@ def main(cfg: typing.Annotated[Config, tyro.conf.arg(name="")]):
     try:
         dataloader = saev.data.iterable.DataLoader(cfg.data)
     except Exception as err:
-        # Log an exception here. Check train.py for my logging conventions. Ask the user to create a datasaet using saev.data; check guide.md for how to do that. AI!
-        logger.exception("Could not create dataloader.
+        logger.exception("Could not create dataloader. Please create a dataset using saev.data first.")
+        logger.info(
+            "To create a dataset, run a command like:\n"
+            "uv run python -m saev.data \\\n"
+            "  --vit-family <model_family> \\\n"
+            "  --vit-ckpt <model_checkpoint> \\\n"
+            "  --d-vit <dimension> \\\n"
+            "  --vit-layers <layer_numbers> \\\n"
+            "  --dump-to <output_directory> \\\n"
+            "  data:<dataset_type> \\\n"
+            "  --data.root <dataset_path>\n"
+            "See src/saev/guide.md for more details on creating datasets."
+        )
+        return
+    
+    # TODO: implement k-means clustering on the loaded data
     pass
 
 
