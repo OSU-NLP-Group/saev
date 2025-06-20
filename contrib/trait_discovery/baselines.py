@@ -6,9 +6,11 @@
 """
 
 import dataclasses
+import json
 import logging
 import os.path
 import typing
+from datetime import datetime
 
 import beartype
 import torch
@@ -17,6 +19,7 @@ import tyro
 import saev.data
 import saev.nn
 import saev.utils.scheduling
+from saev import helpers
 
 logger = logging.getLogger(__name__)
 
@@ -50,26 +53,68 @@ class Config:
 
 
 @beartype.beartype
-def kmeans(loader: saev.utils.scheduling.DataLoaderLike, cfg: Config):
-    # TODO: instead of `for x in loader`, do `for x in max_examples(loader, n_samples)` so that we see n_samples samples.
+def kmeans(loader: saev.data.iterable.DataLoader, cfg: Config):
+    """
+    Run k-means clustering on the data from the loader.
+    
+    Args:
+        loader: DataLoader containing the activations
+        cfg: Configuration object
+        
+    Returns:
+        List of centroids for different k values
+    """
+    logger.info("Starting k-means clustering")
+    
+    # Define the range of k values to try
+    ks = [50, 100, 200, 500]
+    device = torch.device(cfg.device)
+    
+    # Get the dimension from the first batch
+    for batch in loader:
+        d = batch["act"].shape[1]
+        break
+    
+    # Initialize centroids randomly
     centroids = [torch.randn(k_i, d, device=device) for k_i in ks]
     accums = [torch.zeros_like(C) for C in centroids]
     counts = [torch.zeros(len(C), dtype=torch.int32, device=device) for C in centroids]
-
-    for x in loader:
-        x = x.to(device)
+    
+    # Limit the number of examples we process
+    n_samples = 100_000
+    samples_seen = 0
+    
+    # Run k-means iterations
+    for batch in helpers.progress(loader, desc="k-means clustering"):
+        x = batch["act"].to(device)
+        samples_seen += x.shape[0]
+        
+        # Compute squared norm of x
         x2 = (x * x).sum(1, keepdim=True)
+        
+        # Update centroids
         for C, delta, n in zip(centroids, accums, counts):
+            # Compute squared norm of centroids
             c2 = (C * C).sum(1).unsqueeze(0)  # 1×k
+            
+            # Compute distances and assign points to nearest centroid
             idx = (x2 + c2 - 2 * x @ C.T).argmin(1)  # B
-            delta.scatter_add_(0, idx[:, None], x)
-            n.scatter_add_(0, idx, 1)
-
+            
+            # Update accumulators
+            delta.scatter_add_(0, idx[:, None].expand(-1, d), x)
+            n.scatter_add_(0, idx, torch.ones_like(idx, dtype=torch.int32))
+        
+        # Stop if we've seen enough samples
+        if samples_seen >= n_samples:
+            break
+    
+    # Update centroids based on accumulated values
     for C, delta, n in zip(centroids, accums, counts):
         mask = n > 0
-        C[mask] = delta[mask] / n[mask][:, None]
-        delta.zero_()
-        n.zero_()
+        C[mask] = delta[mask] / n[mask].unsqueeze(1)
+    
+    logger.info(f"K-means clustering complete for k values: {ks}")
+    return centroids, ks
 
 
 @beartype.beartype
@@ -92,8 +137,35 @@ def main(cfg: typing.Annotated[Config, tyro.conf.arg(name="")]):
         )
         return
     
-    # TODO: implement k-means clustering on the loaded data
-    pass
+    # Set random seed for reproducibility
+    torch.manual_seed(cfg.seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(cfg.seed)
+    
+    # Run k-means clustering
+    centroids, k_values = kmeans(dataloader, cfg)
+    
+    # Save results to disk
+    os.makedirs(cfg.log_to, exist_ok=True)
+    results = {
+        "config": dataclasses.asdict(cfg),
+        "k_values": k_values,
+        "timestamp": torch.datetime.now().isoformat(),
+    }
+    
+    # Save centroids for each k value
+    for k, centroid in zip(k_values, centroids):
+        output_path = os.path.join(cfg.log_to, f"centroids_k{k}.pt")
+        torch.save(centroid.cpu(), output_path)
+        logger.info(f"Saved centroids for k={k} to {output_path}")
+    
+    # Save metadata
+    metadata_path = os.path.join(cfg.log_to, "metadata.json")
+    with open(metadata_path, "w") as f:
+        json.dump(results, f, indent=2)
+    
+    logger.info(f"Saved metadata to {metadata_path}")
+    logger.info("To explore results, create a marimo notebook that loads and visualizes the centroids")
 
 
 if __name__ == "__main__":
