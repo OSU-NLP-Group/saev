@@ -1,3 +1,4 @@
+# train.py
 """
 Trains many SAEs in parallel to amortize the cost of loading a single batch of data over many SAE training runs.
 """
@@ -16,6 +17,7 @@ import einops
 import numpy as np
 import torch
 import tyro
+import wandb
 from jaxtyping import Float
 from torch import Tensor
 
@@ -23,7 +25,6 @@ import saev.data
 import saev.data.iterable
 import saev.utils.scheduling
 import saev.utils.wandb
-import wandb
 from saev import helpers, nn
 
 log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"

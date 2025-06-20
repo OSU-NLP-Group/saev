@@ -1,9 +1,8 @@
 import collections
 
 import beartype
-import hypothesis.extra.numpy as npst
 import numpy as np
-from hypothesis import assume, given
+from hypothesis import given
 from hypothesis import strategies as st
 from jaxtyping import Int, jaxtyped
 

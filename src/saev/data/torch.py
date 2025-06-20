@@ -26,7 +26,7 @@ class Config:
 
     shard_root: str = os.path.join(".", "shards")
     """Directory with .bin shards and a metadata.json file."""
-    patches: typing.Literal["cls", "patches", "all"] = "patches"
+    patches: typing.Literal["cls", "image", "all"] = "image"
     """Which kinds of patches to use. 'cls' indicates just the [CLS] token (if any). 'patches' indicates it will return img patches. 'all' is both [CLS] and image patches."""
     layer: int | typing.Literal["all"] = -2
     """Which ViT layer(s) to read from disk. ``-2`` selects the second-to-last layer. ``"all"`` enumerates every recorded layer."""

@@ -1,5 +1,4 @@
 import beartype
-
 import wandb
 
 MetricQueue = list[tuple[int, dict[str, object]]]

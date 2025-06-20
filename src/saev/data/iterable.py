@@ -2,6 +2,7 @@
 import collections.abc
 import dataclasses
 import logging
+import math
 import os
 import queue
 import threading
@@ -18,7 +19,7 @@ from torch import Tensor
 
 from saev import helpers
 
-from . import utils, writers
+from . import Metadata, utils
 
 
 @beartype.beartype
@@ -48,7 +49,7 @@ class Config:
 def _io_worker(
     worker_id: int,
     cfg: Config,
-    metadata: writers.Metadata,
+    metadata: Metadata,
     work_queue: queue.Queue[int | None],
     resevoir: utils.ResevoirBuffer,
     stop_event: threading.Event,
@@ -100,7 +101,7 @@ def _io_worker(
 @beartype.beartype
 def _manager_main(
     cfg: Config,
-    metadata: writers.Metadata,
+    metadata: Metadata,
     resevoir: utils.ResevoirBuffer,
     stop_event: Event,
 ):
@@ -185,7 +186,7 @@ class DataLoader:
             raise RuntimeError(f"Activations are not saved at '{self.cfg.shard_root}'.")
 
         metadata_fpath = os.path.join(self.cfg.shard_root, "metadata.json")
-        self.metadata = writers.Metadata.load(metadata_fpath)
+        self.metadata = Metadata.load(metadata_fpath)
 
         self.logger = logging.getLogger("iterable.DataLoader")
         self.ctx = mp.get_context()
@@ -227,14 +228,11 @@ class DataLoader:
     def __iter__(self) -> collections.abc.Iterable[ExampleBatch]:
         """Yields batches."""
         self._start_manager()
-        n_batches = (
-            self._total_examples + self.cfg.batch_size - 1
-        ) // self.cfg.batch_size
         try:
-            for i in range(n_batches):
+            for i in range(len(self)):
                 if not self.manager_proc.is_alive():
                     raise RuntimeError(
-                        f"Manager process died unexpectedly after {i}/{n_batches} batches."
+                        f"Manager process died unexpectedly after {i}/{len(self)} batches."
                     )
                 # TODO: add a timeout (60s); if nothing happens, continue so that we check manager_proc.is_alive() again.
                 act, metas = self.resevoir.get(self.cfg.batch_size)
@@ -284,4 +282,4 @@ class DataLoader:
 
     def __len__(self) -> int:
         """Returns the number of batches in an epoch."""
-        return (self._total_examples + self.cfg.batch_size - 1) // self.cfg.batch_size
+        return math.ceil(self._total_examples / self.cfg.batch_size)
