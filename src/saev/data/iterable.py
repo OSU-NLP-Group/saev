@@ -193,7 +193,15 @@ class DataLoader:
         self.manager_proc = None
         self.reservoir = None
         self.stop_event = None
-        self._total_examples = self._calculate_len()
+        self._n_samples = self._calculate_n_samples()
+
+    @property
+    def n_batches(self) -> int:
+        return len(self)
+
+    @property
+    def n_samples(self) -> int:
+        return self._n_samples
 
     @property
     def batch_size(self) -> int:
@@ -262,7 +270,7 @@ class DataLoader:
     def __del__(self):
         self.shutdown()
 
-    def _calculate_len(self) -> int:
+    def _calculate_n_samples(self) -> int:
         """Helper to calculate total number of examples based on config."""
         match (self.cfg.patches, self.cfg.layer):
             case ("cls", "all"):
@@ -282,4 +290,4 @@ class DataLoader:
 
     def __len__(self) -> int:
         """Returns the number of batches in an epoch."""
-        return math.ceil(self._total_examples / self.cfg.batch_size)
+        return math.ceil(self.n_samples / self.cfg.batch_size)

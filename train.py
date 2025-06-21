@@ -52,8 +52,6 @@ class Config:
         default_factory=saev.data.IterableConfig
     )
     """Data configuration"""
-    n_workers: int = 32
-    """Number of dataloader workers."""
     n_patches: int = 100_000_000
     """Number of SAE training examples."""
     sae: nn.SparseAutoencoderConfig = dataclasses.field(
