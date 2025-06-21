@@ -296,13 +296,13 @@ class Metadata:
         )
 
     @classmethod
-    def load(cls, fpath) -> "Metadata":
+    def load(cls, fpath: str) -> "Metadata":
         with open(fpath) as fd:
             dct = json.load(fd)
         dct["layers"] = tuple(dct.pop("layers"))
         return cls(**dct)
 
-    def dump(self, fpath):
+    def dump(self, fpath: str):
         with open(fpath, "w") as fd:
             json.dump(dataclasses.asdict(self), fd, indent=4)
 
