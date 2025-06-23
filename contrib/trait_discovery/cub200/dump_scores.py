@@ -86,31 +86,26 @@ class Scorer:
 
 @jaxtyped(typechecker=beartype.beartype)
 def get_random_vectors(
-    dataloader: saev.data.iterable.DataLoader,
-    *,
-    n_prototypes: int,
-    n_samples: int,
-    seed: int,
+    dataloader: saev.data.iterable.DataLoader, *, k: int, n: int, seed: int
 ) -> Float[Tensor, "K D"]:
     """Uniformly sample n_prototypes vectors from a streaming DataLoader using reservoir sampling.
 
     Args:
         dataloader: DataLoader.
-        n: Number of samples to keep.
     """
-    reservoir_KD = torch.empty(n_prototypes, load_metadata(dataloader.cfg).d_vit)
+    reservoir_KD = torch.empty(k, load_metadata(dataloader.cfg).d_vit)
     n_seen = 0
     rng = torch.Generator().manual_seed(seed)
 
-    if dataloader.n_samples > n_samples:
-        dataloader = saev.utils.scheduling.BatchLimiter(dataloader, n_samples=n_samples)
+    if dataloader.n_samples > n:
+        dataloader = saev.utils.scheduling.BatchLimiter(dataloader, n_samples=n)
 
     for batch in helpers.progress(dataloader):
         x_BD = batch["act"]
         b, d = x_BD.shape
 
         # 1. Fill reservoir if not full
-        need = max(n_prototypes - n_seen, 0)
+        need = max(k - n_seen, 0)
         if need:
             take = min(need, b)
             reservoir_KD[n_seen : n_seen + take] = x_BD[:take]
@@ -123,11 +118,11 @@ def get_random_vectors(
 
         # 2. Vectorized replacement for remaining items in batch
         idxs_B = torch.arange(n_seen, n_seen + b)  # global indices
-        probs = (n_prototypes / (idxs_B + 1)).to(dtype=torch.float32)  # shape (B,)
+        probs = (k / (idxs_B + 1)).to(dtype=torch.float32)  # shape (B,)
         keep_mask = torch.rand(b, generator=rng) < probs  # Bernoulli draws
         n_keep = keep_mask.sum().item()
         if n_keep:
-            replace_pos = torch.randint(0, n_prototypes, (n_keep,), generator=rng)
+            replace_pos = torch.randint(0, k, (n_keep,), generator=rng)
             reservoir_KD[replace_pos] = x_BD[keep_mask]
         n_seen += b
 
@@ -137,20 +132,17 @@ def get_random_vectors(
 @jaxtyped(typechecker=beartype.beartype)
 class RandomVectors(Scorer):
     def __init__(self, dataloader: saev.data.iterable.DataLoader, cfg: Config):
-        self.prototypes = get_random_vectors(
-            dataloader,
-            n_prototypes=cfg.n_prototypes,
-            n_samples=cfg.n_samples,
-            seed=cfg.seed,
+        self.prototypes_KD = get_random_vectors(
+            dataloader, k=cfg.n_prototypes, n=cfg.n_samples, seed=cfg.seed
         )
 
-    def __call__(self, activations: Float[Tensor, "B D"]) -> Float[Tensor, "B K"]:
-        return activations @ self.prototypes.T
+    def __call__(self, activations_BD: Float[Tensor, "B D"]) -> Float[Tensor, "B K"]:
+        return activations_BD @ self.prototypes_KD.T
 
     @property
     def n_prototypes(self) -> int:
-        n_prototypes, d = self.prototypes.shape
-        return n_prototypes
+        k, d = self.prototypes_KD.shape
+        return k
 
 
 @jaxtyped(typechecker=beartype.beartype)
@@ -190,8 +182,65 @@ def calc_scores(
 
 
 @jaxtyped(typechecker=beartype.beartype)
+def calc_avg_prec(
+    scores_NC: Float[Tensor, "N C"], y_NT: Bool[Tensor, "N T"]
+) -> Float[Tensor, "C T"]:
+    """
+    Vectorized implementation of average precision (AP).
+
+    Step-by-step:
+    * sort images by score  (per prototype)
+    * walk down the list, accumulate TP and precision = TP / rank
+    * AP_t = mean of precision at the ranks where y == 1
+
+    Args:
+        scores_NC: Scores for n images and c prototypes (where c << k to batch this calculation).
+    """
+    n, c = scores_NC.shape
+    _, t = y_NT.shape
+
+    # total positives per trait   P_t  (shape  (T,))
+    pos_T = y_NT.sum(dim=0).to(torch.float32)
+    pos_mask_T = pos_T > 0  # traits that exist in this split
+    pos_T[pos_T == 0] = 1.0  # avoid divide‑by‑zero later
+
+    # 1. Order indices for each prototype  — shape (N, C)
+    idx_NC = torch.argsort(scores_NC, dim=0, descending=True)
+
+    # 2. Gather labels in that order
+    # y_sorted_NCT[n, c, t] == y_NT[idx_NC[n, c], t]
+    # Add trait dimension to indices: (N,C) -> (N,C,T) via view expansion
+    # einops.repeat(idx_NC, 'n c -> n c t', t=t)
+    idx_NCT = idx_NC.unsqueeze(-1).expand(-1, -1, t)
+
+    # Add prototype dimension to labels: (N,T) -> (N,C,T) via view expansion
+    # einops.repeat(y_NT, 'n t -> n c t', c=c)
+    y_NCT = y_NT.unsqueeze(1).expand(-1, c, -1)
+
+    y_sorted_NCT = torch.gather(y_NCT, dim=0, index=idx_NCT)
+
+    cum_tp_NCT = torch.cumsum(y_sorted_NCT.float(), dim=0)
+
+    ranks = torch.arange(1, n + 1, device=scores_NC.device, dtype=torch.float32)
+    ranks = ranks.view(-1, 1, 1)
+    precision_NCT = cum_tp_NCT / ranks
+
+    masked_precision = precision_NCT * y_sorted_NCT.float()
+    sum_precision_CT = masked_precision.sum(dim=0)
+
+    avg_precision_CT = sum_precision_CT / pos_T.unsqueeze(0)
+    avg_precision_CT = avg_precision_CT * pos_mask_T.unsqueeze(0)
+
+    return avg_precision_CT
+
+
+@jaxtyped(typechecker=beartype.beartype)
 def pick_best_prototypes(
-    scores_NK: Float[Tensor, "N K"], y_NT: Bool[Tensor, "N T"]
+    scores_NK: Float[Tensor, "N K"],
+    y_NT: Bool[Tensor, "N T"],
+    *,
+    chunk_size: int = 512,
+    device: str = "cpu",
 ) -> Int[Tensor, " T"]:
     """
     Args:
@@ -199,8 +248,23 @@ def pick_best_prototypes(
         y_NT: Boolean attribute array; y_NT[n, t] is True if image n has trait t.
 
     Returns:
+        A matrix of prototype indices (0...K-1) that maximizes AP for each trait.
     """
-    raise NotImplementedError()
+    n, t = y_NT.shape
+    _, k = scores_NK.shape
+    best_ap_T = torch.full((t,), -1.0, device=device, dtype=torch.float32)
+    best_idx_T = torch.full((t,), -1, device=device, dtype=torch.int32)
+
+    for start, end in helpers.batched_idx(k, chunk_size):
+        ap_CT = calc_avg_prec(scores_NK[:, start:end], y_NT)
+        better = ap_CT > best_ap_T  # broadcast over C
+        # need the row index of max per trait inside the chunk
+        max_in_chunk, row_idx = ap_CT.max(dim=0)
+        update_mask = max_in_chunk > best_ap_T
+        best_ap_T[update_mask] = max_in_chunk[update_mask]
+        best_idx_T[update_mask] = start + row_idx[update_mask]
+
+    return best_idx_T.cpu()
 
 
 @beartype.beartype
@@ -226,7 +290,9 @@ def load_cub_attributes(root: str, *, is_train: bool) -> Bool[Tensor, "N T"]:
     with open(os.path.join(root, "metadata", "train_test_split.txt")) as fd:
         for line in fd:
             img_id, is_train_str = line.split()
-            if is_train_str != is_train:
+            if is_train and is_train_str == "0":
+                continue
+            if not is_train and is_train_str == "1":
                 continue
 
             img_id_in_split.add(int(img_id))
@@ -244,7 +310,9 @@ def load_cub_attributes(root: str, *, is_train: bool) -> Bool[Tensor, "N T"]:
             attr_id, attr_name = line.split()
             attr_id_to_attr_name[int(attr_id)] = attr_name
 
-    attr_id_to_i = {attr_id: i for i, attr_id in sorted(attr_id_to_attr_name.items())}
+    attr_id_to_i = {
+        attr_id: i for i, attr_id in enumerate(sorted(attr_id_to_attr_name))
+    }
 
     y_NT = torch.empty((len(img_id_in_split), len(attr_id_to_attr_name)), dtype=bool)
 
@@ -305,10 +373,12 @@ def main(cfg: typing.Annotated[Config, tyro.conf.arg(name="")]):
         torch.cuda.manual_seed(cfg.seed)
 
     scorer = RandomVectors(train_dataloader, cfg)
-    train_scores_NK = calc_scores(train_dataloader, scorer)
-    test_scores_NK = calc_scores(test_dataloader, scorer)
 
+    train_scores_NK = calc_scores(train_dataloader, scorer)
+    breakpoint()
     prototypes_i_T = pick_best_prototypes(train_scores_NK, train_y_NT)
+
+    test_scores_NK = calc_scores(test_dataloader, scorer)
     test_scores_NT = eval_prototypes(prototypes_i_T, test_scores_NK, test_y_NT)
 
     with gzip.open(os.path.join(cfg.dump_to, "randvec-scores_NT.bin.gz"), "wb") as fd:
