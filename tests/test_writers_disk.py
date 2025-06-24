@@ -1,10 +1,9 @@
 import glob
-import json
 import os
 
 import pytest
 
-from saev.data.writers import Metadata
+from saev.data.writers import Metadata, ShardInfo
 
 
 @pytest.fixture(scope="session")
@@ -26,11 +25,7 @@ def test_metadata_n_shards_matches_disk(shard_root):
     acts000004.bin  acts000009.bin  acts000014.bin  acts000019.bin  shards.json
     So here, the number of shards would be 23.
     """
-    # Load metadata from the directory
-    metadata_path = os.path.join(shard_root, "metadata.json")
-    assert os.path.exists(metadata_path), f"Metadata file not found at {metadata_path}"
-
-    metadata = Metadata.load(metadata_path)
+    metadata = Metadata.load(shard_root)
 
     # Count actual shards on disk
     shard_pattern = os.path.join(shard_root, "acts*.bin")
@@ -43,18 +38,9 @@ def test_metadata_n_shards_matches_disk(shard_root):
 def test_metadata_n_imgs_per_shard_matches_disk(shard_root):
     """Test that Metadata.n_imgs_per_shard matches both our math and shards.json."""
     # Load metadata from the directory
-    metadata_path = os.path.join(shard_root, "metadata.json")
-    assert os.path.exists(metadata_path), f"Metadata file not found at {metadata_path}"
+    metadata = Metadata.load(shard_root)
+    shard_info = ShardInfo.load(shard_root)
 
-    metadata = Metadata.load(metadata_path)
-
-    shards_path = os.path.join(shard_root, "shards.json")
-    assert os.path.exists(shards_path), f"Metadata file not found at {metadata_path}"
-
-    with open(shards_path) as fd:
-        shards = json.load(fd)
-
-    # Asserts
-    for shard in shards[:-1]:
-        assert metadata.n_imgs_per_shard == shard["n_imgs"]
-    assert metadata.n_imgs_per_shard >= shards[-1]["n_imgs"]
+    for shard in shard_info[:-1]:
+        assert metadata.n_imgs_per_shard == shard.n_imgs
+    assert metadata.n_imgs_per_shard >= shard_info[-1].n_imgs

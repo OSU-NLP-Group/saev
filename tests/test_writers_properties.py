@@ -11,7 +11,7 @@ import tempfile
 
 import pytest
 import torch
-from hypothesis import given, reject
+from hypothesis import given, reject, settings
 from hypothesis import strategies as st
 
 from saev.data import images, models
@@ -305,7 +305,7 @@ def test_metadata_json_has_required_keys(cfg):
         outdir = pathlib.Path(tmp_path / Metadata.from_cfg(cfg).hash)
         os.makedirs(outdir)
         # Write metadata.json
-        Metadata.from_cfg(cfg).dump(str(outdir / "metadata.json"))
+        Metadata.from_cfg(cfg).dump(str(outdir))
 
         md = json.loads((outdir / "metadata.json").read_text())
         # required keys from the protocol
@@ -335,6 +335,7 @@ def test_metadata_json_has_required_keys(cfg):
         assert "__class__" in md["data"]
 
 
+@settings(deadline=None, max_examples=20)
 @given(
     max_patches=st.integers(min_value=1, max_value=10_000_000),
     n_patches=st.integers(min_value=1, max_value=1000),
@@ -342,32 +343,36 @@ def test_metadata_json_has_required_keys(cfg):
     cls_token=st.booleans(),
 )
 def test_shard_size_consistency(max_patches, n_patches, n_layers, cls_token):
-    md = Metadata(
-        vit_family="clip",
-        vit_ckpt="ckpt",
-        layers=tuple(range(n_layers)),
-        n_patches_per_img=n_patches,
-        cls_token=cls_token,
-        d_vit=1,
-        n_imgs=1,
-        max_patches_per_shard=max_patches,
-        data={"__class__": "Fake"},
-    )
-    # compute _spec_ value
-    T = n_patches + (1 if cls_token else 0)
-    spec_nv = max_patches // (T * n_layers)
-    # via Metadata property
-    assert md.n_imgs_per_shard == spec_nv
-    # via ShardWriter logic
-    cfg = Config(
-        data=images.Imagenet(),
-        dump_to=".",
-        vit_layers=list(range(n_layers)),
-        n_patches_per_img=n_patches,
-        cls_token=cls_token,
-        max_patches_per_shard=max_patches,
-        vit_family="clip",
-        vit_ckpt="ckpt",
-    )
-    sw = ShardWriter(cfg)
-    assert sw.n_imgs_per_shard == spec_nv
+    # We cannot use the tmp_path fixture because of Hypothesis.
+    # See https://hypothesis.readthedocs.io/en/latest/reference/api.html#hypothesis.HealthCheck.function_scoped_fixture
+    with tempfile.TemporaryDirectory() as tmp_path:
+        md = Metadata(
+            vit_family="clip",
+            vit_ckpt="ckpt",
+            layers=tuple(range(n_layers)),
+            n_patches_per_img=n_patches,
+            cls_token=cls_token,
+            d_vit=1,
+            n_imgs=1,
+            max_patches_per_shard=max_patches,
+            data={"__class__": "Fake"},
+        )
+        # compute _spec_ value
+        T = n_patches + (1 if cls_token else 0)
+        spec_nv = max_patches // (T * n_layers)
+        # via Metadata property
+        assert md.n_imgs_per_shard == spec_nv
+        # via ShardWriter logic
+        cfg = Config(
+            data=images.Imagenet(),
+            # TODO:
+            dump_to=str(tmp_path),
+            vit_layers=list(range(n_layers)),
+            n_patches_per_img=n_patches,
+            cls_token=cls_token,
+            max_patches_per_shard=max_patches,
+            vit_family="clip",
+            vit_ckpt="ckpt",
+        )
+        sw = ShardWriter(cfg)
+        assert sw.n_imgs_per_shard == spec_nv

@@ -176,7 +176,6 @@ class ShardWriter:
             cfg.d_vit,
         )
 
-        self.shard_info_path = os.path.join(self.root, "shards.json")
         # builder for shard manifest
         self._shards: ShardInfo = ShardInfo()
 
@@ -218,12 +217,9 @@ class ShardWriter:
 
             # record shard info
             self._shards.append(
-                Shard(
-                    name=os.path.basename(self.acts_path),
-                    n_imgs=self.filled,
-                )
+                Shard(name=os.path.basename(self.acts_path), n_imgs=self.filled)
             )
-            self._shards.dump(self.shard_info_path)
+            self._shards.dump(self.root)
 
         self.acts = None
 
@@ -258,7 +254,7 @@ def get_acts_dir(cfg: Config) -> str:
     acts_dir = os.path.join(cfg.dump_to, metadata.hash)
     os.makedirs(acts_dir, exist_ok=True)
 
-    metadata.dump(os.path.join(acts_dir, "metadata.json"))
+    metadata.dump(acts_dir)
 
     return acts_dir
 
@@ -299,14 +295,14 @@ class Metadata:
         )
 
     @classmethod
-    def load(cls, fpath: str) -> "Metadata":
-        with open(fpath) as fd:
+    def load(cls, shard_root: str) -> "Metadata":
+        with open(os.path.join(shard_root, "metadata.json")) as fd:
             dct = json.load(fd)
         dct["layers"] = tuple(dct.pop("layers"))
         return cls(**dct)
 
-    def dump(self, fpath: str):
-        with open(fpath, "w") as fd:
+    def dump(self, shard_root: str):
+        with open(os.path.join(shard_root, "metadata.json"), "w") as fd:
             json.dump(dataclasses.asdict(self), fd, indent=4)
 
     @property
@@ -366,13 +362,13 @@ class ShardInfo:
     shards: list[Shard]
 
     @classmethod
-    def load(cls, fpath: str) -> "ShardInfo":
-        with open(fpath) as fd:
+    def load(cls, shard_path: str) -> "ShardInfo":
+        with open(os.path.join(shard_path, "shards.json")) as fd:
             data = json.load(fd)
         return cls([Shard(**entry) for entry in data])
 
     def dump(self, fpath: str) -> None:
-        with open(fpath, "w") as fd:
+        with open(os.path.join(fpath, "shards.json"), "w") as fd:
             json.dump([dataclasses.asdict(s) for s in self.shards], fd, indent=2)
 
     def append(self, shard: Shard):
@@ -381,8 +377,11 @@ class ShardInfo:
     def __len__(self) -> int:
         return len(self.shards)
 
-    def __getitem__(self, idx: int) -> Shard:
-        return self.shards[idx]
+    def __getitem__(self, i):
+        return self.shards[i]
+
+    def __iter__(self):
+        yield from self.shards
 
 
 @beartype.beartype

@@ -72,11 +72,10 @@ def _io_worker(
     See https://github.com/beartype/beartype/issues/397 for an explanation of why we use multiprocessing.queues.Queue for the type hint.
     """
     logger = logging.getLogger(f"iterable.worker{worker_id}")
+    logger.info(f"I/O worker {worker_id} started.")
 
     layer_i = metadata.layers.index(cfg.layer)
-
-    logger.info(f"I/O worker {worker_id} started.")
-    # Calculate shard layout constants
+    shard_info = writers.ShardInfo.load(cfg.shard_root)
 
     # Pre-conditions
     assert cfg.patches == "image"
@@ -98,10 +97,8 @@ def _io_worker(
                 acts_fpath, mode="r", dtype=np.float32, shape=metadata.shard_shape
             )
 
-            with open(os.path.join(cfg.shard_root, "shards.json")) as fd:
-                shard_info = json.load(fd)[shard_i]
-
-            for start, end in helpers.batched_idx(metadata.n_imgs_per_shard, 64):
+            # Only iterate over the actual number of images in this shard
+            for start, end in helpers.batched_idx(shard_info[shard_i].n_imgs, 64):
                 for p in range(metadata.n_patches_per_img):
                     patch_i = p + int(metadata.cls_token)
                     acts = torch.from_numpy(mmap[start:end, layer_i, patch_i])
