@@ -1,7 +1,6 @@
 # tests/test_iterable_dataloader.py
 import dataclasses
 import gc
-import os.path
 import time
 
 import psutil
@@ -23,7 +22,7 @@ def iterable_cfg(pytestconfig):
     shards = pytestconfig.getoption("--shards")
     if shards is None:
         pytest.skip("--shards not supplied")
-    metadata = saev.data.Metadata.load(os.path.join(shards, "metadata.json"))
+    metadata = saev.data.Metadata.load(shards)
     layer = metadata.layers[0]
     cfg = IterableConfig(shard_root=shards, patches="image", layer=layer)
     return cfg
