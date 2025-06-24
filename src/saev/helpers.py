@@ -1,7 +1,4 @@
-"""
-Useful helpers for `saev`.
-"""
-
+# src/saev/helpers.py
 import collections.abc
 import logging
 import os

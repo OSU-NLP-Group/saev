@@ -8,8 +8,7 @@ import hypothesis_torch
 import pytest
 import torch
 
-from .. import config
-from . import objectives
+from saev.nn import objectives
 
 
 def test_mse_same():
@@ -49,7 +48,7 @@ def test_safe_mse_large_x():
 
 def test_factories():
     assert isinstance(
-        objectives.get_objective(config.Vanilla()), objectives.VanillaObjective
+        objectives.get_objective(objectives.Vanilla()), objectives.VanillaObjective
     )
 
 

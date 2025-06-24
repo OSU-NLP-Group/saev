@@ -1,6 +1,3 @@
-import pytest
-
-
 def test_expand():
     cfg = {"lr": [1, 2, 3]}
     expected = [{"lr": 1}, {"lr": 2}, {"lr": 3}]

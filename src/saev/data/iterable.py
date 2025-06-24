@@ -45,6 +45,17 @@ class Config:
     """Random seed."""
 
 
+@beartype.beartype
+class ImageOutOfBoundsError(Exception):
+    def __init__(self, metadata: writers.Metadata, i: int):
+        self.metadata = metadata
+        self.i = i
+
+    @property
+    def message(self) -> str:
+        return f"Metadata says there are {self.metadata.n_imgs} images, but we found image {self.i}."
+
+
 @jaxtyped(typechecker=beartype.beartype)
 def _io_worker(
     worker_id: int,
@@ -77,16 +88,35 @@ def _io_worker(
             if shard_i is None:  # Poison pill
                 break
 
-            acts_fpath = os.path.join(cfg.shard_root, f"acts{shard_i:06}.bin")
+            fname = f"acts{shard_i:06}.bin"
+            logger.info("Opening %s.", fname)
+
+            img_i_offset = shard_i * metadata.n_imgs_per_shard
+
+            acts_fpath = os.path.join(cfg.shard_root, fname)
             mmap = np.memmap(
                 acts_fpath, mode="r", dtype=np.float32, shape=metadata.shard_shape
             )
+
+            with open(os.path.join(cfg.shard_root, "shards.json")) as fd:
+                shard_info = json.load(fd)[shard_i]
 
             for start, end in helpers.batched_idx(metadata.n_imgs_per_shard, 64):
                 for p in range(metadata.n_patches_per_img):
                     patch_i = p + int(metadata.cls_token)
                     acts = torch.from_numpy(mmap[start:end, layer_i, patch_i])
-                    metas = [{"image_i": i, "patch_i": p} for i in range(start, end)]
+
+                    last_img_i = img_i_offset + (end - 1)
+                    if last_img_i >= metadata.n_imgs:
+                        err = ImageOutOfBoundsError(metadata, last_img_i)
+                        logger.warning(err.message)
+                        raise err
+
+                    metas = [
+                        {"image_i": img_i_offset + i, "patch_i": p}
+                        for i in range(start, end)
+                    ]
+
                     reservoir.put(acts, metas)
         except queue.Empty:
             # Wait 0.1 seconds for new data.
@@ -125,6 +155,7 @@ def _manager_main(
     logger.info("Shuffling shards.")
     rng = np.random.default_rng(cfg.seed)
     work_items = rng.permutation(metadata.n_shards)
+    logger.info("First 10 shards: %s", work_items[:10])
 
     try:
         # 2. SETUP WORK QUEUE & I/O THREADS

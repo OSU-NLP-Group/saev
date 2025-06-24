@@ -3,19 +3,18 @@ import pytest
 import torch
 from hypothesis import given, settings
 
-from .. import config
-from . import modeling
+from saev.nn import modeling
 
 
 def test_factories():
-    assert isinstance(modeling.get_activation(config.Relu()), torch.nn.ReLU)
+    assert isinstance(modeling.get_activation(modeling.Relu()), torch.nn.ReLU)
 
 
 @st.composite
 def relu_cfgs(draw):
     d_vit = draw(st.sampled_from([32, 64, 128]))
     exp = draw(st.sampled_from([2, 4]))
-    return config.Relu(d_vit=d_vit, exp_factor=exp)
+    return modeling.Relu(d_vit=d_vit, exp_factor=exp)
 
 
 @settings(deadline=None)
@@ -58,9 +57,9 @@ def test_load_bioclip_checkpoint(repo_id, tmp_path):
 
 
 roundtrip_cases = [
-    config.Relu(d_vit=512, exp_factor=8, seed=0),
-    config.Relu(d_vit=768, exp_factor=16, seed=1),
-    config.Relu(d_vit=1024, exp_factor=32, seed=2),
+    modeling.Relu(d_vit=512, exp_factor=8, seed=0),
+    modeling.Relu(d_vit=768, exp_factor=16, seed=1),
+    modeling.Relu(d_vit=1024, exp_factor=32, seed=2),
 ]
 
 

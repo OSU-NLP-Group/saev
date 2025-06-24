@@ -302,10 +302,10 @@ def test_metadata_json_has_required_keys(cfg):
     # We cannot use the tmp_path fixture because of Hypothesis.
     # See https://hypothesis.readthedocs.io/en/latest/reference/api.html#hypothesis.HealthCheck.function_scoped_fixture
     with tempfile.TemporaryDirectory() as tmp_path:
-        outdir = pathlib.Path(tmp_path, Metadata.from_cfg(cfg).hash)
+        outdir = pathlib.Path(tmp_path / Metadata.from_cfg(cfg).hash)
         os.makedirs(outdir)
         # Write metadata.json
-        Metadata.from_cfg(cfg).dump(outdir / "metadata.json")
+        Metadata.from_cfg(cfg).dump(str(outdir / "metadata.json"))
 
         md = json.loads((outdir / "metadata.json").read_text())
         # required keys from the protocol
