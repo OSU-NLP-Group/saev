@@ -177,7 +177,8 @@ class ShardWriter:
         )
 
         self.shard_info_path = os.path.join(self.root, "shards.json")
-        self.shard_info = []
+        # builder for shard manifest
+        self._shards: ShardInfo = ShardInfo()
 
         self.shard = -1
         self.acts = None
@@ -215,13 +216,14 @@ class ShardWriter:
         if self.acts is not None:
             self.acts.flush()
 
-            # Flush shard info.
-            self.shard_info.append({
-                "name": os.path.basename(self.acts_path),
-                "n_imgs": self.filled,
-            })
-            with open(self.shard_info_path, "w") as fd:
-                json.dump(self.shard_info, fd, indent=2)
+            # record shard info
+            self._shards.append(
+                Shard(
+                    name=os.path.basename(self.acts_path),
+                    n_imgs=self.filled,
+                )
+            )
+            self._shards.dump(self.shard_info_path)
 
         self.acts = None
 
@@ -341,6 +343,46 @@ class Metadata:
             self.n_tokens_per_img,
             self.d_vit,
         )
+
+
+@beartype.beartype
+@dataclasses.dataclass(frozen=True)
+class Shard:
+    """
+    A single shard entry in shards.json, recording the filename and number of images.
+    """
+
+    name: str
+    n_imgs: int
+
+
+@beartype.beartype
+@dataclasses.dataclass(frozen=True)
+class ShardInfo:
+    """
+    A read-only container for shard metadata as recorded in shards.json.
+    """
+
+    shards: list[Shard]
+
+    @classmethod
+    def load(cls, fpath: str) -> "ShardInfo":
+        with open(fpath) as fd:
+            data = json.load(fd)
+        return cls([Shard(**entry) for entry in data])
+
+    def dump(self, fpath: str) -> None:
+        with open(fpath, "w") as fd:
+            json.dump([dataclasses.asdict(s) for s in self.shards], fd, indent=2)
+
+    def append(self, shard: Shard):
+        self.shards.append(shard)
+
+    def __len__(self) -> int:
+        return len(self.shards)
+
+    def __getitem__(self, idx: int) -> Shard:
+        return self.shards[idx]
 
 
 @beartype.beartype
