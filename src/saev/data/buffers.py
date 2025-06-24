@@ -1,6 +1,7 @@
 # src/saev/data/utils.py
 import collections.abc
 import itertools
+import time
 
 import beartype
 import numpy as np
@@ -152,10 +153,24 @@ class ReservoirBuffer:
             self.full.release()
 
     def get(
-        self, bsz: int
+        self, bsz: int, timeout: float | None = None
     ) -> tuple[Shaped[Tensor, "bsz ..."], collections.abc.Sequence[object]]:
-        for _ in range(bsz):
-            self.full.acquire()
+        n_acquired = 0
+        deadline = None if timeout is None else time.monotonic() + timeout
+
+        try:
+            for _ in range(bsz):
+                remaining = (
+                    None if deadline is None else max(0.0, deadline - time.monotonic())
+                )
+                if not self.full.acquire(timeout=remaining):
+                    raise TimeoutError  # couldn’t get the whole batch in time
+                n_acquired += 1
+        except Exception:
+            # Roll back any tokens we already grabbed.
+            for _ in range(n_acquired):
+                self.full.release()
+            raise
 
         out_x = torch.empty((bsz, *self.data.shape[1:]), dtype=self.data.dtype)
         out_m = [None] * bsz

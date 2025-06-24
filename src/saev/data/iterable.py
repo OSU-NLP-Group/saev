@@ -19,7 +19,7 @@ from torch import Tensor
 
 from saev import helpers
 
-from . import utils, writers
+from . import buffers, writers
 
 
 @beartype.beartype
@@ -35,6 +35,8 @@ class Config:
     """Maximum value for activations; activations will be clamped to within [-clamp, clamp]`."""
     batch_size: int = 1024 * 16
     """Batch size."""
+    batch_timeout_s: float = 30.0
+    """How long to wait for at least one batch."""
     drop_last: bool = False
     """Whether to drop the last batch if it's smaller than the others."""
     n_threads: int = 4
@@ -62,7 +64,7 @@ def _io_worker(
     cfg: Config,
     metadata: writers.Metadata,
     work_queue: queue.Queue[int | None],
-    reservoir: utils.ReservoirBuffer,
+    reservoir: buffers.ReservoirBuffer,
     stop_event: threading.Event,
 ):
     """
@@ -129,7 +131,7 @@ def _io_worker(
 def _manager_main(
     cfg: Config,
     metadata: writers.Metadata,
-    reservoir: utils.ReservoirBuffer,
+    reservoir: buffers.ReservoirBuffer,
     stop_event: Event,
 ):
     """
@@ -245,7 +247,7 @@ class DataLoader:
         self.logger.info("Starting manager process.")
 
         # Create the shared-memory buffers
-        self.reservoir = utils.ReservoirBuffer(
+        self.reservoir = buffers.ReservoirBuffer(
             self.cfg.buffer_size * self.cfg.batch_size,
             (self.metadata.d_vit,),
             dtype=torch.float32,
@@ -263,15 +265,30 @@ class DataLoader:
     def __iter__(self) -> collections.abc.Iterable[ExampleBatch]:
         """Yields batches."""
         self._start_manager()
+        total = len(self)
+        i = 0
+
         try:
-            for i in range(len(self)):
+            while i < total:
                 if not self.manager_proc.is_alive():
                     raise RuntimeError(
                         f"Manager process died unexpectedly after {i}/{len(self)} batches."
                     )
-                # TODO: add a timeout (60s); if nothing happens, continue so that we check manager_proc.is_alive() again.
-                act, metas = self.reservoir.get(self.cfg.batch_size)
-                yield self.ExampleBatch(act=act, **metas)
+
+                try:
+                    act, meta = self.reservoir.get(
+                        self.cfg.batch_size, timeout=self.cfg.batch_timeout_s
+                    )
+                    i += 1
+                    yield self.ExampleBatch(act=act, **meta)
+                except TimeoutError:
+                    self.logger.info(
+                        "Did not get a batch from %d worker threads in %.1fs seconds.",
+                        self.cfg.n_threads,
+                        self.cfg.batch_timeout_s,
+                    )
+                    pass
+
         finally:
             self.shutdown()
 
