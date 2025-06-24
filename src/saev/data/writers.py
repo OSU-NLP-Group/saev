@@ -359,7 +359,7 @@ class ShardInfo:
     A read-only container for shard metadata as recorded in shards.json.
     """
 
-    shards: list[Shard]
+    shards: list[Shard] = dataclasses.field(default_factory=list)
 
     @classmethod
     def load(cls, shard_path: str) -> "ShardInfo":

@@ -213,8 +213,7 @@ class DataLoader:
         if not os.path.isdir(self.cfg.shard_root):
             raise RuntimeError(f"Activations are not saved at '{self.cfg.shard_root}'.")
 
-        metadata_fpath = os.path.join(self.cfg.shard_root, "metadata.json")
-        self.metadata = writers.Metadata.load(metadata_fpath)
+        self.metadata = writers.Metadata.load(self.cfg.shard_root)
 
         self.logger = logging.getLogger("iterable.DataLoader")
         self.ctx = mp.get_context()
