@@ -6,7 +6,7 @@ from hypothesis import given
 from hypothesis import strategies as st
 from jaxtyping import Int, jaxtyped
 
-from . import helpers
+from saev import helpers
 
 
 @st.composite

@@ -1,4 +1,5 @@
 import glob
+import json
 import os
 
 import pytest
@@ -37,3 +38,23 @@ def test_metadata_n_shards_matches_disk(shard_root):
 
     # Verify the calculated n_shards matches the actual count
     assert metadata.n_shards == actual_shards
+
+
+def test_metadata_n_imgs_per_shard_matches_disk(shard_root):
+    """Test that Metadata.n_imgs_per_shard matches both our math and shards.json."""
+    # Load metadata from the directory
+    metadata_path = os.path.join(shard_root, "metadata.json")
+    assert os.path.exists(metadata_path), f"Metadata file not found at {metadata_path}"
+
+    metadata = Metadata.load(metadata_path)
+
+    shards_path = os.path.join(shard_root, "shards.json")
+    assert os.path.exists(shards_path), f"Metadata file not found at {metadata_path}"
+
+    with open(shards_path) as fd:
+        shards = json.load(fd)
+
+    # Asserts
+    for shard in shards[:-1]:
+        assert metadata.n_imgs_per_shard == shard["n_imgs"]
+    assert metadata.n_imgs_per_shard >= shards[-1]["n_imgs"]
