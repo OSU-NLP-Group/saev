@@ -7,7 +7,9 @@ import os
 import queue
 import threading
 import time
+import traceback
 import typing
+from multiprocessing.queues import Queue
 from multiprocessing.synchronize import Event
 
 import beartype
@@ -66,6 +68,7 @@ def _io_worker(
     work_queue: queue.Queue[int | None],
     reservoir: buffers.ReservoirBuffer,
     stop_event: threading.Event,
+    err_queue: Queue[tuple[str, str]],
 ):
     """
     Pulls work items from the queue, loads data, and pushes it to the ready queue.
@@ -123,6 +126,7 @@ def _io_worker(
             continue
         except Exception:
             logger.exception(f"Error in worker {worker_id}")
+            err_queue.put((f"worker{worker_id}", traceback.format_exc()))
             break
     logger.info(f"I/O worker {worker_id} finished.")
 
@@ -133,13 +137,13 @@ def _manager_main(
     metadata: writers.Metadata,
     reservoir: buffers.ReservoirBuffer,
     stop_event: Event,
+    err_queue: Queue[tuple[str, str]],
 ):
     """
     The main function for the data loader manager process.
     """
 
     logger = logging.getLogger("iterable.manager")
-
     logger.info("Manager process started.")
 
     # 0. PRE-CONDITIONS
@@ -170,11 +174,16 @@ def _manager_main(
         threads = []
         thread_stop_event = threading.Event()
         for i in range(cfg.n_threads):
-            thread = threading.Thread(
-                target=_io_worker,
-                args=(i, cfg, metadata, work_queue, reservoir, thread_stop_event),
-                daemon=True,
+            args = (
+                i,
+                cfg,
+                metadata,
+                work_queue,
+                reservoir,
+                thread_stop_event,
+                err_queue,
             )
+            thread = threading.Thread(target=_io_worker, args=args, daemon=True)
             thread.start()
             threads.append(thread)
         logger.info("Launched %d I/O threads.", cfg.n_threads)
@@ -185,6 +194,7 @@ def _manager_main(
 
     except Exception:
         logger.exception("Fatal error in manager process")
+        err_queue.put("manager", traceback.format_exc())
     finally:
         # 5. CLEANUP
         logger.info("Manager process shutting down...")
@@ -192,7 +202,7 @@ def _manager_main(
         while not work_queue.empty():
             work_queue.get_nowait()
         for t in threads:
-            t.join(timeout=2.0)
+            t.join(timeout=10.0)
         logger.info("Manager process finished.")
 
 
@@ -254,10 +264,17 @@ class DataLoader:
             collate_fn=torch.utils.data.default_collate,
         )
         self.stop_event = self.ctx.Event()
+        self.err_queue = self.ctx.Queue(maxsize=self.cfg.n_threads + 1)
 
         self.manager_proc = self.ctx.Process(
             target=_manager_main,
-            args=(self.cfg, self.metadata, self.reservoir, self.stop_event),
+            args=(
+                self.cfg,
+                self.metadata,
+                self.reservoir,
+                self.stop_event,
+                self.err_queue,
+            ),
             daemon=True,
         )
         self.manager_proc.start()
@@ -270,6 +287,10 @@ class DataLoader:
 
         try:
             while i < total:
+                if not self.err_queue.empty():
+                    who, tb = self.err_q.get_nowait()
+                    raise RuntimeError(f"{who} crashed:\n{tb}")
+
                 if not self.manager_proc.is_alive():
                     raise RuntimeError(
                         f"Manager process died unexpectedly after {i}/{len(self)} batches."
