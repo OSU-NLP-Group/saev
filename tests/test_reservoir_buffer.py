@@ -1,3 +1,4 @@
+# tests/test_resevoir_buffer.py
 import os
 import queue
 import signal
@@ -11,7 +12,7 @@ import torch.multiprocessing as mp
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from saev.data.utils import ReservoirBuffer
+from saev.data.buffers import ReservoirBuffer
 
 mp.set_start_method("spawn", force=True)
 
@@ -346,3 +347,101 @@ def test_fuzz_interleaved_ops(seq):
             raise ValueError(op)
         qs = rb.qsize()
         assert qs == outstanding
+
+
+@beartype.beartype
+def _try_get(ring: ReservoirBuffer, bsz: int, timeout: float, q):
+    """
+    Attempt ring.get(); put ('ok', tensor) or ('timeout', None) in q.
+    Runs in a thread or subprocess (supplied by the `backend` fixture).
+    """
+    try:
+        tensor, _ = ring.get(bsz, timeout=timeout)
+        q.put(("ok", tensor))
+    except TimeoutError:
+        q.put(("timeout", None))
+
+
+@beartype.beartype
+def _delayed_put(ring: ReservoirBuffer, tensors, delay: float):
+    """
+    Sleep `delay` seconds then put every tensor into the buffer.
+    """
+    time.sleep(delay)
+    for t in tensors:
+        ring.put(t)
+
+
+def test_get_timeout_raises_and_recovers():
+    """
+    Calling get() for more items than are available with a finite timeout
+    must raise TimeoutError *and* leave the internal state unchanged.
+    """
+    rb = ReservoirBuffer(4, (1,), dtype=torch.int32)
+    rb.put(torch.tensor([7], dtype=torch.int32))  # only *one* item present
+
+    with pytest.raises(TimeoutError):
+        rb.get(2, timeout=0.15)  # asks for *two*
+
+    # queue state intact – still exactly the original element present
+    assert rb.qsize() == 1
+    tensor, _ = rb.get(1, timeout=0.1)
+    assert tensor.item() == 7
+
+
+def test_partial_acquire_rollback():
+    """
+    When part‑way through a batch acquire, a timeout must roll back
+    any semaphores already taken (no permit leak, no size skew).
+    """
+    rb = ReservoirBuffer(3, (1,), dtype=torch.int32)
+    # two items in queue – one short of the requested batch
+    rb.put(torch.tensor([1], dtype=torch.int32))
+    rb.put(torch.tensor([2], dtype=torch.int32))
+
+    start_size = rb.qsize()
+    with pytest.raises(TimeoutError):
+        rb.get(3, timeout=0.15)  # needs 3, gets stuck after 2
+
+    # Size still identical; subsequent ops behave normally.
+    assert rb.qsize() == start_size
+    rb.put(torch.tensor([3], dtype=torch.int32))
+    xs, _ = rb.get(3, timeout=0.1)
+    assert set(xs.squeeze().tolist()) == {1, 2, 3}
+
+
+def test_get_waits_until_items_arrive(backend):
+    """
+    A thread / process that calls get(..., timeout) should block until the batch
+    becomes available *or* the timeout expires – whichever happens first.
+    """
+    rb = ReservoirBuffer(4, (1,), dtype=torch.int32)
+
+    q = backend.Queue()
+    worker = backend.Worker(target=_try_get, args=(rb, 2, 1.0, q), **backend.kwargs)
+    worker.start()
+
+    # ensure the consumer is definitely waiting on the first semaphore
+    time.sleep(0.2)
+    assert q.empty()
+
+    # now deliver exactly the required batch well within the timeout
+    producer = backend.Worker(
+        target=_delayed_put,
+        args=(
+            rb,
+            [
+                torch.tensor([11], dtype=torch.int32),
+                torch.tensor([22], dtype=torch.int32),
+            ],
+            0.1,  # wait a bit less than the remaining timeout
+        ),
+        **backend.kwargs,
+    )
+    producer.start()
+    worker.join(timeout=2.0)
+    producer.join(timeout=2.0)
+
+    status, tensor = q.get()
+    assert status == "ok"
+    assert set(tensor.squeeze().tolist()) == {11, 22}
