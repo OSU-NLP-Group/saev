@@ -1,10 +1,9 @@
-# contrib/trait_discovery/cub200/dump_scores.py
+# contrib/trait_discovery/dump_cub200_scores.py
 """
 1. Check if activations exist. If they don't, ask user to write them to disk using saev.data then try again.
 2. Fit k-means (or whatever method) to dataset. Do a couple hparams in parallel because disk read speeds are slow (multiple values of k, multiple values for the number of principal components, etc).
 3. Follow the pseudocode in the experiment description to get some scores.
 4. Write the results to disk in a JSON or SQLite format. Tell the reader to explore the results using a marimo notebook of some kind.
-
 Size key:
 
 * B: Batch size
@@ -23,18 +22,15 @@ import os.path
 import typing
 
 import beartype
+import cub200
 import numpy as np
 import torch
 import tyro
-from jaxtyping import Bool, Float, Int, jaxtyped
+from jaxtyping import Bool, Float, Int
 from torch import Tensor
 
 import saev.data
-import saev.nn
-import saev.utils.scheduling
 from saev import helpers
-
-from . import data
 
 log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
 logging.basicConfig(level=logging.INFO, format=log_format)
@@ -79,7 +75,6 @@ class Config:
     """Where to log Slurm job stdout/stderr."""
 
 
-@beartype.beartype
 class Scorer:
     def __call__(self, activations: Float[Tensor, "B D"]) -> Float[Tensor, "B K"]:
         raise NotImplementedError()
@@ -89,7 +84,6 @@ class Scorer:
         raise NotImplementedError()
 
 
-@jaxtyped(typechecker=beartype.beartype)
 def get_random_vectors(
     dataloader: saev.data.iterable.DataLoader, *, k: int, seed: int
 ) -> Float[Tensor, "K D"]:
@@ -133,12 +127,11 @@ def get_random_vectors(
     return reservoir_KD
 
 
-@jaxtyped(typechecker=beartype.beartype)
 class RandomVectors(Scorer):
-    def __init__(self, dataloader: saev.data.iterable.DataLoader, cfg: Config):
-        self.prototypes_KD = get_random_vectors(
-            dataloader, k=cfg.n_prototypes, seed=cfg.seed
-        )
+    def __init__(
+        self, dataloader: saev.data.iterable.DataLoader, n_prototypes: int, *, seed: int
+    ):
+        self.prototypes_KD = get_random_vectors(dataloader, k=n_prototypes, seed=seed)
 
     def __call__(self, activations_BD: Float[Tensor, "B D"]) -> Float[Tensor, "B K"]:
         return activations_BD @ self.prototypes_KD.T
@@ -149,7 +142,6 @@ class RandomVectors(Scorer):
         return k
 
 
-@jaxtyped(typechecker=beartype.beartype)
 def calc_scores(
     dataloader: saev.data.iterable.DataLoader,
     scorer: Scorer,
@@ -185,7 +177,6 @@ def calc_scores(
     return scores_NK.cpu()
 
 
-@jaxtyped(typechecker=beartype.beartype)
 def calc_avg_prec(
     scores_NC: Float[Tensor, "N C"], y_true_NT: Bool[Tensor, "N T"]
 ) -> Float[Tensor, "C T"]:
@@ -238,7 +229,6 @@ def calc_avg_prec(
     return avg_precision_CT
 
 
-@jaxtyped(typechecker=beartype.beartype)
 def pick_best_prototypes(
     scores_NK: Float[Tensor, "N K"],
     y_true_NT: Bool[Tensor, "N T"],
@@ -270,7 +260,6 @@ def pick_best_prototypes(
     return best_idx_T.cpu()
 
 
-@jaxtyped(typechecker=beartype.beartype)
 def dump(cfg: Config, scores_NT: Float[Tensor, "N T"]):
     cfg_json = json.dumps(dataclasses.asdict(cfg), sort_keys=True)
     run_id = hashlib.sha256(cfg_json.encode()).hexdigest()[:16]
@@ -284,14 +273,14 @@ def dump(cfg: Config, scores_NT: Float[Tensor, "N T"]):
         np.save(fd, scores_NT.numpy())
 
 
-@torch.no_grad()
 @beartype.beartype
-def main(cfg: typing.Annotated[Config, tyro.conf.arg(name="")]):
+def worker_fn(cfg: Config):
     try:
-        train_y_true_NT = data.load_attrs(cfg.cub_root, is_train=True)
+        train_y_true_NT = cub200.load_attrs(cfg.cub_root, is_train=True)
     except Exception:
         logger.exception("Could not load CUB attributes.")
         return
+
     try:
         train_dataloader = saev.data.iterable.DataLoader(cfg.train_data)
         test_dataloader = saev.data.iterable.DataLoader(cfg.test_data)
@@ -306,26 +295,55 @@ def main(cfg: typing.Annotated[Config, tyro.conf.arg(name="")]):
     if torch.cuda.is_available():
         torch.cuda.manual_seed(cfg.seed)
 
-    scorer = RandomVectors(train_dataloader, cfg)
+    with torch.no_grad():
+        scorer = RandomVectors(train_dataloader, cfg.n_prototypes, seed=cfg.seed)
 
-    train_scores_NK = calc_scores(train_dataloader, scorer)
+        train_scores_NK = calc_scores(train_dataloader, scorer)
 
-    # Sample a random subset of train_scores based on n_train.
-    n_train, k = train_scores_NK.shape
-    if cfg.n_train > 0 and cfg.n_train < n_train:
-        rng = np.random.default_rng(seed=cfg.seed)
-        indices = rng.choice(n_train, size=cfg.n_train, replace=False)
-        train_scores_NK = train_scores_NK[indices]
-        train_y_true_NT = train_y_true_NT[indices]
+        # Sample a random subset of train_scores based on n_train.
+        n_train, k = train_scores_NK.shape
+        if cfg.n_train > 0 and cfg.n_train < n_train:
+            rng = np.random.default_rng(seed=cfg.seed)
+            indices = rng.choice(n_train, size=cfg.n_train, replace=False)
+            train_scores_NK = train_scores_NK[indices]
+            train_y_true_NT = train_y_true_NT[indices]
 
-    # Get the best prototypes by calculating AP across all train images.
-    prototypes_i_T = pick_best_prototypes(train_scores_NK, train_y_true_NT)
+        # Get the best prototypes by calculating AP across all train images.
+        prototypes_i_T = pick_best_prototypes(train_scores_NK, train_y_true_NT)
 
-    test_scores_NK = calc_scores(test_dataloader, scorer)
-    # TODO: document this line.
-    test_scores_NT = test_scores_NK[:, prototypes_i_T]
+        test_scores_NK = calc_scores(test_dataloader, scorer)
+        test_scores_NT = test_scores_NK[:, prototypes_i_T]
 
     dump(cfg, test_scores_NT)
+
+
+@beartype.beartype
+def main(cfg: typing.Annotated[Config, tyro.conf.arg(name="")]):
+    import submitit
+
+    if cfg.slurm_acct:
+        executor = submitit.SlurmExecutor(folder=cfg.log_to)
+        executor.update_parameters(
+            time=int(cfg.n_hours * 60),
+            partition=cfg.slurm_partition,
+            gpus_per_node=1,
+            ntasks_per_node=1,
+            cpus_per_task=4,
+            stderr_to_stdout=True,
+            account=cfg.slurm_acct,
+        )
+    else:
+        executor = submitit.DebugExecutor(folder=cfg.log_to)
+
+    with executor.batch():
+        jobs = [executor.submit(worker_fn, cfg)]
+
+    logger.info("Submitted %d jobs.", len(jobs))
+    for j, job in enumerate(jobs, start=1):
+        job.result()
+        logger.info("Job %d/%d finished.", j + 1, len(jobs))
+
+    logger.info("Done.")
 
 
 if __name__ == "__main__":
