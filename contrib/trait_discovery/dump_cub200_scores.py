@@ -19,11 +19,13 @@ import hashlib
 import json
 import logging
 import os.path
+import tomllib
 import typing
 
 import beartype
 import cub200
 import numpy as np
+import submitit
 import torch
 import tyro
 from jaxtyping import Bool, Float, Int
@@ -267,7 +269,7 @@ def dump(cfg: Config, scores_NT: Float[Tensor, "N T"]):
     os.makedirs(dpath, exist_ok=False)
 
     with open(os.path.join(dpath, "config.json"), "w") as fd:
-        json.dump(cfg_json, fd)
+        fd.write(cfg_json + "\n")
 
     with gzip.open(os.path.join(dpath, "scores.bin.gz"), "wb") as fd:
         np.save(fd, scores_NT.numpy())
@@ -321,9 +323,6 @@ def worker_fn(cfg: Config):
 def main(
     cfg: typing.Annotated[Config, tyro.conf.arg(name="")], sweep: str | None = None
 ):
-    import submitit
-    import tomllib
-
     if sweep is not None:
         with open(sweep, "rb") as fd:
             cfgs, errs = helpers.grid(cfg, tomllib.load(fd))
@@ -343,6 +342,7 @@ def main(
             gpus_per_node=1,
             ntasks_per_node=1,
             cpus_per_task=4,
+            mem_gb=64,
             stderr_to_stdout=True,
             account=cfg.slurm_acct,
         )
@@ -353,7 +353,7 @@ def main(
         jobs = [executor.submit(worker_fn, c) for c in cfgs]
 
     logger.info("Submitted %d jobs.", len(jobs))
-    for j, job in enumerate(jobs, start=1):
+    for j, job in enumerate(jobs):
         job.result()
         logger.info("Job %d/%d finished.", j, len(jobs))
 
