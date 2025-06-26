@@ -55,8 +55,8 @@ class Config:
     """Test activations."""
     cub_root: str = os.path.join(".", "CUB_200_2011_ImageFolder")
     """Root with test/, train/ and metadata/ folders."""
-    n_samples: int = 500_000_000
-    """Number of training samples (vectors)."""
+    n_train: int = -1
+    """Number of images to use to pick best prototypes. Less than 0 indicates all images."""
     n_prototypes: int = 8 * 1024
     """"""
     dump_to: str = os.path.join(".", "data")
@@ -88,7 +88,7 @@ class Scorer:
 
 @jaxtyped(typechecker=beartype.beartype)
 def get_random_vectors(
-    dataloader: saev.data.iterable.DataLoader, *, k: int, n: int, seed: int
+    dataloader: saev.data.iterable.DataLoader, *, k: int, seed: int
 ) -> Float[Tensor, "K D"]:
     """Uniformly sample n_prototypes vectors from a streaming DataLoader using reservoir sampling.
 
@@ -100,9 +100,6 @@ def get_random_vectors(
 
     n_seen = 0
     rng = torch.Generator().manual_seed(seed)
-
-    if dataloader.n_samples > n:
-        dataloader = saev.utils.scheduling.BatchLimiter(dataloader, n_samples=n)
 
     for batch in helpers.progress(dataloader):
         x_BD = batch["act"]
@@ -137,7 +134,7 @@ def get_random_vectors(
 class RandomVectors(Scorer):
     def __init__(self, dataloader: saev.data.iterable.DataLoader, cfg: Config):
         self.prototypes_KD = get_random_vectors(
-            dataloader, k=cfg.n_prototypes, n=cfg.n_samples, seed=cfg.seed
+            dataloader, k=cfg.n_prototypes, seed=cfg.seed
         )
 
     def __call__(self, activations_BD: Float[Tensor, "B D"]) -> Float[Tensor, "B K"]:
@@ -295,6 +292,10 @@ def main(cfg: typing.Annotated[Config, tyro.conf.arg(name="")]):
     scorer = RandomVectors(train_dataloader, cfg)
 
     train_scores_NK = calc_scores(train_dataloader, scorer)
+    # Sample a random subset of train_scores based on n_train.
+    rng = np.random.default_rng(seed=cfg.seed)
+    # Use rng to pick a cfg.n_train images from train_scores_NK. AI!
+
     prototypes_i_T = pick_best_prototypes(train_scores_NK, train_y_true_NT)
 
     test_scores_NK = calc_scores(test_dataloader, scorer)
