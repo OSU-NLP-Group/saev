@@ -293,8 +293,11 @@ def main(cfg: typing.Annotated[Config, tyro.conf.arg(name="")]):
 
     train_scores_NK = calc_scores(train_dataloader, scorer)
     # Sample a random subset of train_scores based on n_train.
-    rng = np.random.default_rng(seed=cfg.seed)
-    # Use rng to pick a cfg.n_train images from train_scores_NK. AI!
+    if cfg.n_train > 0 and cfg.n_train < train_scores_NK.shape[0]:
+        rng = np.random.default_rng(seed=cfg.seed)
+        indices = rng.choice(train_scores_NK.shape[0], size=cfg.n_train, replace=False)
+        train_scores_NK = train_scores_NK[indices]
+        train_y_true_NT = train_y_true_NT[indices]
 
     prototypes_i_T = pick_best_prototypes(train_scores_NK, train_y_true_NT)
 
