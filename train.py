@@ -17,7 +17,6 @@ Checklist for making sure your training doesn't suck:
 
 import collections.abc
 import dataclasses
-import itertools
 import json
 import logging
 import os.path
@@ -381,75 +380,6 @@ def evaluate(
     return metrics
 
 
-##########
-# SWEEPS #
-##########
-
-
-@beartype.beartype
-def grid(cfg: Config, sweep_dct: dict[str, object]) -> tuple[list[Config], list[str]]:
-    cfgs, errs = [], []
-    for d, dct in enumerate(expand(sweep_dct)):
-        # .sae is a nested field that cannot be naively expanded.
-        sae_dct = dct.pop("sae")
-        if sae_dct:
-            sae_dct["seed"] = sae_dct.pop("seed", cfg.sae.seed) + cfg.seed + d
-            dct["sae"] = dataclasses.replace(cfg.sae, **sae_dct)
-
-        # .objective is a nested field that cannot be naively expanded.
-        objective_dct = dct.pop("objective")
-        if objective_dct:
-            dct["objective"] = dataclasses.replace(cfg.objective, **objective_dct)
-
-        # .data is a nested field that cannot be naively expanded.
-        data_dct = dct.pop("data", {})
-        if data_dct:
-            dct["data"] = dataclasses.replace(cfg.data, **data_dct)
-
-        try:
-            cfgs.append(dataclasses.replace(cfg, **dct, seed=cfg.seed + d))
-        except Exception as err:
-            errs.append(str(err))
-
-    return cfgs, errs
-
-
-@beartype.beartype
-def expand(config: dict[str, object]) -> collections.abc.Iterator[dict[str, object]]:
-    """
-    Expands dicts with (nested) lists into a list of (nested) dicts.
-    """
-    yield from _expand_discrete(config)
-
-
-@beartype.beartype
-def _expand_discrete(
-    config: dict[str, object],
-) -> collections.abc.Iterator[dict[str, object]]:
-    """
-    Expands any (possibly nested) list values in `config`
-    """
-    if not config:
-        yield config
-        return
-
-    key, value = config.popitem()
-
-    if isinstance(value, list):
-        # Expand
-        for c in _expand_discrete(config):
-            for v in value:
-                yield {**c, key: v}
-    elif isinstance(value, dict):
-        # Expand
-        for c, v in itertools.product(
-            _expand_discrete(config), _expand_discrete(value)
-        ):
-            yield {**c, key: v}
-    else:
-        for c in _expand_discrete(config):
-            yield {**c, key: value}
-
 
 #####################
 # Parallel Training #
@@ -528,7 +458,7 @@ def main(
 
     if sweep is not None:
         with open(sweep, "rb") as fd:
-            cfgs, errs = grid(cfg, tomllib.load(fd))
+            cfgs, errs = helpers.grid(cfg, tomllib.load(fd))
 
         if errs:
             for err in errs:

@@ -318,8 +318,22 @@ def worker_fn(cfg: Config):
 
 
 @beartype.beartype
-def main(cfg: typing.Annotated[Config, tyro.conf.arg(name="")]):
+def main(
+    cfg: typing.Annotated[Config, tyro.conf.arg(name="")], sweep: str | None = None
+):
     import submitit
+    import tomllib
+
+    if sweep is not None:
+        with open(sweep, "rb") as fd:
+            cfgs, errs = helpers.grid(cfg, tomllib.load(fd))
+
+        if errs:
+            for err in errs:
+                logger.warning("Error in config: %s", err)
+            return
+    else:
+        cfgs = [cfg]
 
     if cfg.slurm_acct:
         executor = submitit.SlurmExecutor(folder=cfg.log_to)
@@ -336,12 +350,12 @@ def main(cfg: typing.Annotated[Config, tyro.conf.arg(name="")]):
         executor = submitit.DebugExecutor(folder=cfg.log_to)
 
     with executor.batch():
-        jobs = [executor.submit(worker_fn, cfg)]
+        jobs = [executor.submit(worker_fn, c) for c in cfgs]
 
     logger.info("Submitted %d jobs.", len(jobs))
     for j, job in enumerate(jobs, start=1):
         job.result()
-        logger.info("Job %d/%d finished.", j + 1, len(jobs))
+        logger.info("Job %d/%d finished.", j, len(jobs))
 
     logger.info("Done.")
 
