@@ -31,6 +31,8 @@ import saev.nn
 import saev.utils.scheduling
 from saev import helpers
 
+from . import data
+
 log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
 logging.basicConfig(level=logging.INFO, format=log_format)
 logger = logging.getLogger("baselines")
@@ -93,7 +95,9 @@ def get_random_vectors(
     Args:
         dataloader: DataLoader.
     """
-    reservoir_KD = torch.empty(k, load_metadata(dataloader.cfg).d_vit)
+    d_vit = saev.data.Metadata.load(dataloader.cfg.shard_root).d_vit
+    reservoir_KD = torch.empty(k, d_vit)
+
     n_seen = 0
     rng = torch.Generator().manual_seed(seed)
 
@@ -154,7 +158,7 @@ def calc_scores(
 ) -> Float[Tensor, "N K"]:
     torch.use_deterministic_algorithms(True)
 
-    metadata = load_metadata(dataloader.cfg)
+    metadata = saev.data.Metadata.load(dataloader.cfg.shard_root)
     shape = (dataloader.n_samples // metadata.n_patches_per_img, scorer.n_prototypes)
     # Initialize score matrix with −inf  so max() works.
     scores_NK = torch.full(shape, -torch.inf)
@@ -183,7 +187,7 @@ def calc_scores(
 
 @jaxtyped(typechecker=beartype.beartype)
 def calc_avg_prec(
-    scores_NC: Float[Tensor, "N C"], y_NT: Bool[Tensor, "N T"]
+    scores_NC: Float[Tensor, "N C"], y_true_NT: Bool[Tensor, "N T"]
 ) -> Float[Tensor, "C T"]:
     """
     Vectorized implementation of average precision (AP).
@@ -197,10 +201,10 @@ def calc_avg_prec(
         scores_NC: Scores for n images and c prototypes (where c << k to batch this calculation).
     """
     n, c = scores_NC.shape
-    _, t = y_NT.shape
+    _, t = y_true_NT.shape
 
     # total positives per trait   P_t  (shape  (T,))
-    pos_T = y_NT.sum(dim=0).to(torch.float32)
+    pos_T = y_true_NT.sum(dim=0).to(torch.float32)
     pos_mask_T = pos_T > 0  # traits that exist in this split
     pos_T[pos_T == 0] = 1.0  # avoid divide‑by‑zero later
 
@@ -208,14 +212,14 @@ def calc_avg_prec(
     idx_NC = torch.argsort(scores_NC, dim=0, descending=True)
 
     # 2. Gather labels in that order
-    # y_sorted_NCT[n, c, t] == y_NT[idx_NC[n, c], t]
+    # y_sorted_NCT[n, c, t] == y_true_NT[idx_NC[n, c], t]
     # Add trait dimension to indices: (N,C) -> (N,C,T) via view expansion
     # einops.repeat(idx_NC, 'n c -> n c t', t=t)
     idx_NCT = idx_NC.unsqueeze(-1).expand(-1, -1, t)
 
     # Add prototype dimension to labels: (N,T) -> (N,C,T) via view expansion
-    # einops.repeat(y_NT, 'n t -> n c t', c=c)
-    y_NCT = y_NT.unsqueeze(1).expand(-1, c, -1)
+    # einops.repeat(y_true_NT, 'n t -> n c t', c=c)
+    y_NCT = y_true_NT.unsqueeze(1).expand(-1, c, -1)
 
     y_sorted_NCT = torch.gather(y_NCT, dim=0, index=idx_NCT)
 
@@ -237,7 +241,7 @@ def calc_avg_prec(
 @jaxtyped(typechecker=beartype.beartype)
 def pick_best_prototypes(
     scores_NK: Float[Tensor, "N K"],
-    y_NT: Bool[Tensor, "N T"],
+    y_true_NT: Bool[Tensor, "N T"],
     *,
     chunk_size: int = 512,
     device: str = "cpu",
@@ -245,19 +249,18 @@ def pick_best_prototypes(
     """
     Args:
         scores_NK:
-        y_NT: Boolean attribute array; y_NT[n, t] is True if image n has trait t.
+        y_true_NT: Boolean attribute array; y_true_NT[n, t] is True if image n has trait t.
 
     Returns:
         A matrix of prototype indices (0...K-1) that maximizes AP for each trait.
     """
-    n, t = y_NT.shape
+    n, t = y_true_NT.shape
     _, k = scores_NK.shape
     best_ap_T = torch.full((t,), -1.0, device=device, dtype=torch.float32)
-    best_idx_T = torch.full((t,), -1, device=device, dtype=torch.int32)
+    best_idx_T = torch.full((t,), -1, device=device, dtype=torch.int64)
 
     for start, end in helpers.batched_idx(k, chunk_size):
-        ap_CT = calc_avg_prec(scores_NK[:, start:end], y_NT)
-        better = ap_CT > best_ap_T  # broadcast over C
+        ap_CT = calc_avg_prec(scores_NK[:, start:end], y_true_NT)
         # need the row index of max per trait inside the chunk
         max_in_chunk, row_idx = ap_CT.max(dim=0)
         update_mask = max_in_chunk > best_ap_T
@@ -267,94 +270,11 @@ def pick_best_prototypes(
     return best_idx_T.cpu()
 
 
-@beartype.beartype
-def load_metadata(cfg: saev.data.iterable.Config) -> saev.data.Metadata:
-    metadata_fpath = os.path.join(cfg.shard_root, "metadata.json")
-    return saev.data.Metadata.load(metadata_fpath)
-
-
-@jaxtyped(typechecker=beartype.beartype)
-def load_cub_attributes(root: str, *, is_train: bool) -> Bool[Tensor, "N T"]:
-    wanted_split = "train" if is_train else "test"
-    image_folder_dataset = saev.data.images.ImageFolderDataset(
-        os.path.join(root, wanted_split)
-    )
-
-    img_path_to_img_id = {}
-    with open(os.path.join(root, "metadata", "images.txt")) as fd:
-        for line in fd:
-            img_id, img_path = line.split()
-            img_path_to_img_id[img_path] = int(img_id)
-
-    img_id_in_split = set()
-    with open(os.path.join(root, "metadata", "train_test_split.txt")) as fd:
-        for line in fd:
-            img_id, is_train_str = line.split()
-            if is_train and is_train_str == "0":
-                continue
-            if not is_train and is_train_str == "1":
-                continue
-
-            img_id_in_split.add(int(img_id))
-
-    img_id_to_i = {}
-    for i, (path, _) in enumerate(image_folder_dataset.samples):
-        path, filename = os.path.split(path)
-        path, cls = os.path.split(path)
-        img_id = img_path_to_img_id[os.path.join(cls, filename)]
-        img_id_to_i[img_id] = i
-
-    attr_id_to_attr_name = {}
-    with open(os.path.join(root, "metadata", "attributes", "attributes.txt")) as fd:
-        for line in fd:
-            attr_id, attr_name = line.split()
-            attr_id_to_attr_name[int(attr_id)] = attr_name
-
-    attr_id_to_i = {
-        attr_id: i for i, attr_id in enumerate(sorted(attr_id_to_attr_name))
-    }
-
-    y_NT = torch.empty((len(img_id_in_split), len(attr_id_to_attr_name)), dtype=bool)
-
-    # From certainties.txt
-    # 1 not visible
-    # 2 guessing
-    # 3 probably
-    # 4 definitely
-    certainty_keep = {3, 4}
-
-    fpath = os.path.join(root, "metadata", "attributes", "image_attribute_labels.txt")
-    with open(fpath) as fd:
-        for line in fd:
-            # Explanation of *_: Sometimes there's an extra field (worker_id) but not on every line. So *_ collects all extra fields besides the 5 that are manually unpacked, then we ignore it.
-            img_id, attr_id, present, certainty_id, *_, time_s = line.split()
-            img_id, attr_id, certainty_id = int(img_id), int(attr_id), int(certainty_id)
-
-            if img_id not in img_id_in_split:
-                continue
-
-            i = img_id_to_i[img_id]
-            j = attr_id_to_i[attr_id]
-            y_NT[i, j] = certainty_id in certainty_keep
-
-    return y_NT
-
-
-@jaxtyped(typechecker=beartype.beartype)
-def eval_prototypes(
-    prototypes_i_T: Int[Tensor, " T"],
-    scores_NK: Float[Tensor, "N K"],
-    y_NT: Float[Tensor, "N T"],
-) -> Float[Tensor, "N T"]:
-    raise NotImplementedError()
-
-
 @torch.no_grad()
 @beartype.beartype
 def main(cfg: typing.Annotated[Config, tyro.conf.arg(name="")]):
     try:
-        train_y_NT = load_cub_attributes(cfg.cub_root, is_train=True)
-        test_y_NT = load_cub_attributes(cfg.cub_root, is_train=False)
+        train_y_true_NT = data.load_attrs(cfg.cub_root, is_train=True)
     except Exception:
         logger.exception("Could not load CUB attributes.")
         return
@@ -375,13 +295,15 @@ def main(cfg: typing.Annotated[Config, tyro.conf.arg(name="")]):
     scorer = RandomVectors(train_dataloader, cfg)
 
     train_scores_NK = calc_scores(train_dataloader, scorer)
-    breakpoint()
-    prototypes_i_T = pick_best_prototypes(train_scores_NK, train_y_NT)
+    prototypes_i_T = pick_best_prototypes(train_scores_NK, train_y_true_NT)
 
     test_scores_NK = calc_scores(test_dataloader, scorer)
-    test_scores_NT = eval_prototypes(prototypes_i_T, test_scores_NK, test_y_NT)
+    # TODO: document this line.
+    test_scores_NT = test_scores_NK[:, prototypes_i_T]
 
-    with gzip.open(os.path.join(cfg.dump_to, "randvec-scores_NT.bin.gz"), "wb") as fd:
+    os.makedirs(cfg.dump_to, exist_ok=True)
+    fpath = os.path.join(cfg.dump_to, f"randvec-k{cfg.n_prototypes}-scores_NT.bin.gz")
+    with gzip.open(fpath, "wb") as fd:
         np.save(fd, test_scores_NT.numpy())
 
 
