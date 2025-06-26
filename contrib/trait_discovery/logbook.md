@@ -23,7 +23,7 @@ Using a random set of prototypes led to very strong results.
 
 With 8192 prototypes (1024 x 8), we get a mAP of 0.864.
 With 1024 prototypes, we get a mAP of 0.858.
-With 128 prototypes, we get a mAP of TODO.
+With 128 prototypes, we get a mAP of 0.855.
 
 Color and pattern attributes have very high AP.
 Wing shape attributes are low AP.
@@ -40,3 +40,26 @@ Possible explanations for such strong results:
 3. The traits are too easy: color is very simple and it gets quite high scores.
 
 We can test hypotheses 1 and 2 quite easily.
+
+| Prototypes | Train | mAP | 5% | 95% |
+|------------|-------|-----|----|-----|
+| 128 | 16 |
+| 128 | 64 |
+| 128 | 256 |
+| 128 | 1024 |
+| 128 | |
+| 512 | 16 |
+| 512 | 64 |
+| 512 | 256 |
+| 512 | 1024 |
+| 512 | |
+| 2048 | 16 |
+| 2048 | 64 |
+| 2048 | 256 |
+| 2048 | 1024 |
+| 2048 | |
+| 8192 | 16 |
+| 8192 | 64 |
+| 8192 | 256 |
+| 8192 | 1024 |
+| 8192 | |

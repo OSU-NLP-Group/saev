@@ -1,3 +1,4 @@
+# contrib/trait_discovery/cub200/dump_scores.py
 """
 1. Check if activations exist. If they don't, ask user to write them to disk using saev.data then try again.
 2. Fit k-means (or whatever method) to dataset. Do a couple hparams in parallel because disk read speeds are slow (multiple values of k, multiple values for the number of principal components, etc).
@@ -15,6 +16,8 @@ Size key:
 
 import dataclasses
 import gzip
+import hashlib
+import json
 import logging
 import os.path
 import typing
@@ -267,6 +270,21 @@ def pick_best_prototypes(
     return best_idx_T.cpu()
 
 
+@jaxtyped(typechecker=beartype.beartype)
+def dump(cfg: Config, scores_NT: Float[Tensor, "N T"]):
+    cfg_json = json.dumps(dataclasses.asdict(cfg), sort_keys=True)
+    run_id = hashlib.sha256(cfg_json.encode()).hexdigest()[:16]
+    dpath = os.path.join(cfg.dump_to, run_id)
+    os.makedirs(dpath, exist_ok=False)
+
+    with open(os.path.join(dpath, "config.json"), "w") as fd:
+        json.dump(cfg_json, fd)
+
+    fpath = os.path.join(cfg.dump_to, "scores.bin.gz")
+    with gzip.open(fpath, "wb") as fd:
+        np.save(fd, scores_NT.numpy())
+
+
 @torch.no_grad()
 @beartype.beartype
 def main(cfg: typing.Annotated[Config, tyro.conf.arg(name="")]):
@@ -292,23 +310,23 @@ def main(cfg: typing.Annotated[Config, tyro.conf.arg(name="")]):
     scorer = RandomVectors(train_dataloader, cfg)
 
     train_scores_NK = calc_scores(train_dataloader, scorer)
+
     # Sample a random subset of train_scores based on n_train.
-    if cfg.n_train > 0 and cfg.n_train < train_scores_NK.shape[0]:
+    n_train, k = train_scores_NK.shape
+    if cfg.n_train > 0 and cfg.n_train < n_train:
         rng = np.random.default_rng(seed=cfg.seed)
-        indices = rng.choice(train_scores_NK.shape[0], size=cfg.n_train, replace=False)
+        indices = rng.choice(n_train, size=cfg.n_train, replace=False)
         train_scores_NK = train_scores_NK[indices]
         train_y_true_NT = train_y_true_NT[indices]
 
+    # Get the best prototypes by calculating AP across all train images.
     prototypes_i_T = pick_best_prototypes(train_scores_NK, train_y_true_NT)
 
     test_scores_NK = calc_scores(test_dataloader, scorer)
     # TODO: document this line.
     test_scores_NT = test_scores_NK[:, prototypes_i_T]
 
-    os.makedirs(cfg.dump_to, exist_ok=True)
-    fpath = os.path.join(cfg.dump_to, f"randvec-k{cfg.n_prototypes}-scores_NT.bin.gz")
-    with gzip.open(fpath, "wb") as fd:
-        np.save(fd, test_scores_NT.numpy())
+    dump(cfg, test_scores_NT)
 
 
 if __name__ == "__main__":
