@@ -421,21 +421,19 @@ def test_get_waits_until_items_arrive(backend):
     worker = backend.Worker(target=_try_get, args=(rb, 2, 1.0, q), **backend.kwargs)
     worker.start()
 
-    # ensure the consumer is definitely waiting on the first semaphore
+    # Ensure the consumer is definitely waiting on the first semaphore
     time.sleep(0.2)
     assert q.empty()
 
     # now deliver exactly the required batch well within the timeout
+    tensors = [
+        torch.tensor([11], dtype=torch.int32),
+        torch.tensor([22], dtype=torch.int32),
+    ]
     producer = backend.Worker(
         target=_delayed_put,
-        args=(
-            rb,
-            [
-                torch.tensor([11], dtype=torch.int32),
-                torch.tensor([22], dtype=torch.int32),
-            ],
-            0.1,  # wait a bit less than the remaining timeout
-        ),
+        # wait a bit less than the remaining timeout
+        args=(rb, tensors, 0.1),
         **backend.kwargs,
     )
     producer.start()
