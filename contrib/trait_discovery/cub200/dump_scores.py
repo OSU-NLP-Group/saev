@@ -280,8 +280,7 @@ def dump(cfg: Config, scores_NT: Float[Tensor, "N T"]):
     with open(os.path.join(dpath, "config.json"), "w") as fd:
         json.dump(cfg_json, fd)
 
-    fpath = os.path.join(cfg.dump_to, "scores.bin.gz")
-    with gzip.open(fpath, "wb") as fd:
+    with gzip.open(os.path.join(dpath, "scores.bin.gz"), "wb") as fd:
         np.save(fd, scores_NT.numpy())
 
 
