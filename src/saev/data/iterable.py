@@ -47,6 +47,8 @@ class Config:
     """Number of batches to queue in the shared-memory ring buffer. Higher values add latency but improve resilience to brief stalls."""
     seed: int = 17
     """Random seed."""
+    debug: bool = False
+    """Whether the dataloader process should log debug messages."""
 
 
 @beartype.beartype
@@ -90,6 +92,7 @@ def _io_worker(
         try:
             shard_i = work_queue.get(timeout=0.1)
             if shard_i is None:  # Poison pill
+                logger.debug("Got 'None' from work_queue; exiting.")
                 break
 
             fname = f"acts{shard_i:06}.bin"
@@ -125,10 +128,10 @@ def _io_worker(
             time.sleep(0.1)
             continue
         except Exception:
-            logger.exception(f"Error in worker {worker_id}")
+            logger.exception("Error in worker.")
             err_queue.put((f"worker{worker_id}", traceback.format_exc()))
             break
-    logger.info(f"I/O worker {worker_id} finished.")
+    logger.info("Worker finished.")
 
 
 @beartype.beartype
@@ -142,7 +145,9 @@ def _manager_main(
     """
     The main function for the data loader manager process.
     """
-
+    log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
+    level = logging.DEBUG if cfg.debug else logging.INFO
+    logging.basicConfig(level=level, format=log_format)
     logger = logging.getLogger("iterable.manager")
     logger.info("Manager process started.")
 
@@ -158,7 +163,7 @@ def _manager_main(
     logger.info("Shuffling shards.")
     rng = np.random.default_rng(cfg.seed)
     work_items = rng.permutation(metadata.n_shards)
-    logger.info("First 10 shards: %s", work_items[:10])
+    logger.debug("First 10 shards: %s", work_items[:10])
 
     try:
         # 2. SETUP WORK QUEUE & I/O THREADS
@@ -194,7 +199,7 @@ def _manager_main(
 
     except Exception:
         logger.exception("Fatal error in manager process")
-        err_queue.put("manager", traceback.format_exc())
+        err_queue.put(("manager", traceback.format_exc()))
     finally:
         # 5. CLEANUP
         logger.info("Manager process shutting down...")
@@ -282,33 +287,35 @@ class DataLoader:
     def __iter__(self) -> collections.abc.Iterable[ExampleBatch]:
         """Yields batches."""
         self._start_manager()
-        total = len(self)
-        i = 0
+        n, b = 0, 0
 
         try:
-            while i < total:
+            while n < self.n_samples:
+                need = min(self.cfg.batch_size, self.n_samples - n)
                 if not self.err_queue.empty():
                     who, tb = self.err_q.get_nowait()
                     raise RuntimeError(f"{who} crashed:\n{tb}")
 
-                if not self.manager_proc.is_alive():
-                    raise RuntimeError(
-                        f"Manager process died unexpectedly after {i}/{len(self)} batches."
-                    )
-
                 try:
                     act, meta = self.reservoir.get(
-                        self.cfg.batch_size, timeout=self.cfg.batch_timeout_s
+                        need, timeout=self.cfg.batch_timeout_s
                     )
-                    i += 1
+                    n += need
+                    b += 1
                     yield self.ExampleBatch(act=act, **meta)
+                    continue
                 except TimeoutError:
                     self.logger.info(
                         "Did not get a batch from %d worker threads in %.1fs seconds.",
                         self.cfg.n_threads,
                         self.cfg.batch_timeout_s,
                     )
-                    pass
+
+                # If we don't continue, then we should check on the manager process.
+                if not self.manager_proc.is_alive():
+                    raise RuntimeError(
+                        f"Manager process died unexpectedly after {b}/{len(self)} batches."
+                    )
 
         finally:
             self.shutdown()
