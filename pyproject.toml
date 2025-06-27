@@ -39,6 +39,9 @@ ignore = ["F722", "E402", "E501"]
 package = true
 default-groups = "all"
 
+[tool.uv.workspace]
+members = ["contrib/trait_discovery"]
+
 [dependency-groups]
 dev = [
     "hypothesis[codemods]>=6.119.0",
