@@ -252,7 +252,7 @@ def plot(results: pathlib.Path):
 
     band = (
         alt.Chart(df)
-        .mark_errorband(extent="stdev")  # mean ± 1 σ
+        .mark_errorband(extent="stdev")  # mean +/- 1 stddev
         .encode(
             alt.X("n_workers", type="quantitative"),
             alt.Y("patches_per_s", type="quantitative"),

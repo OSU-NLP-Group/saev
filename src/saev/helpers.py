@@ -163,7 +163,9 @@ def expand(config: dict[str, object]) -> collections.abc.Iterator[dict[str, obje
 
 
 @beartype.beartype
-def _expand_discrete(config: dict[str, object]) -> collections.abc.Iterator[dict[str, object]]:
+def _expand_discrete(
+    config: dict[str, object],
+) -> collections.abc.Iterator[dict[str, object]]:
     if not config:
         yield {}
         return
@@ -198,9 +200,9 @@ def grid(cfg: T, sweep_dct: dict[str, object]) -> tuple[list[T], list[str]]:
             if dataclasses.is_dataclass(attr) and isinstance(value, dict):
                 sub_updates = dict(value)
                 if hasattr(attr, "seed"):
-                    sub_updates["seed"] = sub_updates.get("seed", attr.seed) + getattr(
-                        cfg, "seed", 0
-                    ) + d
+                    sub_updates["seed"] = (
+                        sub_updates.get("seed", attr.seed) + getattr(cfg, "seed", 0) + d
+                    )
                 updates[key] = dataclasses.replace(attr, **sub_updates)
             else:
                 updates[key] = value
@@ -214,4 +216,3 @@ def grid(cfg: T, sweep_dct: dict[str, object]) -> tuple[list[T], list[str]]:
             errs.append(str(err))
 
     return cfgs, errs
-

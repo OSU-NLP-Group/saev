@@ -15,7 +15,6 @@ Checklist for making sure your training doesn't suck:
 * [ ] Gradient clipping (clip at 1 with clip_grad_norm)
 """
 
-import collections.abc
 import dataclasses
 import json
 import logging
@@ -378,7 +377,6 @@ def evaluate(
         metrics.append(EvalMetrics(*row, almost_dead_lim, dense_lim))
 
     return metrics
-
 
 
 #####################
