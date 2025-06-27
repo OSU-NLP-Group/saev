@@ -30,160 +30,162 @@ def __():
 
 @app.cell
 def __():
-    import dataclasses
     import gzip
-    import logging
+    import json
     import os.path
-    import typing
 
-    import beartype
     import numpy as np
-    import torch
-    import tyro
-    from jaxtyping import Bool, Float, Int, jaxtyped
-    from torch import Tensor
     import matplotlib.pyplot as plt
-    from sklearn.metrics import average_precision_score, precision_recall_curve
+    import polars as pl
+    import sklearn.metrics
 
-    import saev.data
-    import saev.nn
-    import saev.utils.scheduling
-    from saev import helpers
-
-    import cub200.data
-
-    log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
-    logging.basicConfig(level=logging.INFO, format=log_format)
-    logger = logging.getLogger("baselines")
-    return (
-        Bool,
-        Float,
-        Int,
-        Tensor,
-        average_precision_score,
-        beartype,
-        cub200,
-        dataclasses,
-        gzip,
-        helpers,
-        jaxtyped,
-        log_format,
-        logger,
-        logging,
-        np,
-        os,
-        plt,
-        precision_recall_curve,
-        saev,
-        torch,
-        typing,
-        tyro,
-    )
+    import cub200
+    return cub200, gzip, json, np, os, pl, plt, sklearn
 
 
 @app.cell
 def __(cub200):
     cub_root = "/fs/ess/PAS2136/cub2011/CUB_200_2011_ImageFolder"
     test_y_true_NT = cub200.data.load_attrs(cub_root, is_train=False).numpy()
-    return cub_root, test_y_true_NT
+    n_test, n_traits = test_y_true_NT.shape
+    return cub_root, n_test, n_traits, test_y_true_NT
 
 
 @app.cell
-def __(gzip, np):
+def __(n_test, n_traits, np, sklearn, test_y_true_NT):
+    const_ap_T = np.array([sklearn.metrics.average_precision_score(test_y_true_NT[:,i], np.zeros(n_test)) for i in range(n_traits)])
+    const_ap_T.mean()
+    return (const_ap_T,)
+
+
+@app.cell
+def __(gzip, json, mo, np, os, pl, sklearn, test_y_true_NT):
     def load_bin_gz(fpath: str):
         with gzip.open(fpath, "rb") as fd:
             return np.load(fd)
 
 
-    test_y_pred_NT = load_bin_gz(
-        "/users/PAS1576//samuelstevens/projects/saev/contrib/trait_discovery/data/randvec-k1024-scores_NT.bin.gz"
+    def load_df(root: str) -> pl.DataFrame:
+        rows = []
+        for dname in mo.status.progress_bar(os.listdir(root)):
+            cfg_fpath = os.path.join(root, dname, "config.json")
+            bin_fpath = os.path.join(root, dname, "scores.bin.gz")
+            if not os.path.isfile(cfg_fpath):
+                print(f"Missing config.json in {dname}.")
+                continue
+
+            if not os.path.isfile(bin_fpath):
+                print(f"Missing scores.bin.gz in {dname}.")
+                continue
+
+            with open(cfg_fpath) as fd:
+                cfg = json.load(fd)
+
+            if isinstance(cfg, str):
+                cfg = json.loads(cfg)
+
+            if cfg["n_train"] < 0:
+                cfg["n_train"] = 5794
+
+            test_y_pred_NT = load_bin_gz(bin_fpath)
+            aps = [
+                sklearn.metrics.average_precision_score(test_y_true_NT[:, i], test_y_pred_NT[:, i])
+                for i in range(312)
+            ]
+            ap_T = np.array(aps)
+            cfg["ap"] = ap_T.tolist()
+            rows.append(cfg)
+
+        schema = {
+            "n_prototypes": pl.Int32,
+            "n_train": pl.Int32,
+            "ap": pl.Array(pl.Float32, (312,)),
+        }
+        return pl.DataFrame(rows, schema=schema)
+
+
+    df = load_df(
+        "/users/PAS1576//samuelstevens/projects/saev/contrib/trait_discovery/data"
     )
-    return load_bin_gz, test_y_pred_NT
+    df.with_columns(pl.col("ap").arr.median().alias("median"))
+    return df, load_bin_gz, load_df
 
 
 @app.cell
-def __(
-    average_precision_score,
-    plt,
-    precision_recall_curve,
-    test_y_pred_NT,
-    test_y_true_NT,
-):
-    def show_pr_curve(y_true, y_score):
-        """
-        Plot a Precision–Recall curve
-        """
-        y_true = y_true.astype(int)
-        precision, recall, _ = precision_recall_curve(y_true, y_score)
-        ap = average_precision_score(y_true, y_score)
+def __(df, np, pl, plt):
+    def graph(df, show_std=True):    
+        df = (
+            df.explode("ap").group_by(["n_prototypes", "n_train"])
+            .agg(
+                pl.col("ap").mean().alias("mAP"),
+                pl.col("ap").quantile(0.05).alias("5%"),
+                pl.col("ap").quantile(0.95).alias("95%"),
+                pl.col("ap").std().alias('std')
+            )
+            .sort(["n_prototypes", "n_train"])
+        )
 
-        fig, ax = plt.subplots(dpi=600)
+        fig, ax = plt.subplots(dpi=300, figsize=(8,5))
 
-        print("recall:", recall)
-        print("precision:", precision.shape)
+        n_train_vals = sorted(df.get_column('n_train').unique())
+        colors = plt.cm.viridis(np.linspace(0, 1, len(n_train_vals)))
+        markers = ["o", "s", "^", "v", "D", "P", "X", "*"]  # extend if needed
 
-        ax.step(recall, precision, where="post", linewidth=1)
-        ax.set_xlim([0.0, 1.00])
-        ax.set_ylim([0.0, 1.00])
-        ax.set_xlabel("Recall")
-        ax.set_ylabel("Precision")
-        ax.set_title(f"PR curve (AP = {ap:.3f})")
+        for col, mk, n in zip(colors, markers, n_train_vals):
+            sub = df.filter(pl.col('n_train') == n)
+
+            if show_std:
+                ax.errorbar(
+                    sub.get_column("n_prototypes"),
+                    sub.get_column("mAP"),
+                    yerr=sub["std"],
+                    marker=mk,
+                    color=col,
+                    linestyle="-",
+                    linewidth=1.5,
+                    capsize=3,
+                    label=str(n),
+                )
+            else:
+                ax.plot(
+                    sub.get_column("n_prototypes"),
+                    sub.get_column("mAP"),
+                    marker=mk,
+                    color=col,
+                    label=str(n),
+                    linewidth=1.5,
+                )
+
+        ax.set_xticks(sub.get_column("n_prototypes"))
+        ax.set_xlabel("$n$ Prototypes")
+        ax.set_ylabel("mAP")
+        ax.legend(loc="center right", title='$n$ Train')
         ax.spines[["top", "right"]].set_visible(False)
-
+        ax.set_ylim(0, 1)
+        fig.tight_layout()
         return fig
 
 
-    show_pr_curve(test_y_true_NT[:, 261], test_y_pred_NT[:, 261])
-    return (show_pr_curve,)
+    graph(df, False)
+    return (graph,)
 
 
 @app.cell
-def __(average_precision_score, np, test_y_pred_NT, test_y_true_NT):
-    ap_T = np.array([average_precision_score(test_y_true_NT[:, i], test_y_pred_NT[:, i]) for i in range(312)])
-    return (ap_T,)
+def __(df, pl):
+    tbl = (
+        df.explode("ap").group_by(["n_prototypes", "n_train"])
+        .agg(
+            pl.col("ap").mean().alias("mAP"),
+            pl.col("ap").quantile(0.05).alias("5%"),
+            pl.col("ap").quantile(0.95).alias("95%"),
+        )
+        .sort(["n_prototypes", "n_train"])
+        .rename({"n_prototypes": "Prototypes", "n_train": "Train"})
+        .to_pandas()
+    )
 
-
-@app.cell
-def __(ap_T):
-    ap_T.mean()
-    return
-
-
-@app.cell
-def __(ap_T, plt):
-    _ = plt.hist(ap_T)
-    plt.show()
-    return
-
-
-@app.cell
-def __(ap_T):
-    ap_T.argsort()
-    return
-
-
-@app.cell
-def __(test_y_true_NT):
-    test_y_true_NT.shape
-    return
-
-
-@app.cell
-def __(test_y_true_NT):
-    test_y_true_NT.astype(int)
-    return
-
-
-@app.cell
-def __(test_y_pred_NT):
-    test_y_pred_NT
-    return
-
-
-@app.cell
-def __(test_y_true_NT):
-    test_y_true_NT[:, -1]
-    return
+    print(tbl.to_markdown(index=False, tablefmt="github"))
+    return (tbl,)
 
 
 if __name__ == "__main__":

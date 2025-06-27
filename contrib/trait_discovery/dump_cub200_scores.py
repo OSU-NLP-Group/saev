@@ -341,8 +341,8 @@ def main(
             partition=cfg.slurm_partition,
             gpus_per_node=1,
             ntasks_per_node=1,
-            cpus_per_task=4,
-            mem_gb=64,
+            # Request 8 CPUs because I want more memory and I don't know how else to get memory.
+            cpus_per_task=8,
             stderr_to_stdout=True,
             account=cfg.slurm_acct,
         )
@@ -355,7 +355,7 @@ def main(
     logger.info("Submitted %d jobs.", len(jobs))
     for j, job in enumerate(jobs):
         job.result()
-        logger.info("Job %d/%d finished.", j, len(jobs))
+        logger.info("Job %d finished (%d/%d).", j, j + 1, len(jobs))
 
     logger.info("Done.")
 
