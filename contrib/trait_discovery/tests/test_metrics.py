@@ -5,10 +5,9 @@ import torch
 from hypothesis import strategies as st
 from hypothesis.extra.numpy import arrays
 from jaxtyping import Bool, Float, jaxtyped
+from lib import metrics
 from sklearn.metrics import average_precision_score
 from torch import Tensor
-
-from .dump_scores import calc_avg_prec
 
 
 @jaxtyped(typechecker=beartype.beartype)
@@ -28,7 +27,7 @@ def torch_array(shape: tuple[int, ...], *, floats=True):
 def test_perfect_rank():
     y = torch.tensor([[1], [1], [0], [0]], dtype=torch.bool)  # N=4,T=1
     s = torch.tensor([[0.9], [0.8], [0.1], [0.0]])  # N=4,C=1
-    ap = calc_avg_prec(s, y).squeeze()
+    ap = metrics.calc_avg_prec(s, y).squeeze()
     assert torch.allclose(ap, torch.tensor(1.0))
 
 
@@ -66,7 +65,7 @@ def test_perfect_rank_multi():
         [0.6, 0.4],  # img 3
     ])
 
-    ap = calc_avg_prec(s, y)  # shape (C=2, T=3)
+    ap = metrics.calc_avg_prec(s, y)  # shape (C=2, T=3)
 
     expected = torch.tensor(
         [
@@ -82,7 +81,7 @@ def test_perfect_rank_multi():
 def test_alternating_rank():
     y = torch.tensor([[1], [0], [1], [0], [1], [0]], dtype=torch.bool)
     s = torch.tensor([[0.9], [0.8], [0.7], [0.6], [0.5], [0.4]])
-    ap = calc_avg_prec(s, y).squeeze()
+    ap = metrics.calc_avg_prec(s, y).squeeze()
     hand = torch.tensor((1 / 1 + 2 / 3 + 3 / 5) / 3)  # 0.636...
     assert torch.allclose(ap, hand, atol=1e-6)
 
@@ -90,14 +89,14 @@ def test_alternating_rank():
 def test_all_negatives():
     y = torch.zeros(5, 1, dtype=torch.bool)
     s = torch.rand(5, 1)
-    ap = calc_avg_prec(s, y).squeeze()
+    ap = metrics.calc_avg_prec(s, y).squeeze()
     assert ap == 0.0
 
 
 def test_all_positives():
     y = torch.ones(5, 1, dtype=torch.bool)
     s = torch.rand(5, 1)
-    ap = calc_avg_prec(s, y).squeeze()
+    ap = metrics.calc_avg_prec(s, y).squeeze()
     assert torch.allclose(ap, torch.tensor(1.0))
 
 
@@ -106,7 +105,7 @@ def test_against_sklearn(N, C, T):
     torch.manual_seed(0)
     y = torch.randint(0, 2, (N, T)).bool()
     s = torch.randn(N, C)
-    ap = calc_avg_prec(s, y)  # (C,T)
+    ap = metrics.calc_avg_prec(s, y)  # (C,T)
     for c in range(C):
         for t in range(T):
             ref = ap_ref(y[:, t], s[:, c])
@@ -117,7 +116,7 @@ def test_identical_scores():
     """All scores identical - should handle ties gracefully"""
     y = torch.tensor([[1], [0], [1], [0]], dtype=torch.bool)
     s = torch.tensor([[0.5], [0.5], [0.5], [0.5]])  # all same score
-    ap = calc_avg_prec(s, y).squeeze()
+    ap = metrics.calc_avg_prec(s, y).squeeze()
     # With ties, order is arbitrary but AP should be reasonable
     assert 0.0 <= ap <= 1.0
 
@@ -126,12 +125,12 @@ def test_single_image():
     """Edge case: N=1"""
     y = torch.tensor([[1]], dtype=torch.bool)
     s = torch.tensor([[0.7]])
-    ap = calc_avg_prec(s, y).squeeze()
+    ap = metrics.calc_avg_prec(s, y).squeeze()
     assert torch.allclose(ap, torch.tensor(1.0))
 
     y = torch.tensor([[0]], dtype=torch.bool)
     s = torch.tensor([[0.7]])
-    ap = calc_avg_prec(s, y).squeeze()
+    ap = metrics.calc_avg_prec(s, y).squeeze()
     assert ap == 0.0
 
 
@@ -139,7 +138,7 @@ def test_extreme_scores():
     """Very large/small scores shouldn't break anything"""
     y = torch.tensor([[1], [0], [1]], dtype=torch.bool)
     s = torch.tensor([[1e6], [-1e6], [0.0]])
-    ap = calc_avg_prec(s, y).squeeze()
+    ap = metrics.calc_avg_prec(s, y).squeeze()
     assert torch.allclose(ap, torch.tensor(1.0))
 
 
@@ -151,12 +150,12 @@ def test_batch_independence():
     s2 = torch.randn(20, 1)
 
     # Calculate separately
-    ap1 = calc_avg_prec(s1, y)
-    ap2 = calc_avg_prec(s2, y)
+    ap1 = metrics.calc_avg_prec(s1, y)
+    ap2 = metrics.calc_avg_prec(s2, y)
 
     # Calculate together
     s_combined = torch.cat([s1, s2], dim=1)
-    ap_combined = calc_avg_prec(s_combined, y)
+    ap_combined = metrics.calc_avg_prec(s_combined, y)
 
     assert torch.allclose(ap_combined[0], ap1[0])
     assert torch.allclose(ap_combined[1], ap2[0])
@@ -171,7 +170,7 @@ def test_device_consistency(device):
     y = torch.randint(0, 2, (30, 2)).bool()
     s = torch.randn(30, 3)
 
-    ap_cpu = calc_avg_prec(s, y)
-    ap_device = calc_avg_prec(s.to(device), y.to(device))
+    ap_cpu = metrics.calc_avg_prec(s, y)
+    ap_device = metrics.calc_avg_prec(s.to(device), y.to(device))
 
     assert torch.allclose(ap_cpu, ap_device.cpu(), atol=1e-6)
