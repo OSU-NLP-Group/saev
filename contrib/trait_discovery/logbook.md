@@ -107,3 +107,5 @@ With this update, then our table looks like:
 |         8192 |    5794 | 0.24071  | 0.00356492 | 0.613314 |
 
 Way better.
+
+

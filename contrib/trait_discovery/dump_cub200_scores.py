@@ -4,6 +4,7 @@
 2. Fit k-means (or whatever method) to dataset. Do a couple hparams in parallel because disk read speeds are slow (multiple values of k, multiple values for the number of principal components, etc).
 3. Follow the pseudocode in the experiment description to get some scores.
 4. Write the results to disk in a JSON or SQLite format. Tell the reader to explore the results using a marimo notebook of some kind.
+
 Size key:
 
 * B: Batch size
@@ -28,15 +29,13 @@ import submitit
 import torch
 import tyro
 from jaxtyping import Bool, Float, Int
-from lib import cub200, metrics
+from lib import baselines, cub200, metrics
 from torch import Tensor
 
 import saev.data
 from saev import helpers
 
 log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
-logging.basicConfig(level=logging.INFO, format=log_format)
-logger = logging.getLogger("baselines")
 
 
 @beartype.beartype
@@ -46,6 +45,8 @@ class Config:
     Configuration for training a sparse autoencoder on a vision transformer.
     """
 
+    ckpt: str = ""
+    """Path to checkpoint to evaluate."""
     train_data: saev.data.IterableConfig = dataclasses.field(
         default_factory=saev.data.IterableConfig
     )
@@ -58,10 +59,8 @@ class Config:
     """Root with test/, train/ and metadata/ folders."""
     n_train: int = -1
     """Number of images to use to pick best prototypes. Less than 0 indicates all images."""
-    n_prototypes: int = 8 * 1024
-    """"""
     dump_to: str = os.path.join(".", "data")
-    """"""
+    """Where to save model scores."""
 
     device: typing.Literal["cuda", "cpu"] = "cuda"
     """Hardware device."""
@@ -77,76 +76,9 @@ class Config:
     """Where to log Slurm job stdout/stderr."""
 
 
-class Scorer:
-    def __call__(self, activations: Float[Tensor, "B D"]) -> Float[Tensor, "B K"]:
-        raise NotImplementedError()
-
-    @property
-    def n_prototypes(self) -> int:
-        raise NotImplementedError()
-
-
-def get_random_vectors(
-    dataloader: saev.data.iterable.DataLoader, *, k: int, seed: int
-) -> Float[Tensor, "K D"]:
-    """Uniformly sample n_prototypes vectors from a streaming DataLoader using reservoir sampling.
-
-    Args:
-        dataloader: DataLoader.
-    """
-    d_vit = saev.data.Metadata.load(dataloader.cfg.shard_root).d_vit
-    reservoir_KD = torch.empty(k, d_vit)
-
-    n_seen = 0
-    rng = torch.Generator().manual_seed(seed)
-
-    for batch in helpers.progress(dataloader):
-        x_BD = batch["act"]
-        b, d = x_BD.shape
-
-        # 1. Fill reservoir if not full
-        need = max(k - n_seen, 0)
-        if need:
-            take = min(need, b)
-            reservoir_KD[n_seen : n_seen + take] = x_BD[:take]
-            n_seen += take
-            x_BD = x_BD[take:]
-            b -= take
-            assert b >= 0  # take is at most bsz, so bsz - take >= 0
-            if b == 0:
-                continue
-
-        # 2. Vectorized replacement for remaining items in batch
-        idxs_B = torch.arange(n_seen, n_seen + b)  # global indices
-        probs = (k / (idxs_B + 1)).to(dtype=torch.float32)  # shape (B,)
-        keep_mask = torch.rand(b, generator=rng) < probs  # Bernoulli draws
-        n_keep = keep_mask.sum().item()
-        if n_keep:
-            replace_pos = torch.randint(0, k, (n_keep,), generator=rng)
-            reservoir_KD[replace_pos] = x_BD[keep_mask]
-        n_seen += b
-
-    return reservoir_KD
-
-
-class RandomVectors(Scorer):
-    def __init__(
-        self, dataloader: saev.data.iterable.DataLoader, n_prototypes: int, *, seed: int
-    ):
-        self.prototypes_KD = get_random_vectors(dataloader, k=n_prototypes, seed=seed)
-
-    def __call__(self, activations_BD: Float[Tensor, "B D"]) -> Float[Tensor, "B K"]:
-        return activations_BD @ self.prototypes_KD.T
-
-    @property
-    def n_prototypes(self) -> int:
-        k, d = self.prototypes_KD.shape
-        return k
-
-
 def calc_scores(
     dataloader: saev.data.iterable.DataLoader,
-    scorer: Scorer,
+    scorer: baselines.Scorer,
     *,
     chunk_size: int = 512,
 ) -> Float[Tensor, "N K"]:
@@ -210,6 +142,7 @@ def pick_best_prototypes(
     return best_idx_T.cpu()
 
 
+@beartype.beartype
 def dump(cfg: Config, scores_NT: Float[Tensor, "N T"]):
     cfg_json = json.dumps(dataclasses.asdict(cfg), sort_keys=True)
     run_id = hashlib.sha256(cfg_json.encode()).hexdigest()[:16]
@@ -225,6 +158,9 @@ def dump(cfg: Config, scores_NT: Float[Tensor, "N T"]):
 
 @beartype.beartype
 def worker_fn(cfg: Config):
+    logging.basicConfig(level=logging.INFO, format=log_format)
+    logger = logging.getLogger("worker")
+
     try:
         train_y_true_NT = cub200.load_attrs(cfg.cub_root, is_train=True)
     except Exception:
@@ -246,7 +182,7 @@ def worker_fn(cfg: Config):
         torch.cuda.manual_seed(cfg.seed)
 
     with torch.no_grad():
-        scorer = RandomVectors(train_dataloader, cfg.n_prototypes, seed=cfg.seed)
+        scorer = baselines.load(cfg.ckpt)
 
         train_scores_NK = calc_scores(train_dataloader, scorer)
 
@@ -271,6 +207,9 @@ def worker_fn(cfg: Config):
 def main(
     cfg: typing.Annotated[Config, tyro.conf.arg(name="")], sweep: str | None = None
 ):
+    logging.basicConfig(level=logging.INFO, format=log_format)
+    logger = logging.getLogger("main")
+
     if sweep is not None:
         with open(sweep, "rb") as fd:
             cfgs, errs = helpers.grid(cfg, tomllib.load(fd))
