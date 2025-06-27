@@ -65,13 +65,15 @@ def load_attrs(root: str, *, is_train: bool) -> Bool[Tensor, "N T"]:
         for line in fd:
             # Explanation of *_: Sometimes there's an extra field (worker_id) but not on every line. So *_ collects all extra fields besides the 5 that are manually unpacked, then we ignore it.
             img_id, attr_id, present, certainty_id, *_, time_s = line.split()
-            img_id, attr_id, certainty_id = int(img_id), int(attr_id), int(certainty_id)
+
+            img_id, attr_id = int(img_id), int(attr_id)
+            present, certainty_id = bool(int(present)), int(certainty_id)
 
             if img_id not in img_id_in_split:
                 continue
 
             i = img_id_to_i[img_id]
             j = attr_id_to_i[attr_id]
-            y_true_NT[i, j] = certainty_id in certainty_keep
+            y_true_NT[i, j] = (certainty_id in certainty_keep) and present
 
     return y_true_NT
