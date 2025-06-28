@@ -2,6 +2,8 @@
 
 This folder contains all the stuff specific to our [trait discovery paper]() (doesn't exist yet, link doesn't go anywhere).
 
+See [CONTRIBUTING.md](/contrib/trait_discovery/CONTRIBUTING.md) for more details.
+
 ## CUB-200-2011
 
 First, you have to train/fit the baseline methods.
