@@ -108,4 +108,9 @@ With this update, then our table looks like:
 
 Way better.
 
+## To Dos
 
+1. Fill in `baselines.KMeans.train()`
+2. Train KMeans checkpoints on iNat21 SigLIP ViT-L/14 activations (layer 23) and save them to a shared location.
+3. Fill in `baselines.PCA.train()`.
+4. Train PCA checkpoints on iNat21 SigLIP ViT-L/14 activations (layer 23) and save them to a shared location.
