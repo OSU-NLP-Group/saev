@@ -56,7 +56,7 @@ We can vary:
 * The number of training images used to pick out each trait's best component.
 
 In fact we do this.
-See [contrib/trait_discovery/docs/research/logbook.md](/contrib/trait_discovery/docs/research/logbook.md) for a discussion of this with random vectors instead of PCA components.
+See [contrib/trait_discovery/logbook.md](/contrib/trait_discovery/logbook.md) for a discussion of this with random vectors instead of PCA components.
 
 ## Repo layout
 
