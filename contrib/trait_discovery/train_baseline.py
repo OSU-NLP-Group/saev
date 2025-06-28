@@ -50,10 +50,16 @@ class Config:
 
 @beartype.beartype
 def get_scorer(cfg: Config) -> baselines.Scorer:
+    d_vit = saev.data.Metadata.load(cfg.data.shard_root).d_vit
+
     if cfg.method == "random":
-        return baselines.RandomVectors(cfg.n_prototypes, seed=cfg.seed)
+        return baselines.RandomVectors(
+            n_prototypes=cfg.n_prototypes, d=d_vit, seed=cfg.seed
+        )
     elif cfg.method == "kmeans":
-        return baselines.KMeans(cfg.n_prototypes, seed=cfg.seed)
+        return baselines.KMeans(n_prototypes=cfg.n_prototypes, d=d_vit, seed=cfg.seed)
+    elif cfg.method == "pca":
+        return baselines.PCA(n_components=cfg.n_prototypes, d=d_vit, seed=cfg.seed)
     else:
         raise RuntimeError(f"Method '{cfg.method}' not implemented.")
 

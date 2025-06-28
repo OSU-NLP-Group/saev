@@ -15,6 +15,10 @@ from saev import helpers
 class Scorer(torch.nn.Module):
     """ """
 
+    def __init__(self):
+        super().__init__()
+        self._trained = False
+
     @property
     def n_prototypes(self) -> int:
         """ """
@@ -29,9 +33,14 @@ class Scorer(torch.nn.Module):
         """ """
         raise NotImplementedError()
 
-    def predict(self, activations: Float[Tensor, "B D"]) -> Float[Tensor, "B K"]:
+    def forward(self, activations: Float[Tensor, "B D"]) -> Float[Tensor, "B K"]:
         """ """
+
         raise NotImplementedError()
+
+    def load_state_dict(self, *args, **kwargs):
+        self._trained = True
+        super().load_state_dict(*args, **kwargs)
 
 
 @beartype.beartype
@@ -95,7 +104,7 @@ class RandomVectors(Scorer):
     @property
     def kwargs(self) -> dict[str, object]:
         """The constructor's kwargs."""
-        return dict(n_prototypes=self.n_prototypes, seed=self._seed)
+        return dict(n_prototypes=self.n_prototypes, d=self._d, seed=self._seed)
 
     def train(self, dataloader: saev.data.iterable.DataLoader):
         """Uniformly sample n_prototypes vectors from a streaming DataLoader using reservoir sampling.
@@ -139,7 +148,7 @@ class RandomVectors(Scorer):
                 self.prototypes_KD[replace_pos] = x_BD[keep_mask]
             n_seen += b
 
-    def predict(self, activations_BD: Float[Tensor, "B D"]) -> Float[Tensor, "B K"]:
+    def forward(self, activations_BD: Float[Tensor, "B D"]) -> Float[Tensor, "B K"]:
         if not self._trained:
             raise RuntimeError("Call train() first.")
 
@@ -147,35 +156,52 @@ class RandomVectors(Scorer):
 
 
 @beartype.beartype
-def get_k_means(dataloader, *, k: int, seed: int) -> Float[Tensor, "K D"]:
-    """
-    The dataloader for
-    """
-    raise NotImplementedError()
-
-
-@beartype.beartype
 class KMeans(Scorer):
-    def __init__(self, *, n_prototypes: int, d: int, seed: int, device: str = "cuda"):
+    def __init__(self, *, n_means: int, d: int, seed: int, device: str = "cuda"):
         super().__init__()
-        self._trained = False
 
-        self._n_prototypes = n_prototypes
+        self._n_means = n_means
         self._d = d
         self._seed = seed
         self._device = device
 
-        self.register_buffer("means_KD", torch.empty(self.n_prototypes, self._d))
+        self.register_buffer("means_KD", torch.empty(self._n_means, self._d))
 
     @property
     def n_prototypes(self) -> int:
-        return self._n_prototypes
+        return self._n_means
 
     def train(self, dataloader: saev.data.iterable.DataLoader):
         raise NotImplementedError()
 
-    def predict(self, activations_BD: Float[Tensor, "B D"]) -> Float[Tensor, "B K"]:
+    def forward(self, activations_BD: Float[Tensor, "B D"]) -> Float[Tensor, "B K"]:
         if not self._trained:
             raise RuntimeError("Call train() first.")
 
-        return activations_BD @ self._means_KD.T
+        return activations_BD @ self.means_KD.T
+
+
+@beartype.beartype
+class PCA(Scorer):
+    def __init__(self, *, n_components: int, d: int, seed: int, device: str = "cuda"):
+        super().__init__()
+
+        self._n_components = n_components
+        self._d = d
+        self._seed = seed
+        self._device = device
+
+        self.register_buffer("components_KD", torch.empty(self._n_components, self._d))
+
+    @property
+    def n_prototypes(self) -> int:
+        return self._n_components
+
+    def train(self, dataloader: saev.data.iterable.DataLoader):
+        raise NotImplementedError()
+
+    def forward(self, activations_BD: Float[Tensor, "B D"]) -> Float[Tensor, "B K"]:
+        if not self._trained:
+            raise RuntimeError("Call train() first.")
+
+        return activations_BD @ self.components_KD.T

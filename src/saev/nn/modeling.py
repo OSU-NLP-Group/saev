@@ -7,8 +7,6 @@ import io
 import json
 import logging
 import os
-import pathlib
-import subprocess
 import typing
 
 import beartype
@@ -17,7 +15,7 @@ import torch
 from jaxtyping import Float, jaxtyped
 from torch import Tensor
 
-from .. import __version__
+from .. import __version__, helpers
 
 
 @beartype.beartype
@@ -178,7 +176,7 @@ def dump(fpath: str, sae: SparseAutoencoder):
         "schema": 1,
         "cfg": dataclasses.asdict(sae.cfg),
         "cls": sae.cfg.__class__.__name__,
-        "commit": current_git_commit() or "unknown",
+        "commit": helpers.current_git_commit() or "unknown",
         "lib": __version__,
     }
 
@@ -212,34 +210,3 @@ def load(fpath: str, *, device="cpu") -> SparseAutoencoder:
     model = SparseAutoencoder(cfg)
     model.load_state_dict(torch.load(buffer, weights_only=True, map_location=device))
     return model
-
-
-@beartype.beartype
-def current_git_commit() -> str | None:
-    """
-    Best-effort short SHA of the repo containing *this* file.
-
-    Returns `None` when
-    * `git` executable is missing,
-    * we’re not inside a git repo (e.g. installed wheel),
-    * or any git call errors out.
-    """
-    try:
-        # Walk up until we either hit a .git dir or the FS root
-        here = pathlib.Path(__file__).resolve()
-        for parent in (here, *here.parents):
-            if (parent / ".git").exists():
-                break
-        else:  # no .git found
-            return None
-
-        result = subprocess.run(
-            ["git", "-C", str(parent), "rev-parse", "--short", "HEAD"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-            text=True,
-            check=True,
-        )
-        return result.stdout.strip() or None
-    except (FileNotFoundError, subprocess.CalledProcessError):
-        return None

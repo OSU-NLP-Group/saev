@@ -4,6 +4,8 @@ import dataclasses
 import itertools
 import logging
 import os
+import pathlib
+import subprocess
 import time
 import typing
 
@@ -216,3 +218,34 @@ def grid(cfg: T, sweep_dct: dict[str, object]) -> tuple[list[T], list[str]]:
             errs.append(str(err))
 
     return cfgs, errs
+
+
+@beartype.beartype
+def current_git_commit() -> str | None:
+    """
+    Best-effort short SHA of the repo containing *this* file.
+
+    Returns `None` when
+    * `git` executable is missing,
+    * we’re not inside a git repo (e.g. installed wheel),
+    * or any git call errors out.
+    """
+    try:
+        # Walk up until we either hit a .git dir or the FS root
+        here = pathlib.Path(__file__).resolve()
+        for parent in (here, *here.parents):
+            if (parent / ".git").exists():
+                break
+        else:  # no .git found
+            return None
+
+        result = subprocess.run(
+            ["git", "-C", str(parent), "rev-parse", "--short", "HEAD"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            check=True,
+        )
+        return result.stdout.strip() or None
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        return None
