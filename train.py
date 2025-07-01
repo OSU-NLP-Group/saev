@@ -50,8 +50,10 @@ class Config:
         default_factory=saev.data.IterableConfig
     )
     """Data configuration"""
-    n_patches: int = 100_000_000
-    """Number of SAE training examples."""
+    n_train: int = 100_000_000
+    """Number of SAE training samples."""
+    n_test: int = 10_000_000
+    """Number of SAE evaluation samples."""
     sae: nn.SparseAutoencoderConfig = dataclasses.field(
         default_factory=nn.modeling.Relu
     )
@@ -66,8 +68,6 @@ class Config:
     """Learning rate."""
     n_lr_warmup: int = 500
     """Number of learning rate warmup steps."""
-    sae_batch_size: int = 1024 * 16
-    """Batch size for SAE training."""
 
     # Logging
     track: bool = True
@@ -194,6 +194,8 @@ def train(
         torch.backends.cuda.matmul.allow_tf32 = True
 
     dataloader = saev.data.iterable.DataLoader(cfg.data)
+    dataloader = saev.utils.scheduling.BatchLimiter(dataloader, cfg.n_train)
+
     saes, objectives, param_groups = make_saes([(c.sae, c.objective) for c in cfgs])
 
     mode = "online" if cfg.track else "disabled"
@@ -212,8 +214,6 @@ def train(
         )
         for c in cfgs
     ]
-
-    dataloader = saev.utils.scheduling.BatchLimiter(dataloader, cfg.n_patches)
 
     saes.train()
     saes = saes.to(cfg.device)
@@ -341,6 +341,7 @@ def evaluate(
     dense_lim = 1e-2
 
     dataloader = saev.data.iterable.DataLoader(cfg.data)
+    dataloader = saev.utils.scheduling.BatchLimiter(dataloader, cfg.n_test)
 
     n_fired = torch.zeros((len(cfgs), saes[0].cfg.d_sae))
     values = torch.zeros((len(cfgs), saes[0].cfg.d_sae))
@@ -360,7 +361,7 @@ def evaluate(
             total_mse[i] += loss.mse.cpu()
 
     mean_values = values / n_fired
-    freqs = n_fired / len(dataset)
+    freqs = n_fired / cfg.n_test
 
     l0 = (total_l0 / len(dataloader)).tolist()
     l1 = (total_l1 / len(dataloader)).tolist()
@@ -386,9 +387,8 @@ def evaluate(
 
 CANNOT_PARALLELIZE = set([
     "data",
-    "n_workers",
-    "n_patches",
-    "sae_batch_size",
+    "n_train",
+    "n_test",
     "track",
     "wandb_project",
     "tag",
@@ -477,7 +477,7 @@ def main(
             partition=cfg.slurm_partition,
             gpus_per_node=1,
             ntasks_per_node=1,
-            cpus_per_task=cfg.n_workers + 4,
+            cpus_per_task=cfg.data.n_threads + 4,
             stderr_to_stdout=True,
             account=cfg.slurm_acct,
         )
@@ -487,7 +487,8 @@ def main(
     with executor.batch():
         jobs = [executor.submit(worker_fn, group) for group in cfgs]
 
-    logger.info("Submitted %d jobs.", len(jobs))
+    for j, job in enumerate(jobs):
+        logger.info("Job %d/%d: %s %s", j + 1, len(jobs), job.job_id, job.state)
 
     for j, job in enumerate(jobs):
         job.result()

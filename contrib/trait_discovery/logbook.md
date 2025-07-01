@@ -114,3 +114,26 @@ Way better.
 2. Train KMeans checkpoints on iNat21 SigLIP ViT-L/14 activations (layer 23) and save them to a shared location.
 3. Fill in `baselines.PCA.train()`.
 4. Train PCA checkpoints on iNat21 SigLIP ViT-L/14 activations (layer 23) and save them to a shared location.
+
+# 06/29/2025
+
+I'm going to travel for a couple weeks and I want to make sure I'm taking advantage of the compute hours while I'm sleeping.
+So I want to run experiments frequently, with the goal of learning something new, even if the checkpoints are never used.
+
+What do I want to learn?
+
+1. Are there differences in the learned features at different layers?
+2. Does ViT scale lead to different learned features?
+3. Do SAEs find meaningfully different features in BioCLIP vs other more general models? Or can you replicate it with data, rather than model?
+
+Let's investigate layers.
+
+I started a job with layer 23 and a job with layer 13.
+
+uv run train.py --slurm-acct PAS2136 --slurm-partition nextgen --n-hours 12 --sweep configs/preprint/baseline.toml --data.shard-root /fs/scratch/PAS2136/samuelstevens/cache/saev/f9deaa8a07786087e8071f39a695200ff6713ee02b25e7a7b4a6d5ac1ad968db --data.patches image --data.layer 23 sae:relu --sae.d-vit 1024
+
+uv run train.py --slurm-acct PAS2136 --slurm-partition nextgen --n-hours 12 --sweep configs/preprint/baseline.toml --data.shard-root /fs/scratch/PAS2136/samuelstevens/cache/saev/f9deaa8a07786087e8071f39a695200ff6713ee02b25e7a7b4a6d5ac1ad968db --data.patches image --data.layer 13 sae:relu --sae.d-vit 1024
+
+Only difference is --data.layer.
+
+uv run visuals.py --ckpt checkpoints/53fl3ysv/sae.pt --dump-to /fs/scratch/PAS2136/samuelstevens/saev/visuals/53fl3ysv --log-freq-range -3 -1 --log-value-range -1 3 --data.shard-root /fs/scratch/PAS2136/samuelstevens/cache/saev/f9deaa8a07786087e8071f39a695200ff6713ee02b25e7a7b4a6d5ac1ad968db/ --data.layer 13 images:image-folder --images.root /fs/ess/PAS2136/foundation_model/inat21/raw/train_mini/

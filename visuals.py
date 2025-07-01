@@ -16,13 +16,90 @@ import typing
 import beartype
 import einops
 import torch
+import tyro
 from jaxtyping import Float, Int, jaxtyped
 from PIL import Image
 from torch import Tensor
 
-from . import activations, config, helpers, imaging, nn
+import saev.data.iterable
+from saev import helpers, imaging, nn
 
+log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
+logging.basicConfig(level=logging.INFO, format=log_format)
 logger = logging.getLogger("visuals")
+
+
+@beartype.beartype
+@dataclasses.dataclass(frozen=True, slots=True)
+class Config:
+    """Configuration for generating visuals from trained SAEs."""
+
+    ckpt: str = os.path.join(".", "checkpoints", "sae.pt")
+    """Path to the sae.pt file."""
+    data: saev.data.IterableConfig = dataclasses.field(
+        default_factory=saev.data.IterableConfig
+    )
+    """Data configuration"""
+    images: saev.data.images.Config = dataclasses.field(
+        default_factory=saev.data.images.Imagenet
+    )
+    """Which images to use."""
+    top_k: int = 128
+    """How many images per SAE feature to store."""
+    epsilon: float = 1e-9
+    """Value to add to avoid log(0)."""
+    sort_by: typing.Literal["cls", "img", "patch"] = "patch"
+    """How to find the top k images. 'cls' picks images where the SAE latents of the ViT's [CLS] token are maximized without any patch highligting. 'img' picks images that maximize the sum of an SAE latent over all patches in the image, highlighting the patches. 'patch' pickes images that maximize an SAE latent over all patches (not summed), highlighting the patches and only showing unique images."""
+    device: str = "cuda"
+    """Which accelerator to use."""
+    dump_to: str = os.path.join(".", "data")
+    """Where to save data."""
+    log_freq_range: tuple[float, float] = (-6.0, -2.0)
+    """Log10 frequency range for which to save images."""
+    log_value_range: tuple[float, float] = (-1.0, 1.0)
+    """Log10 frequency range for which to save images."""
+    include_latents: list[int] = dataclasses.field(default_factory=list)
+    """Latents to always include, no matter what."""
+    n_distributions: int = 25
+    """Number of features to save distributions for."""
+    percentile: int = 99
+    """Percentile to estimate for outlier detection."""
+    n_latents: int = 400
+    """Maximum number of latents to save images for."""
+    seed: int = 42
+    """Random seed."""
+
+    @property
+    def root(self) -> str:
+        return os.path.join(self.dump_to, f"sort_by_{self.sort_by}")
+
+    @property
+    def top_values_fpath(self) -> str:
+        return os.path.join(self.root, "top_values.pt")
+
+    @property
+    def top_img_i_fpath(self) -> str:
+        return os.path.join(self.root, "top_img_i.pt")
+
+    @property
+    def top_patch_i_fpath(self) -> str:
+        return os.path.join(self.root, "top_patch_i.pt")
+
+    @property
+    def mean_values_fpath(self) -> str:
+        return os.path.join(self.root, "mean_values.pt")
+
+    @property
+    def sparsity_fpath(self) -> str:
+        return os.path.join(self.root, "sparsity.pt")
+
+    @property
+    def distributions_fpath(self) -> str:
+        return os.path.join(self.root, "distributions.pt")
+
+    @property
+    def percentiles_fpath(self) -> str:
+        return os.path.join(self.root, f"percentiles_p{self.percentile}.pt")
 
 
 @beartype.beartype
@@ -131,7 +208,7 @@ def batched_idx(
 
 @jaxtyped(typechecker=beartype.beartype)
 def get_sae_acts(
-    vit_acts: Float[Tensor, "n d_vit"], sae: nn.SparseAutoencoder, cfg: config.Visuals
+    vit_acts: Float[Tensor, "n d_vit"], sae: nn.SparseAutoencoder, cfg: Config
 ) -> Float[Tensor, "n d_sae"]:
     """
     Get SAE hidden layer activations for a batch of ViT activations.
@@ -166,7 +243,7 @@ class TopKImg:
 
 @beartype.beartype
 @torch.inference_mode()
-def get_topk_img(cfg: config.Visuals) -> TopKImg:
+def get_topk_img(cfg: Config) -> TopKImg:
     """
     Gets the top k images for each latent in the SAE.
     The top k images are for latent i are sorted by
@@ -186,7 +263,7 @@ def get_topk_img(cfg: config.Visuals) -> TopKImg:
     assert cfg.data.patches == "cls"
 
     sae = nn.load(cfg.ckpt).to(cfg.device)
-    dataset = activations.Dataset(cfg.data)
+    dataloader = saev.data.iterable.DataLoader(cfg.data)
 
     top_values_im_SK = torch.full((sae.cfg.d_sae, cfg.top_k), -1.0, device=cfg.device)
     top_i_im_SK = torch.zeros(
@@ -195,17 +272,11 @@ def get_topk_img(cfg: config.Visuals) -> TopKImg:
     sparsity_S = torch.zeros((sae.cfg.d_sae,), device=cfg.device)
     mean_values_S = torch.zeros((sae.cfg.d_sae,), device=cfg.device)
 
-    distributions_MN = torch.zeros((cfg.n_distributions, len(dataset)), device="cpu")
-    estimator = PercentileEstimator(
-        cfg.percentile, len(dataset), shape=(sae.cfg.d_sae,)
+    distributions_MN = torch.zeros(
+        (cfg.n_distributions, dataloader.n_samples), device="cpu"
     )
-
-    dataloader = torch.utils.data.DataLoader(
-        dataset,
-        batch_size=cfg.topk_batch_size,
-        shuffle=False,
-        num_workers=cfg.n_workers,
-        drop_last=False,
+    estimator = PercentileEstimator(
+        cfg.percentile, dataloader.n_samples, shape=(sae.cfg.d_sae,)
     )
 
     logger.info("Loaded SAE and data.")
@@ -234,7 +305,7 @@ def get_topk_img(cfg: config.Visuals) -> TopKImg:
         top_i_im_SK = torch.gather(torch.cat((top_i_im_SK, i_im_SK), axis=1), 1, k)
 
     mean_values_S /= sparsity_S
-    sparsity_S /= len(dataset)
+    sparsity_S /= dataloader.n_samples
 
     return TopKImg(
         top_values_im_SK,
@@ -261,7 +332,7 @@ class TopKPatch:
 
 @beartype.beartype
 @torch.inference_mode()
-def get_topk_patch(cfg: config.Visuals) -> TopKPatch:
+def get_topk_patch(cfg: Config) -> TopKPatch:
     """
     Gets the top k images for each latent in the SAE.
     The top k images are for latent i are sorted by
@@ -277,13 +348,13 @@ def get_topk_patch(cfg: config.Visuals) -> TopKPatch:
         A tuple of TopKPatch and m randomly sampled activation distributions.
     """
     assert cfg.sort_by == "patch"
-    assert cfg.data.patches == "patches"
+    assert cfg.data.patches == "image"
 
     sae = nn.load(cfg.ckpt).to(cfg.device)
-    dataset = activations.Dataset(cfg.data)
+    dataloader = saev.data.iterable.DataLoader(cfg.data)
 
     top_values_p = torch.full(
-        (sae.cfg.d_sae, cfg.top_k, dataset.metadata.n_patches_per_img),
+        (sae.cfg.d_sae, cfg.top_k, dataloader.metadata.n_patches_per_img),
         -1.0,
         device=cfg.device,
     )
@@ -294,26 +365,19 @@ def get_topk_patch(cfg: config.Visuals) -> TopKPatch:
     sparsity_S = torch.zeros((sae.cfg.d_sae,), device=cfg.device)
     mean_values_S = torch.zeros((sae.cfg.d_sae,), device=cfg.device)
 
-    distributions_MN = torch.zeros((cfg.n_distributions, len(dataset)), device="cpu")
+    distributions_MN = torch.zeros(
+        (cfg.n_distributions, dataloader.n_samples), device="cpu"
+    )
     estimator = PercentileEstimator(
-        cfg.percentile, len(dataset), shape=(sae.cfg.d_sae,)
+        cfg.percentile, dataloader.n_samples, shape=(sae.cfg.d_sae,)
     )
 
     batch_size = (
-        cfg.topk_batch_size
-        // dataset.metadata.n_patches_per_img
-        * dataset.metadata.n_patches_per_img
+        cfg.data.batch_size
+        // dataloader.metadata.n_patches_per_img
+        * dataloader.metadata.n_patches_per_img
     )
-    n_imgs_per_batch = batch_size // dataset.metadata.n_patches_per_img
-
-    dataloader = torch.utils.data.DataLoader(
-        dataset,
-        batch_size=batch_size,
-        shuffle=False,
-        num_workers=cfg.n_workers,
-        # See if you can change this to false and still pass the beartype check.
-        drop_last=True,
-    )
+    n_imgs_per_batch = batch_size // dataloader.metadata.n_patches_per_img
 
     logger.info("Loaded SAE and data.")
 
@@ -334,7 +398,7 @@ def get_topk_patch(cfg: config.Visuals) -> TopKPatch:
 
         i_im = torch.sort(torch.unique(batch["image_i"])).values
         values_p = sae_acts_SB.view(
-            sae.cfg.d_sae, len(i_im), dataset.metadata.n_patches_per_img
+            sae.cfg.d_sae, len(i_im), dataloader.metadata.n_patches_per_img
         )
 
         # Checks that I did my reshaping correctly.
@@ -342,7 +406,7 @@ def get_topk_patch(cfg: config.Visuals) -> TopKPatch:
         assert len(i_im) == n_imgs_per_batch
 
         _, k = torch.topk(sae_acts_SB, k=cfg.top_k, dim=1)
-        k_im = k // dataset.metadata.n_patches_per_img
+        k_im = k // dataloader.metadata.n_patches_per_img
 
         values_p = gather_batched(values_p, k_im)
         i_im = i_im.to(cfg.device)[k_im]
@@ -354,7 +418,7 @@ def get_topk_patch(cfg: config.Visuals) -> TopKPatch:
         top_i_im = torch.gather(torch.cat((top_i_im, i_im), axis=1), 1, k)
 
     mean_values_S /= sparsity_S
-    sparsity_S /= len(dataset)
+    sparsity_S /= dataloader.n_samples
 
     return TopKPatch(
         top_values_p,
@@ -368,7 +432,7 @@ def get_topk_patch(cfg: config.Visuals) -> TopKPatch:
 
 @beartype.beartype
 @torch.inference_mode()
-def dump_activations(cfg: config.Visuals):
+def dump_activations(cfg: Config):
     """Dump ViT activation statistics for later use.
 
     The dataset described by ``cfg`` is processed to find the images or patches that maximally activate each SAE latent.  Various tensors summarising these activations are then written to ``cfg.root`` so they can be loaded by other tools.
@@ -397,9 +461,7 @@ def dump_activations(cfg: config.Visuals):
 
 
 @jaxtyped(typechecker=beartype.beartype)
-def plot_activation_distributions(
-    cfg: config.Visuals, distributions: Float[Tensor, "m n"]
-):
+def plot_activation_distributions(cfg: Config, distributions: Float[Tensor, "m n"]):
     import matplotlib.pyplot as plt
     import numpy as np
 
@@ -452,7 +514,7 @@ def plot_activation_distributions(
 
 @beartype.beartype
 @torch.inference_mode()
-def main(cfg: config.Visuals):
+def main(cfg: typing.Annotated[Config, tyro.conf.arg(name="")]):
     """
     .. todo:: document this function.
 
@@ -600,36 +662,5 @@ class PercentileEstimator:
         return self._estimate
 
 
-@beartype.beartype
-def test_online_quantile_estimation(true: float, percentile: float):
-    import matplotlib.pyplot as plt
-    import numpy as np
-    import tqdm
-
-    rng = np.random.default_rng(seed=0)
-    n = 3_000_000
-    estimator = PercentileEstimator(percentile, n)
-
-    dist, preds = np.zeros(n), np.zeros(n)
-    for i in tqdm.tqdm(range(n), desc="Getting estimates."):
-        sampled = rng.normal(true)
-        estimator.update(sampled)
-        dist[i] = sampled
-        preds[i] = estimator.estimate
-
-    fig, ax = plt.subplots()
-    ax.plot(preds, label=f"Pred. {percentile * 100}th %-ile")
-    ax.axhline(
-        np.percentile(dist, percentile * 100),
-        label=f"True {percentile * 100}th %-ile",
-        color="tab:red",
-    )
-    ax.legend()
-    fig.tight_layout()
-    fig.savefig("online_median_normal.png")
-
-
 if __name__ == "__main__":
-    import tyro
-
-    tyro.cli(test_online_quantile_estimation)
+    tyro.cli(main)
