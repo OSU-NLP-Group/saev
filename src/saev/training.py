@@ -46,7 +46,10 @@ def make_saes(
 ) -> tuple[torch.nn.ModuleList, torch.nn.ModuleList, list[dict[str, object]]]:
     saes, objectives, param_groups = [], [], []
     for sae_cfg, obj_cfg in cfgs:
-        sae = nn.SparseAutoencoder(sae_cfg)
+        if isinstance(obj_cfg, config.Matryoshka):
+            sae = nn.modeling.MatryoshkaSparseAutoencoder(sae_cfg)
+        else:
+            sae = nn.SparseAutoencoder(sae_cfg)
         saes.append(sae)
         # Use an empty LR because our first step is warmup.
         param_groups.append({"params": sae.parameters(), "lr": 0.0})
@@ -202,8 +205,14 @@ def train(
         # Forward passes and loss calculations.
         losses = []
         for sae, objective in zip(saes, objectives):
-            x_hat, f_x = sae(acts_BD)
-            losses.append(objective(acts_BD, f_x, x_hat))
+            if isinstance(objective, nn.objectives.MatryoshkaObjective):
+                # Specific case has to be given for Matryoshka SAEs since we need to decode several times
+                # with varying prefix lengths
+                prefix_preds, f_x = sae.matryoshka_forward(acts_BD, cfg.n_prefixes)
+                losses.append(objective(acts_BD, f_x, prefix_preds))
+            else:
+                x_hat, f_x = sae(acts_BD)
+                losses.append(objective(acts_BD, f_x, x_hat))
 
         n_patches_seen += len(acts_BD)
 

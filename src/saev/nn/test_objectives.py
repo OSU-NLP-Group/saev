@@ -52,6 +52,10 @@ def test_factories():
         objectives.get_objective(config.Vanilla()), objectives.VanillaObjective
     )
 
+    assert isinstance(
+        objectives.get_objective(config.Matryoshka()), objectives.MatryoshkaObjective
+    )
+
 
 # basic element generator
 finite32 = st.floats(

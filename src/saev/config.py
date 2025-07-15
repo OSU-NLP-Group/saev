@@ -178,7 +178,48 @@ class JumpRelu:
     pass
 
 
-SparseAutoencoder = Relu | JumpRelu
+@beartype.beartype
+@dataclasses.dataclass(frozen=True, slots=True)
+class TopK:
+    d_vit: int = 1024
+    exp_factor: int = 16
+    """Expansion factor for SAE."""
+    n_reinit_samples: int = 1024 * 16 * 32
+    """Number of samples to use for SAE re-init. Anthropic proposes initializing b_dec to the geometric median of the dataset here: https://transformer-circuits.pub/2023/monosemantic-features/index.html#appendix-autoencoder-bias. We use the regular mean."""
+    remove_parallel_grads: bool = True
+    """Whether to remove gradients parallel to W_dec columns (which will be ignored because we force the columns to have unit norm). See https://transformer-circuits.pub/2023/monosemantic-features/index.html#appendix-autoencoder-optimization for the original discussion from Anthropic."""
+    normalize_w_dec: bool = True
+    """Whether to make sure W_dec has unit norm columns. See https://transformer-circuits.pub/2023/monosemantic-features/index.html#appendix-autoencoder for original citation."""
+    seed: int = 0
+    """Random seed."""
+    top_k: int = 32
+
+    @property
+    def d_sae(self) -> int:
+        return self.d_vit * self.exp_factor
+
+
+@beartype.beartype
+@dataclasses.dataclass(frozen=True, slots=True)
+class BatchTopK:
+    d_vit: int = 1024
+    exp_factor: int = 16
+    """Expansion factor for SAE."""
+    n_reinit_samples: int = 1024 * 16 * 32
+    """Number of samples to use for SAE re-init. Anthropic proposes initializing b_dec to the geometric median of the dataset here: https://transformer-circuits.pub/2023/monosemantic-features/index.html#appendix-autoencoder-bias. We use the regular mean."""
+    remove_parallel_grads: bool = True
+    """Whether to remove gradients parallel to W_dec columns (which will be ignored because we force the columns to have unit norm). See https://transformer-circuits.pub/2023/monosemantic-features/index.html#appendix-autoencoder-optimization for the original discussion from Anthropic."""
+    normalize_w_dec: bool = True
+    """Whether to make sure W_dec has unit norm columns. See https://transformer-circuits.pub/2023/monosemantic-features/index.html#appendix-autoencoder for original citation."""
+    seed: int = 0
+    """Random seed."""
+    top_k: int = 32
+
+    @property
+    def d_sae(self) -> int:
+        return self.d_vit * self.exp_factor
+
+SparseAutoencoder = Relu | JumpRelu | TopK | BatchTopK
 
 
 @beartype.beartype
@@ -196,7 +237,8 @@ class Matryoshka:
 
     Reference code is here: https://github.com/noanabeshima/matryoshka-saes and the original reading is https://sparselatents.com/matryoshka.html and https://arxiv.org/pdf/2503.17547.
     """
-
+    sparsity_coeff: float = 4e-4
+    """How much to weight sparsity loss term (if not using TopK/BatchTopK)."""
     n_prefixes: int = 10
     """Number of random length prefixes to use for loss calculation."""
 
@@ -229,6 +271,12 @@ class Train:
     """Number of learning rate warmup steps."""
     sae_batch_size: int = 1024 * 16
     """Batch size for SAE training."""
+
+    # Matryoshka-specific
+    n_prefixes: int = 10
+    """Number of prefixes to sample at each loss step (Matryoshka-specific)"""
+    pareto_power: float = 0.5
+    """Pareto power of prefix sampling distribution"""
 
     # Logging
     track: bool = True
