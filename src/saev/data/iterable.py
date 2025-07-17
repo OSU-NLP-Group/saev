@@ -27,6 +27,8 @@ from . import buffers, writers
 @beartype.beartype
 @dataclasses.dataclass(frozen=True)
 class Config:
+    """Configuration for loading iterable activation data from disk."""
+
     shard_root: str = os.path.join(".", "shards")
     """Directory with .bin shards and a metadata.json file."""
     patches: typing.Literal["cls", "image", "all"] = "image"
