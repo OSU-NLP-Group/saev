@@ -22,7 +22,7 @@ from PIL import Image
 from torch import Tensor
 
 import saev.data.iterable
-from saev import helpers, imaging, nn
+from saev import helpers, imaging, nn, ops
 
 log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
 logging.basicConfig(level=logging.INFO, format=log_format)
@@ -108,30 +108,6 @@ def safe_load(path: str) -> object:
 
 
 @jaxtyped(typechecker=beartype.beartype)
-def gather_batched(
-    value: Float[Tensor, "batch n dim"], i: Int[Tensor, "batch k"]
-) -> Float[Tensor, "batch k dim"]:
-    batch_size, n, dim = value.shape  # noqa: F841
-    _, k = i.shape
-
-    batch_i = torch.arange(batch_size, device=value.device)[:, None].expand(-1, k)
-    return value[batch_i, i]
-
-
-# def test_gather_batched_small():
-#     values = torch.arange(0, 64, dtype=torch.float).view(4, 2, 8)
-#     i = torch.tensor([[0], [0], [1], [1]])
-#     actual = gather_batched(values, i)
-#     expected = torch.tensor([
-#         [[0, 1, 2, 3, 4, 5, 6, 7]],
-#         [[16, 17, 18, 19, 20, 21, 22, 23]],
-#         [[40, 41, 42, 43, 44, 45, 46, 47]],
-#         [[56, 57, 58, 59, 60, 61, 62, 63]],
-#     ]).float()
-#     torch.testing.assert_close(actual, expected)
-
-
-@jaxtyped(typechecker=beartype.beartype)
 @dataclasses.dataclass
 class GridElement:
     img: Image.Image
@@ -141,7 +117,6 @@ class GridElement:
 
 @beartype.beartype
 def make_img(elem: GridElement, *, upper: float | None = None) -> Image.Image:
-    # Resize to 256x256 and crop to 224x224
     resize_size_px = (512, 512)
     resize_w_px, resize_h_px = resize_size_px
     crop_size_px = (448, 448)
@@ -408,13 +383,13 @@ def get_topk_patch(cfg: Config) -> TopKPatch:
         _, k = torch.topk(sae_acts_SB, k=cfg.top_k, dim=1)
         k_im = k // dataloader.metadata.n_patches_per_img
 
-        values_p = gather_batched(values_p, k_im)
+        values_p = ops.gather_batched(values_p, k_im)
         i_im = i_im.to(cfg.device)[k_im]
 
         all_values_p = torch.cat((top_values_p, values_p), axis=1)
         _, k = torch.topk(all_values_p.max(axis=-1).values, k=cfg.top_k, axis=1)
 
-        top_values_p = gather_batched(all_values_p, k)
+        top_values_p = ops.gather_batched(all_values_p, k)
         top_i_im = torch.gather(torch.cat((top_i_im, i_im), axis=1), 1, k)
 
     mean_values_S /= sparsity_S
