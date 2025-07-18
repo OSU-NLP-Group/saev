@@ -1,6 +1,5 @@
 import dataclasses
 import logging
-import math
 import os
 import typing
 
@@ -9,8 +8,6 @@ import numpy as np
 import torch
 from jaxtyping import Float, jaxtyped
 from torch import Tensor
-
-from saev import helpers
 
 from . import writers
 
@@ -28,8 +25,6 @@ class Config:
     """Which kinds of patches to use. 'cls' indicates just the [CLS] token (if any). 'image' indicates it will return image patches. 'all' returns all patches."""
     layer: int | typing.Literal["all"] = -2
     """Which ViT layer(s) to read from disk. ``-2`` selects the second-to-last layer. ``"all"`` enumerates every recorded layer."""
-    clamp: float = 1e5
-    """Maximum value for activations; activations will be clamped to within [-clamp, clamp]`."""
     seed: int = 17
     """Random seed."""
     debug: bool = False
@@ -55,18 +50,13 @@ class Dataset(torch.utils.data.Dataset):
     """Activations metadata; automatically loaded from disk."""
     layer_index: int
     """Layer index into the shards if we are choosing a specific layer."""
-    scalar: float
-    """Normalizing scalar such that ||x / scalar ||_2 ~= sqrt(d_vit)."""
-    act_mean: Float[Tensor, " d_vit"]
-    """Mean activation."""
 
     def __init__(self, cfg: Config):
         self.cfg = cfg
         if not os.path.isdir(self.cfg.shard_root):
             raise RuntimeError(f"Activations are not saved at '{self.cfg.shard_root}'.")
 
-        metadata_fpath = os.path.join(self.cfg.shard_root, "metadata.json")
-        self.metadata = writers.Metadata.load(metadata_fpath)
+        self.metadata = writers.Metadata.load(self.cfg.shard_root)
 
         # Pick a really big number so that if you accidentally use this when you shouldn't, you get an out of bounds IndexError.
         self.layer_index = 1_000_000
@@ -75,70 +65,15 @@ class Dataset(torch.utils.data.Dataset):
             assert self.cfg.layer in self.metadata.layers, err_msg
             self.layer_index = self.metadata.layers.index(self.cfg.layer)
 
-        # Premptively set these values so that preprocess() doesn't freak out.
-        self.scalar = 1.0
-        self.act_mean = torch.zeros(self.d_vit)
-
-        # If either of these are true, we must do this work.
-        if self.cfg.scale_mean is True or self.cfg.scale_norm is True:
-            # Load a random subset of samples to calculate the mean activation and mean L2 norm.
-            perm = np.random.default_rng(seed=42).permutation(len(self))
-            perm = perm[: cfg.n_random_samples]
-
-            samples = [
-                self[p.item()]
-                for p in helpers.progress(
-                    perm, every=25_000, desc="examples to calc means"
-                )
-            ]
-            samples = torch.stack([sample["act"] for sample in samples])
-            if samples.abs().max() > 1e3:
-                raise ValueError(
-                    f"You found an abnormally large activation {samples.abs().max().item():.5f} that will mess up your L2 mean."
-                )
-
-            # Activation mean
-            if self.cfg.scale_mean:
-                self.act_mean = samples.mean(axis=0)
-                if (self.act_mean > 1e3).any():
-                    raise ValueError(
-                        "You found an abnormally large activation that is messing up your activation mean."
-                    )
-
-            # Norm
-            if self.cfg.scale_norm:
-                l2_mean = torch.linalg.norm(samples - self.act_mean, axis=1).mean()
-                if l2_mean > 1e3:
-                    raise ValueError(
-                        "You found an abnormally large activation that is messing up your L2 mean."
-                    )
-
-                self.scalar = l2_mean / math.sqrt(self.d_vit)
-        elif isinstance(self.cfg.scale_mean, str):
-            # Load mean activations from disk
-            self.act_mean = torch.load(self.cfg.scale_mean)
-        elif isinstance(self.cfg.scale_norm, str):
-            # Load scalar normalization from disk
-            self.scalar = torch.load(self.cfg.scale_norm).item()
-
     def transform(self, act: Float[np.ndarray, " d_vit"]) -> Float[Tensor, " d_vit"]:
-        """
-        Apply a scalar normalization so the mean squared L2 norm is same as d_vit. This is from 'Scaling Monosemanticity':
-
-        > As a preprocessing step we apply a scalar normalization to the model activations so their average squared L2 norm is the residual stream dimension
-
-        So we divide by self.scalar which is the datasets (approximate) L2 mean before normalization divided by sqrt(d_vit).
-        """
         act = torch.from_numpy(act.copy())
-        act = act.clamp(-self.cfg.clamp, self.cfg.clamp)
-        return (act - self.act_mean) / self.scalar
+        return act
 
     @property
     def d_vit(self) -> int:
         """Dimension of the underlying vision transformer's embedding space."""
         return self.metadata.d_vit
 
-    @jaxtyped(typechecker=beartype.beartype)
     def __getitem__(self, i: int) -> Example:
         match (self.cfg.patches, self.cfg.layer):
             case ("cls", int()):

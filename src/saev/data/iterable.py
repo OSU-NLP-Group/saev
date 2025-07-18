@@ -35,8 +35,6 @@ class Config:
     """Which kinds of patches to use. 'cls' indicates just the [CLS] token (if any). 'image' indicates it will return image patches. 'all' returns all patches."""
     layer: int | typing.Literal["all"] = -2
     """Which ViT layer(s) to read from disk. ``-2`` selects the second-to-last layer. ``"all"`` enumerates every recorded layer."""
-    clamp: float = 1e5
-    """Maximum value for activations; activations will be clamped to within [-clamp, clamp]`."""
     batch_size: int = 1024 * 16
     """Batch size."""
     batch_timeout_s: float = 30.0
