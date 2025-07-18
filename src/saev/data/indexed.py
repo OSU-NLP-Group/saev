@@ -75,6 +75,12 @@ class Dataset(torch.utils.data.Dataset):
         return self.metadata.d_vit
 
     def __getitem__(self, i: int) -> Example:
+        # Add bounds checking
+        if i < 0 or i >= len(self):
+            raise IndexError(
+                f"Index {i} out of range for dataset of length {len(self)}"
+            )
+
         match (self.cfg.patches, self.cfg.layer):
             case ("cls", int()):
                 img_act = self.get_img_patches(i)
@@ -82,15 +88,19 @@ class Dataset(torch.utils.data.Dataset):
                 act = img_act[self.layer_index, 0, :]
                 return self.Example(act=self.transform(act), image_i=i, patch_i=-1)
             case ("image", int()):
+                # Calculate which image and patch this index corresponds to
+                image_i = i // self.metadata.n_patches_per_img
+                patch_i = i % self.metadata.n_patches_per_img
+
+                # Calculate shard location
                 n_imgs_per_shard = (
                     self.metadata.max_patches_per_shard
                     // len(self.metadata.layers)
                     // (self.metadata.n_patches_per_img + int(self.metadata.cls_token))
                 )
-                n_patches_per_shard = n_imgs_per_shard * self.metadata.n_patches_per_img
 
-                shard = i // n_patches_per_shard
-                pos = i % n_patches_per_shard
+                shard = image_i // n_imgs_per_shard
+                img_pos_in_shard = image_i % n_imgs_per_shard
 
                 acts_fpath = os.path.join(self.cfg.shard_root, f"acts{shard:06}.bin")
                 shape = (
@@ -100,19 +110,17 @@ class Dataset(torch.utils.data.Dataset):
                     self.metadata.d_vit,
                 )
                 acts = np.memmap(acts_fpath, mode="c", dtype=np.float32, shape=shape)
-                # Choose the layer and the non-CLS tokens.
-                acts = acts[:, self.layer_index]
 
-                # Choose a patch among n and the patches.
-                act = acts[
-                    pos // self.metadata.n_patches_per_img,
-                    pos % self.metadata.n_patches_per_img,
-                ]
+                # Account for CLS token offset when accessing patches
+                patch_idx_with_cls = patch_i + int(self.metadata.cls_token)
+
+                # Get the activation
+                act = acts[img_pos_in_shard, self.layer_index, patch_idx_with_cls]
+
                 return self.Example(
                     act=self.transform(act),
-                    # What image is this?
-                    image_i=i // self.metadata.n_patches_per_img,
-                    patch_i=i % self.metadata.n_patches_per_img,
+                    image_i=image_i,
+                    patch_i=patch_i,
                 )
             case _:
                 print((self.cfg.patches, self.cfg.layer))
@@ -124,7 +132,7 @@ class Dataset(torch.utils.data.Dataset):
         n_imgs_per_shard = (
             self.metadata.max_patches_per_shard
             // len(self.metadata.layers)
-            // (self.metadata.n_patches_per_img + 1)
+            // (self.metadata.n_patches_per_img + int(self.metadata.cls_token))
         )
         shard = i // n_imgs_per_shard
         pos = i % n_imgs_per_shard
@@ -132,7 +140,7 @@ class Dataset(torch.utils.data.Dataset):
         shape = (
             n_imgs_per_shard,
             len(self.metadata.layers),
-            self.metadata.n_patches_per_img + 1,
+            self.metadata.n_patches_per_img + int(self.metadata.cls_token),
             self.metadata.d_vit,
         )
         acts = np.memmap(acts_fpath, mode="c", dtype=np.float32, shape=shape)

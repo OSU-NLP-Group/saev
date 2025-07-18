@@ -21,7 +21,7 @@ from jaxtyping import Float, Int, jaxtyped
 from PIL import Image
 from torch import Tensor
 
-import saev.data.iterable
+import saev.data
 from saev import helpers, imaging, nn, ops
 
 log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
