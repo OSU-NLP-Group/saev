@@ -8,7 +8,7 @@ from torch import Tensor
 def gather_batched(
     value: Float[Tensor, "batch n dim"], i: Int[Tensor, "batch k"]
 ) -> Float[Tensor, "batch k dim"]:
-    batch_size, n, dim = value.shape  # noqa: F841
+    batch_size, n, dim = value.shape
     _, k = i.shape
 
     batch_i = torch.arange(batch_size, device=value.device)[:, None].expand(-1, k)
