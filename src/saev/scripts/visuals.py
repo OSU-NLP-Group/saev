@@ -5,8 +5,8 @@ There is some important notation used only in this file to dramatically shorten 
 Variables suffixed with `_im` refer to entire images, and variables suffixed with `_p` refer to patches.
 """
 
-import collections.abc
 import dataclasses
+import json
 import logging
 import math
 import os
@@ -22,7 +22,7 @@ from torch import Tensor
 
 import saev.data
 import saev.data.images
-from saev import helpers, imaging, nn, ops
+from saev import helpers, imaging, nn
 
 log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
 logging.basicConfig(level=logging.INFO, format=log_format)
@@ -178,34 +178,12 @@ def get_new_topk(
 
 
 @jaxtyped(typechecker=beartype.beartype)
-def get_sae_acts(
-    vit_acts: Float[Tensor, "n d_vit"], sae: nn.SparseAutoencoder, cfg: Config
-) -> Float[Tensor, "n d_sae"]:
-    """
-    Get SAE hidden layer activations for a batch of ViT activations.
-
-    Args:
-        vit_acts: Batch of ViT activations
-        sae: Sparse autoencder.
-        cfg: Experimental config.
-    """
-    sae_acts = []
-    for start, end in helpers.batched_idx(len(vit_acts), cfg.sae_batch_size):
-        _, f_x, *_ = sae(vit_acts[start:end].to(cfg.device))
-        sae_acts.append(f_x)
-
-    sae_acts = torch.cat(sae_acts, dim=0)
-    sae_acts = sae_acts.to(cfg.device)
-    return sae_acts
-
-
-@jaxtyped(typechecker=beartype.beartype)
 @dataclasses.dataclass(frozen=True)
 class TopKImg:
     ".. todo:: Document this class."
 
-    top_values: Float[Tensor, "d_sae k"]
-    top_i: Int[Tensor, "d_sae k"]
+    top_values: Float[Tensor, "k d_sae"]
+    top_i: Int[Tensor, "k d_sae"]
     mean_values: Float[Tensor, " d_sae"]
     sparsity: Float[Tensor, " d_sae"]
     distributions: Float[Tensor, "m n"]
@@ -292,12 +270,12 @@ def get_topk_img(cfg: Config) -> TopKImg:
 class TopKPatch:
     ".. todo:: Document this class."
 
-    top_values: Float[Tensor, "d_sae k n_patches_per_img"]
-    top_i: Int[Tensor, "d_sae k"]
-    mean_values: Float[Tensor, " d_sae"]
-    sparsity: Float[Tensor, " d_sae"]
-    distributions: Float[Tensor, "m n"]
-    percentiles: Float[Tensor, " d_sae"]
+    top_values_KPD: Float[Tensor, "k n_patches_per_img d_sae"]
+    top_i_KD: Int[Tensor, "k d_sae"]
+    mean_values_D: Float[Tensor, " d_sae"]
+    sparsity_D: Float[Tensor, " d_sae"]
+    distributions_MN: Float[Tensor, "m n"]
+    percentiles_D: Float[Tensor, " d_sae"]
 
 
 @jaxtyped(typechecker=beartype.beartype)
@@ -314,7 +292,7 @@ def get_topk_patch(cfg: Config) -> TopKPatch:
         cfg: Config.
 
     Returns:
-        A tuple of TopKPatch and m randomly sampled activation distributions.
+        A TopKPatch object.
     """
     assert cfg.sort_by == "patch"
     assert cfg.data.patches == "image"
@@ -322,13 +300,13 @@ def get_topk_patch(cfg: Config) -> TopKPatch:
     sae = nn.load(cfg.ckpt).to(cfg.device)
     dataloader = saev.data.DataLoader(cfg.data)
 
-    top_values_p = torch.full(
-        (sae.cfg.d_sae, cfg.top_k, dataloader.metadata.n_patches_per_img),
-        -1.0,
-        device=cfg.device,
+    # Patch values in [0, inf)
+    top_values = torch.full((cfg.top_k, sae.cfg.d_sae), -1.0, device="cpu")
+    top_i_p = torch.full(
+        (cfg.top_k, sae.cfg.d_sae), -1.0, dtype=torch.int32, device="cpu"
     )
-    top_i_im = torch.zeros(
-        (sae.cfg.d_sae, cfg.top_k), dtype=torch.int, device=cfg.device
+    top_i_im = torch.full(
+        (cfg.top_k, sae.cfg.d_sae), -1.0, dtype=torch.int32, device="cpu"
     )
 
     sparsity_S = torch.zeros((sae.cfg.d_sae,), device=cfg.device)
@@ -341,65 +319,135 @@ def get_topk_patch(cfg: Config) -> TopKPatch:
         cfg.percentile, dataloader.n_samples, shape=(sae.cfg.d_sae,)
     )
 
-    batch_size = (
-        cfg.data.batch_size
-        // dataloader.metadata.n_patches_per_img
-        * dataloader.metadata.n_patches_per_img
-    )
-    n_imgs_per_batch = batch_size // dataloader.metadata.n_patches_per_img
-
     logger.info("Loaded SAE and data.")
 
-    for batch in helpers.progress(dataloader, desc="picking top-k"):
+    for i, batch in enumerate(helpers.progress(dataloader, desc="picking top-k")):
         vit_acts_BD = batch["act"]
-        sae_acts_BS = get_sae_acts(vit_acts_BD, sae, cfg)
-        print(vit_acts_BD.shape)
-        print(sae_acts_BS.shape)
+        _, sae_acts_BS, *_ = sae(vit_acts_BD.to(cfg.device))
 
         for sae_act_S in sae_acts_BS:
             estimator.update(sae_act_S)
 
-        sae_acts_SB = einops.rearrange(sae_acts_BS, "batch d_sae -> d_sae batch")
-        print(sae_acts_SB.shape)
-        distributions_MN[:, batch["image_i"]] = sae_acts_SB[: cfg.n_distributions].to(
-            "cpu"
-        )
+        # TODO: clean this line up
+        # distributions_MN[:, batch["image_i"]] = sae_acts_BS[
+        #     :, : cfg.n_distributions
+        # ].to("cpu")
 
-        mean_values_S += einops.reduce(sae_acts_SB, "d_sae batch -> d_sae", "sum")
-        sparsity_S += einops.reduce((sae_acts_SB > 0), "d_sae batch -> d_sae", "sum")
+        mean_values_S += einops.reduce(sae_acts_BS, "batch d_sae -> d_sae", "sum")
+        sparsity_S += einops.reduce((sae_acts_BS > 0), "batch d_sae -> d_sae", "sum")
 
-        i_im = torch.sort(torch.unique(batch["image_i"])).values
-        values_p = sae_acts_SB.view(
-            sae.cfg.d_sae, len(i_im), dataloader.metadata.n_patches_per_img
-        )
+        # Get the top k values across the batch for each latent
+        values, k = torch.topk(sae_acts_BS.cpu(), k=cfg.top_k, dim=0)
 
-        # Checks that I did my reshaping correctly.
-        assert values_p.shape[1] == i_im.shape[0]
-        assert len(i_im) == n_imgs_per_batch
+        i_im = batch["image_i"][k]
+        i_p = batch["patch_i"][k]
 
-        _, k = torch.topk(sae_acts_SB, k=cfg.top_k, dim=1)
-        k_im = k // dataloader.metadata.n_patches_per_img
+        all_values = torch.cat((top_values, values), axis=0)
+        top_values, k = torch.topk(all_values, k=cfg.top_k, axis=0)
+        top_i_p = torch.gather(torch.cat((top_i_p, i_p), axis=0), 0, k)
+        top_i_im = torch.gather(torch.cat((top_i_im, i_im), axis=0), 0, k)
 
-        values_p = ops.gather_batched(values_p, k_im)
-        i_im = i_im.to(cfg.device)[k_im]
+        if i%10 == 0:
+            # Print the number of unique images in top_i_im (should be human readable using commas to separate the thousands). AI!
 
-        all_values_p = torch.cat((top_values_p, values_p), axis=1)
-        _, k = torch.topk(all_values_p.max(axis=-1).values, k=cfg.top_k, axis=1)
-
-        top_values_p = ops.gather_batched(all_values_p, k)
-        top_i_im = torch.gather(torch.cat((top_i_im, i_im), axis=1), 1, k)
+        if i >= 20:
+            break
 
     mean_values_S /= sparsity_S
     sparsity_S /= dataloader.n_samples
 
+    # Now we need the values for each patch of the top images. This tensor is (k, d_sae, n_patches_per_img) with dtype float16. To achieve this, we need particular values from the dataset.
+
+    values_KPS = get_top_im_acts(cfg, top_i_im)
+
     return TopKPatch(
-        top_values_p,
+        values_KPS,
         top_i_im,
         mean_values_S,
         sparsity_S,
         distributions_MN,
         estimator.estimate.cpu(),
     )
+
+
+@jaxtyped(typechecker=beartype.beartype)
+def get_top_im_acts(
+    cfg: Config, top_i_im: Int[Tensor, "k d_sae"]
+) -> Float[Tensor, "k d_sae n_patches_per_img"]:
+    assert (top_i_im >= 0).all(), "All top images must be in dataset"
+
+    # Create indexed dataset with same configuration
+    dataset = saev.data.Dataset(
+        saev.data.IndexedConfig(
+            shard_root=cfg.data.shard_root,
+            patches=cfg.data.patches,
+            layer=cfg.data.layer,
+            seed=cfg.data.seed,
+            debug=cfg.data.debug,
+        )
+    )
+    logger.info("Loaded indexed dataset.")
+
+    # Get all unique images across all latents
+    unique_im_i = torch.unique(top_i_im[top_i_im >= 0])
+
+    # Calculate all patch indices we need to load
+    indices = []
+    for img_i in unique_im_i.tolist():
+        # Add all patches for this image
+        indices.append(
+            img_i * dataset.metadata.n_tokens_per_img
+            + int(dataset.metadata.cls_token)
+            + torch.arange(dataset.metadata.n_patches_per_img)
+        )
+    indices = torch.cat(indices)
+    logger.info("Need %d indices.", len(indices))
+    assert len(indices) > 0, "No indices needed."
+
+    # Create subset and dataloader
+    subset = torch.utils.data.Subset(dataset, indices)
+    loader = torch.utils.data.DataLoader(
+        subset, batch_size=1024, shuffle=False, num_workers=4
+    )
+
+    # Load all activations
+    all_acts = []
+    for batch in helpers.progress(loader, desc="loading acts"):
+        all_acts.append(batch["act"])
+    vit_acts_ND = torch.cat(all_acts, dim=0).to(cfg.device)
+
+    # Get SAE activations for all patches
+    sae = nn.load(cfg.ckpt).to(cfg.device)
+    logger.info("Loaded SAE.")
+    sae_acts = []
+    for start, end in helpers.progress(
+        helpers.batched_idx(len(vit_acts_ND), cfg.data.batch_size), desc="SAE", every=50
+    ):
+        _, f_x, *_ = sae(vit_acts_ND[start:end].to(cfg.device))
+        sae_acts.append(f_x)
+    sae_acts_NS = torch.cat(sae_acts, dim=0).to(cfg.device)
+
+    sae_acts_ISP = einops.rearrange(
+        sae_acts_NS,
+        "(n_img n_patch) d_sae -> n_img d_sae n_patch",
+        n_img=len(unique_im_i),
+    )
+
+    img_to_idx = torch.full((unique_im_i.max() + 1,), -1, dtype=torch.long)
+    img_to_idx[unique_im_i] = torch.arange(len(unique_im_i))
+    # Map top_i_im to indices in one shot
+    gather_indices_K = img_to_idx[top_i_im]
+    assert (gather_indices_K >= 0).all()
+
+    # Expand for all patches and use gather
+    gather_indices_ISP = (
+        gather_indices_K[:, :, None]
+        .to(sae_acts_ISP.device)
+        .expand(-1, -1, dataset.metadata.n_patches_per_img)
+    )
+
+    sae_acts_KSP = torch.gather(sae_acts_ISP, 0, gather_indices_ISP)
+    return sae_acts_KSP.cpu()
 
 
 @beartype.beartype
