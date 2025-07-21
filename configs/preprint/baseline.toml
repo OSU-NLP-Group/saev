@@ -12,7 +12,3 @@ exp_factor = [16, 32]
 
 [objective]
 sparsity_coeff = [4e-4, 8e-4, 1.6e-3]
-
-[data]
-scale_mean = true
-scale_norm = true
