@@ -118,8 +118,7 @@ def test_no_child_leak(ordered_cfg):
     gc.collect()
 
     after = peak_children()
-    # Check that after.keys() is a subset of before.keys(). AI!
-    assert after <= before  # no new zombies
+    assert set(after.keys()).issubset(set(before.keys()))  # no new zombies
 
 
 def test_compare_with_indexed_sequential(shards_path, layer):
