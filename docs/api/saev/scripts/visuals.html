@@ -1,0 +1,804 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1">
+<meta name="generator" content="pdoc3 0.11.1">
+<title>saev.scripts.visuals API documentation</title>
+<meta name="description" content="There is some important notation used only in this file to dramatically shorten variable names …">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/13.0.0/sanitize.min.css" integrity="sha512-y1dtMcuvtTMJc1yPgEqF0ZjQbhnc/bFhyvIyVNb9Zk5mIGtqVaAB1Ttl28su8AvFMOY0EwRbAe+HCLqj6W7/KA==" crossorigin>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/13.0.0/typography.min.css" integrity="sha512-Y1DYSb995BAfxobCkKepB1BqJJTPrOp3zPL74AWFugHHmmdcvO+C48WLrUOlhGMc0QG7AE3f7gmvvcrmX2fDoA==" crossorigin>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css" crossorigin>
+<style>:root{--highlight-color:#fe9}.flex{display:flex !important}body{line-height:1.5em}#content{padding:20px}#sidebar{padding:1.5em;overflow:hidden}#sidebar > *:last-child{margin-bottom:2cm}#lunr-search{width:100%;font-size:1em;padding:6px 9px 5px 9px;border:1px solid silver}.http-server-breadcrumbs{font-size:130%;margin:0 0 15px 0}#footer{font-size:.75em;padding:5px 30px;border-top:1px solid #ddd;text-align:right}#footer p{margin:0 0 0 1em;display:inline-block}#footer p:last-child{margin-right:30px}h1,h2,h3,h4,h5{font-weight:300}h1{font-size:2.5em;line-height:1.1em}h2{font-size:1.75em;margin:2em 0 .50em 0}h3{font-size:1.4em;margin:1.6em 0 .7em 0}h4{margin:0;font-size:105%}h1:target,h2:target,h3:target,h4:target,h5:target,h6:target{background:var(--highlight-color);padding:.2em 0}a{color:#058;text-decoration:none;transition:color .2s ease-in-out}a:visited{color:#503}a:hover{color:#b62}.title code{font-weight:bold}h2[id^="header-"]{margin-top:2em}.ident{color:#900;font-weight:bold}pre code{font-size:.8em;line-height:1.4em;padding:1em;display:block}code{background:#f3f3f3;font-family:"DejaVu Sans Mono",monospace;padding:1px 4px;overflow-wrap:break-word}h1 code{background:transparent}pre{border-top:1px solid #ccc;border-bottom:1px solid #ccc;margin:1em 0}#http-server-module-list{display:flex;flex-flow:column}#http-server-module-list div{display:flex}#http-server-module-list dt{min-width:10%}#http-server-module-list p{margin-top:0}.toc ul,#index{list-style-type:none;margin:0;padding:0}#index code{background:transparent}#index h3{border-bottom:1px solid #ddd}#index ul{padding:0}#index h4{margin-top:.6em;font-weight:bold}@media (min-width:200ex){#index .two-column{column-count:2}}@media (min-width:300ex){#index .two-column{column-count:3}}dl{margin-bottom:2em}dl dl:last-child{margin-bottom:4em}dd{margin:0 0 1em 3em}#header-classes + dl > dd{margin-bottom:3em}dd dd{margin-left:2em}dd p{margin:10px 0}.name{background:#eee;font-size:.85em;padding:5px 10px;display:inline-block;min-width:40%}.name:hover{background:#e0e0e0}dt:target .name{background:var(--highlight-color)}.name > span:first-child{white-space:nowrap}.name.class > span:nth-child(2){margin-left:.4em}.inherited{color:#999;border-left:5px solid #eee;padding-left:1em}.inheritance em{font-style:normal;font-weight:bold}.desc h2{font-weight:400;font-size:1.25em}.desc h3{font-size:1em}.desc dt code{background:inherit}.source summary,.git-link-div{color:#666;text-align:right;font-weight:400;font-size:.8em;text-transform:uppercase}.source summary > *{white-space:nowrap;cursor:pointer}.git-link{color:inherit;margin-left:1em}.source pre{max-height:500px;overflow:auto;margin:0}.source pre code{font-size:12px;overflow:visible}.hlist{list-style:none}.hlist li{display:inline}.hlist li:after{content:',\2002'}.hlist li:last-child:after{content:none}.hlist .hlist{display:inline;padding-left:1em}img{max-width:100%}td{padding:0 .5em}.admonition{padding:.1em 1em;margin:1em 0}.admonition-title{font-weight:bold}.admonition.note,.admonition.info,.admonition.important{background:#aef}.admonition.todo,.admonition.versionadded,.admonition.tip,.admonition.hint{background:#dfd}.admonition.warning,.admonition.versionchanged,.admonition.deprecated{background:#fd4}.admonition.error,.admonition.danger,.admonition.caution{background:lightpink}</style>
+<style media="screen and (min-width: 700px)">@media screen and (min-width:700px){#sidebar{width:30%;height:100vh;overflow:auto;position:sticky;top:0}#content{width:70%;max-width:100ch;padding:3em 4em;border-left:1px solid #ddd}pre code{font-size:1em}.name{font-size:1em}main{display:flex;flex-direction:row-reverse;justify-content:flex-end}.toc ul ul,#index ul ul{padding-left:1em}.toc > ul > li{margin-top:.5em}}</style>
+<style media="print">@media print{#sidebar h1{page-break-before:always}.source{display:none}}@media print{*{background:transparent !important;color:#000 !important;box-shadow:none !important;text-shadow:none !important}a[href]:after{content:" (" attr(href) ")";font-size:90%}a[href][title]:after{content:none}abbr[title]:after{content:" (" attr(title) ")"}.ir a:after,a[href^="javascript:"]:after,a[href^="#"]:after{content:""}pre,blockquote{border:1px solid #999;page-break-inside:avoid}thead{display:table-header-group}tr,img{page-break-inside:avoid}img{max-width:100% !important}@page{margin:0.5cm}p,h2,h3{orphans:3;widows:3}h1,h2,h3,h4,h5,h6{page-break-after:avoid}}</style>
+<script type="text/x-mathjax-config">MathJax.Hub.Config({ tex2jax: { inlineMath: [ ['$','$'], ["\\(","\\)"] ], processEscapes: true } });</script>
+<script async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/latest.js?config=TeX-AMS_CHTML" integrity="sha256-kZafAc6mZvK3W3v1pHOcUix30OHQN6pU/NO2oFkqZVw=" crossorigin></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js" integrity="sha512-D9gUyxqja7hBtkWpPWGt9wfbfaMGVt9gnyCvYa+jojwwPHLCzUm5i8rpk7vD7wNee9bA35eYIjobYPaQuKS1MQ==" crossorigin></script>
+<script>window.addEventListener('DOMContentLoaded', () => {
+hljs.configure({languages: ['bash', 'css', 'diff', 'graphql', 'ini', 'javascript', 'json', 'plaintext', 'python', 'python-repl', 'rust', 'shell', 'sql', 'typescript', 'xml', 'yaml']});
+hljs.highlightAll();
+})</script>
+</head>
+<body>
+<main>
+<article id="content">
+<header>
+<h1 class="title">Module <code>saev.scripts.visuals</code></h1>
+</header>
+<section id="section-intro">
+<p>There is some important notation used only in this file to dramatically shorten variable names.</p>
+<p>Variables suffixed with <code>_im</code> refer to entire images, and variables suffixed with <code>_p</code> refer to patches.</p>
+</section>
+<section>
+</section>
+<section>
+</section>
+<section>
+<h2 class="section-title" id="header-functions">Functions</h2>
+<dl>
+<dt id="saev.scripts.visuals.dump_activations"><code class="name flex">
+<span>def <span class="ident">dump_activations</span></span>(<span>cfg: <a title="saev.scripts.visuals.Config" href="#saev.scripts.visuals.Config">Config</a>)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Dump ViT activation statistics for later use.</p>
+<p>The dataset described by <code>cfg</code> is processed to find the images or patches that maximally activate each SAE latent.
+Various tensors summarising these activations are then written to <code>cfg.root</code> so they can be loaded by other tools.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>cfg</code></strong></dt>
+<dd>options controlling which activations are processed and where the resulting files are saved.</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<p>None. All data is saved to disk.</p></div>
+</dd>
+<dt id="saev.scripts.visuals.dump_imgs"><code class="name flex">
+<span>def <span class="ident">dump_imgs</span></span>(<span>cfg: <a title="saev.scripts.visuals.Config" href="#saev.scripts.visuals.Config">Config</a>)</span>
+</code></dt>
+<dd>
+<div class="desc"><div class="admonition todo">
+<p class="admonition-title">TODO</p>
+<p>document this function.</p>
+</div>
+<p>Dump top-k images to a directory.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>cfg</code></strong></dt>
+<dd>Configuration object.</dd>
+</dl></div>
+</dd>
+<dt id="saev.scripts.visuals.get_new_topk"><code class="name flex">
+<span>def <span class="ident">get_new_topk</span></span>(<span>val1: jaxtyping.Float[Tensor, 'd_sae k'],<br>i1: jaxtyping.Int[Tensor, 'd_sae k'],<br>val2: jaxtyping.Float[Tensor, 'd_sae k'],<br>i2: jaxtyping.Int[Tensor, 'd_sae k'],<br>k: int) ‑> tuple[jaxtyping.Float[Tensor, 'd_sae k'], jaxtyping.Int[Tensor, 'd_sae k']]</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Picks out the new top k values among val1 and val2. Also keeps track of i1 and i2, then indices of the values in the original dataset.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>val1</code></strong></dt>
+<dd>top k original SAE values.</dd>
+<dt><strong><code>i1</code></strong></dt>
+<dd>the patch indices of those original top k values.</dd>
+<dt><strong><code>val2</code></strong></dt>
+<dd>top k incoming SAE values.</dd>
+<dt><strong><code>i2</code></strong></dt>
+<dd>the patch indices of those incoming top k values.</dd>
+<dt><strong><code>k</code></strong></dt>
+<dd>k.</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<p>The new top k values and their patch indices.</p></div>
+</dd>
+<dt id="saev.scripts.visuals.get_top_im_acts"><code class="name flex">
+<span>def <span class="ident">get_top_im_acts</span></span>(<span>cfg: <a title="saev.scripts.visuals.Config" href="#saev.scripts.visuals.Config">Config</a>,<br>top_i_im: jaxtyping.Int[Tensor, 'k d_sae']) ‑> jaxtyping.Float[Tensor, 'k d_sae n_patches_per_img']</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="saev.scripts.visuals.get_topk_img"><code class="name flex">
+<span>def <span class="ident">get_topk_img</span></span>(<span>cfg: <a title="saev.scripts.visuals.Config" href="#saev.scripts.visuals.Config">Config</a>) ‑> <a title="saev.scripts.visuals.TopKImg" href="#saev.scripts.visuals.TopKImg">TopKImg</a></span>
+</code></dt>
+<dd>
+<div class="desc"><p>Gets the top k images for each latent in the SAE.
+The top k images are for latent i are sorted by</p>
+<pre><code>max over all images: f_x(cls)[i]
+</code></pre>
+<p>Thus, we will never have duplicate images for a given latent.
+But we also will not have patch-level activations (a nice heatmap).</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>cfg</code></strong></dt>
+<dd>Config.</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<p>A tuple of TopKImg and the first m features' activation distributions.</p></div>
+</dd>
+<dt id="saev.scripts.visuals.get_topk_patch"><code class="name flex">
+<span>def <span class="ident">get_topk_patch</span></span>(<span>cfg: <a title="saev.scripts.visuals.Config" href="#saev.scripts.visuals.Config">Config</a>) ‑> <a title="saev.scripts.visuals.TopKPatch" href="#saev.scripts.visuals.TopKPatch">TopKPatch</a></span>
+</code></dt>
+<dd>
+<div class="desc"><p>Gets the top k images for each latent in the SAE.
+The top k images are for latent i are sorted by</p>
+<pre><code>max over all patches: f_x(patch)[i]
+</code></pre>
+<p>Thus, we could end up with duplicate images in the top k, if an image has more than one patch that maximally activates an SAE latent.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>cfg</code></strong></dt>
+<dd>Config.</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<p>A TopKPatch object.</p></div>
+</dd>
+<dt id="saev.scripts.visuals.make_img"><code class="name flex">
+<span>def <span class="ident">make_img</span></span>(<span>elem: <a title="saev.scripts.visuals.GridElement" href="#saev.scripts.visuals.GridElement">GridElement</a>,<br>*,<br>upper: float | None = None) ‑> PIL.Image.Image</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="saev.scripts.visuals.plot_activation_distributions"><code class="name flex">
+<span>def <span class="ident">plot_activation_distributions</span></span>(<span>cfg: <a title="saev.scripts.visuals.Config" href="#saev.scripts.visuals.Config">Config</a>,<br>distributions: jaxtyping.Float[Tensor, 'm n'])</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="saev.scripts.visuals.safe_load"><code class="name flex">
+<span>def <span class="ident">safe_load</span></span>(<span>path: str) ‑> object</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+</dl>
+</section>
+<section>
+<h2 class="section-title" id="header-classes">Classes</h2>
+<dl>
+<dt id="saev.scripts.visuals.Config"><code class="flex name class">
+<span>class <span class="ident">Config</span></span>
+<span>(</span><span>ckpt: str = './checkpoints/sae.pt',<br>data: <a title="saev.data.shuffled.Config" href="../data/shuffled.html#saev.data.shuffled.Config">Config</a> = &lt;factory&gt;,<br>images: <a title="saev.data.images.Imagenet" href="../data/images.html#saev.data.images.Imagenet">Imagenet</a> | <a title="saev.data.images.ImageFolder" href="../data/images.html#saev.data.images.ImageFolder">ImageFolder</a> | <a title="saev.data.images.Ade20k" href="../data/images.html#saev.data.images.Ade20k">Ade20k</a> | <a title="saev.data.images.Fake" href="../data/images.html#saev.data.images.Fake">Fake</a> = &lt;factory&gt;,<br>dump_to: str = './data',<br>top_k: int = 128,<br>epsilon: float = 1e-09,<br>sort_by: Literal['cls', 'img', 'patch'] = 'patch',<br>log_freq_range: tuple[float, float] = (-6.0, -2.0),<br>log_value_range: tuple[float, float] = (-1.0, 1.0),<br>include_latents: list[int] = &lt;factory&gt;,<br>n_distributions: int = 25,<br>percentile: int = 99,<br>n_latents: int = 400,<br>sae_batch_size: int = 16384,<br>device: str = 'cuda',<br>seed: int = 42,<br>slurm_acct: str = '',<br>slurm_partition: str = '',<br>n_hours: float = 4.0,<br>log_to: str = './logs')</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Configuration for generating visuals from trained SAEs.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+@dataclasses.dataclass(frozen=True, slots=True)
+class Config:
+    &#34;&#34;&#34;Configuration for generating visuals from trained SAEs.&#34;&#34;&#34;
+
+    # Disk
+    ckpt: str = os.path.join(&#34;.&#34;, &#34;checkpoints&#34;, &#34;sae.pt&#34;)
+    &#34;&#34;&#34;Path to the sae.pt file.&#34;&#34;&#34;
+    data: saev.data.IterableConfig = dataclasses.field(
+        default_factory=saev.data.IterableConfig
+    )
+    &#34;&#34;&#34;Data configuration&#34;&#34;&#34;
+    images: saev.data.images.Config = dataclasses.field(
+        default_factory=saev.data.images.Imagenet
+    )
+    &#34;&#34;&#34;Which images to use.&#34;&#34;&#34;
+    dump_to: str = os.path.join(&#34;.&#34;, &#34;data&#34;)
+    &#34;&#34;&#34;Where to save data.&#34;&#34;&#34;
+
+    # Algorithm
+    top_k: int = 128
+    &#34;&#34;&#34;How many images per SAE feature to store.&#34;&#34;&#34;
+    epsilon: float = 1e-9
+    &#34;&#34;&#34;Value to add to avoid log(0).&#34;&#34;&#34;
+    sort_by: typing.Literal[&#34;cls&#34;, &#34;img&#34;, &#34;patch&#34;] = &#34;patch&#34;
+    &#34;&#34;&#34;How to find the top k images. &#39;cls&#39; picks images where the SAE latents of the ViT&#39;s [CLS] token are maximized without any patch highligting. &#39;img&#39; picks images that maximize the sum of an SAE latent over all patches in the image, highlighting the patches. &#39;patch&#39; pickes images that maximize an SAE latent over all patches (not summed), highlighting the patches and only showing unique images.&#34;&#34;&#34;
+    log_freq_range: tuple[float, float] = (-6.0, -2.0)
+    &#34;&#34;&#34;Log10 frequency range for which to save images.&#34;&#34;&#34;
+    log_value_range: tuple[float, float] = (-1.0, 1.0)
+    &#34;&#34;&#34;Log10 frequency range for which to save images.&#34;&#34;&#34;
+    include_latents: list[int] = dataclasses.field(default_factory=list)
+    &#34;&#34;&#34;Latents to always include, no matter what.&#34;&#34;&#34;
+    n_distributions: int = 25
+    &#34;&#34;&#34;Number of features to save distributions for.&#34;&#34;&#34;
+    percentile: int = 99
+    &#34;&#34;&#34;Percentile to estimate for outlier detection.&#34;&#34;&#34;
+    n_latents: int = 400
+    &#34;&#34;&#34;Maximum number of latents to save images for.&#34;&#34;&#34;
+    sae_batch_size: int = 1024 * 16
+    &#34;&#34;&#34;Batch size for SAE inference.&#34;&#34;&#34;
+
+    # Hardware
+    device: str = &#34;cuda&#34;
+    &#34;&#34;&#34;Which accelerator to use.&#34;&#34;&#34;
+    seed: int = 42
+    &#34;&#34;&#34;Random seed.&#34;&#34;&#34;
+    slurm_acct: str = &#34;&#34;
+    &#34;&#34;&#34;Slurm account string. Empty means to not use Slurm.&#34;&#34;&#34;
+    slurm_partition: str = &#34;&#34;
+    &#34;&#34;&#34;Slurm partition.&#34;&#34;&#34;
+    n_hours: float = 4.0
+    &#34;&#34;&#34;Slurm job length in hours.&#34;&#34;&#34;
+    log_to: str = os.path.join(&#34;.&#34;, &#34;logs&#34;)
+    &#34;&#34;&#34;Where to log Slurm job stdout/stderr.&#34;&#34;&#34;
+
+    @property
+    def root(self) -&gt; str:
+        return os.path.join(self.dump_to, f&#34;sort_by_{self.sort_by}&#34;)
+
+    @property
+    def top_values_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;top_values.pt&#34;)
+
+    @property
+    def top_img_i_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;top_img_i.pt&#34;)
+
+    @property
+    def top_patch_i_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;top_patch_i.pt&#34;)
+
+    @property
+    def mean_values_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;mean_values.pt&#34;)
+
+    @property
+    def sparsity_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;sparsity.pt&#34;)
+
+    @property
+    def distributions_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;distributions.pt&#34;)
+
+    @property
+    def percentiles_fpath(self) -&gt; str:
+        return os.path.join(self.root, f&#34;percentiles_p{self.percentile}.pt&#34;)</code></pre>
+</details>
+<h3>Instance variables</h3>
+<dl>
+<dt id="saev.scripts.visuals.Config.ckpt"><code class="name">var <span class="ident">ckpt</span> : str</code></dt>
+<dd>
+<div class="desc"><p>Path to the sae.pt file.</p></div>
+</dd>
+<dt id="saev.scripts.visuals.Config.data"><code class="name">var <span class="ident">data</span> : <a title="saev.data.shuffled.Config" href="../data/shuffled.html#saev.data.shuffled.Config">Config</a></code></dt>
+<dd>
+<div class="desc"><p>Data configuration</p></div>
+</dd>
+<dt id="saev.scripts.visuals.Config.device"><code class="name">var <span class="ident">device</span> : str</code></dt>
+<dd>
+<div class="desc"><p>Which accelerator to use.</p></div>
+</dd>
+<dt id="saev.scripts.visuals.Config.distributions_fpath"><code class="name">prop <span class="ident">distributions_fpath</span> : str</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def distributions_fpath(self) -&gt; str:
+    return os.path.join(self.root, &#34;distributions.pt&#34;)</code></pre>
+</details>
+</dd>
+<dt id="saev.scripts.visuals.Config.dump_to"><code class="name">var <span class="ident">dump_to</span> : str</code></dt>
+<dd>
+<div class="desc"><p>Where to save data.</p></div>
+</dd>
+<dt id="saev.scripts.visuals.Config.epsilon"><code class="name">var <span class="ident">epsilon</span> : float</code></dt>
+<dd>
+<div class="desc"><p>Value to add to avoid log(0).</p></div>
+</dd>
+<dt id="saev.scripts.visuals.Config.images"><code class="name">var <span class="ident">images</span> : <a title="saev.data.images.Imagenet" href="../data/images.html#saev.data.images.Imagenet">Imagenet</a> | <a title="saev.data.images.ImageFolder" href="../data/images.html#saev.data.images.ImageFolder">ImageFolder</a> | <a title="saev.data.images.Ade20k" href="../data/images.html#saev.data.images.Ade20k">Ade20k</a> | <a title="saev.data.images.Fake" href="../data/images.html#saev.data.images.Fake">Fake</a></code></dt>
+<dd>
+<div class="desc"><p>Which images to use.</p></div>
+</dd>
+<dt id="saev.scripts.visuals.Config.include_latents"><code class="name">var <span class="ident">include_latents</span> : list[int]</code></dt>
+<dd>
+<div class="desc"><p>Latents to always include, no matter what.</p></div>
+</dd>
+<dt id="saev.scripts.visuals.Config.log_freq_range"><code class="name">var <span class="ident">log_freq_range</span> : tuple[float, float]</code></dt>
+<dd>
+<div class="desc"><p>Log10 frequency range for which to save images.</p></div>
+</dd>
+<dt id="saev.scripts.visuals.Config.log_to"><code class="name">var <span class="ident">log_to</span> : str</code></dt>
+<dd>
+<div class="desc"><p>Where to log Slurm job stdout/stderr.</p></div>
+</dd>
+<dt id="saev.scripts.visuals.Config.log_value_range"><code class="name">var <span class="ident">log_value_range</span> : tuple[float, float]</code></dt>
+<dd>
+<div class="desc"><p>Log10 frequency range for which to save images.</p></div>
+</dd>
+<dt id="saev.scripts.visuals.Config.mean_values_fpath"><code class="name">prop <span class="ident">mean_values_fpath</span> : str</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def mean_values_fpath(self) -&gt; str:
+    return os.path.join(self.root, &#34;mean_values.pt&#34;)</code></pre>
+</details>
+</dd>
+<dt id="saev.scripts.visuals.Config.n_distributions"><code class="name">var <span class="ident">n_distributions</span> : int</code></dt>
+<dd>
+<div class="desc"><p>Number of features to save distributions for.</p></div>
+</dd>
+<dt id="saev.scripts.visuals.Config.n_hours"><code class="name">var <span class="ident">n_hours</span> : float</code></dt>
+<dd>
+<div class="desc"><p>Slurm job length in hours.</p></div>
+</dd>
+<dt id="saev.scripts.visuals.Config.n_latents"><code class="name">var <span class="ident">n_latents</span> : int</code></dt>
+<dd>
+<div class="desc"><p>Maximum number of latents to save images for.</p></div>
+</dd>
+<dt id="saev.scripts.visuals.Config.percentile"><code class="name">var <span class="ident">percentile</span> : int</code></dt>
+<dd>
+<div class="desc"><p>Percentile to estimate for outlier detection.</p></div>
+</dd>
+<dt id="saev.scripts.visuals.Config.percentiles_fpath"><code class="name">prop <span class="ident">percentiles_fpath</span> : str</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def percentiles_fpath(self) -&gt; str:
+    return os.path.join(self.root, f&#34;percentiles_p{self.percentile}.pt&#34;)</code></pre>
+</details>
+</dd>
+<dt id="saev.scripts.visuals.Config.root"><code class="name">prop <span class="ident">root</span> : str</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def root(self) -&gt; str:
+    return os.path.join(self.dump_to, f&#34;sort_by_{self.sort_by}&#34;)</code></pre>
+</details>
+</dd>
+<dt id="saev.scripts.visuals.Config.sae_batch_size"><code class="name">var <span class="ident">sae_batch_size</span> : int</code></dt>
+<dd>
+<div class="desc"><p>Batch size for SAE inference.</p></div>
+</dd>
+<dt id="saev.scripts.visuals.Config.seed"><code class="name">var <span class="ident">seed</span> : int</code></dt>
+<dd>
+<div class="desc"><p>Random seed.</p></div>
+</dd>
+<dt id="saev.scripts.visuals.Config.slurm_acct"><code class="name">var <span class="ident">slurm_acct</span> : str</code></dt>
+<dd>
+<div class="desc"><p>Slurm account string. Empty means to not use Slurm.</p></div>
+</dd>
+<dt id="saev.scripts.visuals.Config.slurm_partition"><code class="name">var <span class="ident">slurm_partition</span> : str</code></dt>
+<dd>
+<div class="desc"><p>Slurm partition.</p></div>
+</dd>
+<dt id="saev.scripts.visuals.Config.sort_by"><code class="name">var <span class="ident">sort_by</span> : Literal['cls', 'img', 'patch']</code></dt>
+<dd>
+<div class="desc"><p>How to find the top k images. 'cls' picks images where the SAE latents of the ViT's [CLS] token are maximized without any patch highligting. 'img' picks images that maximize the sum of an SAE latent over all patches in the image, highlighting the patches. 'patch' pickes images that maximize an SAE latent over all patches (not summed), highlighting the patches and only showing unique images.</p></div>
+</dd>
+<dt id="saev.scripts.visuals.Config.sparsity_fpath"><code class="name">prop <span class="ident">sparsity_fpath</span> : str</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def sparsity_fpath(self) -&gt; str:
+    return os.path.join(self.root, &#34;sparsity.pt&#34;)</code></pre>
+</details>
+</dd>
+<dt id="saev.scripts.visuals.Config.top_img_i_fpath"><code class="name">prop <span class="ident">top_img_i_fpath</span> : str</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def top_img_i_fpath(self) -&gt; str:
+    return os.path.join(self.root, &#34;top_img_i.pt&#34;)</code></pre>
+</details>
+</dd>
+<dt id="saev.scripts.visuals.Config.top_k"><code class="name">var <span class="ident">top_k</span> : int</code></dt>
+<dd>
+<div class="desc"><p>How many images per SAE feature to store.</p></div>
+</dd>
+<dt id="saev.scripts.visuals.Config.top_patch_i_fpath"><code class="name">prop <span class="ident">top_patch_i_fpath</span> : str</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def top_patch_i_fpath(self) -&gt; str:
+    return os.path.join(self.root, &#34;top_patch_i.pt&#34;)</code></pre>
+</details>
+</dd>
+<dt id="saev.scripts.visuals.Config.top_values_fpath"><code class="name">prop <span class="ident">top_values_fpath</span> : str</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def top_values_fpath(self) -&gt; str:
+    return os.path.join(self.root, &#34;top_values.pt&#34;)</code></pre>
+</details>
+</dd>
+</dl>
+</dd>
+<dt id="saev.scripts.visuals.GridElement"><code class="flex name class">
+<span>class <span class="ident">GridElement</span></span>
+<span>(</span><span>img: PIL.Image.Image, label: str, patches: jaxtyping.Float[Tensor, 'n_patches'])</span>
+</code></dt>
+<dd>
+<div class="desc"><p>GridElement(img: PIL.Image.Image, label: str, patches: jaxtyping.Float[Tensor, 'n_patches'])</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@jaxtyped(typechecker=beartype.beartype)
+@dataclasses.dataclass
+class GridElement:
+    img: Image.Image
+    label: str
+    patches: Float[Tensor, &#34; n_patches&#34;]</code></pre>
+</details>
+<h3>Class variables</h3>
+<dl>
+<dt id="saev.scripts.visuals.GridElement.img"><code class="name">var <span class="ident">img</span> : PIL.Image.Image</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="saev.scripts.visuals.GridElement.label"><code class="name">var <span class="ident">label</span> : str</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="saev.scripts.visuals.GridElement.patches"><code class="name">var <span class="ident">patches</span> : jaxtyping.Float[Tensor, 'n_patches']</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+</dl>
+</dd>
+<dt id="saev.scripts.visuals.PercentileEstimator"><code class="flex name class">
+<span>class <span class="ident">PercentileEstimator</span></span>
+<span>(</span><span>percentile: float | int,<br>total: int,<br>lr: float = 0.001,<br>shape: tuple[int, ...] = ())</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+class PercentileEstimator:
+    def __init__(
+        self,
+        percentile: float | int,
+        total: int,
+        lr: float = 1e-3,
+        shape: tuple[int, ...] = (),
+    ):
+        self.percentile = percentile
+        self.total = total
+        self.lr = lr
+
+        self._estimate = torch.zeros(shape)
+        self._step = 0
+
+    def update(self, x):
+        &#34;&#34;&#34;
+        Update the estimator with a new value.
+
+        This method maintains the marker positions using the P2 algorithm rules.
+        When a new value arrives, it&#39;s placed in the appropriate position relative to existing markers, and marker positions are adjusted to maintain their desired percentile positions.
+
+        Arguments:
+            x: The new value to incorporate into the estimation
+        &#34;&#34;&#34;
+        self._step += 1
+
+        step_size = self.lr * (self.total - self._step) / self.total
+
+        # Is a no-op if it&#39;s already on the same device.
+        self._estimate = self._estimate.to(x.device)
+
+        self._estimate += step_size * (
+            torch.sign(x - self._estimate) + 2 * self.percentile / 100 - 1.0
+        )
+
+    @property
+    def estimate(self):
+        return self._estimate</code></pre>
+</details>
+<h3>Instance variables</h3>
+<dl>
+<dt id="saev.scripts.visuals.PercentileEstimator.estimate"><code class="name">prop <span class="ident">estimate</span></code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def estimate(self):
+    return self._estimate</code></pre>
+</details>
+</dd>
+</dl>
+<h3>Methods</h3>
+<dl>
+<dt id="saev.scripts.visuals.PercentileEstimator.update"><code class="name flex">
+<span>def <span class="ident">update</span></span>(<span>self, x)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Update the estimator with a new value.</p>
+<p>This method maintains the marker positions using the P2 algorithm rules.
+When a new value arrives, it's placed in the appropriate position relative to existing markers, and marker positions are adjusted to maintain their desired percentile positions.</p>
+<h2 id="arguments">Arguments</h2>
+<p>x: The new value to incorporate into the estimation</p></div>
+</dd>
+</dl>
+</dd>
+<dt id="saev.scripts.visuals.TopKImg"><code class="flex name class">
+<span>class <span class="ident">TopKImg</span></span>
+<span>(</span><span>top_values: jaxtyping.Float[Tensor, 'k d_sae'],<br>top_i: jaxtyping.Int[Tensor, 'k d_sae'],<br>mean_values: jaxtyping.Float[Tensor, 'd_sae'],<br>sparsity: jaxtyping.Float[Tensor, 'd_sae'],<br>distributions: jaxtyping.Float[Tensor, 'm n'],<br>percentiles: jaxtyping.Float[Tensor, 'd_sae'])</span>
+</code></dt>
+<dd>
+<div class="desc"><div class="admonition todo">
+<p class="admonition-title">TODO</p>
+<p>Document this class.</p>
+</div></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@jaxtyped(typechecker=beartype.beartype)
+@dataclasses.dataclass(frozen=True)
+class TopKImg:
+    &#34;.. todo:: Document this class.&#34;
+
+    top_values: Float[Tensor, &#34;k d_sae&#34;]
+    top_i: Int[Tensor, &#34;k d_sae&#34;]
+    mean_values: Float[Tensor, &#34; d_sae&#34;]
+    sparsity: Float[Tensor, &#34; d_sae&#34;]
+    distributions: Float[Tensor, &#34;m n&#34;]
+    percentiles: Float[Tensor, &#34; d_sae&#34;]</code></pre>
+</details>
+<h3>Class variables</h3>
+<dl>
+<dt id="saev.scripts.visuals.TopKImg.distributions"><code class="name">var <span class="ident">distributions</span> : jaxtyping.Float[Tensor, 'm n']</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="saev.scripts.visuals.TopKImg.mean_values"><code class="name">var <span class="ident">mean_values</span> : jaxtyping.Float[Tensor, 'd_sae']</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="saev.scripts.visuals.TopKImg.percentiles"><code class="name">var <span class="ident">percentiles</span> : jaxtyping.Float[Tensor, 'd_sae']</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="saev.scripts.visuals.TopKImg.sparsity"><code class="name">var <span class="ident">sparsity</span> : jaxtyping.Float[Tensor, 'd_sae']</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="saev.scripts.visuals.TopKImg.top_i"><code class="name">var <span class="ident">top_i</span> : jaxtyping.Int[Tensor, 'k d_sae']</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="saev.scripts.visuals.TopKImg.top_values"><code class="name">var <span class="ident">top_values</span> : jaxtyping.Float[Tensor, 'k d_sae']</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+</dl>
+</dd>
+<dt id="saev.scripts.visuals.TopKPatch"><code class="flex name class">
+<span>class <span class="ident">TopKPatch</span></span>
+<span>(</span><span>top_values_KPD: jaxtyping.Float[Tensor, 'k n_patches_per_img d_sae'],<br>top_i_KD: jaxtyping.Int[Tensor, 'k d_sae'],<br>mean_values_D: jaxtyping.Float[Tensor, 'd_sae'],<br>sparsity_D: jaxtyping.Float[Tensor, 'd_sae'],<br>distributions_MN: jaxtyping.Float[Tensor, 'm n'],<br>percentiles_D: jaxtyping.Float[Tensor, 'd_sae'])</span>
+</code></dt>
+<dd>
+<div class="desc"><div class="admonition todo">
+<p class="admonition-title">TODO</p>
+<p>Document this class.</p>
+</div></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@jaxtyped(typechecker=beartype.beartype)
+@dataclasses.dataclass(frozen=True)
+class TopKPatch:
+    &#34;.. todo:: Document this class.&#34;
+
+    top_values_KPD: Float[Tensor, &#34;k n_patches_per_img d_sae&#34;]
+    top_i_KD: Int[Tensor, &#34;k d_sae&#34;]
+    mean_values_D: Float[Tensor, &#34; d_sae&#34;]
+    sparsity_D: Float[Tensor, &#34; d_sae&#34;]
+    distributions_MN: Float[Tensor, &#34;m n&#34;]
+    percentiles_D: Float[Tensor, &#34; d_sae&#34;]</code></pre>
+</details>
+<h3>Class variables</h3>
+<dl>
+<dt id="saev.scripts.visuals.TopKPatch.distributions_MN"><code class="name">var <span class="ident">distributions_MN</span> : jaxtyping.Float[Tensor, 'm n']</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="saev.scripts.visuals.TopKPatch.mean_values_D"><code class="name">var <span class="ident">mean_values_D</span> : jaxtyping.Float[Tensor, 'd_sae']</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="saev.scripts.visuals.TopKPatch.percentiles_D"><code class="name">var <span class="ident">percentiles_D</span> : jaxtyping.Float[Tensor, 'd_sae']</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="saev.scripts.visuals.TopKPatch.sparsity_D"><code class="name">var <span class="ident">sparsity_D</span> : jaxtyping.Float[Tensor, 'd_sae']</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="saev.scripts.visuals.TopKPatch.top_i_KD"><code class="name">var <span class="ident">top_i_KD</span> : jaxtyping.Int[Tensor, 'k d_sae']</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="saev.scripts.visuals.TopKPatch.top_values_KPD"><code class="name">var <span class="ident">top_values_KPD</span> : jaxtyping.Float[Tensor, 'k n_patches_per_img d_sae']</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+</dl>
+</dd>
+</dl>
+</section>
+</article>
+<nav id="sidebar">
+<form>
+<input id="lunr-search" name="q" placeholder="🔎 Search ..." aria-label="Search"
+disabled minlength="2">
+</form>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tingle/0.16.0/tingle.min.css" integrity="sha512-b+T2i3P45i1LZM7I00Ci5QquB9szqaxu+uuk5TUSGjZQ4w4n+qujQiIuvTv2BxE7WCGQCifNMksyKILDiHzsOg==" crossorigin>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tingle/0.16.0/tingle.min.js" integrity="sha512-2B9/byNV1KKRm5nQ2RLViPFD6U4dUjDGwuW1GU+ImJh8YinPU9Zlq1GzdTMO+G2ROrB5o1qasJBy1ttYz0wCug==" crossorigin></script>
+<style>
+.modal-dialog iframe {
+width: 100vw;
+height: calc(100vh - 80px);
+}
+@media screen and (min-width: 700px) {
+.modal-dialog iframe {
+width: 70vw;
+height: 80vh;
+}
+}
+.modal-dialog .tingle-modal-box {width: auto;}
+.modal-dialog .tingle-modal-box__content {padding: 0;}
+</style>
+<script>
+const input = document.getElementById('lunr-search');
+input.disabled = false;
+input.form.addEventListener('submit', (ev) => {
+ev.preventDefault();
+const url = new URL(window.location);
+url.searchParams.set('q', input.value);
+history.replaceState({}, null, url.toString());
+search(input.value);
+});
+const query = new URL(window.location).searchParams.get('q');
+if (query)
+search(query);
+function search(query) {
+const url = '../../doc-search.html#' + encodeURIComponent(query);
+new tingle.modal({
+cssClass: ['modal-dialog'],
+onClose: () => {
+const url = new URL(window.location);
+url.searchParams.delete('q');
+history.replaceState({}, null, url.toString());
+setTimeout(() => input.focus(), 100);
+}
+}).setContent('<iframe src="' + url + '"></iframe>').open();
+}
+</script>
+<div class="toc">
+<ul></ul>
+</div>
+<ul id="index">
+<li><h3>Super-module</h3>
+<ul>
+<li><code><a title="saev.scripts" href="index.html">saev.scripts</a></code></li>
+</ul>
+</li>
+<li><h3><a href="#header-functions">Functions</a></h3>
+<ul class="">
+<li><code><a title="saev.scripts.visuals.dump_activations" href="#saev.scripts.visuals.dump_activations">dump_activations</a></code></li>
+<li><code><a title="saev.scripts.visuals.dump_imgs" href="#saev.scripts.visuals.dump_imgs">dump_imgs</a></code></li>
+<li><code><a title="saev.scripts.visuals.get_new_topk" href="#saev.scripts.visuals.get_new_topk">get_new_topk</a></code></li>
+<li><code><a title="saev.scripts.visuals.get_top_im_acts" href="#saev.scripts.visuals.get_top_im_acts">get_top_im_acts</a></code></li>
+<li><code><a title="saev.scripts.visuals.get_topk_img" href="#saev.scripts.visuals.get_topk_img">get_topk_img</a></code></li>
+<li><code><a title="saev.scripts.visuals.get_topk_patch" href="#saev.scripts.visuals.get_topk_patch">get_topk_patch</a></code></li>
+<li><code><a title="saev.scripts.visuals.make_img" href="#saev.scripts.visuals.make_img">make_img</a></code></li>
+<li><code><a title="saev.scripts.visuals.plot_activation_distributions" href="#saev.scripts.visuals.plot_activation_distributions">plot_activation_distributions</a></code></li>
+<li><code><a title="saev.scripts.visuals.safe_load" href="#saev.scripts.visuals.safe_load">safe_load</a></code></li>
+</ul>
+</li>
+<li><h3><a href="#header-classes">Classes</a></h3>
+<ul>
+<li>
+<h4><code><a title="saev.scripts.visuals.Config" href="#saev.scripts.visuals.Config">Config</a></code></h4>
+<ul class="two-column">
+<li><code><a title="saev.scripts.visuals.Config.ckpt" href="#saev.scripts.visuals.Config.ckpt">ckpt</a></code></li>
+<li><code><a title="saev.scripts.visuals.Config.data" href="#saev.scripts.visuals.Config.data">data</a></code></li>
+<li><code><a title="saev.scripts.visuals.Config.device" href="#saev.scripts.visuals.Config.device">device</a></code></li>
+<li><code><a title="saev.scripts.visuals.Config.distributions_fpath" href="#saev.scripts.visuals.Config.distributions_fpath">distributions_fpath</a></code></li>
+<li><code><a title="saev.scripts.visuals.Config.dump_to" href="#saev.scripts.visuals.Config.dump_to">dump_to</a></code></li>
+<li><code><a title="saev.scripts.visuals.Config.epsilon" href="#saev.scripts.visuals.Config.epsilon">epsilon</a></code></li>
+<li><code><a title="saev.scripts.visuals.Config.images" href="#saev.scripts.visuals.Config.images">images</a></code></li>
+<li><code><a title="saev.scripts.visuals.Config.include_latents" href="#saev.scripts.visuals.Config.include_latents">include_latents</a></code></li>
+<li><code><a title="saev.scripts.visuals.Config.log_freq_range" href="#saev.scripts.visuals.Config.log_freq_range">log_freq_range</a></code></li>
+<li><code><a title="saev.scripts.visuals.Config.log_to" href="#saev.scripts.visuals.Config.log_to">log_to</a></code></li>
+<li><code><a title="saev.scripts.visuals.Config.log_value_range" href="#saev.scripts.visuals.Config.log_value_range">log_value_range</a></code></li>
+<li><code><a title="saev.scripts.visuals.Config.mean_values_fpath" href="#saev.scripts.visuals.Config.mean_values_fpath">mean_values_fpath</a></code></li>
+<li><code><a title="saev.scripts.visuals.Config.n_distributions" href="#saev.scripts.visuals.Config.n_distributions">n_distributions</a></code></li>
+<li><code><a title="saev.scripts.visuals.Config.n_hours" href="#saev.scripts.visuals.Config.n_hours">n_hours</a></code></li>
+<li><code><a title="saev.scripts.visuals.Config.n_latents" href="#saev.scripts.visuals.Config.n_latents">n_latents</a></code></li>
+<li><code><a title="saev.scripts.visuals.Config.percentile" href="#saev.scripts.visuals.Config.percentile">percentile</a></code></li>
+<li><code><a title="saev.scripts.visuals.Config.percentiles_fpath" href="#saev.scripts.visuals.Config.percentiles_fpath">percentiles_fpath</a></code></li>
+<li><code><a title="saev.scripts.visuals.Config.root" href="#saev.scripts.visuals.Config.root">root</a></code></li>
+<li><code><a title="saev.scripts.visuals.Config.sae_batch_size" href="#saev.scripts.visuals.Config.sae_batch_size">sae_batch_size</a></code></li>
+<li><code><a title="saev.scripts.visuals.Config.seed" href="#saev.scripts.visuals.Config.seed">seed</a></code></li>
+<li><code><a title="saev.scripts.visuals.Config.slurm_acct" href="#saev.scripts.visuals.Config.slurm_acct">slurm_acct</a></code></li>
+<li><code><a title="saev.scripts.visuals.Config.slurm_partition" href="#saev.scripts.visuals.Config.slurm_partition">slurm_partition</a></code></li>
+<li><code><a title="saev.scripts.visuals.Config.sort_by" href="#saev.scripts.visuals.Config.sort_by">sort_by</a></code></li>
+<li><code><a title="saev.scripts.visuals.Config.sparsity_fpath" href="#saev.scripts.visuals.Config.sparsity_fpath">sparsity_fpath</a></code></li>
+<li><code><a title="saev.scripts.visuals.Config.top_img_i_fpath" href="#saev.scripts.visuals.Config.top_img_i_fpath">top_img_i_fpath</a></code></li>
+<li><code><a title="saev.scripts.visuals.Config.top_k" href="#saev.scripts.visuals.Config.top_k">top_k</a></code></li>
+<li><code><a title="saev.scripts.visuals.Config.top_patch_i_fpath" href="#saev.scripts.visuals.Config.top_patch_i_fpath">top_patch_i_fpath</a></code></li>
+<li><code><a title="saev.scripts.visuals.Config.top_values_fpath" href="#saev.scripts.visuals.Config.top_values_fpath">top_values_fpath</a></code></li>
+</ul>
+</li>
+<li>
+<h4><code><a title="saev.scripts.visuals.GridElement" href="#saev.scripts.visuals.GridElement">GridElement</a></code></h4>
+<ul class="">
+<li><code><a title="saev.scripts.visuals.GridElement.img" href="#saev.scripts.visuals.GridElement.img">img</a></code></li>
+<li><code><a title="saev.scripts.visuals.GridElement.label" href="#saev.scripts.visuals.GridElement.label">label</a></code></li>
+<li><code><a title="saev.scripts.visuals.GridElement.patches" href="#saev.scripts.visuals.GridElement.patches">patches</a></code></li>
+</ul>
+</li>
+<li>
+<h4><code><a title="saev.scripts.visuals.PercentileEstimator" href="#saev.scripts.visuals.PercentileEstimator">PercentileEstimator</a></code></h4>
+<ul class="">
+<li><code><a title="saev.scripts.visuals.PercentileEstimator.estimate" href="#saev.scripts.visuals.PercentileEstimator.estimate">estimate</a></code></li>
+<li><code><a title="saev.scripts.visuals.PercentileEstimator.update" href="#saev.scripts.visuals.PercentileEstimator.update">update</a></code></li>
+</ul>
+</li>
+<li>
+<h4><code><a title="saev.scripts.visuals.TopKImg" href="#saev.scripts.visuals.TopKImg">TopKImg</a></code></h4>
+<ul class="two-column">
+<li><code><a title="saev.scripts.visuals.TopKImg.distributions" href="#saev.scripts.visuals.TopKImg.distributions">distributions</a></code></li>
+<li><code><a title="saev.scripts.visuals.TopKImg.mean_values" href="#saev.scripts.visuals.TopKImg.mean_values">mean_values</a></code></li>
+<li><code><a title="saev.scripts.visuals.TopKImg.percentiles" href="#saev.scripts.visuals.TopKImg.percentiles">percentiles</a></code></li>
+<li><code><a title="saev.scripts.visuals.TopKImg.sparsity" href="#saev.scripts.visuals.TopKImg.sparsity">sparsity</a></code></li>
+<li><code><a title="saev.scripts.visuals.TopKImg.top_i" href="#saev.scripts.visuals.TopKImg.top_i">top_i</a></code></li>
+<li><code><a title="saev.scripts.visuals.TopKImg.top_values" href="#saev.scripts.visuals.TopKImg.top_values">top_values</a></code></li>
+</ul>
+</li>
+<li>
+<h4><code><a title="saev.scripts.visuals.TopKPatch" href="#saev.scripts.visuals.TopKPatch">TopKPatch</a></code></h4>
+<ul class="two-column">
+<li><code><a title="saev.scripts.visuals.TopKPatch.distributions_MN" href="#saev.scripts.visuals.TopKPatch.distributions_MN">distributions_MN</a></code></li>
+<li><code><a title="saev.scripts.visuals.TopKPatch.mean_values_D" href="#saev.scripts.visuals.TopKPatch.mean_values_D">mean_values_D</a></code></li>
+<li><code><a title="saev.scripts.visuals.TopKPatch.percentiles_D" href="#saev.scripts.visuals.TopKPatch.percentiles_D">percentiles_D</a></code></li>
+<li><code><a title="saev.scripts.visuals.TopKPatch.sparsity_D" href="#saev.scripts.visuals.TopKPatch.sparsity_D">sparsity_D</a></code></li>
+<li><code><a title="saev.scripts.visuals.TopKPatch.top_i_KD" href="#saev.scripts.visuals.TopKPatch.top_i_KD">top_i_KD</a></code></li>
+<li><code><a title="saev.scripts.visuals.TopKPatch.top_values_KPD" href="#saev.scripts.visuals.TopKPatch.top_values_KPD">top_values_KPD</a></code></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</nav>
+</main>
+<footer id="footer">
+<p>Generated by <a href="https://pdoc3.github.io/pdoc" title="pdoc: Python API documentation generator"><cite>pdoc</cite> 0.11.1</a>.</p>
+</footer>
+</body>
+</html>

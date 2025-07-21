@@ -36,7 +36,7 @@ hljs.highlightAll();
 <h2 class="section-title" id="header-functions">Functions</h2>
 <dl>
 <dt id="saev.nn.objectives.get_objective"><code class="name flex">
-<span>def <span class="ident">get_objective</span></span>(<span>cfg: <a title="saev.config.Vanilla" href="../config.html#saev.config.Vanilla">Vanilla</a> | <a title="saev.config.Matryoshka" href="../config.html#saev.config.Matryoshka">Matryoshka</a>) ‑> <a title="saev.nn.objectives.Objective" href="#saev.nn.objectives.Objective">Objective</a></span>
+<span>def <span class="ident">get_objective</span></span>(<span>cfg: <a title="saev.nn.objectives.Vanilla" href="#saev.nn.objectives.Vanilla">Vanilla</a> | <a title="saev.nn.objectives.Matryoshka" href="#saev.nn.objectives.Matryoshka">Matryoshka</a>) ‑> <a title="saev.nn.objectives.Objective" href="#saev.nn.objectives.Objective">Objective</a></span>
 </code></dt>
 <dd>
 <div class="desc"></div>
@@ -113,6 +113,37 @@ def loss(self) -&gt; Float[Tensor, &#34;&#34;]:
 </dd>
 </dl>
 </dd>
+<dt id="saev.nn.objectives.Matryoshka"><code class="flex name class">
+<span>class <span class="ident">Matryoshka</span></span>
+<span>(</span><span>n_prefixes: int = 10)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Config for the Matryoshka loss for another arbitrary SAE class.</p>
+<p>Reference code is here: <a href="https://github.com/noanabeshima/matryoshka-saes">https://github.com/noanabeshima/matryoshka-saes</a> and the original reading is <a href="https://sparselatents.com/matryoshka.html">https://sparselatents.com/matryoshka.html</a> and <a href="https://arxiv.org/pdf/2503.17547.">https://arxiv.org/pdf/2503.17547.</a></p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+@dataclasses.dataclass(frozen=True, slots=True)
+class Matryoshka:
+    &#34;&#34;&#34;
+    Config for the Matryoshka loss for another arbitrary SAE class.
+
+    Reference code is here: https://github.com/noanabeshima/matryoshka-saes and the original reading is https://sparselatents.com/matryoshka.html and https://arxiv.org/pdf/2503.17547.
+    &#34;&#34;&#34;
+
+    n_prefixes: int = 10
+    &#34;&#34;&#34;Number of random length prefixes to use for loss calculation.&#34;&#34;&#34;</code></pre>
+</details>
+<h3>Instance variables</h3>
+<dl>
+<dt id="saev.nn.objectives.Matryoshka.n_prefixes"><code class="name">var <span class="ident">n_prefixes</span> : int</code></dt>
+<dd>
+<div class="desc"><p>Number of random length prefixes to use for loss calculation.</p></div>
+</dd>
+</dl>
+</dd>
 <dt id="saev.nn.objectives.MatryoshkaLoss"><code class="flex name class">
 <span>class <span class="ident">MatryoshkaLoss</span></span>
 </code></dt>
@@ -146,7 +177,7 @@ class MatryoshkaLoss(Loss):
 </dd>
 <dt id="saev.nn.objectives.MatryoshkaObjective"><code class="flex name class">
 <span>class <span class="ident">MatryoshkaObjective</span></span>
-<span>(</span><span>cfg: <a title="saev.config.Matryoshka" href="../config.html#saev.config.Matryoshka">Matryoshka</a>)</span>
+<span>(</span><span>cfg: <a title="saev.nn.objectives.Matryoshka" href="#saev.nn.objectives.Matryoshka">Matryoshka</a>)</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Torch module for calculating the matryoshka loss for an SAE.</p>
@@ -159,7 +190,7 @@ class MatryoshkaLoss(Loss):
 class MatryoshkaObjective(Objective):
     &#34;&#34;&#34;Torch module for calculating the matryoshka loss for an SAE.&#34;&#34;&#34;
 
-    def __init__(self, cfg: config.Matryoshka):
+    def __init__(self, cfg: Matryoshka):
         super().__init__()
         self.cfg = cfg
 
@@ -254,6 +285,30 @@ registered hooks while the latter silently ignores them.</p>
 </dd>
 </dl>
 </dd>
+<dt id="saev.nn.objectives.Vanilla"><code class="flex name class">
+<span>class <span class="ident">Vanilla</span></span>
+<span>(</span><span>sparsity_coeff: float = 0.0004)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Vanilla(sparsity_coeff: float = 0.0004)</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+@dataclasses.dataclass(frozen=True, slots=True)
+class Vanilla:
+    sparsity_coeff: float = 4e-4
+    &#34;&#34;&#34;How much to weight sparsity loss term.&#34;&#34;&#34;</code></pre>
+</details>
+<h3>Instance variables</h3>
+<dl>
+<dt id="saev.nn.objectives.Vanilla.sparsity_coeff"><code class="name">var <span class="ident">sparsity_coeff</span> : float</code></dt>
+<dd>
+<div class="desc"><p>How much to weight sparsity loss term.</p></div>
+</dd>
+</dl>
+</dd>
 <dt id="saev.nn.objectives.VanillaLoss"><code class="flex name class">
 <span>class <span class="ident">VanillaLoss</span></span>
 <span>(</span><span>mse: jaxtyping.Float[Tensor, ''],<br>sparsity: jaxtyping.Float[Tensor, ''],<br>l0: jaxtyping.Float[Tensor, ''],<br>l1: jaxtyping.Float[Tensor, ''])</span>
@@ -335,7 +390,7 @@ class VanillaLoss(Loss):
 </dd>
 <dt id="saev.nn.objectives.VanillaObjective"><code class="flex name class">
 <span>class <span class="ident">VanillaObjective</span></span>
-<span>(</span><span>cfg: <a title="saev.config.Vanilla" href="../config.html#saev.config.Vanilla">Vanilla</a>)</span>
+<span>(</span><span>cfg: <a title="saev.nn.objectives.Vanilla" href="#saev.nn.objectives.Vanilla">Vanilla</a>)</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Base class for all neural network modules.</p>
@@ -372,7 +427,7 @@ evaluation mode.
 </summary>
 <pre><code class="python">@jaxtyped(typechecker=beartype.beartype)
 class VanillaObjective(Objective):
-    def __init__(self, cfg: config.Vanilla):
+    def __init__(self, cfg: Vanilla):
         super().__init__()
         self.cfg = cfg
 
@@ -482,6 +537,12 @@ setTimeout(() => input.focus(), 100);
 </ul>
 </li>
 <li>
+<h4><code><a title="saev.nn.objectives.Matryoshka" href="#saev.nn.objectives.Matryoshka">Matryoshka</a></code></h4>
+<ul class="">
+<li><code><a title="saev.nn.objectives.Matryoshka.n_prefixes" href="#saev.nn.objectives.Matryoshka.n_prefixes">n_prefixes</a></code></li>
+</ul>
+</li>
+<li>
 <h4><code><a title="saev.nn.objectives.MatryoshkaLoss" href="#saev.nn.objectives.MatryoshkaLoss">MatryoshkaLoss</a></code></h4>
 </li>
 <li>
@@ -491,6 +552,12 @@ setTimeout(() => input.focus(), 100);
 <h4><code><a title="saev.nn.objectives.Objective" href="#saev.nn.objectives.Objective">Objective</a></code></h4>
 <ul class="">
 <li><code><a title="saev.nn.objectives.Objective.forward" href="#saev.nn.objectives.Objective.forward">forward</a></code></li>
+</ul>
+</li>
+<li>
+<h4><code><a title="saev.nn.objectives.Vanilla" href="#saev.nn.objectives.Vanilla">Vanilla</a></code></h4>
+<ul class="">
+<li><code><a title="saev.nn.objectives.Vanilla.sparsity_coeff" href="#saev.nn.objectives.Vanilla.sparsity_coeff">sparsity_coeff</a></code></li>
 </ul>
 </li>
 <li>

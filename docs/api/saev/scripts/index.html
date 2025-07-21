@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1">
 <meta name="generator" content="pdoc3 0.11.1">
-<title>saev.nn.test_objectives API documentation</title>
-<meta name="description" content="Uses [hypothesis]() and [hypothesis-torch](https://hypothesis-torch.readthedocs.io/en/stable/compatability/) to generate test cases to compare our …">
+<title>saev.scripts API documentation</title>
+<meta name="description" content="">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/13.0.0/sanitize.min.css" integrity="sha512-y1dtMcuvtTMJc1yPgEqF0ZjQbhnc/bFhyvIyVNb9Zk5mIGtqVaAB1Ttl28su8AvFMOY0EwRbAe+HCLqj6W7/KA==" crossorigin>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/13.0.0/typography.min.css" integrity="sha512-Y1DYSb995BAfxobCkKepB1BqJJTPrOp3zPL74AWFugHHmmdcvO+C48WLrUOlhGMc0QG7AE3f7gmvvcrmX2fDoA==" crossorigin>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css" crossorigin>
@@ -24,61 +24,22 @@ hljs.highlightAll();
 <main>
 <article id="content">
 <header>
-<h1 class="title">Module <code>saev.nn.test_objectives</code></h1>
+<h1 class="title">Namespace <code>saev.scripts</code></h1>
 </header>
 <section id="section-intro">
-<p>Uses <a href="">hypothesis</a> and <a href="https://hypothesis-torch.readthedocs.io/en/stable/compatability/">hypothesis-torch</a> to generate test cases to compare our normalized MSE implementation to a reference MSE implementation.</p>
 </section>
 <section>
-</section>
-<section>
-</section>
-<section>
-<h2 class="section-title" id="header-functions">Functions</h2>
+<h2 class="section-title" id="header-submodules">Sub-modules</h2>
 <dl>
-<dt id="saev.nn.test_objectives.tensor_pair"><code class="name flex">
-<span>def <span class="ident">tensor_pair</span></span>(<span>) ‑> hypothesis.strategies.SearchStrategy</span>
-</code></dt>
+<dt><code class="name"><a title="saev.scripts.visuals" href="visuals.html">saev.scripts.visuals</a></code></dt>
 <dd>
-<div class="desc"></div>
-</dd>
-<dt id="saev.nn.test_objectives.test_factories"><code class="name flex">
-<span>def <span class="ident">test_factories</span></span>(<span>)</span>
-</code></dt>
-<dd>
-<div class="desc"></div>
-</dd>
-<dt id="saev.nn.test_objectives.test_mse_nonzero"><code class="name flex">
-<span>def <span class="ident">test_mse_nonzero</span></span>(<span>)</span>
-</code></dt>
-<dd>
-<div class="desc"></div>
-</dd>
-<dt id="saev.nn.test_objectives.test_mse_same"><code class="name flex">
-<span>def <span class="ident">test_mse_same</span></span>(<span>)</span>
-</code></dt>
-<dd>
-<div class="desc"></div>
-</dd>
-<dt id="saev.nn.test_objectives.test_mse_zero_x_hat"><code class="name flex">
-<span>def <span class="ident">test_mse_zero_x_hat</span></span>(<span>)</span>
-</code></dt>
-<dd>
-<div class="desc"></div>
-</dd>
-<dt id="saev.nn.test_objectives.test_safe_mse_hypothesis"><code class="name flex">
-<span>def <span class="ident">test_safe_mse_hypothesis</span></span>(<span>) ‑> None</span>
-</code></dt>
-<dd>
-<div class="desc"></div>
-</dd>
-<dt id="saev.nn.test_objectives.test_safe_mse_large_x"><code class="name flex">
-<span>def <span class="ident">test_safe_mse_large_x</span></span>(<span>)</span>
-</code></dt>
-<dd>
-<div class="desc"></div>
+<div class="desc"><p>There is some important notation used only in this file to dramatically shorten variable names …</p></div>
 </dd>
 </dl>
+</section>
+<section>
+</section>
+<section>
 </section>
 <section>
 </section>
@@ -136,18 +97,12 @@ setTimeout(() => input.focus(), 100);
 <ul id="index">
 <li><h3>Super-module</h3>
 <ul>
-<li><code><a title="saev.nn" href="index.html">saev.nn</a></code></li>
+<li><code><a title="saev" href="../index.html">saev</a></code></li>
 </ul>
 </li>
-<li><h3><a href="#header-functions">Functions</a></h3>
-<ul class="">
-<li><code><a title="saev.nn.test_objectives.tensor_pair" href="#saev.nn.test_objectives.tensor_pair">tensor_pair</a></code></li>
-<li><code><a title="saev.nn.test_objectives.test_factories" href="#saev.nn.test_objectives.test_factories">test_factories</a></code></li>
-<li><code><a title="saev.nn.test_objectives.test_mse_nonzero" href="#saev.nn.test_objectives.test_mse_nonzero">test_mse_nonzero</a></code></li>
-<li><code><a title="saev.nn.test_objectives.test_mse_same" href="#saev.nn.test_objectives.test_mse_same">test_mse_same</a></code></li>
-<li><code><a title="saev.nn.test_objectives.test_mse_zero_x_hat" href="#saev.nn.test_objectives.test_mse_zero_x_hat">test_mse_zero_x_hat</a></code></li>
-<li><code><a title="saev.nn.test_objectives.test_safe_mse_hypothesis" href="#saev.nn.test_objectives.test_safe_mse_hypothesis">test_safe_mse_hypothesis</a></code></li>
-<li><code><a title="saev.nn.test_objectives.test_safe_mse_large_x" href="#saev.nn.test_objectives.test_safe_mse_large_x">test_safe_mse_large_x</a></code></li>
+<li><h3><a href="#header-submodules">Sub-modules</a></h3>
+<ul>
+<li><code><a title="saev.scripts.visuals" href="visuals.html">saev.scripts.visuals</a></code></li>
 </ul>
 </li>
 </ul>

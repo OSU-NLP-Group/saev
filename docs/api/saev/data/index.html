@@ -1,0 +1,1283 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1">
+<meta name="generator" content="pdoc3 0.11.1">
+<title>saev.data API documentation</title>
+<meta name="description" content="SAEV Sharded-Activation File Protocol v1 (2025-06-17) …">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/13.0.0/sanitize.min.css" integrity="sha512-y1dtMcuvtTMJc1yPgEqF0ZjQbhnc/bFhyvIyVNb9Zk5mIGtqVaAB1Ttl28su8AvFMOY0EwRbAe+HCLqj6W7/KA==" crossorigin>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/13.0.0/typography.min.css" integrity="sha512-Y1DYSb995BAfxobCkKepB1BqJJTPrOp3zPL74AWFugHHmmdcvO+C48WLrUOlhGMc0QG7AE3f7gmvvcrmX2fDoA==" crossorigin>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css" crossorigin>
+<style>:root{--highlight-color:#fe9}.flex{display:flex !important}body{line-height:1.5em}#content{padding:20px}#sidebar{padding:1.5em;overflow:hidden}#sidebar > *:last-child{margin-bottom:2cm}#lunr-search{width:100%;font-size:1em;padding:6px 9px 5px 9px;border:1px solid silver}.http-server-breadcrumbs{font-size:130%;margin:0 0 15px 0}#footer{font-size:.75em;padding:5px 30px;border-top:1px solid #ddd;text-align:right}#footer p{margin:0 0 0 1em;display:inline-block}#footer p:last-child{margin-right:30px}h1,h2,h3,h4,h5{font-weight:300}h1{font-size:2.5em;line-height:1.1em}h2{font-size:1.75em;margin:2em 0 .50em 0}h3{font-size:1.4em;margin:1.6em 0 .7em 0}h4{margin:0;font-size:105%}h1:target,h2:target,h3:target,h4:target,h5:target,h6:target{background:var(--highlight-color);padding:.2em 0}a{color:#058;text-decoration:none;transition:color .2s ease-in-out}a:visited{color:#503}a:hover{color:#b62}.title code{font-weight:bold}h2[id^="header-"]{margin-top:2em}.ident{color:#900;font-weight:bold}pre code{font-size:.8em;line-height:1.4em;padding:1em;display:block}code{background:#f3f3f3;font-family:"DejaVu Sans Mono",monospace;padding:1px 4px;overflow-wrap:break-word}h1 code{background:transparent}pre{border-top:1px solid #ccc;border-bottom:1px solid #ccc;margin:1em 0}#http-server-module-list{display:flex;flex-flow:column}#http-server-module-list div{display:flex}#http-server-module-list dt{min-width:10%}#http-server-module-list p{margin-top:0}.toc ul,#index{list-style-type:none;margin:0;padding:0}#index code{background:transparent}#index h3{border-bottom:1px solid #ddd}#index ul{padding:0}#index h4{margin-top:.6em;font-weight:bold}@media (min-width:200ex){#index .two-column{column-count:2}}@media (min-width:300ex){#index .two-column{column-count:3}}dl{margin-bottom:2em}dl dl:last-child{margin-bottom:4em}dd{margin:0 0 1em 3em}#header-classes + dl > dd{margin-bottom:3em}dd dd{margin-left:2em}dd p{margin:10px 0}.name{background:#eee;font-size:.85em;padding:5px 10px;display:inline-block;min-width:40%}.name:hover{background:#e0e0e0}dt:target .name{background:var(--highlight-color)}.name > span:first-child{white-space:nowrap}.name.class > span:nth-child(2){margin-left:.4em}.inherited{color:#999;border-left:5px solid #eee;padding-left:1em}.inheritance em{font-style:normal;font-weight:bold}.desc h2{font-weight:400;font-size:1.25em}.desc h3{font-size:1em}.desc dt code{background:inherit}.source summary,.git-link-div{color:#666;text-align:right;font-weight:400;font-size:.8em;text-transform:uppercase}.source summary > *{white-space:nowrap;cursor:pointer}.git-link{color:inherit;margin-left:1em}.source pre{max-height:500px;overflow:auto;margin:0}.source pre code{font-size:12px;overflow:visible}.hlist{list-style:none}.hlist li{display:inline}.hlist li:after{content:',\2002'}.hlist li:last-child:after{content:none}.hlist .hlist{display:inline;padding-left:1em}img{max-width:100%}td{padding:0 .5em}.admonition{padding:.1em 1em;margin:1em 0}.admonition-title{font-weight:bold}.admonition.note,.admonition.info,.admonition.important{background:#aef}.admonition.todo,.admonition.versionadded,.admonition.tip,.admonition.hint{background:#dfd}.admonition.warning,.admonition.versionchanged,.admonition.deprecated{background:#fd4}.admonition.error,.admonition.danger,.admonition.caution{background:lightpink}</style>
+<style media="screen and (min-width: 700px)">@media screen and (min-width:700px){#sidebar{width:30%;height:100vh;overflow:auto;position:sticky;top:0}#content{width:70%;max-width:100ch;padding:3em 4em;border-left:1px solid #ddd}pre code{font-size:1em}.name{font-size:1em}main{display:flex;flex-direction:row-reverse;justify-content:flex-end}.toc ul ul,#index ul ul{padding-left:1em}.toc > ul > li{margin-top:.5em}}</style>
+<style media="print">@media print{#sidebar h1{page-break-before:always}.source{display:none}}@media print{*{background:transparent !important;color:#000 !important;box-shadow:none !important;text-shadow:none !important}a[href]:after{content:" (" attr(href) ")";font-size:90%}a[href][title]:after{content:none}abbr[title]:after{content:" (" attr(title) ")"}.ir a:after,a[href^="javascript:"]:after,a[href^="#"]:after{content:""}pre,blockquote{border:1px solid #999;page-break-inside:avoid}thead{display:table-header-group}tr,img{page-break-inside:avoid}img{max-width:100% !important}@page{margin:0.5cm}p,h2,h3{orphans:3;widows:3}h1,h2,h3,h4,h5,h6{page-break-after:avoid}}</style>
+<script type="text/x-mathjax-config">MathJax.Hub.Config({ tex2jax: { inlineMath: [ ['$','$'], ["\\(","\\)"] ], processEscapes: true } });</script>
+<script async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/latest.js?config=TeX-AMS_CHTML" integrity="sha256-kZafAc6mZvK3W3v1pHOcUix30OHQN6pU/NO2oFkqZVw=" crossorigin></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js" integrity="sha512-D9gUyxqja7hBtkWpPWGt9wfbfaMGVt9gnyCvYa+jojwwPHLCzUm5i8rpk7vD7wNee9bA35eYIjobYPaQuKS1MQ==" crossorigin></script>
+<script>window.addEventListener('DOMContentLoaded', () => {
+hljs.configure({languages: ['bash', 'css', 'diff', 'graphql', 'ini', 'javascript', 'json', 'plaintext', 'python', 'python-repl', 'rust', 'shell', 'sql', 'typescript', 'xml', 'yaml']});
+hljs.highlightAll();
+})</script>
+</head>
+<body>
+<main>
+<article id="content">
+<header>
+<h1 class="title">Module <code>saev.data</code></h1>
+</header>
+<section id="section-intro">
+<h1 id="saev-sharded-activation-file-protocol-v1-2025-06-17">SAEV Sharded-Activation File Protocol v1 (2025-06-17)</h1>
+<p>saev caches activations to disk rather than run ViT or LLM inference when training SAEs.
+Gemma Scope makes this decision as well (see Section 3.3.2 of <a href="https://arxiv.org/pdf/2408.05147">https://arxiv.org/pdf/2408.05147</a>).
+<code><a title="saev.data" href="#saev.data">saev.data</a></code> has a specific protocol to support this in on <a href="https://www.osc.edu">OSC</a>, a super computer center, and take advantage of OSC's specific disk performance. </p>
+<p>Goal: loss-lessly persist very large Transformer (ViT or LLM) activations in a form that is:</p>
+<ul>
+<li>mem-mappable</li>
+<li>Parameterized solely by the <em>experiment configuration</em> (<code><a title="saev.data.writers.Config" href="writers.html#saev.data.writers.Config">Config</a></code>)</li>
+<li>Referenced by a content-hash, so identical configs collide, divergent ones never do</li>
+<li>Can be read quickly in a random order for training, and can be read (slowly) with random-access for visuals.</li>
+</ul>
+<p>This document is the single normative source. Any divergence in code is a <strong>bug</strong>.</p>
+<hr>
+<h2 id="1-directory-layout">1. Directory layout</h2>
+<pre><code>&lt;dump_to&gt;/&lt;HASH&gt;/
+    metadata.json              # UTF-8 JSON, human-readable, describes data-generating config
+    shards.json                # UTF-8 JSON, human-readable, describes shards.
+    acts000000.bin             # shard 0
+    acts000001.bin             # shard 1
+    ...
+    actsNNNNNN.bin             # shard NNNNNN  (zero-padded width=6)
+</code></pre>
+<p><em><code>HASH</code> = <code>sha256(json.dumps(metadata, sort_keys=True, separators=(',', ':')).encode('utf-8'))</code></em>
+Guards against silent config drift.</p>
+<hr>
+<h2 id="2-json-file-schemas">2. JSON file schemas</h2>
+<h3 id="21-metadatajson">2.1. <code>metadata.json</code></h3>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>semantic</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>vit_family</code></td>
+<td>string</td>
+<td><code>"clip" \| "siglip" \| "dinov2"</code></td>
+</tr>
+<tr>
+<td><code>vit_ckpt</code></td>
+<td>string</td>
+<td>model identifier (OpenCLIP, HF, etc.)</td>
+</tr>
+<tr>
+<td><code>layers</code></td>
+<td>int[]</td>
+<td>ViT residual‐block indices recorded</td>
+</tr>
+<tr>
+<td><code>n_patches_per_img</code></td>
+<td>int</td>
+<td><strong>image patches only</strong> (excludes CLS)</td>
+</tr>
+<tr>
+<td><code>cls_token</code></td>
+<td>bool</td>
+<td><code>true</code> -&gt; patch 0 is CLS, else no CLS</td>
+</tr>
+<tr>
+<td><code>d_vit</code></td>
+<td>int</td>
+<td>activation dimensionality</td>
+</tr>
+<tr>
+<td><code>n_imgs</code></td>
+<td>int</td>
+<td>total images in dataset</td>
+</tr>
+<tr>
+<td><code>max_patches_per_shard</code></td>
+<td>int</td>
+<td><strong>logical</strong> activations per shard (see #3)</td>
+</tr>
+<tr>
+<td><code>data</code></td>
+<td>object</td>
+<td>opaque dataset description</td>
+</tr>
+<tr>
+<td><code>dtype</code></td>
+<td>string</td>
+<td>numpy dtype. Fixed <code>"float32"</code> for now.</td>
+</tr>
+<tr>
+<td><code>protocol</code></td>
+<td>string</td>
+<td><code>"1.0.0"</code> for now.</td>
+</tr>
+</tbody>
+</table>
+<p>The <code>data</code> object is <code>dataclasses.asdict(cfg.data)</code>, with an additional <code>__class__</code> field with <code>cfg.data.__class__.__name__</code> as the value.</p>
+<h3 id="22-shardsjson">2.2. <code>shards.json</code></h3>
+<p>A single array of <code>shard</code> objects, each of which has the following fields:</p>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>semantic</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>name</td>
+<td>string</td>
+<td>shard filename (<code>acts000000.bin</code>).</td>
+</tr>
+<tr>
+<td>n_imgs</td>
+<td>int</td>
+<td>the number of images in the shard.</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2 id="3-shard-sizing-maths">3 Shard sizing maths</h2>
+<pre><code class="language-python">n_tokens_per_img = n_patches_per_img + (1 if cls_token else 0)
+
+n_imgs_per_shard = floor(max_patches_per_shard / (n_tokens_per_img * len(layers)))
+
+shape_per_shard = (
+    n_imgs_per_shard, len(layers), n_tokens_per_img, d_vit,
+)
+</code></pre>
+<p><em><code>max_patches_per_shard</code> is a </em><em>budget</em><em> (default ~2.4 M) chosen so a shard is approximately 10 GiB for Float32 @ <code>d_vit = 1024</code>.</em></p>
+<p><em>The last shard will have a smaller value for <code>n_imgs_per_shard</code>; this value is documented in <code>n_imgs</code> in <code>shards.json</code></em></p>
+<hr>
+<h2 id="4-data-layout-and-global-indexing">4. Data Layout and Global Indexing</h2>
+<p>The entire dataset of activations is treated as a single logical 4D tensor with the shape <code>(n_imgs, len(layers), n_tokens_per_img, d_vit)</code>. This logical tensor is C-contiguous with axes ordered <code>[Image, Layer, Token, Dimension]</code>.</p>
+<p>Physically, this tensor is split along the first axis (<code>Image</code>) into multiple shards, where each shard is a single binary file. The number of images in each shard is constant, except for the final shard, which may be smaller.</p>
+<p>To locate an arbitrary activation vector, a reader must convert a logical coordinate (<code>global_img_idx</code>, <code>layer_value</code>, <code>token_idx</code>) into a file path and an offset within that file.</p>
+<h3 id="41-definitions">4.1 Definitions</h3>
+<p>Let the parameters from <code>metadata.json</code> be:</p>
+<ul>
+<li>L = <code>len(layers)</code></li>
+<li>P = <code>n_patches_per_img</code></li>
+<li>T = <code>P + (1 if cls_token else 0)</code> (Total tokens per image)</li>
+<li>D = <code>d_vit</code></li>
+<li>S = <code>n_imgs</code> from <code>shards.json</code> or <code>n_imgs_per_shard</code> from Section 3 (shard sizing).</li>
+</ul>
+<h3 id="42-coordinate-transformations">4.2 Coordinate Transformations</h3>
+<p>Given a logical coordinate:</p>
+<ul>
+<li><code>global_img_idx</code>: integer, with <code>0 &lt;= global_img_idx &lt; n_imgs</code></li>
+<li><code>layer</code>: integer, must be an element of <code>layers</code></li>
+<li><code>token_idx</code>: integer, <code>0 &lt;= token_idx &lt; T</code></li>
+</ul>
+<p>The physical location is found as follows:</p>
+<ol>
+<li>
+<p><strong>Identify Shard:</strong></p>
+<ul>
+<li><code>shard_idx = global_img_idx // S</code></li>
+<li><code>img_in_shard = global_img_idx % S</code>
+The target file is <code>acts{shard_idx:06d}.bin</code>.</li>
+</ul>
+</li>
+<li>
+<p><strong>Identify Layer Index:</strong> The stored data contains a subset of the ViT's layers. The logical <code>layer_value</code> must be mapped to its index in the stored <code>layers</code> array.</p>
+<ul>
+<li><code>layer_idx = layers.index(layer)</code>
+A reader must raise an error if <code>layer</code> is not in <code>layers</code>.</li>
+</ul>
+</li>
+<li>
+<p><strong>Calculate Offset:</strong> The data within a shard is a 4D tensor of shape <code>(S, L, T, D)</code>. The offset to the first byte of the desired activation vector <code>[img_in_shard, layer_in_list_idx, token_idx]</code> is:</p>
+<ul>
+<li><code>offset_in_vectors = (img_in_shard * L * T) + (layer_in_list_idx * T) + token_idx</code></li>
+<li><code>offset_in_bytes = offset_in_vectors * D * 4</code> (assuming 4 bytes for <code>float32</code>)</li>
+</ul>
+</li>
+</ol>
+<p>A reader can then seek to <code>offset_in_bytes</code> and read $D \times 4$ bytes to retrieve the vector.</p>
+<p><em>Alternatively, rather than calculate the offset, readers can memmap the shard, then use Numpy indexing to get the activation vector.</em></p>
+<h3 id="43-token-axis-layout">4.3 Token Axis Layout</h3>
+<p>The <code>token</code> axis of length $T$ is ordered as follows:
+* If <code>cls_token</code> is <code>true</code>:
+* Index <code>0</code>: [CLS] token activation
+* Indices <code>1</code> to $P$: Patch token activations
+* If <code>cls_token</code> is <code>false</code>:
+* Indices <code>0</code> to $P-1$: Patch token activations</p>
+<p>The relative order of patch tokens is preserved exactly as produced by the upstream Vision Transformer.</p>
+<hr>
+<h2 id="5-versioning-compatibility">5 Versioning &amp; compatibility</h2>
+<ul>
+<li><strong>Major changes</strong> (shape reorder, dtype switch, new required JSON keys) increment the major protocol version number at the top of this document and must emit a <em>breaking</em> warning in loader code.</li>
+<li><strong>Minor, backward-compatible additions</strong> (new optional JSON key) merely update this doc and the minor protocol version number.</li>
+</ul>
+<hr>
+<p>That's the whole deal.
+No hidden invariants.
+Anything else you find in code that contradicts this sheet, fix the code or update the spec.</p>
+<h1 id="performance">Performance</h1>
+<p>SAEs are mostly disk-bound.
+Gemma Scope (Google SAE paper) aimed for 1 GB/s to keep their GPUS brrr'ing.
+This is pretty hard even with sequential reads, much less random access.</p>
+<p>I run all my experiments on <a href="https://www.osc.edu/">OSC</a> and their scratch filesystem <code>/fs/scratch</code> has sequential read speeds of around 800 MB/s and random access speeds around 22 MB/s.</p>
+<p>I got these numbers with:</p>
+<pre><code class="language-sh">fio --name=net --filename=/fs/scratch/PAS2136/samuelstevens/cache/saev/366017a10220b85014ae0a594276b25f6ea3d756b74d1d3218da1e34ffcf32e9/acts000000.bin --rw=read --bs=1M --direct=1 --iodepth=16 --runtime=30 --time_based
+</code></pre>
+<p>and</p>
+<pre><code class="language-sh">fio --name=net --filename=/fs/scratch/PAS2136/samuelstevens/cache/saev/366017a10220b85014ae0a594276b25f6ea3d756b74d1d3218da1e34ffcf32e9/acts000000.bin --rw=randread --bs=4K --direct=1 --iodepth=16 --runtime=30 --time_based
+</code></pre>
+<p>These two commands reported, respectively:</p>
+<pre><code>READ: bw=796MiB/s (835MB/s), 796MiB/s-796MiB/s (835MB/s-835MB/s), io=23.3GiB (25.0GB), run=30001-30001msec
+</code></pre>
+<p>and</p>
+<pre><code>READ: bw=22.9MiB/s (24.0MB/s), 22.9MiB/s-22.9MiB/s (24.0MB/s-24.0MB/s), io=687MiB (721MB), run=30001-30001msec
+</code></pre>
+<p>My naive pytorch-style dataset that uses multiple processes to feed a dataloader did purely random reads and was too slow.
+It reports around 500 examples/s:</p>
+<p><img alt="Performance plot showing that naive random access dataloading maxes out around 500 examples/s." src="assets/benchmarking/ee86c12134a89ea819b129bcce0d1abbda5143c4/plot.png"></p>
+<p>I've implemented a dataloader that tries to do sequential reads rather than random reads in <code>saev/data/iterable.py</code>.
+It's much faster (around 4.5K examples/s) on OSC.</p>
+<p><img alt="Performance plot showing that my first attempt at a sequential dataloader maxes out around 4500 examples/s." src="assets/benchmarking/4e9b2faf065ffb21e635633a2ee485bd699b0941/plot.png"></p>
+<p>I know that it should be even faster; the dataset of 128M examples is 2.9TB, my sequential disk read speed is 800 MB/s, so it should take ~1 hr.
+For 128M examples at 4.5K examples/s, it should take 7.9 hours.
+You can see this on a <a href="https://wandb.ai/samuelstevens/saev/runs/okm4fv8j?nw=nwusersamuelstevens&amp;panelDisplayName=Disk+Utilization+%28%25%29&amp;panelSectionName=System">wandb run here</a> which reports 14.6% disk utilization.
+Certainly that can be higher.</p>
+<blockquote>
+<p><em>Not sure if this is the correct way to think about it, but: 100 / 14.6 = 6.8, close to 7.9 hours.</em></p>
+</blockquote>
+</section>
+<section>
+<h2 class="section-title" id="header-submodules">Sub-modules</h2>
+<dl>
+<dt><code class="name"><a title="saev.data.buffers" href="buffers.html">saev.data.buffers</a></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt><code class="name"><a title="saev.data.config" href="config.html">saev.data.config</a></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt><code class="name"><a title="saev.data.images" href="images.html">saev.data.images</a></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt><code class="name"><a title="saev.data.indexed" href="indexed.html">saev.data.indexed</a></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt><code class="name"><a title="saev.data.models" href="models.html">saev.data.models</a></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt><code class="name"><a title="saev.data.ordered" href="ordered.html">saev.data.ordered</a></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt><code class="name"><a title="saev.data.shuffled" href="shuffled.html">saev.data.shuffled</a></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt><code class="name"><a title="saev.data.writers" href="writers.html">saev.data.writers</a></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+</dl>
+</section>
+<section>
+</section>
+<section>
+</section>
+<section>
+<h2 class="section-title" id="header-classes">Classes</h2>
+<dl>
+<dt id="saev.data.Config"><code class="flex name class">
+<span>class <span class="ident">IndexedConfig</span></span>
+<span>(</span><span>shard_root: str = './shards',<br>patches: Literal['cls', 'image', 'all'] = 'image',<br>layer: Union[int, Literal['all']] = -2,<br>seed: int = 17,<br>debug: bool = False)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Configuration for loading indexed activation data from disk.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+@dataclasses.dataclass(frozen=True)
+class Config:
+    &#34;&#34;&#34;Configuration for loading indexed activation data from disk.&#34;&#34;&#34;
+
+    shard_root: str = os.path.join(&#34;.&#34;, &#34;shards&#34;)
+    &#34;&#34;&#34;Directory with .bin shards and a metadata.json file.&#34;&#34;&#34;
+    patches: typing.Literal[&#34;cls&#34;, &#34;image&#34;, &#34;all&#34;] = &#34;image&#34;
+    &#34;&#34;&#34;Which kinds of patches to use. &#39;cls&#39; indicates just the [CLS] token (if any). &#39;image&#39; indicates it will return image patches. &#39;all&#39; returns all patches.&#34;&#34;&#34;
+    layer: int | typing.Literal[&#34;all&#34;] = -2
+    &#34;&#34;&#34;Which ViT layer(s) to read from disk. ``-2`` selects the second-to-last layer. ``&#34;all&#34;`` enumerates every recorded layer.&#34;&#34;&#34;
+    seed: int = 17
+    &#34;&#34;&#34;Random seed.&#34;&#34;&#34;
+    debug: bool = False
+    &#34;&#34;&#34;Whether the dataloader process should log debug messages.&#34;&#34;&#34;</code></pre>
+</details>
+<h3>Class variables</h3>
+<dl>
+<dt id="saev.data.Config.debug"><code class="name">var <span class="ident">debug</span> : bool</code></dt>
+<dd>
+<div class="desc"><p>Whether the dataloader process should log debug messages.</p></div>
+</dd>
+<dt id="saev.data.Config.layer"><code class="name">var <span class="ident">layer</span> : Union[int, Literal['all']]</code></dt>
+<dd>
+<div class="desc"><p>Which ViT layer(s) to read from disk. <code>-2</code> selects the second-to-last layer. <code>"all"</code> enumerates every recorded layer.</p></div>
+</dd>
+<dt id="saev.data.Config.patches"><code class="name">var <span class="ident">patches</span> : Literal['cls', 'image', 'all']</code></dt>
+<dd>
+<div class="desc"><p>Which kinds of patches to use. 'cls' indicates just the [CLS] token (if any). 'image' indicates it will return image patches. 'all' returns all patches.</p></div>
+</dd>
+<dt id="saev.data.Config.seed"><code class="name">var <span class="ident">seed</span> : int</code></dt>
+<dd>
+<div class="desc"><p>Random seed.</p></div>
+</dd>
+<dt id="saev.data.Config.shard_root"><code class="name">var <span class="ident">shard_root</span> : str</code></dt>
+<dd>
+<div class="desc"><p>Directory with .bin shards and a metadata.json file.</p></div>
+</dd>
+</dl>
+</dd>
+<dt id="saev.data.Config"><code class="flex name class">
+<span>class <span class="ident">IterableConfig</span></span>
+<span>(</span><span>shard_root: str = './shards',<br>patches: Literal['cls', 'image', 'all'] = 'image',<br>layer: Union[int, Literal['all']] = -2,<br>batch_size: int = 16384,<br>batch_timeout_s: float = 30.0,<br>drop_last: bool = False,<br>n_threads: int = 4,<br>buffer_size: int = 64,<br>seed: int = 17,<br>debug: bool = False)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Configuration for loading iterable activation data from disk.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+@dataclasses.dataclass(frozen=True)
+class Config:
+    &#34;&#34;&#34;Configuration for loading iterable activation data from disk.&#34;&#34;&#34;
+
+    shard_root: str = os.path.join(&#34;.&#34;, &#34;shards&#34;)
+    &#34;&#34;&#34;Directory with .bin shards and a metadata.json file.&#34;&#34;&#34;
+    patches: typing.Literal[&#34;cls&#34;, &#34;image&#34;, &#34;all&#34;] = &#34;image&#34;
+    &#34;&#34;&#34;Which kinds of patches to use. &#39;cls&#39; indicates just the [CLS] token (if any). &#39;image&#39; indicates it will return image patches. &#39;all&#39; returns all patches.&#34;&#34;&#34;
+    layer: int | typing.Literal[&#34;all&#34;] = -2
+    &#34;&#34;&#34;Which ViT layer(s) to read from disk. ``-2`` selects the second-to-last layer. ``&#34;all&#34;`` enumerates every recorded layer.&#34;&#34;&#34;
+    batch_size: int = 1024 * 16
+    &#34;&#34;&#34;Batch size.&#34;&#34;&#34;
+    batch_timeout_s: float = 30.0
+    &#34;&#34;&#34;How long to wait for at least one batch.&#34;&#34;&#34;
+    drop_last: bool = False
+    &#34;&#34;&#34;Whether to drop the last batch if it&#39;s smaller than the others.&#34;&#34;&#34;
+    n_threads: int = 4
+    &#34;&#34;&#34;Number of dataloading threads.&#34;&#34;&#34;
+    buffer_size: int = 64
+    &#34;&#34;&#34;Number of batches to queue in the shared-memory ring buffer. Higher values add latency but improve resilience to brief stalls.&#34;&#34;&#34;
+    seed: int = 17
+    &#34;&#34;&#34;Random seed.&#34;&#34;&#34;
+    debug: bool = False
+    &#34;&#34;&#34;Whether the dataloader process should log debug messages.&#34;&#34;&#34;</code></pre>
+</details>
+<h3>Class variables</h3>
+<dl>
+<dt id="saev.data.Config.batch_size"><code class="name">var <span class="ident">batch_size</span> : int</code></dt>
+<dd>
+<div class="desc"><p>Batch size.</p></div>
+</dd>
+<dt id="saev.data.Config.batch_timeout_s"><code class="name">var <span class="ident">batch_timeout_s</span> : float</code></dt>
+<dd>
+<div class="desc"><p>How long to wait for at least one batch.</p></div>
+</dd>
+<dt id="saev.data.Config.buffer_size"><code class="name">var <span class="ident">buffer_size</span> : int</code></dt>
+<dd>
+<div class="desc"><p>Number of batches to queue in the shared-memory ring buffer. Higher values add latency but improve resilience to brief stalls.</p></div>
+</dd>
+<dt id="saev.data.Config.debug"><code class="name">var <span class="ident">debug</span> : bool</code></dt>
+<dd>
+<div class="desc"><p>Whether the dataloader process should log debug messages.</p></div>
+</dd>
+<dt id="saev.data.Config.drop_last"><code class="name">var <span class="ident">drop_last</span> : bool</code></dt>
+<dd>
+<div class="desc"><p>Whether to drop the last batch if it's smaller than the others.</p></div>
+</dd>
+<dt id="saev.data.Config.layer"><code class="name">var <span class="ident">layer</span> : Union[int, Literal['all']]</code></dt>
+<dd>
+<div class="desc"><p>Which ViT layer(s) to read from disk. <code>-2</code> selects the second-to-last layer. <code>"all"</code> enumerates every recorded layer.</p></div>
+</dd>
+<dt id="saev.data.Config.n_threads"><code class="name">var <span class="ident">n_threads</span> : int</code></dt>
+<dd>
+<div class="desc"><p>Number of dataloading threads.</p></div>
+</dd>
+<dt id="saev.data.Config.patches"><code class="name">var <span class="ident">patches</span> : Literal['cls', 'image', 'all']</code></dt>
+<dd>
+<div class="desc"><p>Which kinds of patches to use. 'cls' indicates just the [CLS] token (if any). 'image' indicates it will return image patches. 'all' returns all patches.</p></div>
+</dd>
+<dt id="saev.data.Config.seed"><code class="name">var <span class="ident">seed</span> : int</code></dt>
+<dd>
+<div class="desc"><p>Random seed.</p></div>
+</dd>
+<dt id="saev.data.Config.shard_root"><code class="name">var <span class="ident">shard_root</span> : str</code></dt>
+<dd>
+<div class="desc"><p>Directory with .bin shards and a metadata.json file.</p></div>
+</dd>
+</dl>
+</dd>
+<dt id="saev.data.DataLoader"><code class="flex name class">
+<span>class <span class="ident">DataLoader</span></span>
+<span>(</span><span>cfg: <a title="saev.data.shuffled.Config" href="shuffled.html#saev.data.shuffled.Config">Config</a>)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>High-throughput streaming loader that deterministically shuffles data from disk shards.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+class DataLoader:
+    &#34;&#34;&#34;
+    High-throughput streaming loader that deterministically shuffles data from disk shards.
+    &#34;&#34;&#34;
+
+    @jaxtyped(typechecker=beartype.beartype)
+    class ExampleBatch(typing.TypedDict):
+        &#34;&#34;&#34;Individual example.&#34;&#34;&#34;
+
+        act: Float[Tensor, &#34;batch d_vit&#34;]
+        image_i: Int[Tensor, &#34; batch&#34;]
+        patch_i: Int[Tensor, &#34; batch&#34;]
+
+    def __init__(self, cfg: Config):
+        self.cfg = cfg
+        if not os.path.isdir(self.cfg.shard_root):
+            raise RuntimeError(f&#34;Activations are not saved at &#39;{self.cfg.shard_root}&#39;.&#34;)
+
+        self.metadata = writers.Metadata.load(self.cfg.shard_root)
+
+        self.logger = logging.getLogger(&#34;shuffled.DataLoader&#34;)
+        self.ctx = mp.get_context()
+        self.manager_proc = None
+        self.reservoir = None
+        self.stop_event = None
+        self._n_samples = self._calculate_n_samples()
+
+    @property
+    def n_batches(self) -&gt; int:
+        return len(self)
+
+    @property
+    def n_samples(self) -&gt; int:
+        return self._n_samples
+
+    @property
+    def batch_size(self) -&gt; int:
+        return self.cfg.batch_size
+
+    @property
+    def drop_last(self) -&gt; int:
+        return self.cfg.drop_last
+
+    def _start_manager(self):
+        if self.manager_proc and self.manager_proc.is_alive():
+            return
+
+        self.logger.info(&#34;Starting manager process.&#34;)
+
+        # Create the shared-memory buffers
+        self.reservoir = buffers.ReservoirBuffer(
+            self.cfg.buffer_size * self.cfg.batch_size,
+            (self.metadata.d_vit,),
+            dtype=torch.float32,
+            collate_fn=torch.utils.data.default_collate,
+        )
+        self.stop_event = self.ctx.Event()
+        self.err_queue = self.ctx.Queue(maxsize=self.cfg.n_threads + 1)
+
+        self.manager_proc = self.ctx.Process(
+            target=_manager_main,
+            args=(
+                self.cfg,
+                self.metadata,
+                self.reservoir,
+                self.stop_event,
+                self.err_queue,
+            ),
+            daemon=True,
+        )
+        self.manager_proc.start()
+
+    def __iter__(self) -&gt; collections.abc.Iterable[ExampleBatch]:
+        &#34;&#34;&#34;Yields batches.&#34;&#34;&#34;
+        self._start_manager()
+        n, b = 0, 0
+
+        try:
+            while n &lt; self.n_samples:
+                need = min(self.cfg.batch_size, self.n_samples - n)
+                if not self.err_queue.empty():
+                    who, tb = self.err_q.get_nowait()
+                    raise RuntimeError(f&#34;{who} crashed:\n{tb}&#34;)
+
+                try:
+                    act, meta = self.reservoir.get(
+                        need, timeout=self.cfg.batch_timeout_s
+                    )
+                    n += need
+                    b += 1
+                    yield self.ExampleBatch(act=act, **meta)
+                    continue
+                except TimeoutError:
+                    self.logger.info(
+                        &#34;Did not get a batch from %d worker threads in %.1fs seconds.&#34;,
+                        self.cfg.n_threads,
+                        self.cfg.batch_timeout_s,
+                    )
+
+                # If we don&#39;t continue, then we should check on the manager process.
+                if not self.manager_proc.is_alive():
+                    raise RuntimeError(
+                        f&#34;Manager process died unexpectedly after {b}/{len(self)} batches.&#34;
+                    )
+
+        finally:
+            self.shutdown()
+
+    def shutdown(self):
+        if self.stop_event and not self.stop_event.is_set():
+            self.stop_event.set()
+
+        if self.manager_proc and self.manager_proc.is_alive():
+            self.manager_proc.join(timeout=5.0)
+            if self.manager_proc.is_alive():
+                self.logger.warning(
+                    &#34;Manager process did not shut down cleanly, killing.&#34;
+                )
+                self.manager_proc.kill()
+
+        if self.reservoir:
+            self.reservoir.close()
+
+        self.manager_proc = None
+        self.reservoir = None
+        self.stop_event = None
+
+    def __del__(self):
+        self.shutdown()
+
+    def _calculate_n_samples(self) -&gt; int:
+        &#34;&#34;&#34;Helper to calculate total number of examples based on config.&#34;&#34;&#34;
+        match (self.cfg.patches, self.cfg.layer):
+            case (&#34;cls&#34;, &#34;all&#34;):
+                return self.metadata.n_imgs * len(self.metadata.layers)
+            case (&#34;cls&#34;, int()):
+                return self.metadata.n_imgs
+            case (&#34;image&#34;, int()):
+                return self.metadata.n_imgs * self.metadata.n_patches_per_img
+            case (&#34;image&#34;, &#34;all&#34;):
+                return (
+                    self.metadata.n_imgs
+                    * len(self.metadata.layers)
+                    * self.metadata.n_patches_per_img
+                )
+            case _:
+                typing.assert_never((self.cfg.patches, self.cfg.layer))
+
+    def __len__(self) -&gt; int:
+        &#34;&#34;&#34;Returns the number of batches in an epoch.&#34;&#34;&#34;
+        return math.ceil(self.n_samples / self.cfg.batch_size)</code></pre>
+</details>
+<h3>Class variables</h3>
+<dl>
+<dt id="saev.data.DataLoader.ExampleBatch"><code class="name">var <span class="ident">ExampleBatch</span></code></dt>
+<dd>
+<div class="desc"><p>Individual example.</p></div>
+</dd>
+</dl>
+<h3>Instance variables</h3>
+<dl>
+<dt id="saev.data.DataLoader.batch_size"><code class="name">prop <span class="ident">batch_size</span> : int</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def batch_size(self) -&gt; int:
+    return self.cfg.batch_size</code></pre>
+</details>
+</dd>
+<dt id="saev.data.DataLoader.drop_last"><code class="name">prop <span class="ident">drop_last</span> : int</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def drop_last(self) -&gt; int:
+    return self.cfg.drop_last</code></pre>
+</details>
+</dd>
+<dt id="saev.data.DataLoader.n_batches"><code class="name">prop <span class="ident">n_batches</span> : int</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def n_batches(self) -&gt; int:
+    return len(self)</code></pre>
+</details>
+</dd>
+<dt id="saev.data.DataLoader.n_samples"><code class="name">prop <span class="ident">n_samples</span> : int</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def n_samples(self) -&gt; int:
+    return self._n_samples</code></pre>
+</details>
+</dd>
+</dl>
+<h3>Methods</h3>
+<dl>
+<dt id="saev.data.DataLoader.shutdown"><code class="name flex">
+<span>def <span class="ident">shutdown</span></span>(<span>self)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+</dl>
+</dd>
+<dt id="saev.data.Dataset"><code class="flex name class">
+<span>class <span class="ident">Dataset</span></span>
+<span>(</span><span>cfg: <a title="saev.data.indexed.Config" href="indexed.html#saev.data.indexed.Config">Config</a>)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Dataset of activations from disk.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@jaxtyped(typechecker=beartype.beartype)
+class Dataset(torch.utils.data.Dataset):
+    &#34;&#34;&#34;
+    Dataset of activations from disk.
+    &#34;&#34;&#34;
+
+    class Example(typing.TypedDict):
+        &#34;&#34;&#34;Individual example.&#34;&#34;&#34;
+
+        act: Float[Tensor, &#34; d_vit&#34;]
+        image_i: int
+        patch_i: int
+
+    cfg: Config
+    &#34;&#34;&#34;Configuration; set via CLI args.&#34;&#34;&#34;
+    metadata: writers.Metadata
+    &#34;&#34;&#34;Activations metadata; automatically loaded from disk.&#34;&#34;&#34;
+    layer_index: int
+    &#34;&#34;&#34;Layer index into the shards if we are choosing a specific layer.&#34;&#34;&#34;
+
+    def __init__(self, cfg: Config):
+        self.cfg = cfg
+        if not os.path.isdir(self.cfg.shard_root):
+            raise RuntimeError(f&#34;Activations are not saved at &#39;{self.cfg.shard_root}&#39;.&#34;)
+
+        self.metadata = writers.Metadata.load(self.cfg.shard_root)
+
+        # Pick a really big number so that if you accidentally use this when you shouldn&#39;t, you get an out of bounds IndexError.
+        self.layer_index = 1_000_000
+        if isinstance(self.cfg.layer, int):
+            err_msg = f&#34;Non-exact matches for .layer field not supported; {self.cfg.layer} not in {self.metadata.layers}.&#34;
+            assert self.cfg.layer in self.metadata.layers, err_msg
+            self.layer_index = self.metadata.layers.index(self.cfg.layer)
+
+    def transform(self, act: Float[np.ndarray, &#34; d_vit&#34;]) -&gt; Float[Tensor, &#34; d_vit&#34;]:
+        act = torch.from_numpy(act.copy())
+        return act
+
+    @property
+    def d_vit(self) -&gt; int:
+        &#34;&#34;&#34;Dimension of the underlying vision transformer&#39;s embedding space.&#34;&#34;&#34;
+        return self.metadata.d_vit
+
+    def __getitem__(self, i: int) -&gt; Example:
+        # Add bounds checking
+        if i &lt; 0 or i &gt;= len(self):
+            raise IndexError(
+                f&#34;Index {i} out of range for dataset of length {len(self)}&#34;
+            )
+
+        match (self.cfg.patches, self.cfg.layer):
+            case (&#34;cls&#34;, int()):
+                img_act = self.get_img_patches(i)
+                # Select layer&#39;s cls token.
+                act = img_act[self.layer_index, 0, :]
+                return self.Example(act=self.transform(act), image_i=i, patch_i=-1)
+            case (&#34;image&#34;, int()):
+                # Calculate which image and patch this index corresponds to
+                image_i = i // self.metadata.n_patches_per_img
+                patch_i = i % self.metadata.n_patches_per_img
+
+                # Calculate shard location
+                n_imgs_per_shard = (
+                    self.metadata.max_patches_per_shard
+                    // len(self.metadata.layers)
+                    // (self.metadata.n_patches_per_img + int(self.metadata.cls_token))
+                )
+
+                shard = image_i // n_imgs_per_shard
+                img_pos_in_shard = image_i % n_imgs_per_shard
+
+                acts_fpath = os.path.join(self.cfg.shard_root, f&#34;acts{shard:06}.bin&#34;)
+                shape = (
+                    n_imgs_per_shard,
+                    len(self.metadata.layers),
+                    self.metadata.n_patches_per_img + int(self.metadata.cls_token),
+                    self.metadata.d_vit,
+                )
+                acts = np.memmap(acts_fpath, mode=&#34;c&#34;, dtype=np.float32, shape=shape)
+
+                # Account for CLS token offset when accessing patches
+                patch_idx_with_cls = patch_i + int(self.metadata.cls_token)
+
+                # Get the activation
+                act = acts[img_pos_in_shard, self.layer_index, patch_idx_with_cls]
+
+                return self.Example(
+                    act=self.transform(act),
+                    image_i=image_i,
+                    patch_i=patch_i,
+                )
+            case _:
+                print((self.cfg.patches, self.cfg.layer))
+                typing.assert_never((self.cfg.patches, self.cfg.layer))
+
+    def get_img_patches(
+        self, i: int
+    ) -&gt; Float[np.ndarray, &#34;n_layers all_patches d_vit&#34;]:
+        n_imgs_per_shard = (
+            self.metadata.max_patches_per_shard
+            // len(self.metadata.layers)
+            // (self.metadata.n_patches_per_img + int(self.metadata.cls_token))
+        )
+        shard = i // n_imgs_per_shard
+        pos = i % n_imgs_per_shard
+        acts_fpath = os.path.join(self.cfg.shard_root, f&#34;acts{shard:06}.bin&#34;)
+        shape = (
+            n_imgs_per_shard,
+            len(self.metadata.layers),
+            self.metadata.n_patches_per_img + int(self.metadata.cls_token),
+            self.metadata.d_vit,
+        )
+        acts = np.memmap(acts_fpath, mode=&#34;c&#34;, dtype=np.float32, shape=shape)
+        # Note that this is not yet copied!
+        return acts[pos]
+
+    def __len__(self) -&gt; int:
+        &#34;&#34;&#34;
+        Dataset length depends on `patches` and `layer`.
+        &#34;&#34;&#34;
+        match (self.cfg.patches, self.cfg.layer):
+            case (&#34;cls&#34;, &#34;all&#34;):
+                # Return a CLS token from a random image and random layer.
+                return self.metadata.n_imgs * len(self.metadata.layers)
+            case (&#34;cls&#34;, int()):
+                # Return a CLS token from a random image and fixed layer.
+                return self.metadata.n_imgs
+            case (&#34;image&#34;, int()):
+                # Return a patch from a random image, fixed layer, and random patch.
+                return self.metadata.n_imgs * (self.metadata.n_patches_per_img)
+            case (&#34;image&#34;, &#34;all&#34;):
+                # Return a patch from a random image, random layer and random patch.
+                return (
+                    self.metadata.n_imgs
+                    * len(self.metadata.layers)
+                    * self.metadata.n_patches_per_img
+                )
+            case _:
+                typing.assert_never((self.cfg.patches, self.cfg.layer))</code></pre>
+</details>
+<h3>Ancestors</h3>
+<ul class="hlist">
+<li>torch.utils.data.dataset.Dataset</li>
+<li>typing.Generic</li>
+</ul>
+<h3>Class variables</h3>
+<dl>
+<dt id="saev.data.Dataset.Example"><code class="name">var <span class="ident">Example</span></code></dt>
+<dd>
+<div class="desc"><p>Individual example.</p></div>
+</dd>
+<dt id="saev.data.Dataset.cfg"><code class="name">var <span class="ident">cfg</span> : <a title="saev.data.indexed.Config" href="indexed.html#saev.data.indexed.Config">Config</a></code></dt>
+<dd>
+<div class="desc"><p>Configuration; set via CLI args.</p></div>
+</dd>
+<dt id="saev.data.Dataset.layer_index"><code class="name">var <span class="ident">layer_index</span> : int</code></dt>
+<dd>
+<div class="desc"><p>Layer index into the shards if we are choosing a specific layer.</p></div>
+</dd>
+<dt id="saev.data.Dataset.metadata"><code class="name">var <span class="ident">metadata</span> : <a title="saev.data.writers.Metadata" href="writers.html#saev.data.writers.Metadata">Metadata</a></code></dt>
+<dd>
+<div class="desc"><p>Activations metadata; automatically loaded from disk.</p></div>
+</dd>
+</dl>
+<h3>Instance variables</h3>
+<dl>
+<dt id="saev.data.Dataset.d_vit"><code class="name">prop <span class="ident">d_vit</span> : int</code></dt>
+<dd>
+<div class="desc"><p>Dimension of the underlying vision transformer's embedding space.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def d_vit(self) -&gt; int:
+    &#34;&#34;&#34;Dimension of the underlying vision transformer&#39;s embedding space.&#34;&#34;&#34;
+    return self.metadata.d_vit</code></pre>
+</details>
+</dd>
+</dl>
+<h3>Methods</h3>
+<dl>
+<dt id="saev.data.Dataset.get_img_patches"><code class="name flex">
+<span>def <span class="ident">get_img_patches</span></span>(<span>self, i: int) ‑> jaxtyping.Float[ndarray, 'n_layers all_patches d_vit']</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="saev.data.Dataset.transform"><code class="name flex">
+<span>def <span class="ident">transform</span></span>(<span>self, act: jaxtyping.Float[ndarray, 'd_vit']) ‑> jaxtyping.Float[Tensor, 'd_vit']</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+</dl>
+</dd>
+<dt id="saev.data.Metadata"><code class="flex name class">
+<span>class <span class="ident">Metadata</span></span>
+<span>(</span><span>vit_family: Literal['clip', 'siglip', 'dinov2'],<br>vit_ckpt: str,<br>layers: tuple[int, ...],<br>n_patches_per_img: int,<br>cls_token: bool,<br>d_vit: int,<br>n_imgs: int,<br>max_patches_per_shard: int,<br>data: dict[str, object],<br>dtype: Literal['float32'] = 'float32',<br>protocol: Literal['1.0.0'] = '1.0.0')</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Metadata(vit_family: Literal['clip', 'siglip', 'dinov2'], vit_ckpt: str, layers: tuple[int, &hellip;], n_patches_per_img: int, cls_token: bool, d_vit: int, n_imgs: int, max_patches_per_shard: int, data: dict[str, object], dtype: Literal['float32'] = 'float32', protocol: Literal['1.0.0'] = '1.0.0')</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+@dataclasses.dataclass(frozen=True)
+class Metadata:
+    vit_family: typing.Literal[&#34;clip&#34;, &#34;siglip&#34;, &#34;dinov2&#34;]
+    vit_ckpt: str
+    layers: tuple[int, ...]
+    n_patches_per_img: int
+    cls_token: bool
+    d_vit: int
+    n_imgs: int
+    max_patches_per_shard: int
+    data: dict[str, object]
+    dtype: typing.Literal[&#34;float32&#34;] = &#34;float32&#34;
+    protocol: typing.Literal[&#34;1.0.0&#34;] = &#34;1.0.0&#34;
+
+    def __post_init__(self):
+        # Check that at least one image per shard can fit.
+        assert self.n_imgs_per_shard &gt;= 1, (
+            &#34;At least one image per shard must fit; increase max_patches_per_shard.&#34;
+        )
+
+    @classmethod
+    def from_cfg(cls, cfg: Config) -&gt; &#34;Metadata&#34;:
+        return cls(
+            cfg.vit_family,
+            cfg.vit_ckpt,
+            tuple(cfg.vit_layers),
+            cfg.n_patches_per_img,
+            cfg.cls_token,
+            cfg.d_vit,
+            cfg.data.n_imgs,
+            cfg.max_patches_per_shard,
+            {**dataclasses.asdict(cfg.data), &#34;__class__&#34;: cfg.data.__class__.__name__},
+        )
+
+    @classmethod
+    def load(cls, shard_root: str) -&gt; &#34;Metadata&#34;:
+        with open(os.path.join(shard_root, &#34;metadata.json&#34;)) as fd:
+            dct = json.load(fd)
+        dct[&#34;layers&#34;] = tuple(dct.pop(&#34;layers&#34;))
+        return cls(**dct)
+
+    def dump(self, shard_root: str):
+        with open(os.path.join(shard_root, &#34;metadata.json&#34;), &#34;w&#34;) as fd:
+            json.dump(dataclasses.asdict(self), fd, indent=4)
+
+    @property
+    def hash(self) -&gt; str:
+        cfg_bytes = json.dumps(
+            dataclasses.asdict(self), sort_keys=True, separators=(&#34;,&#34;, &#34;:&#34;)
+        ).encode(&#34;utf-8&#34;)
+        return hashlib.sha256(cfg_bytes).hexdigest()
+
+    @property
+    def n_tokens_per_img(self) -&gt; int:
+        return self.n_patches_per_img + int(self.cls_token)
+
+    @property
+    def n_shards(self) -&gt; int:
+        return math.ceil(self.n_imgs / self.n_imgs_per_shard)
+
+    @property
+    def n_imgs_per_shard(self) -&gt; int:
+        &#34;&#34;&#34;
+        Calculate the number of images per shard based on the protocol.
+
+        Returns:
+            Number of images that fit in a shard.
+        &#34;&#34;&#34;
+        n_tokens_per_img = self.n_patches_per_img + (1 if self.cls_token else 0)
+        return self.max_patches_per_shard // (n_tokens_per_img * len(self.layers))
+
+    @property
+    def shard_shape(self) -&gt; tuple[int, int, int, int]:
+        return (
+            self.n_imgs_per_shard,
+            len(self.layers),
+            self.n_tokens_per_img,
+            self.d_vit,
+        )</code></pre>
+</details>
+<h3>Class variables</h3>
+<dl>
+<dt id="saev.data.Metadata.cls_token"><code class="name">var <span class="ident">cls_token</span> : bool</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="saev.data.Metadata.d_vit"><code class="name">var <span class="ident">d_vit</span> : int</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="saev.data.Metadata.data"><code class="name">var <span class="ident">data</span> : dict[str, object]</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="saev.data.Metadata.dtype"><code class="name">var <span class="ident">dtype</span> : Literal['float32']</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="saev.data.Metadata.layers"><code class="name">var <span class="ident">layers</span> : tuple[int, ...]</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="saev.data.Metadata.max_patches_per_shard"><code class="name">var <span class="ident">max_patches_per_shard</span> : int</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="saev.data.Metadata.n_imgs"><code class="name">var <span class="ident">n_imgs</span> : int</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="saev.data.Metadata.n_patches_per_img"><code class="name">var <span class="ident">n_patches_per_img</span> : int</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="saev.data.Metadata.protocol"><code class="name">var <span class="ident">protocol</span> : Literal['1.0.0']</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="saev.data.Metadata.vit_ckpt"><code class="name">var <span class="ident">vit_ckpt</span> : str</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="saev.data.Metadata.vit_family"><code class="name">var <span class="ident">vit_family</span> : Literal['clip', 'siglip', 'dinov2']</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+</dl>
+<h3>Static methods</h3>
+<dl>
+<dt id="saev.data.Metadata.from_cfg"><code class="name flex">
+<span>def <span class="ident">from_cfg</span></span>(<span>cls,<br>cfg: <a title="saev.data.writers.Config" href="writers.html#saev.data.writers.Config">Config</a>) ‑> <a title="saev.data.writers.Metadata" href="writers.html#saev.data.writers.Metadata">Metadata</a></span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="saev.data.Metadata.load"><code class="name flex">
+<span>def <span class="ident">load</span></span>(<span>cls, shard_root: str) ‑> <a title="saev.data.writers.Metadata" href="writers.html#saev.data.writers.Metadata">Metadata</a></span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+</dl>
+<h3>Instance variables</h3>
+<dl>
+<dt id="saev.data.Metadata.hash"><code class="name">prop <span class="ident">hash</span> : str</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def hash(self) -&gt; str:
+    cfg_bytes = json.dumps(
+        dataclasses.asdict(self), sort_keys=True, separators=(&#34;,&#34;, &#34;:&#34;)
+    ).encode(&#34;utf-8&#34;)
+    return hashlib.sha256(cfg_bytes).hexdigest()</code></pre>
+</details>
+</dd>
+<dt id="saev.data.Metadata.n_imgs_per_shard"><code class="name">prop <span class="ident">n_imgs_per_shard</span> : int</code></dt>
+<dd>
+<div class="desc"><p>Calculate the number of images per shard based on the protocol.</p>
+<h2 id="returns">Returns</h2>
+<p>Number of images that fit in a shard.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def n_imgs_per_shard(self) -&gt; int:
+    &#34;&#34;&#34;
+    Calculate the number of images per shard based on the protocol.
+
+    Returns:
+        Number of images that fit in a shard.
+    &#34;&#34;&#34;
+    n_tokens_per_img = self.n_patches_per_img + (1 if self.cls_token else 0)
+    return self.max_patches_per_shard // (n_tokens_per_img * len(self.layers))</code></pre>
+</details>
+</dd>
+<dt id="saev.data.Metadata.n_shards"><code class="name">prop <span class="ident">n_shards</span> : int</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def n_shards(self) -&gt; int:
+    return math.ceil(self.n_imgs / self.n_imgs_per_shard)</code></pre>
+</details>
+</dd>
+<dt id="saev.data.Metadata.n_tokens_per_img"><code class="name">prop <span class="ident">n_tokens_per_img</span> : int</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def n_tokens_per_img(self) -&gt; int:
+    return self.n_patches_per_img + int(self.cls_token)</code></pre>
+</details>
+</dd>
+<dt id="saev.data.Metadata.shard_shape"><code class="name">prop <span class="ident">shard_shape</span> : tuple[int, int, int, int]</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def shard_shape(self) -&gt; tuple[int, int, int, int]:
+    return (
+        self.n_imgs_per_shard,
+        len(self.layers),
+        self.n_tokens_per_img,
+        self.d_vit,
+    )</code></pre>
+</details>
+</dd>
+</dl>
+<h3>Methods</h3>
+<dl>
+<dt id="saev.data.Metadata.dump"><code class="name flex">
+<span>def <span class="ident">dump</span></span>(<span>self, shard_root: str)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+</dl>
+</dd>
+</dl>
+</section>
+</article>
+<nav id="sidebar">
+<form>
+<input id="lunr-search" name="q" placeholder="🔎 Search ..." aria-label="Search"
+disabled minlength="2">
+</form>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tingle/0.16.0/tingle.min.css" integrity="sha512-b+T2i3P45i1LZM7I00Ci5QquB9szqaxu+uuk5TUSGjZQ4w4n+qujQiIuvTv2BxE7WCGQCifNMksyKILDiHzsOg==" crossorigin>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tingle/0.16.0/tingle.min.js" integrity="sha512-2B9/byNV1KKRm5nQ2RLViPFD6U4dUjDGwuW1GU+ImJh8YinPU9Zlq1GzdTMO+G2ROrB5o1qasJBy1ttYz0wCug==" crossorigin></script>
+<style>
+.modal-dialog iframe {
+width: 100vw;
+height: calc(100vh - 80px);
+}
+@media screen and (min-width: 700px) {
+.modal-dialog iframe {
+width: 70vw;
+height: 80vh;
+}
+}
+.modal-dialog .tingle-modal-box {width: auto;}
+.modal-dialog .tingle-modal-box__content {padding: 0;}
+</style>
+<script>
+const input = document.getElementById('lunr-search');
+input.disabled = false;
+input.form.addEventListener('submit', (ev) => {
+ev.preventDefault();
+const url = new URL(window.location);
+url.searchParams.set('q', input.value);
+history.replaceState({}, null, url.toString());
+search(input.value);
+});
+const query = new URL(window.location).searchParams.get('q');
+if (query)
+search(query);
+function search(query) {
+const url = '../../doc-search.html#' + encodeURIComponent(query);
+new tingle.modal({
+cssClass: ['modal-dialog'],
+onClose: () => {
+const url = new URL(window.location);
+url.searchParams.delete('q');
+history.replaceState({}, null, url.toString());
+setTimeout(() => input.focus(), 100);
+}
+}).setContent('<iframe src="' + url + '"></iframe>').open();
+}
+</script>
+<div class="toc">
+<ul>
+<li><a href="#saev-sharded-activation-file-protocol-v1-2025-06-17">SAEV Sharded-Activation File Protocol v1 (2025-06-17)</a><ul>
+<li><a href="#1-directory-layout">1. Directory layout</a></li>
+<li><a href="#2-json-file-schemas">2. JSON file schemas</a><ul>
+<li><a href="#21-metadatajson">2.1. metadata.json</a></li>
+<li><a href="#22-shardsjson">2.2. shards.json</a></li>
+</ul>
+</li>
+<li><a href="#3-shard-sizing-maths">3 Shard sizing maths</a></li>
+<li><a href="#4-data-layout-and-global-indexing">4. Data Layout and Global Indexing</a><ul>
+<li><a href="#41-definitions">4.1 Definitions</a></li>
+<li><a href="#42-coordinate-transformations">4.2 Coordinate Transformations</a></li>
+<li><a href="#43-token-axis-layout">4.3 Token Axis Layout</a></li>
+</ul>
+</li>
+<li><a href="#5-versioning-compatibility">5 Versioning &amp; compatibility</a></li>
+</ul>
+</li>
+<li><a href="#performance">Performance</a></li>
+</ul>
+</div>
+<ul id="index">
+<li><h3>Super-module</h3>
+<ul>
+<li><code><a title="saev" href="../index.html">saev</a></code></li>
+</ul>
+</li>
+<li><h3><a href="#header-submodules">Sub-modules</a></h3>
+<ul>
+<li><code><a title="saev.data.buffers" href="buffers.html">saev.data.buffers</a></code></li>
+<li><code><a title="saev.data.config" href="config.html">saev.data.config</a></code></li>
+<li><code><a title="saev.data.images" href="images.html">saev.data.images</a></code></li>
+<li><code><a title="saev.data.indexed" href="indexed.html">saev.data.indexed</a></code></li>
+<li><code><a title="saev.data.models" href="models.html">saev.data.models</a></code></li>
+<li><code><a title="saev.data.ordered" href="ordered.html">saev.data.ordered</a></code></li>
+<li><code><a title="saev.data.shuffled" href="shuffled.html">saev.data.shuffled</a></code></li>
+<li><code><a title="saev.data.writers" href="writers.html">saev.data.writers</a></code></li>
+</ul>
+</li>
+<li><h3><a href="#header-classes">Classes</a></h3>
+<ul>
+<li>
+<h4><code><a title="saev.data.Config" href="#saev.data.Config">Config</a></code></h4>
+<ul class="">
+<li><code><a title="saev.data.Config.debug" href="#saev.data.Config.debug">debug</a></code></li>
+<li><code><a title="saev.data.Config.layer" href="#saev.data.Config.layer">layer</a></code></li>
+<li><code><a title="saev.data.Config.patches" href="#saev.data.Config.patches">patches</a></code></li>
+<li><code><a title="saev.data.Config.seed" href="#saev.data.Config.seed">seed</a></code></li>
+<li><code><a title="saev.data.Config.shard_root" href="#saev.data.Config.shard_root">shard_root</a></code></li>
+</ul>
+</li>
+<li>
+<h4><code><a title="saev.data.Config" href="#saev.data.Config">Config</a></code></h4>
+<ul class="two-column">
+<li><code><a title="saev.data.Config.batch_size" href="#saev.data.Config.batch_size">batch_size</a></code></li>
+<li><code><a title="saev.data.Config.batch_timeout_s" href="#saev.data.Config.batch_timeout_s">batch_timeout_s</a></code></li>
+<li><code><a title="saev.data.Config.buffer_size" href="#saev.data.Config.buffer_size">buffer_size</a></code></li>
+<li><code><a title="saev.data.Config.debug" href="#saev.data.Config.debug">debug</a></code></li>
+<li><code><a title="saev.data.Config.drop_last" href="#saev.data.Config.drop_last">drop_last</a></code></li>
+<li><code><a title="saev.data.Config.layer" href="#saev.data.Config.layer">layer</a></code></li>
+<li><code><a title="saev.data.Config.n_threads" href="#saev.data.Config.n_threads">n_threads</a></code></li>
+<li><code><a title="saev.data.Config.patches" href="#saev.data.Config.patches">patches</a></code></li>
+<li><code><a title="saev.data.Config.seed" href="#saev.data.Config.seed">seed</a></code></li>
+<li><code><a title="saev.data.Config.shard_root" href="#saev.data.Config.shard_root">shard_root</a></code></li>
+</ul>
+</li>
+<li>
+<h4><code><a title="saev.data.DataLoader" href="#saev.data.DataLoader">DataLoader</a></code></h4>
+<ul class="two-column">
+<li><code><a title="saev.data.DataLoader.ExampleBatch" href="#saev.data.DataLoader.ExampleBatch">ExampleBatch</a></code></li>
+<li><code><a title="saev.data.DataLoader.batch_size" href="#saev.data.DataLoader.batch_size">batch_size</a></code></li>
+<li><code><a title="saev.data.DataLoader.drop_last" href="#saev.data.DataLoader.drop_last">drop_last</a></code></li>
+<li><code><a title="saev.data.DataLoader.n_batches" href="#saev.data.DataLoader.n_batches">n_batches</a></code></li>
+<li><code><a title="saev.data.DataLoader.n_samples" href="#saev.data.DataLoader.n_samples">n_samples</a></code></li>
+<li><code><a title="saev.data.DataLoader.shutdown" href="#saev.data.DataLoader.shutdown">shutdown</a></code></li>
+</ul>
+</li>
+<li>
+<h4><code><a title="saev.data.Dataset" href="#saev.data.Dataset">Dataset</a></code></h4>
+<ul class="two-column">
+<li><code><a title="saev.data.Dataset.Example" href="#saev.data.Dataset.Example">Example</a></code></li>
+<li><code><a title="saev.data.Dataset.cfg" href="#saev.data.Dataset.cfg">cfg</a></code></li>
+<li><code><a title="saev.data.Dataset.d_vit" href="#saev.data.Dataset.d_vit">d_vit</a></code></li>
+<li><code><a title="saev.data.Dataset.get_img_patches" href="#saev.data.Dataset.get_img_patches">get_img_patches</a></code></li>
+<li><code><a title="saev.data.Dataset.layer_index" href="#saev.data.Dataset.layer_index">layer_index</a></code></li>
+<li><code><a title="saev.data.Dataset.metadata" href="#saev.data.Dataset.metadata">metadata</a></code></li>
+<li><code><a title="saev.data.Dataset.transform" href="#saev.data.Dataset.transform">transform</a></code></li>
+</ul>
+</li>
+<li>
+<h4><code><a title="saev.data.Metadata" href="#saev.data.Metadata">Metadata</a></code></h4>
+<ul class="">
+<li><code><a title="saev.data.Metadata.cls_token" href="#saev.data.Metadata.cls_token">cls_token</a></code></li>
+<li><code><a title="saev.data.Metadata.d_vit" href="#saev.data.Metadata.d_vit">d_vit</a></code></li>
+<li><code><a title="saev.data.Metadata.data" href="#saev.data.Metadata.data">data</a></code></li>
+<li><code><a title="saev.data.Metadata.dtype" href="#saev.data.Metadata.dtype">dtype</a></code></li>
+<li><code><a title="saev.data.Metadata.dump" href="#saev.data.Metadata.dump">dump</a></code></li>
+<li><code><a title="saev.data.Metadata.from_cfg" href="#saev.data.Metadata.from_cfg">from_cfg</a></code></li>
+<li><code><a title="saev.data.Metadata.hash" href="#saev.data.Metadata.hash">hash</a></code></li>
+<li><code><a title="saev.data.Metadata.layers" href="#saev.data.Metadata.layers">layers</a></code></li>
+<li><code><a title="saev.data.Metadata.load" href="#saev.data.Metadata.load">load</a></code></li>
+<li><code><a title="saev.data.Metadata.max_patches_per_shard" href="#saev.data.Metadata.max_patches_per_shard">max_patches_per_shard</a></code></li>
+<li><code><a title="saev.data.Metadata.n_imgs" href="#saev.data.Metadata.n_imgs">n_imgs</a></code></li>
+<li><code><a title="saev.data.Metadata.n_imgs_per_shard" href="#saev.data.Metadata.n_imgs_per_shard">n_imgs_per_shard</a></code></li>
+<li><code><a title="saev.data.Metadata.n_patches_per_img" href="#saev.data.Metadata.n_patches_per_img">n_patches_per_img</a></code></li>
+<li><code><a title="saev.data.Metadata.n_shards" href="#saev.data.Metadata.n_shards">n_shards</a></code></li>
+<li><code><a title="saev.data.Metadata.n_tokens_per_img" href="#saev.data.Metadata.n_tokens_per_img">n_tokens_per_img</a></code></li>
+<li><code><a title="saev.data.Metadata.protocol" href="#saev.data.Metadata.protocol">protocol</a></code></li>
+<li><code><a title="saev.data.Metadata.shard_shape" href="#saev.data.Metadata.shard_shape">shard_shape</a></code></li>
+<li><code><a title="saev.data.Metadata.vit_ckpt" href="#saev.data.Metadata.vit_ckpt">vit_ckpt</a></code></li>
+<li><code><a title="saev.data.Metadata.vit_family" href="#saev.data.Metadata.vit_family">vit_family</a></code></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</nav>
+</main>
+<footer id="footer">
+<p>Generated by <a href="https://pdoc3.github.io/pdoc" title="pdoc: Python API documentation generator"><cite>pdoc</cite> 0.11.1</a>.</p>
+</footer>
+</body>
+</html>

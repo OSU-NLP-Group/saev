@@ -1,0 +1,488 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1">
+<meta name="generator" content="pdoc3 0.11.1">
+<title>saev.data.ordered API documentation</title>
+<meta name="description" content="">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/13.0.0/sanitize.min.css" integrity="sha512-y1dtMcuvtTMJc1yPgEqF0ZjQbhnc/bFhyvIyVNb9Zk5mIGtqVaAB1Ttl28su8AvFMOY0EwRbAe+HCLqj6W7/KA==" crossorigin>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/13.0.0/typography.min.css" integrity="sha512-Y1DYSb995BAfxobCkKepB1BqJJTPrOp3zPL74AWFugHHmmdcvO+C48WLrUOlhGMc0QG7AE3f7gmvvcrmX2fDoA==" crossorigin>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css" crossorigin>
+<style>:root{--highlight-color:#fe9}.flex{display:flex !important}body{line-height:1.5em}#content{padding:20px}#sidebar{padding:1.5em;overflow:hidden}#sidebar > *:last-child{margin-bottom:2cm}#lunr-search{width:100%;font-size:1em;padding:6px 9px 5px 9px;border:1px solid silver}.http-server-breadcrumbs{font-size:130%;margin:0 0 15px 0}#footer{font-size:.75em;padding:5px 30px;border-top:1px solid #ddd;text-align:right}#footer p{margin:0 0 0 1em;display:inline-block}#footer p:last-child{margin-right:30px}h1,h2,h3,h4,h5{font-weight:300}h1{font-size:2.5em;line-height:1.1em}h2{font-size:1.75em;margin:2em 0 .50em 0}h3{font-size:1.4em;margin:1.6em 0 .7em 0}h4{margin:0;font-size:105%}h1:target,h2:target,h3:target,h4:target,h5:target,h6:target{background:var(--highlight-color);padding:.2em 0}a{color:#058;text-decoration:none;transition:color .2s ease-in-out}a:visited{color:#503}a:hover{color:#b62}.title code{font-weight:bold}h2[id^="header-"]{margin-top:2em}.ident{color:#900;font-weight:bold}pre code{font-size:.8em;line-height:1.4em;padding:1em;display:block}code{background:#f3f3f3;font-family:"DejaVu Sans Mono",monospace;padding:1px 4px;overflow-wrap:break-word}h1 code{background:transparent}pre{border-top:1px solid #ccc;border-bottom:1px solid #ccc;margin:1em 0}#http-server-module-list{display:flex;flex-flow:column}#http-server-module-list div{display:flex}#http-server-module-list dt{min-width:10%}#http-server-module-list p{margin-top:0}.toc ul,#index{list-style-type:none;margin:0;padding:0}#index code{background:transparent}#index h3{border-bottom:1px solid #ddd}#index ul{padding:0}#index h4{margin-top:.6em;font-weight:bold}@media (min-width:200ex){#index .two-column{column-count:2}}@media (min-width:300ex){#index .two-column{column-count:3}}dl{margin-bottom:2em}dl dl:last-child{margin-bottom:4em}dd{margin:0 0 1em 3em}#header-classes + dl > dd{margin-bottom:3em}dd dd{margin-left:2em}dd p{margin:10px 0}.name{background:#eee;font-size:.85em;padding:5px 10px;display:inline-block;min-width:40%}.name:hover{background:#e0e0e0}dt:target .name{background:var(--highlight-color)}.name > span:first-child{white-space:nowrap}.name.class > span:nth-child(2){margin-left:.4em}.inherited{color:#999;border-left:5px solid #eee;padding-left:1em}.inheritance em{font-style:normal;font-weight:bold}.desc h2{font-weight:400;font-size:1.25em}.desc h3{font-size:1em}.desc dt code{background:inherit}.source summary,.git-link-div{color:#666;text-align:right;font-weight:400;font-size:.8em;text-transform:uppercase}.source summary > *{white-space:nowrap;cursor:pointer}.git-link{color:inherit;margin-left:1em}.source pre{max-height:500px;overflow:auto;margin:0}.source pre code{font-size:12px;overflow:visible}.hlist{list-style:none}.hlist li{display:inline}.hlist li:after{content:',\2002'}.hlist li:last-child:after{content:none}.hlist .hlist{display:inline;padding-left:1em}img{max-width:100%}td{padding:0 .5em}.admonition{padding:.1em 1em;margin:1em 0}.admonition-title{font-weight:bold}.admonition.note,.admonition.info,.admonition.important{background:#aef}.admonition.todo,.admonition.versionadded,.admonition.tip,.admonition.hint{background:#dfd}.admonition.warning,.admonition.versionchanged,.admonition.deprecated{background:#fd4}.admonition.error,.admonition.danger,.admonition.caution{background:lightpink}</style>
+<style media="screen and (min-width: 700px)">@media screen and (min-width:700px){#sidebar{width:30%;height:100vh;overflow:auto;position:sticky;top:0}#content{width:70%;max-width:100ch;padding:3em 4em;border-left:1px solid #ddd}pre code{font-size:1em}.name{font-size:1em}main{display:flex;flex-direction:row-reverse;justify-content:flex-end}.toc ul ul,#index ul ul{padding-left:1em}.toc > ul > li{margin-top:.5em}}</style>
+<style media="print">@media print{#sidebar h1{page-break-before:always}.source{display:none}}@media print{*{background:transparent !important;color:#000 !important;box-shadow:none !important;text-shadow:none !important}a[href]:after{content:" (" attr(href) ")";font-size:90%}a[href][title]:after{content:none}abbr[title]:after{content:" (" attr(title) ")"}.ir a:after,a[href^="javascript:"]:after,a[href^="#"]:after{content:""}pre,blockquote{border:1px solid #999;page-break-inside:avoid}thead{display:table-header-group}tr,img{page-break-inside:avoid}img{max-width:100% !important}@page{margin:0.5cm}p,h2,h3{orphans:3;widows:3}h1,h2,h3,h4,h5,h6{page-break-after:avoid}}</style>
+<script type="text/x-mathjax-config">MathJax.Hub.Config({ tex2jax: { inlineMath: [ ['$','$'], ["\\(","\\)"] ], processEscapes: true } });</script>
+<script async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/latest.js?config=TeX-AMS_CHTML" integrity="sha256-kZafAc6mZvK3W3v1pHOcUix30OHQN6pU/NO2oFkqZVw=" crossorigin></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js" integrity="sha512-D9gUyxqja7hBtkWpPWGt9wfbfaMGVt9gnyCvYa+jojwwPHLCzUm5i8rpk7vD7wNee9bA35eYIjobYPaQuKS1MQ==" crossorigin></script>
+<script>window.addEventListener('DOMContentLoaded', () => {
+hljs.configure({languages: ['bash', 'css', 'diff', 'graphql', 'ini', 'javascript', 'json', 'plaintext', 'python', 'python-repl', 'rust', 'shell', 'sql', 'typescript', 'xml', 'yaml']});
+hljs.highlightAll();
+})</script>
+</head>
+<body>
+<main>
+<article id="content">
+<header>
+<h1 class="title">Module <code>saev.data.ordered</code></h1>
+</header>
+<section id="section-intro">
+</section>
+<section>
+</section>
+<section>
+</section>
+<section>
+</section>
+<section>
+<h2 class="section-title" id="header-classes">Classes</h2>
+<dl>
+<dt id="saev.data.ordered.Config"><code class="flex name class">
+<span>class <span class="ident">Config</span></span>
+<span>(</span><span>shard_root: str = './shards',<br>patches: Literal['cls', 'image', 'all'] = 'image',<br>layer: Union[int, Literal['all']] = -2,<br>batch_size: int = 16384,<br>batch_timeout_s: float = 30.0,<br>drop_last: bool = False,<br>n_threads: int = 4,<br>buffer_size: int = 64,<br>debug: bool = False)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Configuration for loading ordered (non-shuffled) activation data from disk.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+@dataclasses.dataclass(frozen=True)
+class Config:
+    &#34;&#34;&#34;Configuration for loading ordered (non-shuffled) activation data from disk.&#34;&#34;&#34;
+
+    shard_root: str = os.path.join(&#34;.&#34;, &#34;shards&#34;)
+    &#34;&#34;&#34;Directory with .bin shards and a metadata.json file.&#34;&#34;&#34;
+    patches: typing.Literal[&#34;cls&#34;, &#34;image&#34;, &#34;all&#34;] = &#34;image&#34;
+    &#34;&#34;&#34;Which kinds of patches to use. &#39;cls&#39; indicates just the [CLS] token (if any). &#39;image&#39; indicates it will return image patches. &#39;all&#39; returns all patches.&#34;&#34;&#34;
+    layer: int | typing.Literal[&#34;all&#34;] = -2
+    &#34;&#34;&#34;Which ViT layer(s) to read from disk. ``-2`` selects the second-to-last layer. ``&#34;all&#34;`` enumerates every recorded layer.&#34;&#34;&#34;
+    batch_size: int = 1024 * 16
+    &#34;&#34;&#34;Batch size.&#34;&#34;&#34;
+    batch_timeout_s: float = 30.0
+    &#34;&#34;&#34;How long to wait for at least one batch.&#34;&#34;&#34;
+    drop_last: bool = False
+    &#34;&#34;&#34;Whether to drop the last batch if it&#39;s smaller than the others.&#34;&#34;&#34;
+    n_threads: int = 4
+    &#34;&#34;&#34;Number of dataloading threads.&#34;&#34;&#34;
+    buffer_size: int = 64
+    &#34;&#34;&#34;Number of batches to queue in the shared-memory ring buffer. Higher values add latency but improve resilience to brief stalls.&#34;&#34;&#34;
+    debug: bool = False
+    &#34;&#34;&#34;Whether the dataloader process should log debug messages.&#34;&#34;&#34;</code></pre>
+</details>
+<h3>Class variables</h3>
+<dl>
+<dt id="saev.data.ordered.Config.batch_size"><code class="name">var <span class="ident">batch_size</span> : int</code></dt>
+<dd>
+<div class="desc"><p>Batch size.</p></div>
+</dd>
+<dt id="saev.data.ordered.Config.batch_timeout_s"><code class="name">var <span class="ident">batch_timeout_s</span> : float</code></dt>
+<dd>
+<div class="desc"><p>How long to wait for at least one batch.</p></div>
+</dd>
+<dt id="saev.data.ordered.Config.buffer_size"><code class="name">var <span class="ident">buffer_size</span> : int</code></dt>
+<dd>
+<div class="desc"><p>Number of batches to queue in the shared-memory ring buffer. Higher values add latency but improve resilience to brief stalls.</p></div>
+</dd>
+<dt id="saev.data.ordered.Config.debug"><code class="name">var <span class="ident">debug</span> : bool</code></dt>
+<dd>
+<div class="desc"><p>Whether the dataloader process should log debug messages.</p></div>
+</dd>
+<dt id="saev.data.ordered.Config.drop_last"><code class="name">var <span class="ident">drop_last</span> : bool</code></dt>
+<dd>
+<div class="desc"><p>Whether to drop the last batch if it's smaller than the others.</p></div>
+</dd>
+<dt id="saev.data.ordered.Config.layer"><code class="name">var <span class="ident">layer</span> : Union[int, Literal['all']]</code></dt>
+<dd>
+<div class="desc"><p>Which ViT layer(s) to read from disk. <code>-2</code> selects the second-to-last layer. <code>"all"</code> enumerates every recorded layer.</p></div>
+</dd>
+<dt id="saev.data.ordered.Config.n_threads"><code class="name">var <span class="ident">n_threads</span> : int</code></dt>
+<dd>
+<div class="desc"><p>Number of dataloading threads.</p></div>
+</dd>
+<dt id="saev.data.ordered.Config.patches"><code class="name">var <span class="ident">patches</span> : Literal['cls', 'image', 'all']</code></dt>
+<dd>
+<div class="desc"><p>Which kinds of patches to use. 'cls' indicates just the [CLS] token (if any). 'image' indicates it will return image patches. 'all' returns all patches.</p></div>
+</dd>
+<dt id="saev.data.ordered.Config.shard_root"><code class="name">var <span class="ident">shard_root</span> : str</code></dt>
+<dd>
+<div class="desc"><p>Directory with .bin shards and a metadata.json file.</p></div>
+</dd>
+</dl>
+</dd>
+<dt id="saev.data.ordered.DataLoader"><code class="flex name class">
+<span>class <span class="ident">DataLoader</span></span>
+<span>(</span><span>cfg: <a title="saev.data.ordered.Config" href="#saev.data.ordered.Config">Config</a>)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>High-throughput streaming loader that reads data from disk shards in order (no shuffling).</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+class DataLoader:
+    &#34;&#34;&#34;
+    High-throughput streaming loader that reads data from disk shards in order (no shuffling).
+    &#34;&#34;&#34;
+
+    @jaxtyped(typechecker=beartype.beartype)
+    class ExampleBatch(typing.TypedDict):
+        &#34;&#34;&#34;Individual example.&#34;&#34;&#34;
+
+        act: Float[Tensor, &#34;batch d_vit&#34;]
+        image_i: Int[Tensor, &#34; batch&#34;]
+        patch_i: Int[Tensor, &#34; batch&#34;]
+
+    def __init__(self, cfg: Config):
+        self.cfg = cfg
+        if not os.path.isdir(self.cfg.shard_root):
+            raise RuntimeError(f&#34;Activations are not saved at &#39;{self.cfg.shard_root}&#39;.&#34;)
+
+        self.metadata = writers.Metadata.load(self.cfg.shard_root)
+
+        self.logger = logging.getLogger(&#34;ordered.DataLoader&#34;)
+        self.ctx = mp.get_context()
+        self.manager_proc = None
+        self.batch_queue = None
+        self.stop_event = None
+        self._n_samples = self._calculate_n_samples()
+
+    @property
+    def n_batches(self) -&gt; int:
+        return len(self)
+
+    @property
+    def n_samples(self) -&gt; int:
+        return self._n_samples
+
+    @property
+    def batch_size(self) -&gt; int:
+        return self.cfg.batch_size
+
+    @property
+    def drop_last(self) -&gt; int:
+        return self.cfg.drop_last
+
+    def _start_manager(self):
+        if self.manager_proc and self.manager_proc.is_alive():
+            return
+
+        self.logger.info(&#34;Starting manager process.&#34;)
+
+        # Create the batch queue
+        self.batch_queue = self.ctx.Queue(maxsize=self.cfg.buffer_size)
+        self.stop_event = self.ctx.Event()
+        self.err_queue = self.ctx.Queue(maxsize=self.cfg.n_threads + 1)
+
+        self.manager_proc = self.ctx.Process(
+            target=_manager_main,
+            args=(
+                self.cfg,
+                self.metadata,
+                self.batch_queue,
+                self.stop_event,
+                self.err_queue,
+            ),
+            daemon=True,
+        )
+        self.manager_proc.start()
+
+    def __iter__(self) -&gt; collections.abc.Iterable[ExampleBatch]:
+        &#34;&#34;&#34;Yields batches in order.&#34;&#34;&#34;
+        self._start_manager()
+        n = 0
+
+        try:
+            while n &lt; self.n_samples:
+                if not self.err_queue.empty():
+                    who, tb = self.err_queue.get_nowait()
+                    raise RuntimeError(f&#34;{who} crashed:\n{tb}&#34;)
+
+                try:
+                    batch = self.batch_queue.get(timeout=self.cfg.batch_timeout_s)
+                    actual_batch_size = batch[&#34;act&#34;].shape[0]
+
+                    # Handle drop_last
+                    if (
+                        self.cfg.drop_last
+                        and actual_batch_size &lt; self.cfg.batch_size
+                        and n + actual_batch_size &gt;= self.n_samples
+                    ):
+                        break
+
+                    n += actual_batch_size
+                    yield self.ExampleBatch(**batch)
+                    continue
+                except queue.Empty:
+                    self.logger.info(
+                        &#34;Did not get a batch from %d worker threads in %.1fs seconds.&#34;,
+                        self.cfg.n_threads,
+                        self.cfg.batch_timeout_s,
+                    )
+
+                # If we don&#39;t continue, then we should check on the manager process.
+                if not self.manager_proc.is_alive():
+                    raise RuntimeError(
+                        f&#34;Manager process died unexpectedly after {n}/{self.n_samples} samples.&#34;
+                    )
+
+        finally:
+            self.shutdown()
+
+    def shutdown(self):
+        if self.stop_event and not self.stop_event.is_set():
+            self.stop_event.set()
+
+        if self.manager_proc and self.manager_proc.is_alive():
+            self.manager_proc.join(timeout=5.0)
+            if self.manager_proc.is_alive():
+                self.logger.warning(
+                    &#34;Manager process did not shut down cleanly, killing.&#34;
+                )
+                self.manager_proc.kill()
+
+        self.manager_proc = None
+        self.batch_queue = None
+        self.stop_event = None
+
+    def __del__(self):
+        self.shutdown()
+
+    def _calculate_n_samples(self) -&gt; int:
+        &#34;&#34;&#34;Helper to calculate total number of examples based on config.&#34;&#34;&#34;
+        match (self.cfg.patches, self.cfg.layer):
+            case (&#34;cls&#34;, &#34;all&#34;):
+                return self.metadata.n_imgs * len(self.metadata.layers)
+            case (&#34;cls&#34;, int()):
+                return self.metadata.n_imgs
+            case (&#34;image&#34;, int()):
+                return self.metadata.n_imgs * self.metadata.n_patches_per_img
+            case (&#34;image&#34;, &#34;all&#34;):
+                return (
+                    self.metadata.n_imgs
+                    * len(self.metadata.layers)
+                    * self.metadata.n_patches_per_img
+                )
+            case _:
+                typing.assert_never((self.cfg.patches, self.cfg.layer))
+
+    def __len__(self) -&gt; int:
+        &#34;&#34;&#34;Returns the number of batches in an epoch.&#34;&#34;&#34;
+        if self.cfg.drop_last:
+            return self.n_samples // self.cfg.batch_size
+        else:
+            return math.ceil(self.n_samples / self.cfg.batch_size)</code></pre>
+</details>
+<h3>Class variables</h3>
+<dl>
+<dt id="saev.data.ordered.DataLoader.ExampleBatch"><code class="name">var <span class="ident">ExampleBatch</span></code></dt>
+<dd>
+<div class="desc"><p>Individual example.</p></div>
+</dd>
+</dl>
+<h3>Instance variables</h3>
+<dl>
+<dt id="saev.data.ordered.DataLoader.batch_size"><code class="name">prop <span class="ident">batch_size</span> : int</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def batch_size(self) -&gt; int:
+    return self.cfg.batch_size</code></pre>
+</details>
+</dd>
+<dt id="saev.data.ordered.DataLoader.drop_last"><code class="name">prop <span class="ident">drop_last</span> : int</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def drop_last(self) -&gt; int:
+    return self.cfg.drop_last</code></pre>
+</details>
+</dd>
+<dt id="saev.data.ordered.DataLoader.n_batches"><code class="name">prop <span class="ident">n_batches</span> : int</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def n_batches(self) -&gt; int:
+    return len(self)</code></pre>
+</details>
+</dd>
+<dt id="saev.data.ordered.DataLoader.n_samples"><code class="name">prop <span class="ident">n_samples</span> : int</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def n_samples(self) -&gt; int:
+    return self._n_samples</code></pre>
+</details>
+</dd>
+</dl>
+<h3>Methods</h3>
+<dl>
+<dt id="saev.data.ordered.DataLoader.shutdown"><code class="name flex">
+<span>def <span class="ident">shutdown</span></span>(<span>self)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+</dl>
+</dd>
+<dt id="saev.data.ordered.ImageOutOfBoundsError"><code class="flex name class">
+<span>class <span class="ident">ImageOutOfBoundsError</span></span>
+<span>(</span><span>metadata: <a title="saev.data.writers.Metadata" href="writers.html#saev.data.writers.Metadata">Metadata</a>,<br>i: int)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Common base class for all non-exit exceptions.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+class ImageOutOfBoundsError(Exception):
+    def __init__(self, metadata: writers.Metadata, i: int):
+        self.metadata = metadata
+        self.i = i
+
+    @property
+    def message(self) -&gt; str:
+        return f&#34;Metadata says there are {self.metadata.n_imgs} images, but we found image {self.i}.&#34;</code></pre>
+</details>
+<h3>Ancestors</h3>
+<ul class="hlist">
+<li>builtins.Exception</li>
+<li>builtins.BaseException</li>
+</ul>
+<h3>Instance variables</h3>
+<dl>
+<dt id="saev.data.ordered.ImageOutOfBoundsError.message"><code class="name">prop <span class="ident">message</span> : str</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def message(self) -&gt; str:
+    return f&#34;Metadata says there are {self.metadata.n_imgs} images, but we found image {self.i}.&#34;</code></pre>
+</details>
+</dd>
+</dl>
+</dd>
+</dl>
+</section>
+</article>
+<nav id="sidebar">
+<form>
+<input id="lunr-search" name="q" placeholder="🔎 Search ..." aria-label="Search"
+disabled minlength="2">
+</form>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tingle/0.16.0/tingle.min.css" integrity="sha512-b+T2i3P45i1LZM7I00Ci5QquB9szqaxu+uuk5TUSGjZQ4w4n+qujQiIuvTv2BxE7WCGQCifNMksyKILDiHzsOg==" crossorigin>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tingle/0.16.0/tingle.min.js" integrity="sha512-2B9/byNV1KKRm5nQ2RLViPFD6U4dUjDGwuW1GU+ImJh8YinPU9Zlq1GzdTMO+G2ROrB5o1qasJBy1ttYz0wCug==" crossorigin></script>
+<style>
+.modal-dialog iframe {
+width: 100vw;
+height: calc(100vh - 80px);
+}
+@media screen and (min-width: 700px) {
+.modal-dialog iframe {
+width: 70vw;
+height: 80vh;
+}
+}
+.modal-dialog .tingle-modal-box {width: auto;}
+.modal-dialog .tingle-modal-box__content {padding: 0;}
+</style>
+<script>
+const input = document.getElementById('lunr-search');
+input.disabled = false;
+input.form.addEventListener('submit', (ev) => {
+ev.preventDefault();
+const url = new URL(window.location);
+url.searchParams.set('q', input.value);
+history.replaceState({}, null, url.toString());
+search(input.value);
+});
+const query = new URL(window.location).searchParams.get('q');
+if (query)
+search(query);
+function search(query) {
+const url = '../../doc-search.html#' + encodeURIComponent(query);
+new tingle.modal({
+cssClass: ['modal-dialog'],
+onClose: () => {
+const url = new URL(window.location);
+url.searchParams.delete('q');
+history.replaceState({}, null, url.toString());
+setTimeout(() => input.focus(), 100);
+}
+}).setContent('<iframe src="' + url + '"></iframe>').open();
+}
+</script>
+<div class="toc">
+<ul></ul>
+</div>
+<ul id="index">
+<li><h3>Super-module</h3>
+<ul>
+<li><code><a title="saev.data" href="index.html">saev.data</a></code></li>
+</ul>
+</li>
+<li><h3><a href="#header-classes">Classes</a></h3>
+<ul>
+<li>
+<h4><code><a title="saev.data.ordered.Config" href="#saev.data.ordered.Config">Config</a></code></h4>
+<ul class="two-column">
+<li><code><a title="saev.data.ordered.Config.batch_size" href="#saev.data.ordered.Config.batch_size">batch_size</a></code></li>
+<li><code><a title="saev.data.ordered.Config.batch_timeout_s" href="#saev.data.ordered.Config.batch_timeout_s">batch_timeout_s</a></code></li>
+<li><code><a title="saev.data.ordered.Config.buffer_size" href="#saev.data.ordered.Config.buffer_size">buffer_size</a></code></li>
+<li><code><a title="saev.data.ordered.Config.debug" href="#saev.data.ordered.Config.debug">debug</a></code></li>
+<li><code><a title="saev.data.ordered.Config.drop_last" href="#saev.data.ordered.Config.drop_last">drop_last</a></code></li>
+<li><code><a title="saev.data.ordered.Config.layer" href="#saev.data.ordered.Config.layer">layer</a></code></li>
+<li><code><a title="saev.data.ordered.Config.n_threads" href="#saev.data.ordered.Config.n_threads">n_threads</a></code></li>
+<li><code><a title="saev.data.ordered.Config.patches" href="#saev.data.ordered.Config.patches">patches</a></code></li>
+<li><code><a title="saev.data.ordered.Config.shard_root" href="#saev.data.ordered.Config.shard_root">shard_root</a></code></li>
+</ul>
+</li>
+<li>
+<h4><code><a title="saev.data.ordered.DataLoader" href="#saev.data.ordered.DataLoader">DataLoader</a></code></h4>
+<ul class="two-column">
+<li><code><a title="saev.data.ordered.DataLoader.ExampleBatch" href="#saev.data.ordered.DataLoader.ExampleBatch">ExampleBatch</a></code></li>
+<li><code><a title="saev.data.ordered.DataLoader.batch_size" href="#saev.data.ordered.DataLoader.batch_size">batch_size</a></code></li>
+<li><code><a title="saev.data.ordered.DataLoader.drop_last" href="#saev.data.ordered.DataLoader.drop_last">drop_last</a></code></li>
+<li><code><a title="saev.data.ordered.DataLoader.n_batches" href="#saev.data.ordered.DataLoader.n_batches">n_batches</a></code></li>
+<li><code><a title="saev.data.ordered.DataLoader.n_samples" href="#saev.data.ordered.DataLoader.n_samples">n_samples</a></code></li>
+<li><code><a title="saev.data.ordered.DataLoader.shutdown" href="#saev.data.ordered.DataLoader.shutdown">shutdown</a></code></li>
+</ul>
+</li>
+<li>
+<h4><code><a title="saev.data.ordered.ImageOutOfBoundsError" href="#saev.data.ordered.ImageOutOfBoundsError">ImageOutOfBoundsError</a></code></h4>
+<ul class="">
+<li><code><a title="saev.data.ordered.ImageOutOfBoundsError.message" href="#saev.data.ordered.ImageOutOfBoundsError.message">message</a></code></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</nav>
+</main>
+<footer id="footer">
+<p>Generated by <a href="https://pdoc3.github.io/pdoc" title="pdoc: Python API documentation generator"><cite>pdoc</cite> 0.11.1</a>.</p>
+</footer>
+</body>
+</html>

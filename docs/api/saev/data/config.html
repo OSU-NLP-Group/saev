@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1">
 <meta name="generator" content="pdoc3 0.11.1">
-<title>saev.app.modeling API documentation</title>
+<title>saev.data.config API documentation</title>
 <meta name="description" content="">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/13.0.0/sanitize.min.css" integrity="sha512-y1dtMcuvtTMJc1yPgEqF0ZjQbhnc/bFhyvIyVNb9Zk5mIGtqVaAB1Ttl28su8AvFMOY0EwRbAe+HCLqj6W7/KA==" crossorigin>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/13.0.0/typography.min.css" integrity="sha512-Y1DYSb995BAfxobCkKepB1BqJJTPrOp3zPL74AWFugHHmmdcvO+C48WLrUOlhGMc0QG7AE3f7gmvvcrmX2fDoA==" crossorigin>
@@ -24,7 +24,7 @@ hljs.highlightAll();
 <main>
 <article id="content">
 <header>
-<h1 class="title">Module <code>saev.app.modeling</code></h1>
+<h1 class="title">Module <code>saev.data.config</code></h1>
 </header>
 <section id="section-intro">
 </section>
@@ -33,125 +33,71 @@ hljs.highlightAll();
 <section>
 </section>
 <section>
-<h2 class="section-title" id="header-functions">Functions</h2>
-<dl>
-<dt id="saev.app.modeling.get_model_lookup"><code class="name flex">
-<span>def <span class="ident">get_model_lookup</span></span>(<span>) ‑> dict[str, <a title="saev.app.modeling.Config" href="#saev.app.modeling.Config">Config</a>]</span>
-</code></dt>
-<dd>
-<div class="desc"></div>
-</dd>
-</dl>
 </section>
 <section>
 <h2 class="section-title" id="header-classes">Classes</h2>
 <dl>
-<dt id="saev.app.modeling.Config"><code class="flex name class">
-<span>class <span class="ident">Config</span></span>
-<span>(</span><span>key: str,<br>vit_family: str,<br>vit_ckpt: str,<br>sae_ckpt: str,<br>tensor_dpath: pathlib.Path,<br>dataset_name: str,<br>acts_cfg: <a title="saev.config.DataLoad" href="../config.html#saev.config.DataLoad">DataLoad</a>)</span>
+<dt id="saev.data.config.Activations"><code class="flex name class">
+<span>class <span class="ident">Activations</span></span>
+<span>(</span><span>shard_root: str = './shards',<br>patches: Literal['cls', 'image', 'all'] = 'patches',<br>layer: Union[int, Literal['all']] = 'all',<br>clamp: float = 100000.0,<br>n_random_samples: int = 524288,<br>scale_mean: bool | str = True,<br>scale_norm: bool | str = True)</span>
 </code></dt>
 <dd>
-<div class="desc"><p>Configuration for a Vision Transformer (ViT) and Sparse Autoencoder (SAE) model pair.</p>
-<p>Stores paths and configuration needed to load and run a specific ViT+SAE combination.</p></div>
+<div class="desc"><p>Configuration for loading activation data from disk.</p></div>
 <details class="source">
 <summary>
 <span>Expand source code</span>
 </summary>
 <pre><code class="python">@beartype.beartype
 @dataclasses.dataclass(frozen=True)
-class Config:
-    &#34;&#34;&#34;Configuration for a Vision Transformer (ViT) and Sparse Autoencoder (SAE) model pair.
-
-    Stores paths and configuration needed to load and run a specific ViT+SAE combination.
+class Activations:
+    &#34;&#34;&#34;
+    Configuration for loading activation data from disk.
     &#34;&#34;&#34;
 
-    key: str
-    &#34;&#34;&#34;The lookup key.&#34;&#34;&#34;
-
-    vit_family: str
-    &#34;&#34;&#34;The family of ViT model, e.g. &#39;clip&#39; for CLIP models.&#34;&#34;&#34;
-
-    vit_ckpt: str
-    &#34;&#34;&#34;Checkpoint identifier for the ViT model, either as HuggingFace path or model/checkpoint pair.&#34;&#34;&#34;
-
-    sae_ckpt: str
-    &#34;&#34;&#34;Identifier for the SAE checkpoint to load.&#34;&#34;&#34;
-
-    tensor_dpath: pathlib.Path
-    &#34;&#34;&#34;Directory containing precomputed tensors for this model combination.&#34;&#34;&#34;
-
-    dataset_name: str
-    &#34;&#34;&#34;Which dataset to use.&#34;&#34;&#34;
-
-    acts_cfg: config.DataLoad
-    &#34;&#34;&#34;Which activations to load for normalizing.&#34;&#34;&#34;
-
-    @property
-    def wrapped_cfg(self) -&gt; config.Activations:
-        n_patches = 196
-        if self.vit_family == &#34;dinov2&#34;:
-            n_patches = 256
-
-        return config.Activations(
-            vit_family=self.vit_family,
-            vit_ckpt=self.vit_ckpt,
-            vit_layers=[-2],
-            n_patches_per_img=n_patches,
-        )</code></pre>
+    shard_root: str = os.path.join(&#34;.&#34;, &#34;shards&#34;)
+    &#34;&#34;&#34;Directory with .bin shards and a metadata.json file.&#34;&#34;&#34;
+    patches: typing.Literal[&#34;cls&#34;, &#34;image&#34;, &#34;all&#34;] = &#34;patches&#34;
+    &#34;&#34;&#34;Which kinds of patches to use.&#34;&#34;&#34;
+    layer: int | typing.Literal[&#34;all&#34;] = &#34;all&#34;
+    &#34;&#34;&#34;Which ViT layer(s) to read from disk. ``-2`` selects the second-to-last layer. ``&#34;all&#34;`` enumerates every recorded layer, and ``&#34;meanpool&#34;`` averages activations across layers.&#34;&#34;&#34;
+    clamp: float = 1e5
+    &#34;&#34;&#34;Maximum value for activations; activations will be clamped to within [-clamp, clamp]`.&#34;&#34;&#34;
+    n_random_samples: int = 2**19
+    &#34;&#34;&#34;Number of random samples used to calculate approximate dataset means at startup.&#34;&#34;&#34;
+    scale_mean: bool | str = True
+    &#34;&#34;&#34;Whether to subtract approximate dataset means from examples. If a string, manually load from the filepath.&#34;&#34;&#34;
+    scale_norm: bool | str = True
+    &#34;&#34;&#34;Whether to scale average dataset norm to sqrt(d_vit). If a string, manually load from the filepath.&#34;&#34;&#34;</code></pre>
 </details>
 <h3>Class variables</h3>
 <dl>
-<dt id="saev.app.modeling.Config.acts_cfg"><code class="name">var <span class="ident">acts_cfg</span> : <a title="saev.config.DataLoad" href="../config.html#saev.config.DataLoad">DataLoad</a></code></dt>
+<dt id="saev.data.config.Activations.clamp"><code class="name">var <span class="ident">clamp</span> : float</code></dt>
 <dd>
-<div class="desc"><p>Which activations to load for normalizing.</p></div>
+<div class="desc"><p>Maximum value for activations; activations will be clamped to within [-clamp, clamp]`.</p></div>
 </dd>
-<dt id="saev.app.modeling.Config.dataset_name"><code class="name">var <span class="ident">dataset_name</span> : str</code></dt>
+<dt id="saev.data.config.Activations.layer"><code class="name">var <span class="ident">layer</span> : Union[int, Literal['all']]</code></dt>
 <dd>
-<div class="desc"><p>Which dataset to use.</p></div>
+<div class="desc"><p>Which ViT layer(s) to read from disk. <code>-2</code> selects the second-to-last layer. <code>"all"</code> enumerates every recorded layer, and <code>"meanpool"</code> averages activations across layers.</p></div>
 </dd>
-<dt id="saev.app.modeling.Config.key"><code class="name">var <span class="ident">key</span> : str</code></dt>
+<dt id="saev.data.config.Activations.n_random_samples"><code class="name">var <span class="ident">n_random_samples</span> : int</code></dt>
 <dd>
-<div class="desc"><p>The lookup key.</p></div>
+<div class="desc"><p>Number of random samples used to calculate approximate dataset means at startup.</p></div>
 </dd>
-<dt id="saev.app.modeling.Config.sae_ckpt"><code class="name">var <span class="ident">sae_ckpt</span> : str</code></dt>
+<dt id="saev.data.config.Activations.patches"><code class="name">var <span class="ident">patches</span> : Literal['cls', 'image', 'all']</code></dt>
 <dd>
-<div class="desc"><p>Identifier for the SAE checkpoint to load.</p></div>
+<div class="desc"><p>Which kinds of patches to use.</p></div>
 </dd>
-<dt id="saev.app.modeling.Config.tensor_dpath"><code class="name">var <span class="ident">tensor_dpath</span> : pathlib.Path</code></dt>
+<dt id="saev.data.config.Activations.scale_mean"><code class="name">var <span class="ident">scale_mean</span> : bool | str</code></dt>
 <dd>
-<div class="desc"><p>Directory containing precomputed tensors for this model combination.</p></div>
+<div class="desc"><p>Whether to subtract approximate dataset means from examples. If a string, manually load from the filepath.</p></div>
 </dd>
-<dt id="saev.app.modeling.Config.vit_ckpt"><code class="name">var <span class="ident">vit_ckpt</span> : str</code></dt>
+<dt id="saev.data.config.Activations.scale_norm"><code class="name">var <span class="ident">scale_norm</span> : bool | str</code></dt>
 <dd>
-<div class="desc"><p>Checkpoint identifier for the ViT model, either as HuggingFace path or model/checkpoint pair.</p></div>
+<div class="desc"><p>Whether to scale average dataset norm to sqrt(d_vit). If a string, manually load from the filepath.</p></div>
 </dd>
-<dt id="saev.app.modeling.Config.vit_family"><code class="name">var <span class="ident">vit_family</span> : str</code></dt>
+<dt id="saev.data.config.Activations.shard_root"><code class="name">var <span class="ident">shard_root</span> : str</code></dt>
 <dd>
-<div class="desc"><p>The family of ViT model, e.g. 'clip' for CLIP models.</p></div>
-</dd>
-</dl>
-<h3>Instance variables</h3>
-<dl>
-<dt id="saev.app.modeling.Config.wrapped_cfg"><code class="name">prop <span class="ident">wrapped_cfg</span> : <a title="saev.config.Activations" href="../config.html#saev.config.Activations">Activations</a></code></dt>
-<dd>
-<div class="desc"></div>
-<details class="source">
-<summary>
-<span>Expand source code</span>
-</summary>
-<pre><code class="python">@property
-def wrapped_cfg(self) -&gt; config.Activations:
-    n_patches = 196
-    if self.vit_family == &#34;dinov2&#34;:
-        n_patches = 256
-
-    return config.Activations(
-        vit_family=self.vit_family,
-        vit_ckpt=self.vit_ckpt,
-        vit_layers=[-2],
-        n_patches_per_img=n_patches,
-    )</code></pre>
-</details>
+<div class="desc"><p>Directory with .bin shards and a metadata.json file.</p></div>
 </dd>
 </dl>
 </dd>
@@ -211,27 +157,21 @@ setTimeout(() => input.focus(), 100);
 <ul id="index">
 <li><h3>Super-module</h3>
 <ul>
-<li><code><a title="saev.app" href="index.html">saev.app</a></code></li>
-</ul>
-</li>
-<li><h3><a href="#header-functions">Functions</a></h3>
-<ul class="">
-<li><code><a title="saev.app.modeling.get_model_lookup" href="#saev.app.modeling.get_model_lookup">get_model_lookup</a></code></li>
+<li><code><a title="saev.data" href="index.html">saev.data</a></code></li>
 </ul>
 </li>
 <li><h3><a href="#header-classes">Classes</a></h3>
 <ul>
 <li>
-<h4><code><a title="saev.app.modeling.Config" href="#saev.app.modeling.Config">Config</a></code></h4>
+<h4><code><a title="saev.data.config.Activations" href="#saev.data.config.Activations">Activations</a></code></h4>
 <ul class="two-column">
-<li><code><a title="saev.app.modeling.Config.acts_cfg" href="#saev.app.modeling.Config.acts_cfg">acts_cfg</a></code></li>
-<li><code><a title="saev.app.modeling.Config.dataset_name" href="#saev.app.modeling.Config.dataset_name">dataset_name</a></code></li>
-<li><code><a title="saev.app.modeling.Config.key" href="#saev.app.modeling.Config.key">key</a></code></li>
-<li><code><a title="saev.app.modeling.Config.sae_ckpt" href="#saev.app.modeling.Config.sae_ckpt">sae_ckpt</a></code></li>
-<li><code><a title="saev.app.modeling.Config.tensor_dpath" href="#saev.app.modeling.Config.tensor_dpath">tensor_dpath</a></code></li>
-<li><code><a title="saev.app.modeling.Config.vit_ckpt" href="#saev.app.modeling.Config.vit_ckpt">vit_ckpt</a></code></li>
-<li><code><a title="saev.app.modeling.Config.vit_family" href="#saev.app.modeling.Config.vit_family">vit_family</a></code></li>
-<li><code><a title="saev.app.modeling.Config.wrapped_cfg" href="#saev.app.modeling.Config.wrapped_cfg">wrapped_cfg</a></code></li>
+<li><code><a title="saev.data.config.Activations.clamp" href="#saev.data.config.Activations.clamp">clamp</a></code></li>
+<li><code><a title="saev.data.config.Activations.layer" href="#saev.data.config.Activations.layer">layer</a></code></li>
+<li><code><a title="saev.data.config.Activations.n_random_samples" href="#saev.data.config.Activations.n_random_samples">n_random_samples</a></code></li>
+<li><code><a title="saev.data.config.Activations.patches" href="#saev.data.config.Activations.patches">patches</a></code></li>
+<li><code><a title="saev.data.config.Activations.scale_mean" href="#saev.data.config.Activations.scale_mean">scale_mean</a></code></li>
+<li><code><a title="saev.data.config.Activations.scale_norm" href="#saev.data.config.Activations.scale_norm">scale_norm</a></code></li>
+<li><code><a title="saev.data.config.Activations.shard_root" href="#saev.data.config.Activations.shard_root">shard_root</a></code></li>
 </ul>
 </li>
 </ul>

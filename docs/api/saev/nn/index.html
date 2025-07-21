@@ -39,14 +39,6 @@ hljs.highlightAll();
 <dd>
 <div class="desc"></div>
 </dd>
-<dt><code class="name"><a title="saev.nn.test_modeling" href="test_modeling.html">saev.nn.test_modeling</a></code></dt>
-<dd>
-<div class="desc"></div>
-</dd>
-<dt><code class="name"><a title="saev.nn.test_objectives" href="test_objectives.html">saev.nn.test_objectives</a></code></dt>
-<dd>
-<div class="desc"><p>Uses <a href="">hypothesis</a> and <a href="https://hypothesis-torch.readthedocs.io/en/stable/compatability/">hypothesis-torch</a> to generate test cases to compare our …</p></div>
-</dd>
 </dl>
 </section>
 <section>
@@ -64,7 +56,7 @@ hljs.highlightAll();
 sae: sparse autoencoder checkpoint to save.</p></div>
 </dd>
 <dt id="saev.nn.get_objective"><code class="name flex">
-<span>def <span class="ident">get_objective</span></span>(<span>cfg: <a title="saev.config.Vanilla" href="../config.html#saev.config.Vanilla">Vanilla</a> | <a title="saev.config.Matryoshka" href="../config.html#saev.config.Matryoshka">Matryoshka</a>) ‑> <a title="saev.nn.objectives.Objective" href="objectives.html#saev.nn.objectives.Objective">Objective</a></span>
+<span>def <span class="ident">get_objective</span></span>(<span>cfg: <a title="saev.nn.objectives.Vanilla" href="objectives.html#saev.nn.objectives.Vanilla">Vanilla</a> | <a title="saev.nn.objectives.Matryoshka" href="objectives.html#saev.nn.objectives.Matryoshka">Matryoshka</a>) ‑> <a title="saev.nn.objectives.Objective" href="objectives.html#saev.nn.objectives.Objective">Objective</a></span>
 </code></dt>
 <dd>
 <div class="desc"></div>
@@ -82,7 +74,7 @@ sae: sparse autoencoder checkpoint to save.</p></div>
 <dl>
 <dt id="saev.nn.SparseAutoencoder"><code class="flex name class">
 <span>class <span class="ident">SparseAutoencoder</span></span>
-<span>(</span><span>cfg: <a title="saev.config.Relu" href="../config.html#saev.config.Relu">Relu</a>)</span>
+<span>(</span><span>cfg: <a title="saev.nn.modeling.Relu" href="modeling.html#saev.nn.modeling.Relu">Relu</a>)</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Sparse auto-encoder (SAE) using L1 sparsity penalty.</p>
@@ -97,7 +89,7 @@ class SparseAutoencoder(torch.nn.Module):
     Sparse auto-encoder (SAE) using L1 sparsity penalty.
     &#34;&#34;&#34;
 
-    def __init__(self, cfg: config.Relu):
+    def __init__(self, cfg: Relu):
         super().__init__()
 
         self.cfg = cfg
@@ -298,8 +290,6 @@ setTimeout(() => input.focus(), 100);
 <ul>
 <li><code><a title="saev.nn.modeling" href="modeling.html">saev.nn.modeling</a></code></li>
 <li><code><a title="saev.nn.objectives" href="objectives.html">saev.nn.objectives</a></code></li>
-<li><code><a title="saev.nn.test_modeling" href="test_modeling.html">saev.nn.test_modeling</a></code></li>
-<li><code><a title="saev.nn.test_objectives" href="test_objectives.html">saev.nn.test_objectives</a></code></li>
 </ul>
 </li>
 <li><h3><a href="#header-functions">Functions</a></h3>

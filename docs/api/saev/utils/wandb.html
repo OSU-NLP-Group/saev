@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1">
 <meta name="generator" content="pdoc3 0.11.1">
-<title>saev.nn.test_modeling API documentation</title>
+<title>saev.utils.wandb API documentation</title>
 <meta name="description" content="">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/13.0.0/sanitize.min.css" integrity="sha512-y1dtMcuvtTMJc1yPgEqF0ZjQbhnc/bFhyvIyVNb9Zk5mIGtqVaAB1Ttl28su8AvFMOY0EwRbAe+HCLqj6W7/KA==" crossorigin>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/13.0.0/typography.min.css" integrity="sha512-Y1DYSb995BAfxobCkKepB1BqJJTPrOp3zPL74AWFugHHmmdcvO+C48WLrUOlhGMc0QG7AE3f7gmvvcrmX2fDoA==" crossorigin>
@@ -24,7 +24,7 @@ hljs.highlightAll();
 <main>
 <article id="content">
 <header>
-<h1 class="title">Module <code>saev.nn.test_modeling</code></h1>
+<h1 class="title">Module <code>saev.utils.wandb</code></h1>
 </header>
 <section id="section-intro">
 </section>
@@ -33,41 +33,90 @@ hljs.highlightAll();
 <section>
 </section>
 <section>
-<h2 class="section-title" id="header-functions">Functions</h2>
+</section>
+<section>
+<h2 class="section-title" id="header-classes">Classes</h2>
 <dl>
-<dt id="saev.nn.test_modeling.relu_cfgs"><code class="name flex">
-<span>def <span class="ident">relu_cfgs</span></span>(<span>) ‑> hypothesis.strategies.SearchStrategy</span>
+<dt id="saev.utils.wandb.ParallelWandbRun"><code class="flex name class">
+<span>class <span class="ident">ParallelWandbRun</span></span>
+<span>(</span><span>project: str,<br>cfgs: list[dict[str, object]],<br>mode: str,<br>tags: list[str],<br>dir: str = '.wandb')</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Inspired by <a href="https://community.wandb.ai/t/is-it-possible-to-log-to-multiple-runs-simultaneously/4387/3.">https://community.wandb.ai/t/is-it-possible-to-log-to-multiple-runs-simultaneously/4387/3.</a></p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+class ParallelWandbRun:
+    &#34;&#34;&#34;
+    Inspired by https://community.wandb.ai/t/is-it-possible-to-log-to-multiple-runs-simultaneously/4387/3.
+    &#34;&#34;&#34;
+
+    def __init__(
+        self,
+        project: str,
+        cfgs: list[dict[str, object]],
+        mode: str,
+        tags: list[str],
+        dir: str = &#34;.wandb&#34;,
+    ):
+        cfg, *cfgs = cfgs
+        self.project = project
+        self.cfgs = cfgs
+        self.mode = mode
+        self.tags = tags
+        self.dir = dir
+
+        self.live_run = wandb.init(
+            project=project, config=cfg, mode=mode, tags=tags, dir=dir
+        )
+
+        self.metric_queues: list[MetricQueue] = [[] for _ in self.cfgs]
+
+    def log(self, metrics: list[dict[str, object]], *, step: int):
+        metric, *metrics = metrics
+        self.live_run.log(metric, step=step)
+        for queue, metric in zip(self.metric_queues, metrics):
+            queue.append((step, metric))
+
+    def finish(self) -&gt; list[str]:
+        ids = [self.live_run.id]
+        # Log the rest of the runs.
+        self.live_run.finish()
+
+        for queue, cfg in zip(self.metric_queues, self.cfgs):
+            run = wandb.init(
+                project=self.project,
+                config=cfg,
+                mode=self.mode,
+                tags=self.tags + [&#34;queued&#34;],
+                dir=self.dir,
+            )
+            for step, metric in queue:
+                run.log(metric, step=step)
+            ids.append(run.id)
+            run.finish()
+
+        return ids</code></pre>
+</details>
+<h3>Methods</h3>
+<dl>
+<dt id="saev.utils.wandb.ParallelWandbRun.finish"><code class="name flex">
+<span>def <span class="ident">finish</span></span>(<span>self) ‑> list[str]</span>
 </code></dt>
 <dd>
 <div class="desc"></div>
 </dd>
-<dt id="saev.nn.test_modeling.test_dump_load_roundtrip"><code class="name flex">
-<span>def <span class="ident">test_dump_load_roundtrip</span></span>(<span>tmp_path, sae_cfg)</span>
-</code></dt>
-<dd>
-<div class="desc"><p>Write → load → verify state-dict &amp; cfg equality.</p></div>
-</dd>
-<dt id="saev.nn.test_modeling.test_factories"><code class="name flex">
-<span>def <span class="ident">test_factories</span></span>(<span>)</span>
-</code></dt>
-<dd>
-<div class="desc"></div>
-</dd>
-<dt id="saev.nn.test_modeling.test_load_bioclip_checkpoint"><code class="name flex">
-<span>def <span class="ident">test_load_bioclip_checkpoint</span></span>(<span>repo_id, tmp_path)</span>
-</code></dt>
-<dd>
-<div class="desc"></div>
-</dd>
-<dt id="saev.nn.test_modeling.test_sae_shapes"><code class="name flex">
-<span>def <span class="ident">test_sae_shapes</span></span>(<span>) ‑> None</span>
+<dt id="saev.utils.wandb.ParallelWandbRun.log"><code class="name flex">
+<span>def <span class="ident">log</span></span>(<span>self, metrics: list[dict[str, object]], *, step: int)</span>
 </code></dt>
 <dd>
 <div class="desc"></div>
 </dd>
 </dl>
-</section>
-<section>
+</dd>
+</dl>
 </section>
 </article>
 <nav id="sidebar">
@@ -123,16 +172,18 @@ setTimeout(() => input.focus(), 100);
 <ul id="index">
 <li><h3>Super-module</h3>
 <ul>
-<li><code><a title="saev.nn" href="index.html">saev.nn</a></code></li>
+<li><code><a title="saev.utils" href="index.html">saev.utils</a></code></li>
 </ul>
 </li>
-<li><h3><a href="#header-functions">Functions</a></h3>
+<li><h3><a href="#header-classes">Classes</a></h3>
+<ul>
+<li>
+<h4><code><a title="saev.utils.wandb.ParallelWandbRun" href="#saev.utils.wandb.ParallelWandbRun">ParallelWandbRun</a></code></h4>
 <ul class="">
-<li><code><a title="saev.nn.test_modeling.relu_cfgs" href="#saev.nn.test_modeling.relu_cfgs">relu_cfgs</a></code></li>
-<li><code><a title="saev.nn.test_modeling.test_dump_load_roundtrip" href="#saev.nn.test_modeling.test_dump_load_roundtrip">test_dump_load_roundtrip</a></code></li>
-<li><code><a title="saev.nn.test_modeling.test_factories" href="#saev.nn.test_modeling.test_factories">test_factories</a></code></li>
-<li><code><a title="saev.nn.test_modeling.test_load_bioclip_checkpoint" href="#saev.nn.test_modeling.test_load_bioclip_checkpoint">test_load_bioclip_checkpoint</a></code></li>
-<li><code><a title="saev.nn.test_modeling.test_sae_shapes" href="#saev.nn.test_modeling.test_sae_shapes">test_sae_shapes</a></code></li>
+<li><code><a title="saev.utils.wandb.ParallelWandbRun.finish" href="#saev.utils.wandb.ParallelWandbRun.finish">finish</a></code></li>
+<li><code><a title="saev.utils.wandb.ParallelWandbRun.log" href="#saev.utils.wandb.ParallelWandbRun.log">log</a></code></li>
+</ul>
+</li>
 </ul>
 </li>
 </ul>
