@@ -1514,3 +1514,74 @@ Look at example 1099 and select the toilet.
 I wonder what their precision is like.
 
 But I am surprised that we don't have good precision.
+
+# 07/18/2025
+
+I am updating the visuals.py script to work with the new dataloader.
+The new dataloader loads shards in random order for training.
+For visualization, we need them in order so that all the activations for a given image's patches are seen together.
+However, if we assume that every latent actually needs k different images and we save latents for 500 latents (default is 400), then we need:
+
+128 x 500 = 64K images
+
+For 256 patches/img, that's:
+
+256 x 64K = 16,384,000 (16.3M) patches
+
+How fast is that with random access on a slurm node?
+I benchmarked  this with 4 workers on an Ascend worker node and got 192 samples/sec over 100 batches of 256.
+That's:
+
+16,384,000 / 192 = 23.7 hours.
+
+With 16 workers and a batch size of 128, I got 1,409 samples/sec.
+
+16,384,000 / 1,409  = 3.2 hours
+
+With 16 workers and a batch size of 256, I got 2,396 samples/sec.
+
+16,384,000 / 2,396 = 1.8 hours
+
+With 16 workers and a batch size of 512, I got 4,084 samples/sec.
+
+16,384,000 / 4,084 = 1.1 hours
+
+With 16 workers and a batch size of 1024, I got 5,838 samples/sec.
+
+16,384,000 / 5,838 = 46 minutes
+
+In a table:
+
+| Workers | Batch Size | Samples/sec | Time for 16.3M patches |
+|---------|------------|-------------|------------------------|
+| 4       | 256        | 192         | 23.7 hours             |
+| 16      | 128        | 1,409       | 3.2 hours              |
+| 16      | 256        | 2,396       | 1.8 hours              |
+| 16      | 512        | 4,084       | 1.1 hours              |
+| 16      | 1024       | 5,838       | 46 minutes             |
+
+If I change the random seed, then I get more like 800 samples/sec using the same settings as above. I wonder if the OSC disk system has some smart caching or whatnot that makes repeat runs faster.
+Claude code ran a bunch of commands and concluded:
+
+> Yes, OSC's disk system definitely has caching mechanisms that can explain the performance difference. Based on my investigation:
+> 
+> 1. GPFS Filesystem: Your data is on /fs/scratch which uses GPFS (General Parallel File System), a high-performance clustered filesystem designed for supercomputing environments.
+> 2. System Cache: The free -h output shows 181GB of buffer/cache memory being used. When you access files, they get cached in system memory.
+> 3. GPFS Page Pool: GPFS has its own internal caching mechanism called the "page pool" that caches frequently accessed data blocks.
+> 
+> The ~7x speedup (from 800 to 5,838 samples/sec) between different random seeds makes sense because:
+> - With the same seed, you're accessing the same files in the same order
+> - These files get cached in memory after the first access
+> - Subsequent runs with the same seed hit the cache instead of disk
+> - Different seeds access different files/orders, causing cache misses
+> 
+> This is why benchmarking I/O on HPC systems should always include:
+> - Cold cache runs (first run after clearing caches)
+> - Warm cache runs (subsequent runs)
+> - Multiple random seeds to get realistic performance estimates
+> 
+> For your use case, the 800 samples/sec with a new seed is probably more representative of real-world performance when processing new data.
+
+So this probably means these numbers are bogus.
+Thus, I probably need an in-order efficient dataloader.
+However, this should be pretty easy to write because I don't actually need to use multiple threads. I can simply read the entire shard in order. In fact, I might be able to simply use the main process.

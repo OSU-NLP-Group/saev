@@ -78,7 +78,7 @@ def _io_worker(
 
     See https://github.com/beartype/beartype/issues/397 for an explanation of why we use multiprocessing.queues.Queue for the type hint.
     """
-    logger = logging.getLogger(f"iterable.worker{worker_id}")
+    logger = logging.getLogger(f"shuffled.worker{worker_id}")
     logger.info(f"I/O worker {worker_id} started.")
 
     layer_i = metadata.layers.index(cfg.layer)
@@ -148,7 +148,7 @@ def _manager_main(
     log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
     level = logging.DEBUG if cfg.debug else logging.INFO
     logging.basicConfig(level=level, format=log_format)
-    logger = logging.getLogger("iterable.manager")
+    logger = logging.getLogger("shuffled.manager")
     logger.info("Manager process started.")
 
     # 0. PRE-CONDITIONS
@@ -232,7 +232,7 @@ class DataLoader:
 
         self.metadata = writers.Metadata.load(self.cfg.shard_root)
 
-        self.logger = logging.getLogger("iterable.DataLoader")
+        self.logger = logging.getLogger("shuffled.DataLoader")
         self.ctx = mp.get_context()
         self.manager_proc = None
         self.reservoir = None

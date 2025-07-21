@@ -31,7 +31,7 @@ import wandb
 from jaxtyping import Float
 from torch import Tensor
 
-import saev.data.iterable
+import saev.data.shuffled
 import saev.utils.scheduling
 import saev.utils.wandb
 from saev import helpers, nn
@@ -98,7 +98,7 @@ class Config:
 # TODO: can we remove this?
 @torch.no_grad()
 def init_b_dec_batched(
-    saes: torch.nn.ModuleList, dataset: saev.data.iterable.DataLoader
+    saes: torch.nn.ModuleList, dataset: saev.data.shuffled.DataLoader
 ):
     n_samples = max(sae.cfg.n_reinit_samples for sae in saes)
     if not n_samples:
@@ -193,7 +193,7 @@ def train(
         # This was a default in pytorch until 1.12
         torch.backends.cuda.matmul.allow_tf32 = True
 
-    dataloader = saev.data.iterable.DataLoader(cfg.data)
+    dataloader = saev.data.shuffled.DataLoader(cfg.data)
     dataloader = saev.utils.scheduling.BatchLimiter(dataloader, cfg.n_train)
 
     saes, objectives, param_groups = make_saes([(c.sae, c.objective) for c in cfgs])
@@ -340,7 +340,7 @@ def evaluate(
     almost_dead_lim = 1e-7
     dense_lim = 1e-2
 
-    dataloader = saev.data.iterable.DataLoader(cfg.data)
+    dataloader = saev.data.shuffled.DataLoader(cfg.data)
     dataloader = saev.utils.scheduling.BatchLimiter(dataloader, cfg.n_test)
 
     n_fired = torch.zeros((len(cfgs), saes[0].cfg.d_sae))

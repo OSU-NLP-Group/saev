@@ -137,3 +137,5 @@ uv run train.py --slurm-acct PAS2136 --slurm-partition nextgen --n-hours 12 --sw
 Only difference is --data.layer.
 
 uv run visuals.py --ckpt checkpoints/53fl3ysv/sae.pt --dump-to /fs/scratch/PAS2136/samuelstevens/saev/visuals/53fl3ysv --log-freq-range -3 -1 --log-value-range -1 3 --data.shard-root /fs/scratch/PAS2136/samuelstevens/cache/saev/f9deaa8a07786087e8071f39a695200ff6713ee02b25e7a7b4a6d5ac1ad968db/ --data.layer 13 images:image-folder --images.root /fs/ess/PAS2136/foundation_model/inat21/raw/train_mini/
+
+However, I need to add slurm to the visuals.py script.
