@@ -347,12 +347,11 @@ def get_topk_patch(cfg: Config) -> TopKPatch:
         top_i_p = torch.gather(torch.cat((top_i_p, i_p), axis=0), 0, k)
         top_i_im = torch.gather(torch.cat((top_i_im, i_im), axis=0), 0, k)
 
-        if i%10 == 0:
+        if i % 10 == 0:
             unique_count = len(torch.unique(top_i_im[top_i_im >= 0]))
-            logger.info(f"Iteration {i}: Found {unique_count:,} unique images in top_i_im")
-
-        if i >= 20:
-            break
+            logger.info(
+                f"Iteration {i}: Found {unique_count:,} unique images in top_i_im"
+            )
 
     mean_values_S /= sparsity_S
     sparsity_S /= dataloader.n_samples
