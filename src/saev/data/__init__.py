@@ -6,8 +6,18 @@
 
 from .indexed import Config as IndexedConfig
 from .indexed import Dataset
-from .shuffled import Config as IterableConfig
-from .shuffled import DataLoader
+from .ordered import Config as OrderedConfig
+from .ordered import DataLoader as OrderedDataLoader
+from .shuffled import Config as ShuffledConfig
+from .shuffled import DataLoader as ShuffledDataLoader
 from .writers import Metadata
 
-__all__ = ["Dataset", "DataLoader", "IndexedConfig", "IterableConfig", "Metadata"]
+__all__ = [
+    "IndexedConfig",
+    "Dataset",
+    "OrderedDataLoader",
+    "OrderedConfig",
+    "ShuffledDataLoader",
+    "ShuffledConfig",
+    "Metadata",
+]

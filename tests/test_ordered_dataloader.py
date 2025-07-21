@@ -259,27 +259,9 @@ def test_reproducibility(ordered_cfg):
 
     # Compare batches
     for i, (b1, b2) in enumerate(zip(first_batches, second_batches)):
-        torch.testing.assert_close(
-            b1["act"],
-            b2["act"],
-            rtol=0,
-            atol=0,
-            msg=f"Batch {i}: activations differ between iterations",
-        )
-        torch.testing.assert_close(
-            b1["image_i"],
-            b2["image_i"],
-            rtol=0,
-            atol=0,
-            msg=f"Batch {i}: image_i differs between iterations",
-        )
-        torch.testing.assert_close(
-            b1["patch_i"],
-            b2["patch_i"],
-            rtol=0,
-            atol=0,
-            msg=f"Batch {i}: patch_i differs between iterations",
-        )
+        torch.testing.assert_close(b1["act"], b2["act"], rtol=0, atol=0)
+        torch.testing.assert_close(b1["image_i"], b2["image_i"], rtol=0, atol=0)
+        torch.testing.assert_close(b1["patch_i"], b2["patch_i"], rtol=0, atol=0)
 
 
 def test_constructor_validation(ordered_cfg):
