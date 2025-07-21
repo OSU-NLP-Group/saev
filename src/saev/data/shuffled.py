@@ -1,4 +1,4 @@
-# src/saev/data/iterable.py
+# src/saev/data/shuffled.py
 import collections.abc
 import dataclasses
 import logging
@@ -27,7 +27,7 @@ from . import buffers, writers
 @beartype.beartype
 @dataclasses.dataclass(frozen=True)
 class Config:
-    """Configuration for loading iterable activation data from disk."""
+    """Configuration for loading shuffled activation data from disk."""
 
     shard_root: str = os.path.join(".", "shards")
     """Directory with .bin shards and a metadata.json file."""

@@ -252,6 +252,48 @@ Certainly that can be higher.</p>
 <blockquote>
 <p><em>Not sure if this is the correct way to think about it, but: 100 / 14.6 = 6.8, close to 7.9 hours.</em></p>
 </blockquote>
+<h2 id="ordered-dataloader-design">Ordered Dataloader Design</h2>
+<p>The <code>saev/data/ordered.py</code> module implements a high-throughput ordered dataloader that guarantees sequential data delivery.
+This is useful for iterating through all patches in an image at once.</p>
+<h3 id="key-design-decisions">Key Design Decisions</h3>
+<ol>
+<li>Single-threaded I/O in Manager Process</li>
+</ol>
+<p>Initially, the dataloader used multiple worker threads for parallel I/O, similar to PyTorch's DataLoader. However, this created a fundamental ordering problem: when multiple workers read batches in parallel, they complete at different times and deliver batches out of order.</p>
+<p>We switched to single-threaded I/O because:
+- Sequential reads from memory-mapped files are already highly optimized by the OS
+- The OS page cache provides excellent performance for sequential access patterns
+- Eliminating multi-threading removes all batch reordering complexity
+- The simpler design is more maintainable and debuggable</p>
+<ol>
+<li>Process Separation with Ring Buffer</li>
+</ol>
+<p>The dataloader still uses a separate manager process connected via a multiprocessing Queue (acting as a ring buffer). This provides:
+- Overlap between I/O and computation
+- Configurable read-ahead via <code>buffer_size</code> parameter
+- Natural backpressure when computation is slower than I/O
+- Process isolation for better resource management</p>
+<ol>
+<li>Shard-Aware Sequential Reading</li>
+</ol>
+<p>The dataloader correctly handles the actual distribution of data across shards by:
+- Reading <code>shards.json</code> to get the exact number of images per shard
+- Maintaining cumulative offsets for efficient index-to-shard mapping
+- Handling batches that span multiple shards without gaps or duplicates</p>
+<h3 id="performance-considerations">Performance Considerations</h3>
+<ul>
+<li>Memory-mapped files: Using <code>np.memmap</code> allows efficient access to large files without loading them entirely into memory</li>
+<li>Sequential access pattern: The dataloader reads data in the exact order it's stored on disk, maximizing OS cache effectiveness</li>
+<li>Minimal data copying: Activations are copied only once from the memory-mapped file to PyTorch tensors</li>
+<li>Read-ahead buffering: The configurable buffer size allows tuning the trade-off between memory usage and I/O overlap</li>
+</ul>
+<h3 id="trade-offs">Trade-offs</h3>
+<p>The single-threaded design trades potential parallel I/O throughput for:
+- Guaranteed ordering
+- Simplicity and maintainability<br>
+- Elimination of synchronization overhead
+- Predictable performance characteristics</p>
+<p>In practice, the sequential read performance is sufficient for most use cases, especially when the computation (e.g., SAE forward pass) is the bottleneck rather than I/O.</p>
 </section>
 <section>
 <h2 class="section-title" id="header-submodules">Sub-modules</h2>
@@ -278,7 +320,7 @@ Certainly that can be higher.</p>
 </dd>
 <dt><code class="name"><a title="saev.data.ordered" href="ordered.html">saev.data.ordered</a></code></dt>
 <dd>
-<div class="desc"></div>
+<div class="desc"><p>Ordered (sequential) dataloader for activation data …</p></div>
 </dd>
 <dt><code class="name"><a title="saev.data.shuffled" href="shuffled.html">saev.data.shuffled</a></code></dt>
 <dd>
@@ -348,11 +390,11 @@ class Config:
 </dl>
 </dd>
 <dt id="saev.data.Config"><code class="flex name class">
-<span>class <span class="ident">IterableConfig</span></span>
-<span>(</span><span>shard_root: str = './shards',<br>patches: Literal['cls', 'image', 'all'] = 'image',<br>layer: Union[int, Literal['all']] = -2,<br>batch_size: int = 16384,<br>batch_timeout_s: float = 30.0,<br>drop_last: bool = False,<br>n_threads: int = 4,<br>buffer_size: int = 64,<br>seed: int = 17,<br>debug: bool = False)</span>
+<span>class <span class="ident">OrderedConfig</span></span>
+<span>(</span><span>shard_root: str = './shards',<br>patches: Literal['cls', 'image', 'all'] = 'image',<br>layer: Union[int, Literal['all']] = -2,<br>batch_size: int = 16384,<br>batch_timeout_s: float = 30.0,<br>drop_last: bool = False,<br>buffer_size: int = 64,<br>debug: bool = False)</span>
 </code></dt>
 <dd>
-<div class="desc"><p>Configuration for loading iterable activation data from disk.</p></div>
+<div class="desc"><p>Configuration for loading ordered (non-shuffled) activation data from disk.</p></div>
 <details class="source">
 <summary>
 <span>Expand source code</span>
@@ -360,7 +402,75 @@ class Config:
 <pre><code class="python">@beartype.beartype
 @dataclasses.dataclass(frozen=True)
 class Config:
-    &#34;&#34;&#34;Configuration for loading iterable activation data from disk.&#34;&#34;&#34;
+    &#34;&#34;&#34;Configuration for loading ordered (non-shuffled) activation data from disk.&#34;&#34;&#34;
+
+    shard_root: str = os.path.join(&#34;.&#34;, &#34;shards&#34;)
+    &#34;&#34;&#34;Directory with .bin shards and a metadata.json file.&#34;&#34;&#34;
+    patches: typing.Literal[&#34;cls&#34;, &#34;image&#34;, &#34;all&#34;] = &#34;image&#34;
+    &#34;&#34;&#34;Which kinds of patches to use. &#39;cls&#39; indicates just the [CLS] token (if any). &#39;image&#39; indicates it will return image patches. &#39;all&#39; returns all patches.&#34;&#34;&#34;
+    layer: int | typing.Literal[&#34;all&#34;] = -2
+    &#34;&#34;&#34;Which ViT layer(s) to read from disk. ``-2`` selects the second-to-last layer. ``&#34;all&#34;`` enumerates every recorded layer.&#34;&#34;&#34;
+    batch_size: int = 1024 * 16
+    &#34;&#34;&#34;Batch size.&#34;&#34;&#34;
+    batch_timeout_s: float = 30.0
+    &#34;&#34;&#34;How long to wait for at least one batch.&#34;&#34;&#34;
+    drop_last: bool = False
+    &#34;&#34;&#34;Whether to drop the last batch if it&#39;s smaller than the others.&#34;&#34;&#34;
+    buffer_size: int = 64
+    &#34;&#34;&#34;Number of batches to queue in the shared-memory ring buffer. Higher values add latency but improve resilience to brief stalls.&#34;&#34;&#34;
+    debug: bool = False
+    &#34;&#34;&#34;Whether the dataloader process should log debug messages.&#34;&#34;&#34;</code></pre>
+</details>
+<h3>Class variables</h3>
+<dl>
+<dt id="saev.data.Config.batch_size"><code class="name">var <span class="ident">batch_size</span> : int</code></dt>
+<dd>
+<div class="desc"><p>Batch size.</p></div>
+</dd>
+<dt id="saev.data.Config.batch_timeout_s"><code class="name">var <span class="ident">batch_timeout_s</span> : float</code></dt>
+<dd>
+<div class="desc"><p>How long to wait for at least one batch.</p></div>
+</dd>
+<dt id="saev.data.Config.buffer_size"><code class="name">var <span class="ident">buffer_size</span> : int</code></dt>
+<dd>
+<div class="desc"><p>Number of batches to queue in the shared-memory ring buffer. Higher values add latency but improve resilience to brief stalls.</p></div>
+</dd>
+<dt id="saev.data.Config.debug"><code class="name">var <span class="ident">debug</span> : bool</code></dt>
+<dd>
+<div class="desc"><p>Whether the dataloader process should log debug messages.</p></div>
+</dd>
+<dt id="saev.data.Config.drop_last"><code class="name">var <span class="ident">drop_last</span> : bool</code></dt>
+<dd>
+<div class="desc"><p>Whether to drop the last batch if it's smaller than the others.</p></div>
+</dd>
+<dt id="saev.data.Config.layer"><code class="name">var <span class="ident">layer</span> : Union[int, Literal['all']]</code></dt>
+<dd>
+<div class="desc"><p>Which ViT layer(s) to read from disk. <code>-2</code> selects the second-to-last layer. <code>"all"</code> enumerates every recorded layer.</p></div>
+</dd>
+<dt id="saev.data.Config.patches"><code class="name">var <span class="ident">patches</span> : Literal['cls', 'image', 'all']</code></dt>
+<dd>
+<div class="desc"><p>Which kinds of patches to use. 'cls' indicates just the [CLS] token (if any). 'image' indicates it will return image patches. 'all' returns all patches.</p></div>
+</dd>
+<dt id="saev.data.Config.shard_root"><code class="name">var <span class="ident">shard_root</span> : str</code></dt>
+<dd>
+<div class="desc"><p>Directory with .bin shards and a metadata.json file.</p></div>
+</dd>
+</dl>
+</dd>
+<dt id="saev.data.Config"><code class="flex name class">
+<span>class <span class="ident">ShuffledConfig</span></span>
+<span>(</span><span>shard_root: str = './shards',<br>patches: Literal['cls', 'image', 'all'] = 'image',<br>layer: Union[int, Literal['all']] = -2,<br>batch_size: int = 16384,<br>batch_timeout_s: float = 30.0,<br>drop_last: bool = False,<br>n_threads: int = 4,<br>buffer_size: int = 64,<br>seed: int = 17,<br>debug: bool = False)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Configuration for loading shuffled activation data from disk.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+@dataclasses.dataclass(frozen=True)
+class Config:
+    &#34;&#34;&#34;Configuration for loading shuffled activation data from disk.&#34;&#34;&#34;
 
     shard_root: str = os.path.join(&#34;.&#34;, &#34;shards&#34;)
     &#34;&#34;&#34;Directory with .bin shards and a metadata.json file.&#34;&#34;&#34;
@@ -428,7 +538,246 @@ class Config:
 </dl>
 </dd>
 <dt id="saev.data.DataLoader"><code class="flex name class">
-<span>class <span class="ident">DataLoader</span></span>
+<span>class <span class="ident">OrderedDataLoader</span></span>
+<span>(</span><span>cfg: <a title="saev.data.ordered.Config" href="ordered.html#saev.data.ordered.Config">Config</a>)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>High-throughput streaming loader that reads data from disk shards in order (no shuffling).</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+class DataLoader:
+    &#34;&#34;&#34;
+    High-throughput streaming loader that reads data from disk shards in order (no shuffling).
+    &#34;&#34;&#34;
+
+    @jaxtyped(typechecker=beartype.beartype)
+    class ExampleBatch(typing.TypedDict):
+        &#34;&#34;&#34;Individual example.&#34;&#34;&#34;
+
+        act: Float[Tensor, &#34;batch d_vit&#34;]
+        image_i: Int[Tensor, &#34; batch&#34;]
+        patch_i: Int[Tensor, &#34; batch&#34;]
+
+    def __init__(self, cfg: Config):
+        self.cfg = cfg
+        if not os.path.isdir(self.cfg.shard_root):
+            raise RuntimeError(f&#34;Activations are not saved at &#39;{self.cfg.shard_root}&#39;.&#34;)
+
+        self.metadata = writers.Metadata.load(self.cfg.shard_root)
+
+        self.logger = logging.getLogger(&#34;ordered.DataLoader&#34;)
+        self.ctx = mp.get_context()
+        self.manager_proc = None
+        self.batch_queue = None
+        self.stop_event = None
+        self._n_samples = self._calculate_n_samples()
+
+    @property
+    def n_batches(self) -&gt; int:
+        return len(self)
+
+    @property
+    def n_samples(self) -&gt; int:
+        return self._n_samples
+
+    @property
+    def batch_size(self) -&gt; int:
+        return self.cfg.batch_size
+
+    @property
+    def drop_last(self) -&gt; int:
+        return self.cfg.drop_last
+
+    def _start_manager(self):
+        if self.manager_proc and self.manager_proc.is_alive():
+            return
+
+        self.logger.info(&#34;Starting manager process.&#34;)
+
+        # Create the batch queue
+        self.batch_queue = self.ctx.Queue(maxsize=self.cfg.buffer_size)
+        self.stop_event = self.ctx.Event()
+        self.err_queue = self.ctx.Queue(maxsize=2)  # Manager + main process
+
+        self.manager_proc = self.ctx.Process(
+            target=_manager_main,
+            args=(
+                self.cfg,
+                self.metadata,
+                self.batch_queue,
+                self.stop_event,
+                self.err_queue,
+            ),
+            daemon=True,
+        )
+        self.manager_proc.start()
+
+    def __iter__(self) -&gt; collections.abc.Iterable[ExampleBatch]:
+        &#34;&#34;&#34;Yields batches in order.&#34;&#34;&#34;
+        self._start_manager()
+        n = 0
+
+        try:
+            while n &lt; self.n_samples:
+                if not self.err_queue.empty():
+                    who, tb = self.err_queue.get_nowait()
+                    raise RuntimeError(f&#34;{who} crashed:\n{tb}&#34;)
+
+                try:
+                    batch = self.batch_queue.get(timeout=self.cfg.batch_timeout_s)
+                    actual_batch_size = batch[&#34;act&#34;].shape[0]
+
+                    # Handle drop_last
+                    if (
+                        self.cfg.drop_last
+                        and actual_batch_size &lt; self.cfg.batch_size
+                        and n + actual_batch_size &gt;= self.n_samples
+                    ):
+                        break
+
+                    n += actual_batch_size
+                    yield self.ExampleBatch(**batch)
+                    continue
+                except queue.Empty:
+                    self.logger.info(
+                        &#34;Did not get a batch from manager process in %.1fs seconds.&#34;,
+                        self.cfg.batch_timeout_s,
+                    )
+
+                # If we don&#39;t continue, then we should check on the manager process.
+                if not self.manager_proc.is_alive():
+                    raise RuntimeError(
+                        f&#34;Manager process died unexpectedly after {n}/{self.n_samples} samples.&#34;
+                    )
+
+        finally:
+            self.shutdown()
+
+    def shutdown(self):
+        if (
+            hasattr(self, &#34;stop_event&#34;)
+            and self.stop_event
+            and not self.stop_event.is_set()
+        ):
+            self.stop_event.set()
+
+        if (
+            hasattr(self, &#34;manager_proc&#34;)
+            and self.manager_proc
+            and self.manager_proc.is_alive()
+        ):
+            self.manager_proc.join(timeout=5.0)
+            if self.manager_proc.is_alive():
+                self.logger.warning(
+                    &#34;Manager process did not shut down cleanly, killing.&#34;
+                )
+                self.manager_proc.kill()
+
+        self.manager_proc = None
+        self.batch_queue = None
+        self.stop_event = None
+
+    def __del__(self):
+        self.shutdown()
+
+    def _calculate_n_samples(self) -&gt; int:
+        &#34;&#34;&#34;Helper to calculate total number of examples based on config.&#34;&#34;&#34;
+        match (self.cfg.patches, self.cfg.layer):
+            case (&#34;cls&#34;, &#34;all&#34;):
+                return self.metadata.n_imgs * len(self.metadata.layers)
+            case (&#34;cls&#34;, int()):
+                return self.metadata.n_imgs
+            case (&#34;image&#34;, int()):
+                return self.metadata.n_imgs * self.metadata.n_patches_per_img
+            case (&#34;image&#34;, &#34;all&#34;):
+                return (
+                    self.metadata.n_imgs
+                    * len(self.metadata.layers)
+                    * self.metadata.n_patches_per_img
+                )
+            case _:
+                typing.assert_never((self.cfg.patches, self.cfg.layer))
+
+    def __len__(self) -&gt; int:
+        &#34;&#34;&#34;Returns the number of batches in an epoch.&#34;&#34;&#34;
+        if self.cfg.drop_last:
+            return self.n_samples // self.cfg.batch_size
+        else:
+            return math.ceil(self.n_samples / self.cfg.batch_size)</code></pre>
+</details>
+<h3>Class variables</h3>
+<dl>
+<dt id="saev.data.DataLoader.ExampleBatch"><code class="name">var <span class="ident">ExampleBatch</span></code></dt>
+<dd>
+<div class="desc"><p>Individual example.</p></div>
+</dd>
+</dl>
+<h3>Instance variables</h3>
+<dl>
+<dt id="saev.data.DataLoader.batch_size"><code class="name">prop <span class="ident">batch_size</span> : int</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def batch_size(self) -&gt; int:
+    return self.cfg.batch_size</code></pre>
+</details>
+</dd>
+<dt id="saev.data.DataLoader.drop_last"><code class="name">prop <span class="ident">drop_last</span> : int</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def drop_last(self) -&gt; int:
+    return self.cfg.drop_last</code></pre>
+</details>
+</dd>
+<dt id="saev.data.DataLoader.n_batches"><code class="name">prop <span class="ident">n_batches</span> : int</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def n_batches(self) -&gt; int:
+    return len(self)</code></pre>
+</details>
+</dd>
+<dt id="saev.data.DataLoader.n_samples"><code class="name">prop <span class="ident">n_samples</span> : int</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def n_samples(self) -&gt; int:
+    return self._n_samples</code></pre>
+</details>
+</dd>
+</dl>
+<h3>Methods</h3>
+<dl>
+<dt id="saev.data.DataLoader.shutdown"><code class="name flex">
+<span>def <span class="ident">shutdown</span></span>(<span>self)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+</dl>
+</dd>
+<dt id="saev.data.DataLoader"><code class="flex name class">
+<span>class <span class="ident">ShuffledDataLoader</span></span>
 <span>(</span><span>cfg: <a title="saev.data.shuffled.Config" href="shuffled.html#saev.data.shuffled.Config">Config</a>)</span>
 </code></dt>
 <dd>
@@ -1176,7 +1525,15 @@ setTimeout(() => input.focus(), 100);
 <li><a href="#5-versioning-compatibility">5 Versioning &amp; compatibility</a></li>
 </ul>
 </li>
-<li><a href="#performance">Performance</a></li>
+<li><a href="#performance">Performance</a><ul>
+<li><a href="#ordered-dataloader-design">Ordered Dataloader Design</a><ul>
+<li><a href="#key-design-decisions">Key Design Decisions</a></li>
+<li><a href="#performance-considerations">Performance Considerations</a></li>
+<li><a href="#trade-offs">Trade-offs</a></li>
+</ul>
+</li>
+</ul>
+</li>
 </ul>
 </div>
 <ul id="index">
@@ -1218,10 +1575,34 @@ setTimeout(() => input.focus(), 100);
 <li><code><a title="saev.data.Config.debug" href="#saev.data.Config.debug">debug</a></code></li>
 <li><code><a title="saev.data.Config.drop_last" href="#saev.data.Config.drop_last">drop_last</a></code></li>
 <li><code><a title="saev.data.Config.layer" href="#saev.data.Config.layer">layer</a></code></li>
+<li><code><a title="saev.data.Config.patches" href="#saev.data.Config.patches">patches</a></code></li>
+<li><code><a title="saev.data.Config.shard_root" href="#saev.data.Config.shard_root">shard_root</a></code></li>
+</ul>
+</li>
+<li>
+<h4><code><a title="saev.data.Config" href="#saev.data.Config">Config</a></code></h4>
+<ul class="two-column">
+<li><code><a title="saev.data.Config.batch_size" href="#saev.data.Config.batch_size">batch_size</a></code></li>
+<li><code><a title="saev.data.Config.batch_timeout_s" href="#saev.data.Config.batch_timeout_s">batch_timeout_s</a></code></li>
+<li><code><a title="saev.data.Config.buffer_size" href="#saev.data.Config.buffer_size">buffer_size</a></code></li>
+<li><code><a title="saev.data.Config.debug" href="#saev.data.Config.debug">debug</a></code></li>
+<li><code><a title="saev.data.Config.drop_last" href="#saev.data.Config.drop_last">drop_last</a></code></li>
+<li><code><a title="saev.data.Config.layer" href="#saev.data.Config.layer">layer</a></code></li>
 <li><code><a title="saev.data.Config.n_threads" href="#saev.data.Config.n_threads">n_threads</a></code></li>
 <li><code><a title="saev.data.Config.patches" href="#saev.data.Config.patches">patches</a></code></li>
 <li><code><a title="saev.data.Config.seed" href="#saev.data.Config.seed">seed</a></code></li>
 <li><code><a title="saev.data.Config.shard_root" href="#saev.data.Config.shard_root">shard_root</a></code></li>
+</ul>
+</li>
+<li>
+<h4><code><a title="saev.data.DataLoader" href="#saev.data.DataLoader">DataLoader</a></code></h4>
+<ul class="two-column">
+<li><code><a title="saev.data.DataLoader.ExampleBatch" href="#saev.data.DataLoader.ExampleBatch">ExampleBatch</a></code></li>
+<li><code><a title="saev.data.DataLoader.batch_size" href="#saev.data.DataLoader.batch_size">batch_size</a></code></li>
+<li><code><a title="saev.data.DataLoader.drop_last" href="#saev.data.DataLoader.drop_last">drop_last</a></code></li>
+<li><code><a title="saev.data.DataLoader.n_batches" href="#saev.data.DataLoader.n_batches">n_batches</a></code></li>
+<li><code><a title="saev.data.DataLoader.n_samples" href="#saev.data.DataLoader.n_samples">n_samples</a></code></li>
+<li><code><a title="saev.data.DataLoader.shutdown" href="#saev.data.DataLoader.shutdown">shutdown</a></code></li>
 </ul>
 </li>
 <li>

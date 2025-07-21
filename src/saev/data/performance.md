@@ -47,3 +47,51 @@ Certainly that can be higher.
 
 > *Not sure if this is the correct way to think about it, but: 100 / 14.6 = 6.8, close to 7.9 hours.*
 
+## Ordered Dataloader Design
+
+The `saev/data/ordered.py` module implements a high-throughput ordered dataloader that guarantees sequential data delivery.
+This is useful for iterating through all patches in an image at once.
+
+### Key Design Decisions
+
+1. Single-threaded I/O in Manager Process
+   
+   Initially, the dataloader used multiple worker threads for parallel I/O, similar to PyTorch's DataLoader. However, this created a fundamental ordering problem: when multiple workers read batches in parallel, they complete at different times and deliver batches out of order.
+   
+   We switched to single-threaded I/O because:
+   - Sequential reads from memory-mapped files are already highly optimized by the OS
+   - The OS page cache provides excellent performance for sequential access patterns
+   - Eliminating multi-threading removes all batch reordering complexity
+   - The simpler design is more maintainable and debuggable
+
+2. Process Separation with Ring Buffer
+   
+   The dataloader still uses a separate manager process connected via a multiprocessing Queue (acting as a ring buffer). This provides:
+   - Overlap between I/O and computation
+   - Configurable read-ahead via `buffer_size` parameter
+   - Natural backpressure when computation is slower than I/O
+   - Process isolation for better resource management
+
+3. Shard-Aware Sequential Reading
+   
+   The dataloader correctly handles the actual distribution of data across shards by:
+   - Reading `shards.json` to get the exact number of images per shard
+   - Maintaining cumulative offsets for efficient index-to-shard mapping
+   - Handling batches that span multiple shards without gaps or duplicates
+
+### Performance Considerations
+
+- Memory-mapped files: Using `np.memmap` allows efficient access to large files without loading them entirely into memory
+- Sequential access pattern: The dataloader reads data in the exact order it's stored on disk, maximizing OS cache effectiveness
+- Minimal data copying: Activations are copied only once from the memory-mapped file to PyTorch tensors
+- Read-ahead buffering: The configurable buffer size allows tuning the trade-off between memory usage and I/O overlap
+
+### Trade-offs
+
+The single-threaded design trades potential parallel I/O throughput for:
+- Guaranteed ordering
+- Simplicity and maintainability  
+- Elimination of synchronization overhead
+- Predictable performance characteristics
+
+In practice, the sequential read performance is sufficient for most use cases, especially when the computation (e.g., SAE forward pass) is the bottleneck rather than I/O.

@@ -37,8 +37,8 @@ class Config:
     # Disk
     ckpt: str = os.path.join(".", "checkpoints", "sae.pt")
     """Path to the sae.pt file."""
-    data: saev.data.IterableConfig = dataclasses.field(
-        default_factory=saev.data.IterableConfig
+    data: saev.data.OrderedConfig = dataclasses.field(
+        default_factory=saev.data.OrderedConfig
     )
     """Data configuration"""
     images: saev.data.images.Config = dataclasses.field(

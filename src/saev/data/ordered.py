@@ -1,12 +1,29 @@
 # src/saev/data/ordered.py
+"""
+Ordered (sequential) dataloader for activation data.
+
+This module provides a high-throughput dataloader that reads activation data
+from disk shards in sequential order, without shuffling. The implementation uses
+a single-threaded manager process to ensure data is delivered in the exact order
+it appears on disk.
+
+See the design decisions in src/saev/data/performance.md.
+
+Usage:
+    >>> cfg = Config(shard_root="./shards", layer=13, batch_size=4096)
+    >>> dataloader = DataLoader(cfg)
+    >>> for batch in dataloader:
+    ...     activations = batch["act"]  # [batch_size, d_vit]
+    ...     image_indices = batch["image_i"]  # [batch_size]
+    ...     patch_indices = batch["patch_i"]  # [batch_size]
+"""
+
 import collections.abc
 import dataclasses
 import logging
 import math
 import os
 import queue
-import threading
-import time
 import traceback
 import typing
 from multiprocessing.queues import Queue
@@ -39,8 +56,6 @@ class Config:
     """How long to wait for at least one batch."""
     drop_last: bool = False
     """Whether to drop the last batch if it's smaller than the others."""
-    n_threads: int = 4
-    """Number of dataloading threads."""
     buffer_size: int = 64
     """Number of batches to queue in the shared-memory ring buffer. Higher values add latency but improve resilience to brief stalls."""
     debug: bool = False
@@ -58,65 +73,81 @@ class ImageOutOfBoundsError(Exception):
         return f"Metadata says there are {self.metadata.n_imgs} images, but we found image {self.i}."
 
 
-@jaxtyped(typechecker=beartype.beartype)
-def _io_worker(
-    worker_id: int,
+@beartype.beartype
+def _manager_main(
     cfg: Config,
     metadata: writers.Metadata,
-    work_queue: queue.Queue[tuple[int, int, int] | None],
     batch_queue: Queue[dict[str, torch.Tensor]],
-    stop_event: threading.Event,
+    stop_event: Event,
     err_queue: Queue[tuple[str, str]],
 ):
     """
-    Pulls work items from the queue, loads data, and pushes it to the batch queue.
-    Work item is a tuple: (shard_idx, start_idx, end_idx).
-
-    See https://github.com/beartype/beartype/issues/397 for an explanation of why we use multiprocessing.queues.Queue for the type hint.
+    The main function for the data loader manager process.
+    Reads data sequentially and pushes batches to the queue.
     """
-    logger = logging.getLogger(f"ordered.worker{worker_id}")
-    logger.info(f"I/O worker {worker_id} started.")
+    log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
+    level = logging.DEBUG if cfg.debug else logging.INFO
+    logging.basicConfig(level=level, format=log_format)
+    logger = logging.getLogger("ordered.manager")
+    logger.info("Manager process started.")
 
-    layer_i = metadata.layers.index(cfg.layer)
-    shard_info = writers.ShardInfo.load(cfg.shard_root)
+    # 0. PRE-CONDITIONS
+    if cfg.patches != "image" or not isinstance(cfg.layer, int):
+        raise NotImplementedError(
+            "High-throughput loader only supports `image` and fixed `layer` mode for now."
+        )
 
-    # Pre-conditions
-    assert cfg.patches == "image"
-    assert isinstance(cfg.layer, int)
+    assert cfg.layer in metadata.layers, f"Layer {cfg.layer} not in {metadata.layers}"
 
-    while not stop_event.is_set():
-        try:
-            work_item = work_queue.get(timeout=0.1)
-            if work_item is None:  # Poison pill
-                logger.debug("Got 'None' from work_queue; exiting.")
-                break
+    try:
+        # Load shard info to get actual distribution
+        shard_info = writers.ShardInfo.load(cfg.shard_root)
+        layer_i = metadata.layers.index(cfg.layer)
 
-            shard_i, batch_start_idx, batch_end_idx = work_item
-            fname = f"acts{shard_i:06}.bin"
-            logger.debug(
-                "Processing %s for indices %d-%d", fname, batch_start_idx, batch_end_idx
+        # Calculate cumulative image offsets for each shard
+        cumulative_imgs = [0]
+        for shard in shard_info:
+            cumulative_imgs.append(cumulative_imgs[-1] + shard.n_imgs)
+
+        # Calculate cumulative sample offsets for each shard
+        cumulative_samples = [0]
+        for shard in shard_info:
+            cumulative_samples.append(
+                cumulative_samples[-1] + shard.n_imgs * metadata.n_patches_per_img
             )
 
-            img_i_offset = shard_i * metadata.n_imgs_per_shard
+        # Calculate total number of samples
+        total_samples = metadata.n_imgs * metadata.n_patches_per_img
 
-            acts_fpath = os.path.join(cfg.shard_root, fname)
-            mmap = np.memmap(
-                acts_fpath, mode="r", dtype=np.float32, shape=metadata.shard_shape
-            )
+        # Process batches in order
+        current_idx = 0
+        while current_idx < total_samples and not stop_event.is_set():
+            batch_end_idx = min(current_idx + cfg.batch_size, total_samples)
 
             # Collect batch activations and metadata
             batch_acts = []
             batch_image_is = []
             batch_patch_is = []
 
-            # Process images in this batch range
-            for idx in range(batch_start_idx, batch_end_idx):
+            # Process samples in this batch range
+            for idx in range(current_idx, batch_end_idx):
                 # Calculate which image and patch this index corresponds to
                 global_image_i = idx // metadata.n_patches_per_img
                 patch_i = idx % metadata.n_patches_per_img
 
-                # Skip if this goes beyond the shard
-                local_image_i = global_image_i - img_i_offset
+                # Find which shard contains this image
+                shard_i = None
+                for i in range(len(cumulative_imgs) - 1):
+                    if cumulative_imgs[i] <= global_image_i < cumulative_imgs[i + 1]:
+                        shard_i = i
+                        break
+
+                if shard_i is None:
+                    continue
+
+                # Get local image index within the shard
+                local_image_i = global_image_i - cumulative_imgs[shard_i]
+
                 if local_image_i >= shard_info[shard_i].n_imgs:
                     continue
 
@@ -124,6 +155,15 @@ def _io_worker(
                     err = ImageOutOfBoundsError(metadata, global_image_i)
                     logger.warning(err.message)
                     raise err
+
+                # Load activation from the appropriate shard
+                fname = f"acts{shard_i:06}.bin"
+                acts_fpath = os.path.join(cfg.shard_root, fname)
+
+                # Open mmap for this shard if needed
+                mmap = np.memmap(
+                    acts_fpath, mode="r", dtype=np.float32, shape=metadata.shard_shape
+                )
 
                 # Get the activation
                 patch_idx_with_cls = patch_i + int(metadata.cls_token)
@@ -143,124 +183,14 @@ def _io_worker(
                     "patch_i": torch.tensor(batch_patch_is, dtype=torch.long),
                 }
                 batch_queue.put(batch)
-
-        except queue.Empty:
-            continue
-        except Exception:
-            logger.exception("Error in worker.")
-            err_queue.put((f"worker{worker_id}", traceback.format_exc()))
-            break
-    logger.info("Worker finished.")
-
-
-@beartype.beartype
-def _manager_main(
-    cfg: Config,
-    metadata: writers.Metadata,
-    batch_queue: Queue[dict[str, torch.Tensor]],
-    stop_event: Event,
-    err_queue: Queue[tuple[str, str]],
-):
-    """
-    The main function for the data loader manager process.
-    """
-    log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
-    level = logging.DEBUG if cfg.debug else logging.INFO
-    logging.basicConfig(level=level, format=log_format)
-    logger = logging.getLogger("ordered.manager")
-    logger.info("Manager process started.")
-
-    # 0. PRE-CONDITIONS
-    if cfg.patches != "image" or not isinstance(cfg.layer, int):
-        raise NotImplementedError(
-            "High-throughput loader only supports `image` and fixed `layer` mode for now."
-        )
-
-    assert cfg.layer in metadata.layers, f"Layer {cfg.layer} not in {metadata.layers}"
-
-    try:
-        # 1. SETUP WORK QUEUE & I/O THREADS
-        work_queue = queue.Queue()
-
-        # Calculate total number of samples
-        total_samples = metadata.n_imgs * metadata.n_patches_per_img
-
-        # Distribute work items across all shards in order
-        current_idx = 0
-        while current_idx < total_samples:
-            batch_end_idx = min(current_idx + cfg.batch_size, total_samples)
-
-            # Determine which shard(s) this batch spans
-            start_shard = (
-                current_idx // metadata.n_patches_per_img
-            ) // metadata.n_imgs_per_shard
-            end_shard = (
-                (batch_end_idx - 1) // metadata.n_patches_per_img
-            ) // metadata.n_imgs_per_shard
-
-            if start_shard == end_shard:
-                # Batch is within a single shard
-                work_queue.put((start_shard, current_idx, batch_end_idx))
-            else:
-                # Batch spans multiple shards - split it
-                for shard_i in range(start_shard, end_shard + 1):
-                    shard_start_sample = (
-                        shard_i * metadata.n_imgs_per_shard * metadata.n_patches_per_img
-                    )
-                    shard_end_sample = (
-                        (shard_i + 1)
-                        * metadata.n_imgs_per_shard
-                        * metadata.n_patches_per_img
-                    )
-
-                    batch_start_in_shard = max(current_idx, shard_start_sample)
-                    batch_end_in_shard = min(batch_end_idx, shard_end_sample)
-
-                    if batch_start_in_shard < batch_end_in_shard:
-                        work_queue.put((
-                            shard_i,
-                            batch_start_in_shard,
-                            batch_end_in_shard,
-                        ))
+                logger.debug(f"Sent batch with {len(batch_acts)} samples")
 
             current_idx = batch_end_idx
-
-        # Stop objects.
-        for _ in range(cfg.n_threads):
-            work_queue.put(None)
-
-        threads = []
-        thread_stop_event = threading.Event()
-        for i in range(cfg.n_threads):
-            args = (
-                i,
-                cfg,
-                metadata,
-                work_queue,
-                batch_queue,
-                thread_stop_event,
-                err_queue,
-            )
-            thread = threading.Thread(target=_io_worker, args=args, daemon=True)
-            thread.start()
-            threads.append(thread)
-        logger.info("Launched %d I/O threads.", cfg.n_threads)
-
-        # 4. WAIT
-        while any(t.is_alive() for t in threads):
-            time.sleep(1.0)
 
     except Exception:
         logger.exception("Fatal error in manager process")
         err_queue.put(("manager", traceback.format_exc()))
     finally:
-        # 5. CLEANUP
-        logger.info("Manager process shutting down...")
-        thread_stop_event.set()
-        while not work_queue.empty():
-            work_queue.get_nowait()
-        for t in threads:
-            t.join(timeout=10.0)
         logger.info("Manager process finished.")
 
 
@@ -317,7 +247,7 @@ class DataLoader:
         # Create the batch queue
         self.batch_queue = self.ctx.Queue(maxsize=self.cfg.buffer_size)
         self.stop_event = self.ctx.Event()
-        self.err_queue = self.ctx.Queue(maxsize=self.cfg.n_threads + 1)
+        self.err_queue = self.ctx.Queue(maxsize=2)  # Manager + main process
 
         self.manager_proc = self.ctx.Process(
             target=_manager_main,
@@ -360,8 +290,7 @@ class DataLoader:
                     continue
                 except queue.Empty:
                     self.logger.info(
-                        "Did not get a batch from %d worker threads in %.1fs seconds.",
-                        self.cfg.n_threads,
+                        "Did not get a batch from manager process in %.1fs seconds.",
                         self.cfg.batch_timeout_s,
                     )
 
@@ -375,10 +304,18 @@ class DataLoader:
             self.shutdown()
 
     def shutdown(self):
-        if self.stop_event and not self.stop_event.is_set():
+        if (
+            hasattr(self, "stop_event")
+            and self.stop_event
+            and not self.stop_event.is_set()
+        ):
             self.stop_event.set()
 
-        if self.manager_proc and self.manager_proc.is_alive():
+        if (
+            hasattr(self, "manager_proc")
+            and self.manager_proc
+            and self.manager_proc.is_alive()
+        ):
             self.manager_proc.join(timeout=5.0)
             if self.manager_proc.is_alive():
                 self.logger.warning(

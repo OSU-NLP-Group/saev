@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1">
 <meta name="generator" content="pdoc3 0.11.1">
 <title>saev.data.ordered API documentation</title>
-<meta name="description" content="">
+<meta name="description" content="Ordered (sequential) dataloader for activation data …">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/13.0.0/sanitize.min.css" integrity="sha512-y1dtMcuvtTMJc1yPgEqF0ZjQbhnc/bFhyvIyVNb9Zk5mIGtqVaAB1Ttl28su8AvFMOY0EwRbAe+HCLqj6W7/KA==" crossorigin>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/13.0.0/typography.min.css" integrity="sha512-Y1DYSb995BAfxobCkKepB1BqJJTPrOp3zPL74AWFugHHmmdcvO+C48WLrUOlhGMc0QG7AE3f7gmvvcrmX2fDoA==" crossorigin>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css" crossorigin>
@@ -27,6 +27,20 @@ hljs.highlightAll();
 <h1 class="title">Module <code>saev.data.ordered</code></h1>
 </header>
 <section id="section-intro">
+<p>Ordered (sequential) dataloader for activation data.</p>
+<p>This module provides a high-throughput dataloader that reads activation data
+from disk shards in sequential order, without shuffling. The implementation uses
+a single-threaded manager process to ensure data is delivered in the exact order
+it appears on disk.</p>
+<p>See the design decisions in src/saev/data/performance.md.</p>
+<h2 id="usage">Usage</h2>
+<pre><code class="language-python-repl">&gt;&gt;&gt; cfg = Config(shard_root=&quot;./shards&quot;, layer=13, batch_size=4096)
+&gt;&gt;&gt; dataloader = DataLoader(cfg)
+&gt;&gt;&gt; for batch in dataloader:
+...     activations = batch[&quot;act&quot;]  # [batch_size, d_vit]
+...     image_indices = batch[&quot;image_i&quot;]  # [batch_size]
+...     patch_indices = batch[&quot;patch_i&quot;]  # [batch_size]
+</code></pre>
 </section>
 <section>
 </section>
@@ -39,7 +53,7 @@ hljs.highlightAll();
 <dl>
 <dt id="saev.data.ordered.Config"><code class="flex name class">
 <span>class <span class="ident">Config</span></span>
-<span>(</span><span>shard_root: str = './shards',<br>patches: Literal['cls', 'image', 'all'] = 'image',<br>layer: Union[int, Literal['all']] = -2,<br>batch_size: int = 16384,<br>batch_timeout_s: float = 30.0,<br>drop_last: bool = False,<br>n_threads: int = 4,<br>buffer_size: int = 64,<br>debug: bool = False)</span>
+<span>(</span><span>shard_root: str = './shards',<br>patches: Literal['cls', 'image', 'all'] = 'image',<br>layer: Union[int, Literal['all']] = -2,<br>batch_size: int = 16384,<br>batch_timeout_s: float = 30.0,<br>drop_last: bool = False,<br>buffer_size: int = 64,<br>debug: bool = False)</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Configuration for loading ordered (non-shuffled) activation data from disk.</p></div>
@@ -64,8 +78,6 @@ class Config:
     &#34;&#34;&#34;How long to wait for at least one batch.&#34;&#34;&#34;
     drop_last: bool = False
     &#34;&#34;&#34;Whether to drop the last batch if it&#39;s smaller than the others.&#34;&#34;&#34;
-    n_threads: int = 4
-    &#34;&#34;&#34;Number of dataloading threads.&#34;&#34;&#34;
     buffer_size: int = 64
     &#34;&#34;&#34;Number of batches to queue in the shared-memory ring buffer. Higher values add latency but improve resilience to brief stalls.&#34;&#34;&#34;
     debug: bool = False
@@ -96,10 +108,6 @@ class Config:
 <dt id="saev.data.ordered.Config.layer"><code class="name">var <span class="ident">layer</span> : Union[int, Literal['all']]</code></dt>
 <dd>
 <div class="desc"><p>Which ViT layer(s) to read from disk. <code>-2</code> selects the second-to-last layer. <code>"all"</code> enumerates every recorded layer.</p></div>
-</dd>
-<dt id="saev.data.ordered.Config.n_threads"><code class="name">var <span class="ident">n_threads</span> : int</code></dt>
-<dd>
-<div class="desc"><p>Number of dataloading threads.</p></div>
 </dd>
 <dt id="saev.data.ordered.Config.patches"><code class="name">var <span class="ident">patches</span> : Literal['cls', 'image', 'all']</code></dt>
 <dd>
@@ -174,7 +182,7 @@ class DataLoader:
         # Create the batch queue
         self.batch_queue = self.ctx.Queue(maxsize=self.cfg.buffer_size)
         self.stop_event = self.ctx.Event()
-        self.err_queue = self.ctx.Queue(maxsize=self.cfg.n_threads + 1)
+        self.err_queue = self.ctx.Queue(maxsize=2)  # Manager + main process
 
         self.manager_proc = self.ctx.Process(
             target=_manager_main,
@@ -217,8 +225,7 @@ class DataLoader:
                     continue
                 except queue.Empty:
                     self.logger.info(
-                        &#34;Did not get a batch from %d worker threads in %.1fs seconds.&#34;,
-                        self.cfg.n_threads,
+                        &#34;Did not get a batch from manager process in %.1fs seconds.&#34;,
                         self.cfg.batch_timeout_s,
                     )
 
@@ -232,10 +239,18 @@ class DataLoader:
             self.shutdown()
 
     def shutdown(self):
-        if self.stop_event and not self.stop_event.is_set():
+        if (
+            hasattr(self, &#34;stop_event&#34;)
+            and self.stop_event
+            and not self.stop_event.is_set()
+        ):
             self.stop_event.set()
 
-        if self.manager_proc and self.manager_proc.is_alive():
+        if (
+            hasattr(self, &#34;manager_proc&#34;)
+            and self.manager_proc
+            and self.manager_proc.is_alive()
+        ):
             self.manager_proc.join(timeout=5.0)
             if self.manager_proc.is_alive():
                 self.logger.warning(
@@ -454,7 +469,6 @@ setTimeout(() => input.focus(), 100);
 <li><code><a title="saev.data.ordered.Config.debug" href="#saev.data.ordered.Config.debug">debug</a></code></li>
 <li><code><a title="saev.data.ordered.Config.drop_last" href="#saev.data.ordered.Config.drop_last">drop_last</a></code></li>
 <li><code><a title="saev.data.ordered.Config.layer" href="#saev.data.ordered.Config.layer">layer</a></code></li>
-<li><code><a title="saev.data.ordered.Config.n_threads" href="#saev.data.ordered.Config.n_threads">n_threads</a></code></li>
 <li><code><a title="saev.data.ordered.Config.patches" href="#saev.data.ordered.Config.patches">patches</a></code></li>
 <li><code><a title="saev.data.ordered.Config.shard_root" href="#saev.data.ordered.Config.shard_root">shard_root</a></code></li>
 </ul>

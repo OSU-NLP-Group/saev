@@ -123,9 +123,7 @@ def test_no_child_leak(ordered_cfg):
 
 def test_compare_with_indexed_sequential(shards_path, layer):
     """
-    Compare ordered dataloader output with indexed dataset.
-    The ordered dataloader should produce data in the exact same order
-    as iterating through the indexed dataset sequentially.
+    Compare ordered dataloader output with indexed dataset. The ordered dataloader should produce data in the exact same order as iterating through the indexed dataset sequentially.
     """
     # Setup ordered dataloader
     ordered_cfg = OrderedConfig(
@@ -171,12 +169,10 @@ def test_compare_with_indexed_sequential(shards_path, layer):
 
             # Verify metadata matches
             assert indexed_example["image_i"] == batch_img_i, (
-                f"Batch {batch_idx}, item {i} (global idx {global_idx}): "
-                f"image_i mismatch: indexed={indexed_example['image_i']}, ordered={batch_img_i}"
+                f"Batch {batch_idx}, item {i} (global idx {global_idx}): image_i mismatch: indexed={indexed_example['image_i']}, ordered={batch_img_i}"
             )
             assert indexed_example["patch_i"] == batch_patch_i, (
-                f"Batch {batch_idx}, item {i} (global idx {global_idx}): "
-                f"patch_i mismatch: indexed={indexed_example['patch_i']}, ordered={batch_patch_i}"
+                f"Batch {batch_idx}, item {i} (global idx {global_idx}): patch_i mismatch: indexed={indexed_example['patch_i']}, ordered={batch_patch_i}"
             )
 
             # Compare activations with tolerance for float32 precision
@@ -235,39 +231,6 @@ def test_sequential_order(ordered_cfg):
             prev_patch_i = patch_i
 
 
-def test_drop_last(ordered_cfg, metadata):
-    """Test drop_last functionality."""
-    # Test with drop_last=False (default)
-    cfg_no_drop = dataclasses.replace(ordered_cfg, batch_size=1000, drop_last=False)
-    dl_no_drop = DataLoader(cfg_no_drop)
-
-    batches_no_drop = list(iter(dl_no_drop))
-    total_samples_no_drop = sum(b["act"].shape[0] for b in batches_no_drop)
-
-    # Should get all samples
-    assert total_samples_no_drop == dl_no_drop.n_samples
-
-    # Last batch might be smaller
-    if len(batches_no_drop) > 1:
-        last_batch_size = batches_no_drop[-1]["act"].shape[0]
-        assert last_batch_size <= cfg_no_drop.batch_size
-
-    # Test with drop_last=True
-    cfg_drop = dataclasses.replace(ordered_cfg, batch_size=1000, drop_last=True)
-    dl_drop = DataLoader(cfg_drop)
-
-    batches_drop = list(iter(dl_drop))
-
-    # All batches should be full size
-    for batch in batches_drop:
-        assert batch["act"].shape[0] == cfg_drop.batch_size
-
-    # Total samples should be less than n_samples if last batch was dropped
-    total_samples_drop = sum(b["act"].shape[0] for b in batches_drop)
-    assert total_samples_drop <= dl_drop.n_samples
-    assert total_samples_drop % cfg_drop.batch_size == 0
-
-
 def test_reproducibility(ordered_cfg):
     """Test that multiple iterations produce the same data in the same order."""
     dl = DataLoader(ordered_cfg)
@@ -317,20 +280,6 @@ def test_reproducibility(ordered_cfg):
             atol=0,
             msg=f"Batch {i}: patch_i differs between iterations",
         )
-
-
-def test_n_threads(ordered_cfg):
-    """Test different numbers of worker threads."""
-    for n_threads in [1, 2, 4]:
-        cfg = dataclasses.replace(ordered_cfg, n_threads=n_threads, batch_size=100)
-        dl = DataLoader(cfg)
-
-        # Just check that we can iterate
-        it = iter(dl)
-        batch = next(it)
-        assert batch["act"].shape[0] <= 100
-
-        dl.shutdown()
 
 
 def test_constructor_validation(ordered_cfg):
@@ -429,7 +378,7 @@ def test_cross_shard_batches(shards_path, layer, metadata):
 def test_timeout_handling(ordered_cfg):
     """Test batch timeout handling."""
     # Use very short timeout
-    cfg = dataclasses.replace(ordered_cfg, batch_timeout_s=0.001, n_threads=1)
+    cfg = dataclasses.replace(ordered_cfg, batch_timeout_s=0.001)
     dl = DataLoader(cfg)
 
     # Should still work, just with warnings

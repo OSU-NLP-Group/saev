@@ -815,7 +815,37 @@ INDEX=[
 {
 "ref":"saev.data",
 "url":16,
-"doc":" SAEV Sharded-Activation File Protocol v1 (2025-06-17) saev caches activations to disk rather than run ViT or LLM inference when training SAEs. Gemma Scope makes this decision as well (see Section 3.3.2 of https: arxiv.org/pdf/2408.05147).  saev.data has a specific protocol to support this in on [OSC](https: www.osc.edu), a super computer center, and take advantage of OSC's specific disk performance. Goal: loss-lessly persist very large Transformer (ViT or LLM) activations in a form that is:  mem-mappable  Parameterized solely by the  experiment configuration ( writers.Config )  Referenced by a content-hash, so identical configs collide, divergent ones never do  Can be read quickly in a random order for training, and can be read (slowly) with random-access for visuals. This document is the single normative source. Any divergence in code is a  bug .  -  1. Directory layout    / / metadata.json  UTF-8 JSON, human-readable, describes data-generating config shards.json  UTF-8 JSON, human-readable, describes shards. acts000000.bin  shard 0 acts000001.bin  shard 1  . actsNNNNNN.bin  shard NNNNNN (zero-padded width=6)    HASH =  sha256(json.dumps(metadata, sort_keys=True, separators=(',', ':' .encode('utf-8'  Guards against silent config drift.  -  2. JSON file schemas  2.1.  metadata.json | field | type | semantic | |            - |    |                      | |  vit_family | string |  \"clip\" \\| \"siglip\" \\| \"dinov2\" | |  vit_ckpt | string | model identifier (OpenCLIP, HF, etc.) | |  layers | int[] | ViT residual\u2010block indices recorded | |  n_patches_per_img | int |  image patches only (excludes CLS) | |  cls_token | bool |  true -> patch 0 is CLS, else no CLS | |  d_vit | int | activation dimensionality | |  n_imgs | int | total images in dataset | |  max_patches_per_shard | int |  logical activations per shard (see  3) | |  data | object | opaque dataset description | |  dtype | string | numpy dtype. Fixed  \"float32\" for now. | |  protocol | string |  \"1.0.0\" for now. | The  data object is  dataclasses.asdict(cfg.data) , with an additional  __class__ field with  cfg.data.__class__.__name__ as the value.  2.2.  shards.json A single array of  shard objects, each of which has the following fields: | field | type | semantic | |    |    |                  | | name | string | shard filename ( acts000000.bin ). | | n_imgs | int | the number of images in the shard. |  -  3 Shard sizing maths   n_tokens_per_img = n_patches_per_img + (1 if cls_token else 0) n_imgs_per_shard = floor(max_patches_per_shard / (n_tokens_per_img  len(layers ) shape_per_shard = ( n_imgs_per_shard, len(layers), n_tokens_per_img, d_vit, )    max_patches_per_shard is a  budget (default ~2.4 M) chosen so a shard is approximately 10 GiB for Float32 @  d_vit = 1024 .  The last shard will have a smaller value for  n_imgs_per_shard ; this value is documented in  n_imgs in  shards.json  -  4. Data Layout and Global Indexing The entire dataset of activations is treated as a single logical 4D tensor with the shape  (n_imgs, len(layers), n_tokens_per_img, d_vit) . This logical tensor is C-contiguous with axes ordered  [Image, Layer, Token, Dimension] . Physically, this tensor is split along the first axis ( Image ) into multiple shards, where each shard is a single binary file. The number of images in each shard is constant, except for the final shard, which may be smaller. To locate an arbitrary activation vector, a reader must convert a logical coordinate ( global_img_idx ,  layer_value ,  token_idx ) into a file path and an offset within that file.  4.1 Definitions Let the parameters from  metadata.json be:  L =  len(layers)  P =  n_patches_per_img  T =  P + (1 if cls_token else 0) (Total tokens per image)  D =  d_vit  S =  n_imgs from  shards.json or  n_imgs_per_shard from Section 3 (shard sizing).  4.2 Coordinate Transformations Given a logical coordinate:   global_img_idx : integer, with  0   Not sure if this is the correct way to think about it, but: 100 / 14.6 = 6.8, close to 7.9 hours. "
+"doc":" SAEV Sharded-Activation File Protocol v1 (2025-06-17) saev caches activations to disk rather than run ViT or LLM inference when training SAEs. Gemma Scope makes this decision as well (see Section 3.3.2 of https: arxiv.org/pdf/2408.05147).  saev.data has a specific protocol to support this in on [OSC](https: www.osc.edu), a super computer center, and take advantage of OSC's specific disk performance. Goal: loss-lessly persist very large Transformer (ViT or LLM) activations in a form that is:  mem-mappable  Parameterized solely by the  experiment configuration ( writers.Config )  Referenced by a content-hash, so identical configs collide, divergent ones never do  Can be read quickly in a random order for training, and can be read (slowly) with random-access for visuals. This document is the single normative source. Any divergence in code is a  bug .  -  1. Directory layout    / / metadata.json  UTF-8 JSON, human-readable, describes data-generating config shards.json  UTF-8 JSON, human-readable, describes shards. acts000000.bin  shard 0 acts000001.bin  shard 1  . actsNNNNNN.bin  shard NNNNNN (zero-padded width=6)    HASH =  sha256(json.dumps(metadata, sort_keys=True, separators=(',', ':' .encode('utf-8'  Guards against silent config drift.  -  2. JSON file schemas  2.1.  metadata.json | field | type | semantic | |            - |    |                      | |  vit_family | string |  \"clip\" \\| \"siglip\" \\| \"dinov2\" | |  vit_ckpt | string | model identifier (OpenCLIP, HF, etc.) | |  layers | int[] | ViT residual\u2010block indices recorded | |  n_patches_per_img | int |  image patches only (excludes CLS) | |  cls_token | bool |  true -> patch 0 is CLS, else no CLS | |  d_vit | int | activation dimensionality | |  n_imgs | int | total images in dataset | |  max_patches_per_shard | int |  logical activations per shard (see  3) | |  data | object | opaque dataset description | |  dtype | string | numpy dtype. Fixed  \"float32\" for now. | |  protocol | string |  \"1.0.0\" for now. | The  data object is  dataclasses.asdict(cfg.data) , with an additional  __class__ field with  cfg.data.__class__.__name__ as the value.  2.2.  shards.json A single array of  shard objects, each of which has the following fields: | field | type | semantic | |    |    |                  | | name | string | shard filename ( acts000000.bin ). | | n_imgs | int | the number of images in the shard. |  -  3 Shard sizing maths   n_tokens_per_img = n_patches_per_img + (1 if cls_token else 0) n_imgs_per_shard = floor(max_patches_per_shard / (n_tokens_per_img  len(layers ) shape_per_shard = ( n_imgs_per_shard, len(layers), n_tokens_per_img, d_vit, )    max_patches_per_shard is a  budget (default ~2.4 M) chosen so a shard is approximately 10 GiB for Float32 @  d_vit = 1024 .  The last shard will have a smaller value for  n_imgs_per_shard ; this value is documented in  n_imgs in  shards.json  -  4. Data Layout and Global Indexing The entire dataset of activations is treated as a single logical 4D tensor with the shape  (n_imgs, len(layers), n_tokens_per_img, d_vit) . This logical tensor is C-contiguous with axes ordered  [Image, Layer, Token, Dimension] . Physically, this tensor is split along the first axis ( Image ) into multiple shards, where each shard is a single binary file. The number of images in each shard is constant, except for the final shard, which may be smaller. To locate an arbitrary activation vector, a reader must convert a logical coordinate ( global_img_idx ,  layer_value ,  token_idx ) into a file path and an offset within that file.  4.1 Definitions Let the parameters from  metadata.json be:  L =  len(layers)  P =  n_patches_per_img  T =  P + (1 if cls_token else 0) (Total tokens per image)  D =  d_vit  S =  n_imgs from  shards.json or  n_imgs_per_shard from Section 3 (shard sizing).  4.2 Coordinate Transformations Given a logical coordinate:   global_img_idx : integer, with  0   Not sure if this is the correct way to think about it, but: 100 / 14.6 = 6.8, close to 7.9 hours.  Ordered Dataloader Design The  saev/data/ordered.py module implements a high-throughput ordered dataloader that guarantees sequential data delivery. This is useful for iterating through all patches in an image at once.  Key Design Decisions 1. Single-threaded I/O in Manager Process Initially, the dataloader used multiple worker threads for parallel I/O, similar to PyTorch's DataLoader. However, this created a fundamental ordering problem: when multiple workers read batches in parallel, they complete at different times and deliver batches out of order. We switched to single-threaded I/O because: - Sequential reads from memory-mapped files are already highly optimized by the OS - The OS page cache provides excellent performance for sequential access patterns - Eliminating multi-threading removes all batch reordering complexity - The simpler design is more maintainable and debuggable 2. Process Separation with Ring Buffer The dataloader still uses a separate manager process connected via a multiprocessing Queue (acting as a ring buffer). This provides: - Overlap between I/O and computation - Configurable read-ahead via  buffer_size parameter - Natural backpressure when computation is slower than I/O - Process isolation for better resource management 3. Shard-Aware Sequential Reading The dataloader correctly handles the actual distribution of data across shards by: - Reading  shards.json to get the exact number of images per shard - Maintaining cumulative offsets for efficient index-to-shard mapping - Handling batches that span multiple shards without gaps or duplicates  Performance Considerations - Memory-mapped files: Using  np.memmap allows efficient access to large files without loading them entirely into memory - Sequential access pattern: The dataloader reads data in the exact order it's stored on disk, maximizing OS cache effectiveness - Minimal data copying: Activations are copied only once from the memory-mapped file to PyTorch tensors - Read-ahead buffering: The configurable buffer size allows tuning the trade-off between memory usage and I/O overlap  Trade-offs The single-threaded design trades potential parallel I/O throughput for: - Guaranteed ordering - Simplicity and maintainability - Elimination of synchronization overhead - Predictable performance characteristics In practice, the sequential read performance is sufficient for most use cases, especially when the computation (e.g., SAE forward pass) is the bottleneck rather than I/O."
+},
+{
+"ref":"saev.data.Config",
+"url":16,
+"doc":"Configuration for loading indexed activation data from disk."
+},
+{
+"ref":"saev.data.Config.shard_root",
+"url":16,
+"doc":"Directory with .bin shards and a metadata.json file."
+},
+{
+"ref":"saev.data.Config.patches",
+"url":16,
+"doc":"Which kinds of patches to use. 'cls' indicates just the [CLS] token (if any). 'image' indicates it will return image patches. 'all' returns all patches."
+},
+{
+"ref":"saev.data.Config.layer",
+"url":16,
+"doc":"Which ViT layer(s) to read from disk.  -2 selects the second-to-last layer.  \"all\" enumerates every recorded layer."
+},
+{
+"ref":"saev.data.Config.seed",
+"url":16,
+"doc":"Random seed."
+},
+{
+"ref":"saev.data.Config.debug",
+"url":16,
+"doc":"Whether the dataloader process should log debug messages."
 },
 {
 "ref":"saev.data.Dataset",
@@ -862,6 +892,87 @@ INDEX=[
 {
 "ref":"saev.data.DataLoader",
 "url":16,
+"doc":"High-throughput streaming loader that reads data from disk shards in order (no shuffling)."
+},
+{
+"ref":"saev.data.DataLoader.ExampleBatch",
+"url":16,
+"doc":"Individual example."
+},
+{
+"ref":"saev.data.DataLoader.n_batches",
+"url":16,
+"doc":""
+},
+{
+"ref":"saev.data.DataLoader.n_samples",
+"url":16,
+"doc":""
+},
+{
+"ref":"saev.data.DataLoader.batch_size",
+"url":16,
+"doc":""
+},
+{
+"ref":"saev.data.DataLoader.drop_last",
+"url":16,
+"doc":""
+},
+{
+"ref":"saev.data.DataLoader.shutdown",
+"url":16,
+"doc":"",
+"func":1
+},
+{
+"ref":"saev.data.Config",
+"url":16,
+"doc":"Configuration for loading ordered (non-shuffled) activation data from disk."
+},
+{
+"ref":"saev.data.Config.shard_root",
+"url":16,
+"doc":"Directory with .bin shards and a metadata.json file."
+},
+{
+"ref":"saev.data.Config.patches",
+"url":16,
+"doc":"Which kinds of patches to use. 'cls' indicates just the [CLS] token (if any). 'image' indicates it will return image patches. 'all' returns all patches."
+},
+{
+"ref":"saev.data.Config.layer",
+"url":16,
+"doc":"Which ViT layer(s) to read from disk.  -2 selects the second-to-last layer.  \"all\" enumerates every recorded layer."
+},
+{
+"ref":"saev.data.Config.batch_size",
+"url":16,
+"doc":"Batch size."
+},
+{
+"ref":"saev.data.Config.batch_timeout_s",
+"url":16,
+"doc":"How long to wait for at least one batch."
+},
+{
+"ref":"saev.data.Config.drop_last",
+"url":16,
+"doc":"Whether to drop the last batch if it's smaller than the others."
+},
+{
+"ref":"saev.data.Config.buffer_size",
+"url":16,
+"doc":"Number of batches to queue in the shared-memory ring buffer. Higher values add latency but improve resilience to brief stalls."
+},
+{
+"ref":"saev.data.Config.debug",
+"url":16,
+"doc":"Whether the dataloader process should log debug messages."
+},
+{
+"ref":"saev.data.DataLoader",
+"url":16,
 "doc":"High-throughput streaming loader that deterministically shuffles data from disk shards."
 },
 {
@@ -898,37 +1009,7 @@ INDEX=[
 {
 "ref":"saev.data.Config",
 "url":16,
-"doc":"Configuration for loading indexed activation data from disk."
-},
-{
-"ref":"saev.data.Config.shard_root",
-"url":16,
-"doc":"Directory with .bin shards and a metadata.json file."
-},
-{
-"ref":"saev.data.Config.patches",
-"url":16,
-"doc":"Which kinds of patches to use. 'cls' indicates just the [CLS] token (if any). 'image' indicates it will return image patches. 'all' returns all patches."
-},
-{
-"ref":"saev.data.Config.layer",
-"url":16,
-"doc":"Which ViT layer(s) to read from disk.  -2 selects the second-to-last layer.  \"all\" enumerates every recorded layer."
-},
-{
-"ref":"saev.data.Config.seed",
-"url":16,
-"doc":"Random seed."
-},
-{
-"ref":"saev.data.Config.debug",
-"url":16,
-"doc":"Whether the dataloader process should log debug messages."
-},
-{
-"ref":"saev.data.Config",
-"url":16,
-"doc":"Configuration for loading iterable activation data from disk."
+"doc":"Configuration for loading shuffled activation data from disk."
 },
 {
 "ref":"saev.data.Config.shard_root",
@@ -1091,7 +1172,7 @@ INDEX=[
 {
 "ref":"saev.data.shuffled.Config",
 "url":17,
-"doc":"Configuration for loading iterable activation data from disk."
+"doc":"Configuration for loading shuffled activation data from disk."
 },
 {
 "ref":"saev.data.shuffled.Config.shard_root",
@@ -1192,7 +1273,7 @@ INDEX=[
 {
 "ref":"saev.data.ordered",
 "url":18,
-"doc":""
+"doc":"Ordered (sequential) dataloader for activation data. This module provides a high-throughput dataloader that reads activation data from disk shards in sequential order, without shuffling. The implementation uses a single-threaded manager process to ensure data is delivered in the exact order it appears on disk. See the design decisions in src/saev/data/performance.md. Usage: >>> cfg = Config(shard_root=\"./shards\", layer=13, batch_size=4096) >>> dataloader = DataLoader(cfg) >>> for batch in dataloader:  . activations = batch[\"act\"]  [batch_size, d_vit]  . image_indices = batch[\"image_i\"]  [batch_size]  . patch_indices = batch[\"patch_i\"]  [batch_size]"
 },
 {
 "ref":"saev.data.ordered.Config",
@@ -1228,11 +1309,6 @@ INDEX=[
 "ref":"saev.data.ordered.Config.drop_last",
 "url":18,
 "doc":"Whether to drop the last batch if it's smaller than the others."
-},
-{
-"ref":"saev.data.ordered.Config.n_threads",
-"url":18,
-"doc":"Number of dataloading threads."
 },
 {
 "ref":"saev.data.ordered.Config.buffer_size",

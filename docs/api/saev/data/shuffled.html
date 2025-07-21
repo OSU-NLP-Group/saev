@@ -42,7 +42,7 @@ hljs.highlightAll();
 <span>(</span><span>shard_root: str = './shards',<br>patches: Literal['cls', 'image', 'all'] = 'image',<br>layer: Union[int, Literal['all']] = -2,<br>batch_size: int = 16384,<br>batch_timeout_s: float = 30.0,<br>drop_last: bool = False,<br>n_threads: int = 4,<br>buffer_size: int = 64,<br>seed: int = 17,<br>debug: bool = False)</span>
 </code></dt>
 <dd>
-<div class="desc"><p>Configuration for loading iterable activation data from disk.</p></div>
+<div class="desc"><p>Configuration for loading shuffled activation data from disk.</p></div>
 <details class="source">
 <summary>
 <span>Expand source code</span>
@@ -50,7 +50,7 @@ hljs.highlightAll();
 <pre><code class="python">@beartype.beartype
 @dataclasses.dataclass(frozen=True)
 class Config:
-    &#34;&#34;&#34;Configuration for loading iterable activation data from disk.&#34;&#34;&#34;
+    &#34;&#34;&#34;Configuration for loading shuffled activation data from disk.&#34;&#34;&#34;
 
     shard_root: str = os.path.join(&#34;.&#34;, &#34;shards&#34;)
     &#34;&#34;&#34;Directory with .bin shards and a metadata.json file.&#34;&#34;&#34;

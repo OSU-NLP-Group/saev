@@ -96,8 +96,6 @@ def benchmark_fn(
             shard_root=shard_root,
             patches="image",
             layer=layer,
-            scale_mean=False,
-            scale_norm=False,
         )
         ds = saev.data.indexed.Dataset(cfg)
         dl = torch.utils.data.DataLoader(
