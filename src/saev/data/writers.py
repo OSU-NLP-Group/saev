@@ -24,9 +24,7 @@ logger = logging.getLogger(__name__)
 @beartype.beartype
 @dataclasses.dataclass(frozen=True)
 class Config:
-    """
-    Configuration for calculating and saving ViT activations.
-    """
+    """Configuration for calculating and saving ViT activations."""
 
     data: images.Config = dataclasses.field(default_factory=images.Imagenet)
     """Which dataset to use."""
