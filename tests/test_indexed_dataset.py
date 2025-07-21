@@ -12,8 +12,8 @@ import torch.multiprocessing as mp
 import saev.data
 from saev.data.indexed import Config as IndexedConfig
 from saev.data.indexed import Dataset as IndexedDataset
-from saev.data.iterable import Config as IterableConfig
-from saev.data.iterable import DataLoader
+from saev.data.shuffled import Config as IterableConfig
+from saev.data.shuffled import DataLoader
 
 mp.set_start_method("spawn", force=True)
 
@@ -449,13 +449,6 @@ def test_memmap_file_access(shards_path, layer, metadata):
     """Test that memmap files are accessed correctly."""
     cfg = IndexedConfig(shard_root=shards_path, patches="image", layer=layer)
     ds = IndexedDataset(cfg)
-
-    # Calculate expected shape
-    n_imgs_per_shard = (
-        metadata.max_patches_per_shard
-        // len(metadata.layers)
-        // (metadata.n_patches_per_img + int(metadata.cls_token))
-    )
 
     # Test first shard file exists
     acts_fpath = os.path.join(shards_path, "acts000000.bin")

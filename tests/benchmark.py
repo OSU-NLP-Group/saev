@@ -26,7 +26,7 @@ log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
 @beartype.beartype
 @dataclasses.dataclass(frozen=True)
 class Result:
-    kind: typing.Literal["torch", "iterable"]
+    kind: typing.Literal["indexed", "ordered", "shuffled"]
     n_workers: int
     batch_size: int
     batches_per_s: float
@@ -72,7 +72,7 @@ def infinite(dataloader):
 
 @beartype.beartype
 def benchmark_fn(
-    kind: typing.Literal["iterable", "torch"],
+    kind: typing.Literal["indexed", "shuffled", "ordered"],
     *,
     shard_root: str,
     layer: int,
@@ -84,21 +84,22 @@ def benchmark_fn(
     import psutil
     import torch
 
-    import saev.data.iterable
-    import saev.data.torch
+    import saev.data.indexed
+    import saev.data.ordered
+    import saev.data.shuffled
 
     logging.basicConfig(level=logging.INFO, format=log_format)
     logger = logging.getLogger("benchmark_fn")
 
-    if kind == "torch":
-        cfg = saev.data.torch.Config(
+    if kind == "indexed":
+        cfg = saev.data.indexed.Config(
             shard_root=shard_root,
             patches="image",
             layer=layer,
             scale_mean=False,
             scale_norm=False,
         )
-        ds = saev.data.torch.Dataset(cfg)
+        ds = saev.data.indexed.Dataset(cfg)
         dl = torch.utils.data.DataLoader(
             ds,
             batch_size=batch_size,
@@ -106,8 +107,18 @@ def benchmark_fn(
             shuffle=True,
             persistent_workers=True,
         )
-    elif kind == "iterable":
-        cfg = saev.data.iterable.Config(
+    elif kind == "ordered":
+        cfg = saev.data.ordered.Config(
+            shard_root=shard_root,
+            patches="image",
+            layer=layer,
+            batch_size=batch_size,
+            n_threads=n_workers,
+            buffer_size=128,
+        )
+        dl = saev.data.ordered.DataLoader(cfg)
+    elif kind == "shuffled":
+        cfg = saev.data.shuffled.Config(
             shard_root=shard_root,
             patches="image",
             layer=layer,
@@ -116,7 +127,7 @@ def benchmark_fn(
             buffer_size=128,
             seed=0,
         )
-        dl = saev.data.iterable.DataLoader(cfg)
+        dl = saev.data.shuffled.DataLoader(cfg)
     else:
         raise ValueError(kind)
 
@@ -200,8 +211,7 @@ def benchmark(
     )
     jobs = []
     with ex.batch():
-        # for kind in ["iterable", "torch"]:
-        for kind in ["iterable"]:
+        for kind in ["indexed", "ordered", "shuffled"]:
             for n_workers in [2, 4, 8, 16, 32]:
                 for batch_size in [2, 4, 8, 16]:
                     for _ in range(n_iter):

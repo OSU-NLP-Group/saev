@@ -8,8 +8,8 @@ import pytest
 import torch.multiprocessing as mp
 
 import saev.data
-from saev.data.iterable import Config as IterableConfig
-from saev.data.iterable import DataLoader
+from saev.data.shuffled import Config as IterableConfig
+from saev.data.shuffled import DataLoader
 
 mp.set_start_method("spawn", force=True)
 
