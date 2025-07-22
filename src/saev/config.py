@@ -219,6 +219,7 @@ class BatchTopK:
     def d_sae(self) -> int:
         return self.d_vit * self.exp_factor
 
+
 SparseAutoencoder = Relu | JumpRelu | TopK | BatchTopK
 
 
@@ -237,6 +238,7 @@ class Matryoshka:
 
     Reference code is here: https://github.com/noanabeshima/matryoshka-saes and the original reading is https://sparselatents.com/matryoshka.html and https://arxiv.org/pdf/2503.17547.
     """
+
     sparsity_coeff: float = 4e-4
     """How much to weight sparsity loss term (if not using TopK/BatchTopK)."""
     n_prefixes: int = 10

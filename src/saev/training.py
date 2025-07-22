@@ -11,10 +11,9 @@ import beartype
 import einops
 import numpy as np
 import torch
+import wandb
 from jaxtyping import Float
 from torch import Tensor
-
-import wandb
 
 from . import activations, config, helpers, nn
 

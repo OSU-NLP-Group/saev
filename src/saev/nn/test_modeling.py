@@ -1,11 +1,9 @@
 import hypothesis.strategies as st
+import numpy as np
 import pytest
 import torch
 from hypothesis import given, settings
-from scipy.stats import pareto, kstest
-
-import matplotlib.pyplot as plt
-import numpy as np
+from scipy.stats import kstest, pareto
 
 from .. import config
 from . import modeling
@@ -23,12 +21,14 @@ def relu_cfgs(draw):
     exp = draw(st.sampled_from([2, 4]))
     return config.Relu(d_vit=d_vit, exp_factor=exp)
 
+
 @st.composite
 def topk_cfgs(draw):
     d_vit = draw(st.sampled_from([32, 64, 128]))
     exp = draw(st.sampled_from([2, 4]))
     k = draw(st.sampled_from([1, 2, 4, 8]))
     return config.TopK(d_vit=d_vit, exp_factor=exp, top_k=k)
+
 
 @st.composite
 def batch_topk_cfgs(draw):
@@ -56,6 +56,7 @@ def test_batch_topk_activation(cfg, batch):
     assert y.shape == (batch, cfg.d_vit * cfg.exp_factor)
     # Check that only k elements are non-zero per batch
     assert (y != 0).sum(dim=1).sum(dim=0).eq(cfg.top_k)
+
 
 @settings(deadline=None)
 @given(cfg=relu_cfgs(), batch=st.integers(min_value=1, max_value=4))
@@ -127,7 +128,9 @@ def test_sample_prefix(cfg, n, pareto_power):
     sae = modeling.MatryoshkaSparseAutoencoder(cfg)
     assert isinstance(sae, modeling.MatryoshkaSparseAutoencoder)
 
-    prefixes = sae.sample_prefixes(sae.cfg.d_sae, n, pareto_power=pareto_power, replacement=True)
+    prefixes = sae.sample_prefixes(
+        sae.cfg.d_sae, n, pareto_power=pareto_power, replacement=True
+    )
 
     # Test against pareto distribution with the same params
     # cdf is scaled according to the max value of the cdf (at d_sae)
@@ -135,14 +138,13 @@ def test_sample_prefix(cfg, n, pareto_power):
     # Testing this using the equation is a bit tricky, so we sample integers instead.
     def pareto_cdf(x):
         return pareto.cdf(x, b=pareto_power) / pareto.cdf(sae.cfg.d_sae, b=pareto_power)
-    
-    pareto_pdf = np.diff(np.concatenate(([0], [pareto_cdf(i) for i in range(1, sae.cfg.d_sae + 1)])))
-    
+
+    pareto_pdf = np.diff(
+        np.concatenate(([0], [pareto_cdf(i) for i in range(1, sae.cfg.d_sae + 1)]))
+    )
+
     pareto_prefixes = np.random.choice(
-        np.arange(1, sae.cfg.d_sae),
-        size=n,
-        replace=True,
-        p=pareto_pdf[1:]
+        np.arange(1, sae.cfg.d_sae), size=n, replace=True, p=pareto_pdf[1:]
     )
 
     statistic, p_value = kstest(prefixes, pareto_prefixes)

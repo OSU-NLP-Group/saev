@@ -115,7 +115,6 @@ class MatryoshkaLoss(Loss):
         }
 
 
-
 @jaxtyped(typechecker=beartype.beartype)
 class MatryoshkaObjective(Objective):
     """Torch module for calculating the matryoshka loss for an SAE."""
@@ -131,7 +130,7 @@ class MatryoshkaObjective(Objective):
         prefix_preds: Float[Tensor, "batch n_prefixes d_model"],
     ) -> "MatryoshkaLoss.Loss":
         # Some values of x and x_hat can be very large. We can calculate a safe MSE
-        #mse_losses = torch.flatten([mean_squared_err(p, x) for p in prefix_preds])
+        # mse_losses = torch.flatten([mean_squared_err(p, x) for p in prefix_preds])
         mse_losses = torch.stack([mean_squared_err(p, x) for p in prefix_preds], dim=0)
         mse_loss = mse_losses.sum(dim=-1).mean()
         l0 = (f_x > 0).float().sum(axis=1).mean(axis=0)
@@ -139,7 +138,6 @@ class MatryoshkaObjective(Objective):
         sparsity_loss = self.cfg.sparsity_coeff * l1
 
         return MatryoshkaLoss(mse_loss, sparsity_loss, l0, l1)
-
 
 
 @beartype.beartype

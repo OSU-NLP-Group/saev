@@ -158,12 +158,13 @@ class MatryoshkaSparseAutoencoder(SparseAutoencoder):
 
         prefixes = self.sample_prefixes(len(f_x), n_prefixes).to(self.b_dec.device)
 
-        block_indices = torch.torch.cat((torch.tensor([0]).to(self.b_dec.device), prefixes))
+        block_indices = torch.torch.cat((
+            torch.tensor([0]).to(self.b_dec.device),
+            prefixes,
+        ))
         block_bounds = list(zip(block_indices[:-1], block_indices[1:]))
 
-        block_preds = [
-            self.block_decode(f_x, block) for block in block_bounds
-        ]
+        block_preds = [self.block_decode(f_x, block) for block in block_bounds]
 
         prefix_preds = torch.cumsum(torch.stack(block_preds), dim=0)
 
@@ -173,17 +174,20 @@ class MatryoshkaSparseAutoencoder(SparseAutoencoder):
         self, f_x: Float[Tensor, "batch d_sae"], block: tuple[int]
     ) -> Float[Tensor, "batch d_model"]:
         """Decodes sparse encoding using only the given interval of indices.
-        
+
         Arguments:
-            f_x: Sparse encoding """
-        
+            f_x: Sparse encoding"""
+
         # Can't use einsum here because the block lengths can change
-        x_hat = torch.matmul(f_x[:, block[0]:block[1]], self.W_dec[block[0]:block[1]]) + self.b_dec
-        
-        #x_hat = (
+        x_hat = (
+            torch.matmul(f_x[:, block[0] : block[1]], self.W_dec[block[0] : block[1]])
+            + self.b_dec
+        )
+
+        # x_hat = (
         #    einops.einsum(f_x[block[0]:block[1]], self.W_dec[block[0]:block[1]], "... block, block d_vit -> ... d_vit")
         #    + self.b_dec[block[0]:block[1]]
-        #)
+        # )
 
         return x_hat
 
@@ -194,10 +198,10 @@ class MatryoshkaSparseAutoencoder(SparseAutoencoder):
         n_prefixes: int,
         min_prefix_length: int = 1,
         pareto_power: float = 0.5,
-        replacement: bool = False
+        replacement: bool = False,
     ) -> torch.Tensor:
         """
-        Samples prefix lengths using a Pareto distribution. Derived from "Learning Multi-Level Features with 
+        Samples prefix lengths using a Pareto distribution. Derived from "Learning Multi-Level Features with
         Matryoshka Sparse Autoencoders" (https://doi.org/10.48550/arXiv.2503.17547)
 
         Args:
@@ -219,7 +223,9 @@ class MatryoshkaSparseAutoencoder(SparseAutoencoder):
         probability_dist = pareto_pdf / pareto_pdf.sum()
 
         # Sample and sort prefix lengths
-        prefixes = torch.multinomial(probability_dist, num_samples=n_prefixes - 1, replacement=replacement)
+        prefixes = torch.multinomial(
+            probability_dist, num_samples=n_prefixes - 1, replacement=replacement
+        )
 
         # Add n_latents as the final prefix
         prefixes = torch.cat((prefixes.detach().clone(), torch.tensor([sae_dim])))
@@ -245,9 +251,11 @@ class TopK(torch.nn.Module):
         """
         if self.k <= 0:
             raise ValueError("k must be a positive integer.")
-        
+
         k_vals, k_inds = torch.topk(x, self.k, dim=-1, sorted=False)
-        mask = torch.zeros_like(x).scatter_(dim=-1, index=k_inds, src=torch.ones_like(x))
+        mask = torch.zeros_like(x).scatter_(
+            dim=-1, index=k_inds, src=torch.ones_like(x)
+        )
 
         return torch.mul(mask, x)
 
@@ -268,11 +276,13 @@ class BatchTopK(torch.nn.Module):
         """
         if self.k <= 0:
             raise ValueError("k must be a positive integer.")
-        
+
         orig_shape = x.shape
         x = x.flatten()
         k_vals, k_inds = torch.topk(x, self.k, dim=-1, sorted=False)
-        mask = torch.zeros_like(x).scatter_(dim=-1, index=k_inds, src=torch.ones_like(x))
+        mask = torch.zeros_like(x).scatter_(
+            dim=-1, index=k_inds, src=torch.ones_like(x)
+        )
 
         return torch.mul(mask, x).reshape(orig_shape)
 
@@ -289,6 +299,7 @@ def get_activation(cfg: config.SparseAutoencoder) -> torch.nn.Module:
         return BatchTopK(k=cfg.top_k)
     else:
         typing.assert_never(cfg)
+
 
 @beartype.beartype
 def dump(fpath: str, sae: SparseAutoencoder):

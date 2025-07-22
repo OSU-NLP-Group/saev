@@ -1,8 +1,10 @@
+import json
+
+import jsonschema
+import numpy as np
 import torch
 from torch.utils.data import Dataset
-import jsonschema
-import json
-import numpy as np
+
 
 def validate_tree(instance):
     with open("tree.json", "r") as f:
@@ -15,6 +17,7 @@ with open("tree.json") as f:
     tree_dict = json.load(f)
 
 validate_tree(tree_dict)
+
 
 class Tree:
     def __init__(self, tree_dict, start_idx=0):
@@ -134,6 +137,7 @@ class TreeDataset(Dataset):
         x = true_acts @ self.true_feats
         return x
 
+
 tree = Tree(tree_dict)
 
 from matplotlib import pyplot as plt
@@ -141,4 +145,3 @@ from matplotlib import pyplot as plt
 plt.figure(figsize=(10, 10))
 plt.imshow(np.cov(tree.sample(10000).T))
 plt.show()
-

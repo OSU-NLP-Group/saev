@@ -1,7 +1,7 @@
-import torch.nn.functional as F
-import torch.nn as nn
-import torch
 import numpy as np
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
 
 
 def get_wsd_scheduler(
@@ -56,9 +56,10 @@ def sample_prefixes(
     )
 
     # Convert CDF to PDF
-    pareto_pdf = np.concatenate(
-        [np.zeros(min_prefix_length), pareto_cdf[1:] - pareto_cdf[:-1]]
-    )
+    pareto_pdf = np.concatenate([
+        np.zeros(min_prefix_length),
+        pareto_cdf[1:] - pareto_cdf[:-1],
+    ])
     probability_dist = pareto_pdf / pareto_pdf.sum()
 
     # Sample and sort prefix lengths
