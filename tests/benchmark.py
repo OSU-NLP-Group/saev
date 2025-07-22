@@ -233,7 +233,7 @@ def benchmark(
         except submitit.core.utils.UncompletedJobError:
             logger.warning("Job %d did not finish.", j)
 
-    meta = saev.data.writers.Metadata.load(os.path.join(shards, "metadata.json"))
+    meta = saev.data.writers.Metadata.load(shards)
     payload = dict(
         meta=dataclasses.asdict(meta), results=[dataclasses.asdict(r) for r in results]
     )
