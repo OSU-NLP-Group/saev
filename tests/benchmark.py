@@ -111,7 +111,6 @@ def benchmark_fn(
             patches="image",
             layer=layer,
             batch_size=batch_size,
-            n_threads=n_workers,
             buffer_size=128,
         )
         dl = saev.data.ordered.DataLoader(cfg)
