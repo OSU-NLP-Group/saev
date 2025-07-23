@@ -335,7 +335,7 @@ def evaluate(
     for batch in helpers.progress(dataloader, desc="eval", every=cfg.log_every):
         acts_BD = batch["act"].to(cfg.device, non_blocking=True)
         for i, (sae, objective) in enumerate(zip(saes, objectives)):
-             if isinstance(objective, nn.objectives.MatryoshkaObjective):
+            if isinstance(objective, nn.objectives.MatryoshkaObjective):
                 # Specific case has to be given for Matryoshka SAEs since we need to decode several times
                 # with varying prefix lengths
                 prefix_preds, f_x_BS = sae.matryoshka_forward(acts_BD, cfg.n_prefixes)
