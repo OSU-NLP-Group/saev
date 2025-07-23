@@ -335,8 +335,14 @@ def evaluate(
     for batch in helpers.progress(dataloader, desc="eval", every=cfg.log_every):
         acts_BD = batch["act"].to(cfg.device, non_blocking=True)
         for i, (sae, objective) in enumerate(zip(saes, objectives)):
-            x_hat_BD, f_x_BS = sae(acts_BD)
-            loss = objective(acts_BD, f_x_BS, x_hat_BD)
+             if isinstance(objective, nn.objectives.MatryoshkaObjective):
+                # Specific case has to be given for Matryoshka SAEs since we need to decode several times
+                # with varying prefix lengths
+                prefix_preds, f_x_BS = sae.matryoshka_forward(acts_BD, cfg.n_prefixes)
+                loss = objective(acts_BD, f_x_BS, prefix_preds)
+            else:
+                x_hat, f_x_BS = sae(acts_BD)
+                loss = objective(acts_BD, f_x_BS, x_hat)
             n_fired[i] += einops.reduce(f_x_BS > 0, "batch d_sae -> d_sae", "sum").cpu()
             values[i] += einops.reduce(f_x_BS, "batch d_sae -> d_sae", "sum").cpu()
             total_l0[i] += loss.l0.cpu()
