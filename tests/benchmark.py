@@ -9,7 +9,6 @@ uv run python bench/run_bench.py --shard-path /fs/scratch/.../cache/saev/<hash>
 import dataclasses
 import json
 import logging
-import os
 import pathlib
 import subprocess
 import sys

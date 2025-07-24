@@ -16,7 +16,7 @@ def main(cfg: typing.Annotated[Config, tyro.conf.arg(name="")]):
             partition=cfg.slurm_partition,
             gpus_per_node=1,
             ntasks_per_node=1,
-            cpus_per_task=cfg.data.n_threads + 4,
+            cpus_per_task=8,
             stderr_to_stdout=True,
             account=cfg.slurm_acct,
         )

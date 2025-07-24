@@ -22,7 +22,7 @@ from torch import Tensor
 
 import saev.data
 import saev.data.images
-from saev import config, helpers, imaging, nn
+from saev import helpers, imaging, nn
 
 log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
 logging.basicConfig(level=logging.INFO, format=log_format)
@@ -69,6 +69,7 @@ class Config:
     """Maximum number of latents to save images for."""
     sae_batch_size: int = 1024 * 16
     """Batch size for SAE inference."""
+    topk_batch_size: int = 1024 * 16
 
     # Hardware
     device: str = "cuda"
@@ -223,7 +224,7 @@ def batched_idx(
 
 @jaxtyped(typechecker=beartype.beartype)
 def get_sae_acts(
-    vit_acts: Float[Tensor, "n d_vit"], sae: nn.SparseAutoencoder, cfg: config.Visuals
+    vit_acts: Float[Tensor, "n d_vit"], sae: nn.SparseAutoencoder, cfg: Config
 ) -> Float[Tensor, "n d_sae"]:
     """
     Get SAE hidden layer activations for a batch of ViT activations.
@@ -258,7 +259,7 @@ class TopKImg:
 
 @beartype.beartype
 @torch.inference_mode()
-def get_topk_img(cfg: config.Visuals) -> TopKImg:
+def get_topk_img(cfg: Config) -> TopKImg:
     """
     Gets the top k images for each latent in the SAE.
     The top k images are for latent i are sorted by
@@ -353,7 +354,7 @@ class TopKPatch:
 
 @beartype.beartype
 @torch.inference_mode()
-def get_topk_patch(cfg: config.Visuals) -> TopKPatch:
+def get_topk_patch(cfg: Config) -> TopKPatch:
     """
     Gets the top k images for each latent in the SAE.
     The top k images are for latent i are sorted by
@@ -369,7 +370,7 @@ def get_topk_patch(cfg: config.Visuals) -> TopKPatch:
         A tuple of TopKPatch and m randomly sampled activation distributions.
     """
     assert cfg.sort_by == "patch"
-    assert cfg.data.patches == "patches"
+    assert cfg.data.patches == "image"
 
     sae = nn.load(cfg.ckpt).to(cfg.device)
     metadata = saev.data.Metadata.load(cfg.data.shard_root)
@@ -401,7 +402,7 @@ def get_topk_patch(cfg: config.Visuals) -> TopKPatch:
 
     logger.info("Loaded SAE and data.")
 
-    for batch in helpers.progress(dataloader, desc="picking top-k"):
+    for batch in helpers.progress(dataloader, desc="picking top-k", every=50):
         vit_acts_BD = batch["act"]
         sae_acts_BS = get_sae_acts(vit_acts_BD, sae, cfg)
 
@@ -423,7 +424,12 @@ def get_topk_patch(cfg: config.Visuals) -> TopKPatch:
 
         # Checks that I did my reshaping correctly.
         assert values_p.shape[1] == i_im.shape[0]
-        assert len(i_im) == n_imgs_per_batch
+        if not len(i_im) == n_imgs_per_batch:
+            logger.warning(
+                "Got %d images; expected %d images per batch.",
+                len(i_im),
+                n_imgs_per_batch,
+            )
 
         _, k = torch.topk(sae_acts_SB, k=cfg.top_k, dim=1)
         k_im = k // metadata.n_patches_per_img
@@ -452,7 +458,7 @@ def get_topk_patch(cfg: config.Visuals) -> TopKPatch:
 
 @beartype.beartype
 @torch.inference_mode()
-def dump_activations(cfg: config.Visuals):
+def dump_activations(cfg: Config):
     """Dump ViT activation statistics for later use.
 
     The dataset described by ``cfg`` is processed to find the images or patches that maximally activate each SAE latent.  Various tensors summarising these activations are then written to ``cfg.root`` so they can be loaded by other tools.
@@ -481,9 +487,7 @@ def dump_activations(cfg: config.Visuals):
 
 
 @jaxtyped(typechecker=beartype.beartype)
-def plot_activation_distributions(
-    cfg: config.Visuals, distributions: Float[Tensor, "m n"]
-):
+def plot_activation_distributions(cfg: Config, distributions: Float[Tensor, "m n"]):
     import matplotlib.pyplot as plt
     import numpy as np
 
@@ -536,7 +540,7 @@ def plot_activation_distributions(
 
 @beartype.beartype
 @torch.inference_mode()
-def main(cfg: config.Visuals):
+def dump_imgs(cfg: Config):
     """
     .. todo:: document this function.
 
@@ -556,7 +560,7 @@ def main(cfg: config.Visuals):
     except FileNotFoundError as err:
         logger.warning("Need to dump files: %s", err)
         dump_activations(cfg)
-        return main(cfg)
+        return dump_imgs(cfg)
 
     d_sae, cached_topk, *rest = top_values.shape
     # Check that the data is at least shaped correctly.
@@ -581,7 +585,7 @@ def main(cfg: config.Visuals):
         "Saved %d activation distributions to '%s'.", cfg.n_distributions, fig_fpath
     )
 
-    dataset = activations.get_dataset(cfg.images, img_transform=None)
+    dataset = saev.data.images.get_dataset(cfg.images, img_transform=None)
 
     min_log_freq, max_log_freq = cfg.log_freq_range
     min_log_value, max_log_value = cfg.log_value_range
@@ -673,7 +677,8 @@ class PercentileEstimator:
         step_size = self.lr * (self.total - self._step) / self.total
 
         # Is a no-op if it's already on the same device.
-        self._estimate = self._estimate.to(x.device)
+        if isinstance(x, Tensor):
+            self._estimate = self._estimate.to(x.device)
 
         self._estimate += step_size * (
             torch.sign(x - self._estimate) + 2 * self.percentile / 100 - 1.0

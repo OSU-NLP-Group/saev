@@ -1,6 +1,7 @@
 # tests/test_ordered_dataloader.py
 import dataclasses
 import gc
+import os
 import time
 
 import psutil
@@ -367,3 +368,64 @@ def test_timeout_handling(ordered_cfg):
     it = iter(dl)
     batch = next(it)
     assert batch["act"].shape[0] > 0
+
+
+@pytest.mark.slow
+def test_ordered_dataloader_with_tiny_fake_dataset(tmp_path):
+    """Test OrderedDataLoader with a very small fake dataset to ensure end behavior works."""
+    from saev.data import images, writers
+
+    # Create a tiny dataset - just 2 images
+    # The tiny-open-clip-model uses 16 patches + 1 CLS token
+    n_imgs = 2
+    d_vit = 128
+    n_patches = 16  # Standard for this model
+    layers = [0]
+
+    # Create activation shards using the fake dataset
+    cfg = writers.Config(
+        data=images.Fake(n_imgs=n_imgs),
+        dump_to=str(tmp_path),
+        vit_family="clip",
+        vit_ckpt="hf-hub:hf-internal-testing/tiny-open-clip-model",
+        d_vit=d_vit,
+        vit_layers=layers,
+        n_patches_per_img=n_patches,
+        cls_token=True,  # This model has CLS token
+        max_patches_per_shard=1000,
+        vit_batch_size=n_imgs,  # Process all images in one batch
+        n_workers=0,
+        device="cpu",
+    )
+
+    # Generate the activation shards
+    writers.worker_fn(cfg)
+
+    # Get the actual shard directory
+    metadata = writers.Metadata.from_cfg(cfg)
+    shard_root = os.path.join(str(tmp_path), metadata.hash)
+
+    # Test with batch_size = 7 (32 total samples, so batches of 7, 7, 7, 7, 4)
+    ordered_cfg = OrderedConfig(
+        shard_root=shard_root,
+        patches="image",
+        layer=layers[0],
+        batch_size=7,
+        drop_last=False,
+    )
+
+    # Check that we can calculate expected values
+    dl = DataLoader(ordered_cfg)
+    expected_samples = n_imgs * n_patches  # 2 * 16 = 32
+    expected_batches = (expected_samples + 6) // 7  # ceil(32/7) = 5
+
+    assert dl.n_samples == expected_samples
+    assert dl.n_batches == expected_batches
+    assert len(dl) == expected_batches
+
+    for batch in dl:
+        assert len(batch["patch_i"]) <= ordered_cfg.batch_size
+
+    # The actual iteration might still fail due to multiprocessing,
+    # but at least we've tested the calculation logic
+    dl.shutdown()

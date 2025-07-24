@@ -139,3 +139,112 @@ Only difference is --data.layer.
 uv run visuals.py --ckpt checkpoints/53fl3ysv/sae.pt --dump-to /fs/scratch/PAS2136/samuelstevens/saev/visuals/53fl3ysv --log-freq-range -3 -1 --log-value-range -1 3 --data.shard-root /fs/scratch/PAS2136/samuelstevens/cache/saev/f9deaa8a07786087e8071f39a695200ff6713ee02b25e7a7b4a6d5ac1ad968db/ --data.layer 13 images:image-folder --images.root /fs/ess/PAS2136/foundation_model/inat21/raw/train_mini/
 
 However, I need to add slurm to the visuals.py script.
+
+# 07/24/2025
+
+I have successfully added slurm to the visuals.py script.
+Now it's time to add some metrics logging so that I can compare the effect of different hyperparameters.
+
+
+Reconstruction Mean-Squared Error (MSE)
+
+Why: basic sanity check that the decoder is learning to reproduce the ViT activation.
+
+$\text{MSE} = \frac{\lVert z - \hat z \rVert_2^2}{D}$
+
+where $z$ is the original activation, $\hat z$ is the reconstruction, and $D$ is the dimensionality of $z$.
+
+```python
+mse = (z_hat - z).pow(2).mean()
+```
+
+Explained Variance
+
+Why: scale-invariant measure of reconstruction quality; lets you compare runs with different sparsity penalties.
+
+$\text{ExplVar} = 1 - \frac{\operatorname{Var}(z - \hat z)}{\operatorname{Var}(z)}$
+
+where the variances are computed element-wise over the batch.
+
+```python
+expl_var = 1 - (z_hat - z).var() / z.var()
+```
+
+Mean L0 (fraction of active units)
+
+Why: tracks sparsity level; you usually aim for 1–5 % active units.
+
+$\text{L0} = \frac{1}{B K}\sum_{b=1}^{B}\sum_{k=1}^{K}\mathbf{1}\!\bigl(|f_{bk}|>\epsilon\bigr)$
+
+with $\epsilon \approx 10^{-8}$.
+
+```python
+l0 = (f.abs() > 1e-8).float().mean()
+```
+
+Mean L1 (average absolute activation)
+
+Why: complementary sparsity signal; falls as the sparsity penalty λ rises.
+
+$\text{L1} = \frac{1}{B K}\sum_{b=1}^{B}\sum_{k=1}^{K}|f_{bk}|$
+
+```python
+l1 = f.abs().mean()
+```
+
+Dead-Unit Percentage
+
+Why: measures wasted capacity; too many dead units suggest λ is too high or K is too large.
+
+$\text{DeadPct} = \frac{1}{K}\sum_{k=1}^{K}\mathbf{1}\!\Bigl(\max_{b}|f_{bk}| = 0\Bigr)$
+
+```python
+dead_pct = ((f.abs() > 1e-8).sum(0) == 0).float().mean()
+```
+
+Mean Absolute Off-Diagonal Correlation
+
+Why: lower values indicate more independent (less redundant) codes.
+
+$\text{MeanAbsCorr} = \frac{1}{K(K-1)}\sum_{i\ne j}\bigl|\rho_{ij}\bigr|$
+
+where $\rho_{ij}$ is the Pearson correlation between units $i$ and $j$.
+
+```python
+corr = torch.corrcoef(f.T)
+mean_abs_corr = corr.fill_diagonal_(0).abs().mean()
+```
+
+Dictionary Coherence
+
+Why: detects duplicate decoder atoms; lower is better.
+
+$$$\text{Coherence} = \max_{i\ne j}\left|\left\langle\hat w_i,\hat w_j\right\rangle\right|,\quad
+\hat w_i = \frac{w_i}{\lVert w_i\rVert_2}$$
+
+```python
+W = decoder.weight                       # (D, K)
+W_norm = W / W.norm(dim=0, keepdim=True) # column-normalise
+coherence = (W_norm.T @ W_norm).abs().triu(1).max()
+```
+
+Decoder Column ℓ₂ Norm (average)
+
+Why: catches exploding decoder weights, often a sign of bad learning rate or λ.
+
+$$\text{AvgWColNorm} = \frac{1}{K}\sum_{k=1}^{K}\lVert w_k\rVert_2$$
+
+```python
+avg_w_col_norm = decoder.weight.norm(dim=0).mean()
+```
+
+Gradient Norm
+
+Why: spikes reveal optimisation issues or FP16 under/overflow.
+
+$$\lVert\nabla\theta\rVert_2$$
+
+```python
+grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1e9)
+```
+
