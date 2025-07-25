@@ -1,6 +1,5 @@
 # src/saev/data/buffers.py
 import collections.abc
-import itertools
 import time
 
 import beartype
@@ -100,17 +99,22 @@ class ReservoirBuffer:
         capacity: int,
         shape: tuple[int, ...],
         *,
-        dtype=torch.float32,
+        dtype: torch.dtype = torch.float32,
+        meta_shape: tuple[int, ...] = (2,),
+        meta_dtype: torch.dtype = torch.int32,
         seed: int = 0,
         collate_fn: collections.abc.Callable | None = None,
     ):
         self.capacity = capacity
-        self.data = torch.full((capacity, *shape), 123456789, dtype=dtype)
+        self._empty = 123456789
+
+        self.data = torch.full((capacity, *shape), self._empty, dtype=dtype)
         self.data.share_memory_()
 
+        self.meta = torch.full((capacity, *meta_shape), self._empty, dtype=meta_dtype)
+        self.meta.share_memory_()
+
         self.ctx = mp.get_context()
-        mgr = self.ctx.Manager()
-        self.meta = mgr.list([None] * capacity)
 
         self.size = self.ctx.Value("L", 0)  # current live items
         self.lock = self.ctx.Lock()  # guards size+swap
@@ -124,7 +128,7 @@ class ReservoirBuffer:
     def put(
         self,
         xs: Shaped[Tensor, "n? ..."],
-        metas: collections.abc.Sequence[object] | None = None,
+        metadata: Shaped[Tensor, "n? ..."] | None = None,
     ):
         if xs.dtype != self.data.dtype:
             raise ValueError("tensor dtype mismatch")
@@ -140,25 +144,32 @@ class ReservoirBuffer:
             raise ValueError("tensor shape mismatch")
 
         n, *_ = xs.shape
-        if metas is None:
-            metas_it = itertools.repeat(None, n)
+        if metadata is None:
+            metadata = torch.full(
+                (n, *self.meta.shape[1:]), self._empty, dtype=self.meta.dtype
+            )
         else:
-            if len(metas) != n:
-                raise ValueError(f"len(xs) = {len(xs)} != len(metas) = {len(metas)}")
-            metas_it = iter(metas)
+            if len(metadata) != n:
+                raise ValueError(
+                    f"len(xs) = {len(xs)} != len(metadata) = {len(metadata)}"
+                )
 
-        for x, m in zip(xs, metas_it):
+        for _ in range(n):
             self.free.acquire()  # block if full
-            with self.lock:
-                idx = self.size.value  # append at tail
-                self.data[idx].copy_(x)
-                self.meta[idx] = m
-                self.size.value += 1
+
+        with self.lock:
+            start = self.size.value
+            end = start + n
+            self.data[start:end].copy_(xs)
+            self.meta[start:end].copy_(metadata)
+            self.size.value = end
+
+        for _ in range(n):
             self.full.release()
 
     def get(
         self, bsz: int, timeout: float | None = None
-    ) -> tuple[Shaped[Tensor, "bsz ..."], collections.abc.Sequence[object]]:
+    ) -> tuple[Shaped[Tensor, "bsz ..."], Shaped[Tensor, "bsx ..."]]:
         n_acquired = 0
         deadline = None if timeout is None else time.monotonic() + timeout
 
@@ -177,21 +188,22 @@ class ReservoirBuffer:
             raise
 
         out_x = torch.empty((bsz, *self.data.shape[1:]), dtype=self.data.dtype)
-        out_m = [None] * bsz
+        out_m = torch.empty((bsz, *self.meta.shape[1:]), dtype=self.meta.dtype)
         with self.lock:
             for i in range(bsz):
                 r = self.rng.integers(self.size.value)
                 out_x[i].copy_(self.data[r])
-                out_m[i] = self.meta[r]
+                out_m[i].copy_(self.meta[r])
 
                 last = self.size.value - 1  # swap-with-tail
                 if r != last:
                     self.data[r].copy_(self.data[last])
-                    self.meta[r] = self.meta[last]
+                    self.meta[r].copy_(self.meta[last])
                 self.size.value -= 1
-                self.free.release()
-        if self.collate_fn:
-            out_m = self.collate_fn(out_m)
+
+        for i in range(bsz):
+            self.free.release()
+
         return out_x, out_m
 
     def close(self) -> None:

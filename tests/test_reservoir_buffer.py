@@ -52,11 +52,11 @@ def backend(request):
 
 
 def test_init_and_close():
-    """Ring creates empty and survives multiple close() calls."""
-    r = ReservoirBuffer(capacity=4, shape=(2,), dtype=torch.float32)
-    assert r.qsize() == 0
-    r.close()
-    r.close()  # idempotent
+    """Buffer creates empty and survives multiple close() calls."""
+    rb = ReservoirBuffer(capacity=4, shape=(2,), dtype=torch.float32)
+    assert rb.qsize() == 0
+    rb.close()
+    rb.close()  # idempotent
 
 
 def test_basic_put_get():
@@ -135,57 +135,57 @@ def test_exact_capacity_cycle():
 
 
 @beartype.beartype
-def _consume_blocking(ring: ReservoirBuffer, started, finished):
+def _consume_blocking(rb: ReservoirBuffer, started, finished):
     # blocks until producer frees slot
     started.set()
-    ring.get(1)
+    rb.get(1)
     finished.set()
 
 
 @beartype.beartype
-def _produce_blocking(ring: ReservoirBuffer, started, finished, tensor):
+def _produce_blocking(rb: ReservoirBuffer, started, finished, tensor):
     started.set()
-    ring.put(tensor)
+    rb.put(tensor)
     finished.set()
 
 
 @beartype.beartype
-def _produce_n(ring: ReservoirBuffer, n: int, start: int = 0):
+def _produce_n(rb: ReservoirBuffer, n: int, start: int = 0):
     for i in range(n):
-        ring.put(torch.tensor([i + start], dtype=torch.int32))
+        rb.put(torch.tensor([i + start], dtype=torch.int32))
 
 
 @beartype.beartype
-def _collect_n(ring: ReservoirBuffer, n: int, q):
+def _collect_n(rb: ReservoirBuffer, n: int, q):
     vals = []
     for _ in range(n):
-        tensor, meta = ring.get(1)
+        tensor, _ = rb.get(1)
         vals.append(tensor.item())
     q.put(vals)
 
 
 @beartype.beartype
-def _consume_n(ring: ReservoirBuffer, n: int):
+def _consume_n(rb: ReservoirBuffer, n: int):
     for _ in range(n):
-        ring.get(1)
+        rb.get(1)
 
 
 def test_blocking_put_when_full(backend):
     """
-    put() must block when the buffer is full. We fill the ring, start a put in another process/thread, ensure it waits, then free a slot and verify the process/thread finishes.
+    put() must block when the buffer is full. We fill the buffer, start a put in another process/thread, ensure it waits, then free a slot and verify the process/thread finishes.
     """
     capacity = 16
-    ring = ReservoirBuffer(capacity=capacity, shape=(1,), dtype=torch.int32)
+    rb = ReservoirBuffer(capacity=capacity, shape=(1,), dtype=torch.int32)
 
     for i in range(capacity):
-        ring.put(torch.tensor([i], dtype=torch.int32))  # buffer now full
+        rb.put(torch.tensor([i], dtype=torch.int32))  # buffer now full
 
     started = backend.Event()
     finished = backend.Event()
 
     w = backend.Worker(
         target=_produce_blocking,
-        args=(ring, started, finished, torch.tensor([99], dtype=torch.int32)),
+        args=(rb, started, finished, torch.tensor([99], dtype=torch.int32)),
         **backend.kwargs,
     )
     w.start()
@@ -195,20 +195,20 @@ def test_blocking_put_when_full(backend):
     assert not finished.is_set()
 
     # free one slot -> producer should complete
-    _ = ring.get(1)
+    _ = rb.get(1)
     finished.wait(timeout=5)
     assert finished.is_set(), "put() did not unblock after space freed"
 
 
 def test_blocking_get_when_empty(backend):
     """get() must block until an item is produced."""
-    ring = ReservoirBuffer(2, (1,), dtype=torch.int32)
+    rb = ReservoirBuffer(2, (1,), dtype=torch.int32)
 
     started = backend.Event()
     finished = backend.Event()
 
     w = backend.Worker(
-        target=_consume_blocking, args=(ring, started, finished), **backend.kwargs
+        target=_consume_blocking, args=(rb, started, finished), **backend.kwargs
     )
     w.start()
 
@@ -216,7 +216,7 @@ def test_blocking_get_when_empty(backend):
     assert not finished.is_set()
 
     # Put some arbitrary data; now _consume_blocking should pass.
-    ring.put(torch.tensor([42], dtype=torch.int32))
+    rb.put(torch.tensor([42], dtype=torch.int32))
     finished.wait(timeout=5)
     assert finished.is_set()
 
@@ -224,11 +224,11 @@ def test_blocking_get_when_empty(backend):
 def test_across_process_visibility(backend):
     """Producer in one process, consumer in another share the same data."""
     slots, total = 4, 10
-    ring = ReservoirBuffer(slots, (1,), dtype=torch.int32)
+    rb = ReservoirBuffer(slots, (1,), dtype=torch.int32)
 
     q = backend.Queue()
-    w1 = backend.Worker(target=_produce_n, args=(ring, total), **backend.kwargs)
-    w2 = backend.Worker(target=_collect_n, args=(ring, total, q), **backend.kwargs)
+    w1 = backend.Worker(target=_produce_n, args=(rb, total), **backend.kwargs)
+    w2 = backend.Worker(target=_collect_n, args=(rb, total, q), **backend.kwargs)
     w1.start()
     w2.start()
     w1.join()
@@ -248,14 +248,14 @@ def test_put_shape_dtype_mismatch():
 def test_qsize_monotone_under_race(backend):
     """spawn two produces and two consumers; assert that qsize is never negative and never > capacity."""
     cap = 4
-    ring = ReservoirBuffer(cap, (1,), dtype=torch.int32)
+    rb = ReservoirBuffer(cap, (1,), dtype=torch.int32)
     n = 200
 
     workers = [
-        backend.Worker(target=_produce_n, args=(ring, n), **backend.kwargs)
+        backend.Worker(target=_produce_n, args=(rb, n), **backend.kwargs)
         for _ in range(2)
     ] + [
-        backend.Worker(target=_consume_n, args=(ring, n), **backend.kwargs)
+        backend.Worker(target=_consume_n, args=(rb, n), **backend.kwargs)
         for _ in range(2)
     ]
     for w in workers:
@@ -263,7 +263,7 @@ def test_qsize_monotone_under_race(backend):
 
     # sample qsize periodically
     for _ in range(50):
-        qs = ring.qsize()
+        qs = rb.qsize()
         assert 0 <= qs <= cap
         time.sleep(0.01)
 
@@ -274,7 +274,7 @@ def test_qsize_monotone_under_race(backend):
 def test_many_producers_consumers(backend):
     n_producers = 2
     slots = 8
-    ring = ReservoirBuffer(slots, (1,), dtype=torch.int32)
+    rb = ReservoirBuffer(slots, (1,), dtype=torch.int32)
     per_proc = 100
 
     # Sum of arithmetic sequences
@@ -287,14 +287,14 @@ def test_many_producers_consumers(backend):
     producers = [
         backend.Worker(
             target=_produce_n,
-            args=(ring, per_proc),
+            args=(rb, per_proc),
             kwargs=dict(start=i),
             **backend.kwargs,
         )
         for i in range(n_producers)
     ]
     consumers = [
-        backend.Worker(target=_collect_n, args=(ring, per_proc, q), **backend.kwargs)
+        backend.Worker(target=_collect_n, args=(rb, per_proc, q), **backend.kwargs)
         for _ in range(2)
     ]
     for w in producers + consumers:
@@ -305,21 +305,21 @@ def test_many_producers_consumers(backend):
     assert sum([sum(c) for c in collected]) == expected
 
 
-def _produce_then_die(ring: ReservoirBuffer):
-    ring.put(torch.tensor([1], dtype=torch.int32))
+def _produce_then_die(rb: ReservoirBuffer):
+    rb.put(torch.tensor([1], dtype=torch.int32))
     os.kill(os.getpid(), signal.SIGKILL)
 
 
 def test_producer_crash_does_not_corrupt():
-    ring = ReservoirBuffer(4, (1,), dtype=torch.int32)
+    rb = ReservoirBuffer(4, (1,), dtype=torch.int32)
 
-    p = mp.Process(target=_produce_then_die, args=(ring,))
+    p = mp.Process(target=_produce_then_die, args=(rb,))
     p.start()
     p.join()
 
     # queue should still work
-    ring.put(torch.tensor([2], dtype=torch.int32))
-    tensor, metas = ring.get(2)
+    rb.put(torch.tensor([2], dtype=torch.int32))
+    tensor, _ = rb.get(2)
     assert set(tensor.squeeze().tolist()) == {1, 2}
 
 
@@ -350,26 +350,26 @@ def test_fuzz_interleaved_ops(seq):
 
 
 @beartype.beartype
-def _try_get(ring: ReservoirBuffer, bsz: int, timeout: float, q):
+def _try_get(rb: ReservoirBuffer, bsz: int, timeout: float, q):
     """
-    Attempt ring.get(); put ('ok', tensor) or ('timeout', None) in q.
+    Attempt rb.get(); put ('ok', tensor) or ('timeout', None) in q.
     Runs in a thread or subprocess (supplied by the `backend` fixture).
     """
     try:
-        tensor, _ = ring.get(bsz, timeout=timeout)
+        tensor, _ = rb.get(bsz, timeout=timeout)
         q.put(("ok", tensor))
     except TimeoutError:
         q.put(("timeout", None))
 
 
 @beartype.beartype
-def _delayed_put(ring: ReservoirBuffer, tensors, delay: float):
+def _delayed_put(rb: ReservoirBuffer, tensors, delay: float):
     """
     Sleep `delay` seconds then put every tensor into the buffer.
     """
     time.sleep(delay)
     for t in tensors:
-        ring.put(t)
+        rb.put(t)
 
 
 def test_get_timeout_raises_and_recovers():
