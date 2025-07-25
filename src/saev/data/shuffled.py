@@ -49,6 +49,8 @@ class Config:
     """Random seed."""
     debug: bool = False
     """Whether the dataloader process should log debug messages."""
+    log_every_s: float = 5.0
+    """How frequently the dataloader process should log performance messages."""
 
 
 @beartype.beartype
@@ -88,12 +90,17 @@ def _io_worker(
     assert cfg.patches == "image"
     assert isinstance(cfg.layer, int)
 
+    bytes_sent = 0
+    n_reads = 0
+    t_last_report = time.time()
+
     while not stop_event.is_set():
         try:
             shard_i = work_queue.get(timeout=0.1)
             if shard_i is None:  # Poison pill
                 logger.debug("Got 'None' from work_queue; exiting.")
                 break
+            t1 = time.perf_counter()
 
             fname = f"acts{shard_i:06}.bin"
             logger.info("Opening %s.", fname)
@@ -104,12 +111,15 @@ def _io_worker(
             mmap = np.memmap(
                 acts_fpath, mode="r", dtype=np.float32, shape=metadata.shard_shape
             )
+            t2 = time.perf_counter()
 
             # Only iterate over the actual number of images in this shard
-            for start, end in helpers.batched_idx(shard_info[shard_i].n_imgs, 64):
+            for start, end in helpers.batched_idx(shard_info[shard_i].n_imgs, 1024):
                 for p in range(metadata.n_patches_per_img):
                     patch_i = p + int(metadata.cls_token)
+                    t0 = time.perf_counter()
                     acts = torch.from_numpy(mmap[start:end, layer_i, patch_i])
+                    t1 = time.perf_counter()
 
                     last_img_i = img_i_offset + (end - 1)
                     if last_img_i >= metadata.n_imgs:
@@ -122,7 +132,26 @@ def _io_worker(
                         for i in range(start, end)
                     ]
 
+                    fill_before = reservoir.fill()
                     reservoir.put(acts, metas)
+                    t2 = time.perf_counter()
+                    fill_after = reservoir.fill()
+
+                    n_reads += 1
+                    bytes_sent += acts.numel() * acts.element_size()
+
+                    now = time.time()
+                    if now - t_last_report >= cfg.log_every_s:
+                        logger.info(
+                            "shard=%s mb_sent=%.1f read_ms=%.2f put_ms=%.2f fill-before=%.3f fill-after=%.3f",
+                            shard_i,
+                            bytes_sent / 1e6,
+                            (t1 - t0) * 1e3,
+                            (t2 - t1) * 1e3,
+                            fill_before,
+                            fill_after,
+                        )
+                        t_last_report = now
         except queue.Empty:
             # Wait 0.1 seconds for new data.
             time.sleep(0.1)
@@ -227,16 +256,18 @@ class DataLoader:
 
     def __init__(self, cfg: Config):
         self.cfg = cfg
+
+        self.manager_proc = None
+        self.reservoir = None
+        self.stop_event = None
+
+        self.logger = logging.getLogger("shuffled.DataLoader")
+        self.ctx = mp.get_context()
+
         if not os.path.isdir(self.cfg.shard_root):
             raise RuntimeError(f"Activations are not saved at '{self.cfg.shard_root}'.")
 
         self.metadata = writers.Metadata.load(self.cfg.shard_root)
-
-        self.logger = logging.getLogger("shuffled.DataLoader")
-        self.ctx = mp.get_context()
-        self.manager_proc = None
-        self.reservoir = None
-        self.stop_event = None
         self._n_samples = self._calculate_n_samples()
 
     @property
@@ -254,6 +285,13 @@ class DataLoader:
     @property
     def drop_last(self) -> int:
         return self.cfg.drop_last
+
+    @property
+    def manager_pid(self) -> int:
+        if not self.manager_proc or not self.manager_proc.is_alive():
+            return -1
+
+        return self.manager_proc.pid
 
     def _start_manager(self):
         if self.manager_proc and self.manager_proc.is_alive():
@@ -321,10 +359,18 @@ class DataLoader:
             self.shutdown()
 
     def shutdown(self):
-        if self.stop_event and not self.stop_event.is_set():
+        if (
+            hasattr(self, "stop_event")
+            and self.stop_event
+            and not self.stop_event.is_set()
+        ):
             self.stop_event.set()
 
-        if self.manager_proc and self.manager_proc.is_alive():
+        if (
+            hasattr(self, "manager_proc")
+            and self.manager_proc
+            and self.manager_proc.is_alive()
+        ):
             self.manager_proc.join(timeout=5.0)
             if self.manager_proc.is_alive():
                 self.logger.warning(
@@ -332,7 +378,7 @@ class DataLoader:
                 )
                 self.manager_proc.kill()
 
-        if self.reservoir:
+        if hasattr(self, "reservoir") and self.reservoir:
             self.reservoir.close()
 
         self.manager_proc = None

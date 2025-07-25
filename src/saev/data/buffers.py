@@ -1,4 +1,4 @@
-# src/saev/data/utils.py
+# src/saev/data/buffers.py
 import collections.abc
 import itertools
 import time
@@ -74,6 +74,10 @@ class RingBuffer:
         """Approximate number of filled slots (race-safe enough for tests)."""
         return (self.head.value - self.tail.value) % (1 << 64)
 
+    def fill(self) -> float:
+        """Approximate proportion of filled slots (race-safe enough for tests)."""
+        return self.qsize() / self.capacity
+
     def close(self) -> None:
         """Release the shared-memory backing store (call once in the parent)."""
         try:
@@ -100,7 +104,7 @@ class ReservoirBuffer:
         seed: int = 0,
         collate_fn: collections.abc.Callable | None = None,
     ):
-        self.n = capacity
+        self.capacity = capacity
         self.data = torch.full((capacity, *shape), 123456789, dtype=dtype)
         self.data.share_memory_()
 
@@ -200,3 +204,7 @@ class ReservoirBuffer:
     def qsize(self) -> int:
         """Approximate number of filled slots (race-safe enough for tests)."""
         return self.size.value
+
+    def fill(self) -> float:
+        """Approximate proportion of filled slots (race-safe enough for tests)."""
+        return self.qsize() / self.capacity

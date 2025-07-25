@@ -19,12 +19,14 @@ import dataclasses
 import json
 import logging
 import os.path
+import time
 import tomllib
 import typing
 
 import beartype
 import einops
 import numpy as np
+import psutil
 import torch
 import tyro
 import wandb
@@ -46,8 +48,8 @@ class Config:
     Configuration for training a sparse autoencoder on a vision transformer.
     """
 
-    data: saev.data.IterableConfig = dataclasses.field(
-        default_factory=saev.data.IterableConfig
+    data: saev.data.ShuffledConfig = dataclasses.field(
+        default_factory=saev.data.ShuffledConfig
     )
     """Data configuration"""
     n_train: int = 100_000_000
@@ -91,6 +93,8 @@ class Config:
     """Slurm partition."""
     n_hours: float = 24.0
     """Slurm job length in hours."""
+    mem_gb: int = 256
+    """Node memory in GB."""
     log_to: str = os.path.join(".", "logs")
     """Where to log Slurm job stdout/stderr."""
 
@@ -222,31 +226,89 @@ def train(
 
     global_step, n_patches_seen = 0, 0
 
+    p_dataloader, p_children, last_rb, last_t = None, None, 0, time.time()
+
     for batch in helpers.progress(dataloader, every=cfg.log_every):
+        if p_dataloader is None:
+            p_dataloader = psutil.Process(dataloader.manager_pid)
+            p_children = p_dataloader.children(recursive=True)
+
         acts_BD = batch["act"].to(cfg.device, non_blocking=True)
         for sae in saes:
             sae.normalize_w_dec()
         # Forward passes and loss calculations.
         losses = []
+        x_hats = []
+        f_xs = []
         for sae, objective in zip(saes, objectives):
             x_hat, f_x = sae(acts_BD)
+            x_hats.append(x_hat)
+            f_xs.append(f_x)
             losses.append(objective(acts_BD, f_x, x_hat))
 
         n_patches_seen += len(acts_BD)
 
+        for loss in losses:
+            loss.loss.backward()
+
+        for sae in saes:
+            sae.remove_parallel_grads()
+
+        # Calculate gradient norms before optimizer step
+        grad_norms = []
+        for i, sae in enumerate(saes):
+            # Clip gradients and get the gradient norm
+            grad_norm = torch.nn.utils.clip_grad_norm_(sae.parameters(), max_norm=1e9)
+            grad_norms.append(grad_norm)
+
+        # Log metrics after gradient computation
         with torch.no_grad():
             if (global_step + 1) % cfg.log_every == 0:
-                metrics = [
-                    {
+                now = time.time()
+                rb = p_dataloader.io_counters().read_bytes
+                read_mb = (rb - last_rb) / (1024 * 1024)
+                read_mb_s = read_mb / (now - last_t)
+                cpu_util = sum(
+                    t.cpu_percent(None) for t in p_children
+                ) + p_dataloader.cpu_percent(None)
+                last_rb, last_t = rb, now
+
+                metrics = []
+                for i, (loss, sae, objective, group, x_hat, f_x) in enumerate(
+                    zip(losses, saes, objectives, optimizer.param_groups, x_hats, f_xs)
+                ):
+                    # Explained variance: 1 - Var(x - x_hat) / Var(x)
+                    residual = acts_BD - x_hat
+                    explained_var = 1 - residual.var() / acts_BD.var()
+
+                    # Dead unit percentage: fraction of units that never activate
+                    dead_pct = ((f_x.abs() > 1e-8).sum(0) == 0).float().mean()
+
+                    # Dictionary coherence: max |<w_i, w_j>| for i != j
+                    W = sae.W_dec  # (d_sae, d_vit)
+                    # Normalize each row (each SAE feature)
+                    W_norm = W / W.norm(dim=1, keepdim=True)
+                    coherence = (W_norm @ W_norm.T).abs().triu(1).max()
+
+                    # Average decoder row L2 norm (since W_dec is d_sae x d_vit)
+                    avg_w_row_norm = sae.W_dec.norm(dim=1).mean()
+
+                    metric = {
                         **loss.metrics(),
                         "progress/n_patches_seen": n_patches_seen,
                         "progress/learning_rate": group["lr"],
                         "progress/sparsity_coeff": objective.sparsity_coeff,
+                        "metrics/explained_variance": explained_var.item(),
+                        "metrics/dead_unit_pct": dead_pct.item(),
+                        "metrics/dictionary_coherence": coherence.item(),
+                        "metrics/avg_decoder_row_norm": avg_w_row_norm.item(),
+                        "metrics/grad_norm": grad_norms[i].item(),
+                        "loader/read_mb": read_mb,
+                        "loader/read_mb_s": read_mb_s,
+                        "loader/cpu_util": cpu_util,
+                        "loader/buffer_fill": dataloader.reservoir.fill(),
                     }
-                    for loss, sae, objective, group in zip(
-                        losses, saes, objectives, optimizer.param_groups
-                    )
-                ]
+                    metrics.append(metric)
                 run.log(metrics, step=global_step)
 
                 logger.info(
@@ -255,12 +317,6 @@ def train(
                         for key, value in losses[0].metrics().items()
                     )
                 )
-
-        for loss in losses:
-            loss.loss.backward()
-
-        for sae in saes:
-            sae.remove_parallel_grads()
 
         optimizer.step()
 
@@ -472,12 +528,20 @@ def main(
 
     if cfg.slurm_acct:
         executor = submitit.SlurmExecutor(folder=cfg.log_to)
+
+        n_cpus = cfg.data.n_threads + 4
+        if cfg.mem_gb // 10 > n_cpus:
+            logger.info(
+                "Using %d CPUs instead of %d to get more RAM.", cfg.mem_gb // 10, n_cpus
+            )
+            n_cpus = cfg.mem_gb // 10
+
         executor.update_parameters(
             time=int(cfg.n_hours * 60),
             partition=cfg.slurm_partition,
             gpus_per_node=1,
             ntasks_per_node=1,
-            cpus_per_task=cfg.data.n_threads + 4,
+            cpus_per_task=n_cpus,
             stderr_to_stdout=True,
             account=cfg.slurm_acct,
         )

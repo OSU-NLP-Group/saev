@@ -59,6 +59,18 @@ class BatchLimiter:
     def __len__(self) -> int:
         return self.n_samples // self.batch_size
 
+    def __getattr__(self, name: str) -> Any:
+        """Pass through attribute access to the wrapped dataloader."""
+        # __getattr__ is only called when the attribute wasn't found on self
+        # So we delegate to the wrapped dataloader
+        try:
+            return getattr(self.dataloader, name)
+        except AttributeError:
+            # Re-raise with more context about where the attribute was not found
+            raise AttributeError(
+                f"'{self.__class__.__name__}' object and its wrapped dataloader have no attribute '{name}'"
+            )
+
     def __iter__(self):
         self.n_seen = 0
         while True:
