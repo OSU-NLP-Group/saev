@@ -94,4 +94,4 @@ def test_no_child_leak(iterable_cfg):
     gc.collect()
 
     after = peak_children()
-    assert after <= before  # no new zombies
+    assert set(after.keys()).issubset(set(before.keys()))  # no new zombies

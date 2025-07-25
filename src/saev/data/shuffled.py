@@ -127,18 +127,19 @@ def _io_worker(
                         logger.warning(err.message)
                         raise err
 
-                    metas = [
-                        {"image_i": img_i_offset + i, "patch_i": p}
-                        for i in range(start, end)
-                    ]
+                    meta = torch.full((end - start, 2), p, dtype=torch.int32)
+                    meta[:, 0] = img_i_offset + torch.arange(start, end)
 
                     fill_before = reservoir.fill()
-                    reservoir.put(acts, metas)
+                    reservoir.put(acts, meta)
                     t2 = time.perf_counter()
                     fill_after = reservoir.fill()
 
                     n_reads += 1
-                    bytes_sent += acts.numel() * acts.element_size()
+                    bytes_sent += (
+                        acts.numel() * acts.element_size()
+                        + meta.numel() * meta.element_size()
+                    )
 
                     now = time.time()
                     if now - t_last_report >= cfg.log_every_s:
@@ -304,6 +305,8 @@ class DataLoader:
             self.cfg.buffer_size * self.cfg.batch_size,
             (self.metadata.d_vit,),
             dtype=torch.float32,
+            meta_shape=(2,),
+            meta_dtype=torch.int32,
             collate_fn=torch.utils.data.default_collate,
         )
         self.stop_event = self.ctx.Event()
@@ -340,7 +343,8 @@ class DataLoader:
                     )
                     n += need
                     b += 1
-                    yield self.ExampleBatch(act=act, **meta)
+                    image_i, patch_i = meta.T
+                    yield self.ExampleBatch(act=act, image_i=image_i, patch_i=patch_i)
                     continue
                 except TimeoutError:
                     self.logger.info(

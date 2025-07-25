@@ -93,7 +93,7 @@ class Config:
     """Slurm partition."""
     n_hours: float = 24.0
     """Slurm job length in hours."""
-    mem_gb: int = 256
+    mem_gb: int = 128
     """Node memory in GB."""
     log_to: str = os.path.join(".", "logs")
     """Where to log Slurm job stdout/stderr."""
