@@ -1585,3 +1585,23 @@ Claude code ran a bunch of commands and concluded:
 So this probably means these numbers are bogus.
 Thus, I probably need an in-order efficient dataloader.
 However, this should be pretty easy to write because I don't actually need to use multiple threads. I can simply read the entire shard in order. In fact, I might be able to simply use the main process.
+
+# 07/29/2025
+
+Got NeurIPS reviews.
+Going to write down everything we need to do to make the original preprint more useful to other readers.
+
+Weaknesses:
+
+- No quantitative analysis.
+- How did we ensure that there are missing features in DINOv2? It's hard.
+- Limited evaluation.
+- How did we choose hyperparameters?
+- Semantic segmentation experimental results are not perfectly precise.
+- Language is unclear in methods section.
+- Condense SAE training+inference setup
+
+To Do:
+
+1. Include SAE training metrics (MSE, L0/L1, % dead neurons, sparsity, etc)
+2. Better semantic segmentation results?
