@@ -52,7 +52,8 @@ def test_factories():
     )
 
     assert isinstance(
-        objectives.get_objective(config.Matryoshka()), objectives.MatryoshkaObjective
+        objectives.get_objective(objectives.Matryoshka()),
+        objectives.MatryoshkaObjective,
     )
 
 

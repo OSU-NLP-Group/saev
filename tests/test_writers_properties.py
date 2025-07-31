@@ -14,9 +14,7 @@ import torch
 from hypothesis import given, reject, settings
 from hypothesis import strategies as st
 
-from saev.data import images, models
-from saev.data.torch import Config as TorchConfig
-from saev.data.torch import Dataset as TorchDataset
+from saev.data import Dataset, IndexedConfig, images, models
 from saev.data.writers import (
     Config,
     IndexLookup,
@@ -116,8 +114,8 @@ def test_shard_writer_and_dataset_e2e(tmp_path):
         img_transform=models.make_img_transform(cfg.vit_family, cfg.vit_ckpt),
     )
     writer = ShardWriter(cfg)
-    dataset = TorchDataset(
-        TorchConfig(
+    dataset = Dataset(
+        IndexedConfig(
             shard_root=get_acts_dir(cfg),
             patches="cls",
             layer=-1,

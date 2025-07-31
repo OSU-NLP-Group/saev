@@ -11,7 +11,7 @@ import torch.multiprocessing as mp
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from saev.data.utils import RingBuffer
+from saev.data.buffers import RingBuffer
 
 mp.set_start_method("spawn", force=True)
 
