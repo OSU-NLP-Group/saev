@@ -115,7 +115,7 @@ def loss(self) -&gt; Float[Tensor, &#34;&#34;]:
 </dd>
 <dt id="saev.nn.objectives.Matryoshka"><code class="flex name class">
 <span>class <span class="ident">Matryoshka</span></span>
-<span>(</span><span>n_prefixes: int = 10)</span>
+<span>(</span><span>sparsity_coeff: float = 0.0004, n_prefixes: int = 10)</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Config for the Matryoshka loss for another arbitrary SAE class.</p>
@@ -133,6 +133,8 @@ class Matryoshka:
     Reference code is here: https://github.com/noanabeshima/matryoshka-saes and the original reading is https://sparselatents.com/matryoshka.html and https://arxiv.org/pdf/2503.17547
     &#34;&#34;&#34;
 
+    sparsity_coeff: float = 4e-4
+    &#34;&#34;&#34;How much to weight sparsity loss term (if not using TopK/BatchTopK).&#34;&#34;&#34;
     n_prefixes: int = 10
     &#34;&#34;&#34;Number of random length prefixes to use for loss calculation.&#34;&#34;&#34;</code></pre>
 </details>
@@ -142,10 +144,15 @@ class Matryoshka:
 <dd>
 <div class="desc"><p>Number of random length prefixes to use for loss calculation.</p></div>
 </dd>
+<dt id="saev.nn.objectives.Matryoshka.sparsity_coeff"><code class="name">var <span class="ident">sparsity_coeff</span> : float</code></dt>
+<dd>
+<div class="desc"><p>How much to weight sparsity loss term (if not using TopK/BatchTopK).</p></div>
+</dd>
 </dl>
 </dd>
 <dt id="saev.nn.objectives.MatryoshkaLoss"><code class="flex name class">
 <span>class <span class="ident">MatryoshkaLoss</span></span>
+<span>(</span><span>mse: jaxtyping.Float[Tensor, ''],<br>sparsity: jaxtyping.Float[Tensor, ''],<br>l0: jaxtyping.Float[Tensor, ''],<br>l1: jaxtyping.Float[Tensor, ''])</span>
 </code></dt>
 <dd>
 <div class="desc"><p>The composite loss terms for an training batch.</p></div>
@@ -158,14 +165,61 @@ class Matryoshka:
 class MatryoshkaLoss(Loss):
     &#34;&#34;&#34;The composite loss terms for an training batch.&#34;&#34;&#34;
 
+    mse: Float[Tensor, &#34;&#34;]
+    &#34;&#34;&#34;Average of reconstruction loss (mean squared error) for all prefix lengths.&#34;&#34;&#34;
+    sparsity: Float[Tensor, &#34;&#34;]
+    &#34;&#34;&#34;Sparsity loss, typically lambda * L1.&#34;&#34;&#34;
+    l0: Float[Tensor, &#34;&#34;]
+    &#34;&#34;&#34;Sum of L0 magnitudes of hidden activations for all prefix lengths.&#34;&#34;&#34;
+    l1: Float[Tensor, &#34;&#34;]
+    &#34;&#34;&#34;Sum of L1 magnitudes of hidden activations for all prefix lengths.&#34;&#34;&#34;
+
     @property
     def loss(self) -&gt; Float[Tensor, &#34;&#34;]:
-        raise NotImplementedError()</code></pre>
+        &#34;&#34;&#34;Total loss.&#34;&#34;&#34;
+        return self.mse + self.sparsity
+
+    def metrics(self) -&gt; dict[str, object]:
+        return {
+            &#34;loss&#34;: self.loss.item(),
+            &#34;mse&#34;: self.mse.item(),
+            &#34;l0&#34;: self.l0.item(),
+            &#34;l1&#34;: self.l1.item(),
+            &#34;sparsity&#34;: self.sparsity.item(),
+        }</code></pre>
 </details>
 <h3>Ancestors</h3>
 <ul class="hlist">
 <li><a title="saev.nn.objectives.Loss" href="#saev.nn.objectives.Loss">Loss</a></li>
 </ul>
+<h3>Instance variables</h3>
+<dl>
+<dt id="saev.nn.objectives.MatryoshkaLoss.l0"><code class="name">var <span class="ident">l0</span> : jaxtyping.Float[Tensor, '']</code></dt>
+<dd>
+<div class="desc"><p>Sum of L0 magnitudes of hidden activations for all prefix lengths.</p></div>
+</dd>
+<dt id="saev.nn.objectives.MatryoshkaLoss.l1"><code class="name">var <span class="ident">l1</span> : jaxtyping.Float[Tensor, '']</code></dt>
+<dd>
+<div class="desc"><p>Sum of L1 magnitudes of hidden activations for all prefix lengths.</p></div>
+</dd>
+<dt id="saev.nn.objectives.MatryoshkaLoss.mse"><code class="name">var <span class="ident">mse</span> : jaxtyping.Float[Tensor, '']</code></dt>
+<dd>
+<div class="desc"><p>Average of reconstruction loss (mean squared error) for all prefix lengths.</p></div>
+</dd>
+<dt id="saev.nn.objectives.MatryoshkaLoss.sparsity"><code class="name">var <span class="ident">sparsity</span> : jaxtyping.Float[Tensor, '']</code></dt>
+<dd>
+<div class="desc"><p>Sparsity loss, typically lambda * L1.</p></div>
+</dd>
+</dl>
+<h3>Methods</h3>
+<dl>
+<dt id="saev.nn.objectives.MatryoshkaLoss.metrics"><code class="name flex">
+<span>def <span class="ident">metrics</span></span>(<span>self) ‑> dict[str, object]</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+</dl>
 <h3>Inherited members</h3>
 <ul class="hlist">
 <li><code><b><a title="saev.nn.objectives.Loss" href="#saev.nn.objectives.Loss">Loss</a></b></code>:
@@ -194,8 +248,21 @@ class MatryoshkaObjective(Objective):
         super().__init__()
         self.cfg = cfg
 
-    def forward(self) -&gt; &#34;MatryoshkaLoss.Loss&#34;:
-        raise NotImplementedError()</code></pre>
+    def forward(
+        self,
+        x: Float[Tensor, &#34;batch d_model&#34;],
+        f_x: Float[Tensor, &#34;batch n_prefixes d_sae&#34;],
+        prefix_preds: Float[Tensor, &#34;batch n_prefixes d_model&#34;],
+    ) -&gt; &#34;MatryoshkaLoss.Loss&#34;:
+        # Some values of x and x_hat can be very large. We can calculate a safe MSE
+        # mse_losses = torch.flatten([mean_squared_err(p, x) for p in prefix_preds])
+        mse_losses = torch.stack([mean_squared_err(p, x) for p in prefix_preds], dim=0)
+        mse_loss = mse_losses.sum(dim=-1).mean()
+        l0 = (f_x &gt; 0).float().sum(axis=1).mean(axis=0)
+        l1 = f_x.sum(axis=1).mean(axis=0)
+        sparsity_loss = self.cfg.sparsity_coeff * l1
+
+        return MatryoshkaLoss(mse_loss, sparsity_loss, l0, l1)</code></pre>
 </details>
 <h3>Ancestors</h3>
 <ul class="hlist">
@@ -540,10 +607,18 @@ setTimeout(() => input.focus(), 100);
 <h4><code><a title="saev.nn.objectives.Matryoshka" href="#saev.nn.objectives.Matryoshka">Matryoshka</a></code></h4>
 <ul class="">
 <li><code><a title="saev.nn.objectives.Matryoshka.n_prefixes" href="#saev.nn.objectives.Matryoshka.n_prefixes">n_prefixes</a></code></li>
+<li><code><a title="saev.nn.objectives.Matryoshka.sparsity_coeff" href="#saev.nn.objectives.Matryoshka.sparsity_coeff">sparsity_coeff</a></code></li>
 </ul>
 </li>
 <li>
 <h4><code><a title="saev.nn.objectives.MatryoshkaLoss" href="#saev.nn.objectives.MatryoshkaLoss">MatryoshkaLoss</a></code></h4>
+<ul class="">
+<li><code><a title="saev.nn.objectives.MatryoshkaLoss.l0" href="#saev.nn.objectives.MatryoshkaLoss.l0">l0</a></code></li>
+<li><code><a title="saev.nn.objectives.MatryoshkaLoss.l1" href="#saev.nn.objectives.MatryoshkaLoss.l1">l1</a></code></li>
+<li><code><a title="saev.nn.objectives.MatryoshkaLoss.metrics" href="#saev.nn.objectives.MatryoshkaLoss.metrics">metrics</a></code></li>
+<li><code><a title="saev.nn.objectives.MatryoshkaLoss.mse" href="#saev.nn.objectives.MatryoshkaLoss.mse">mse</a></code></li>
+<li><code><a title="saev.nn.objectives.MatryoshkaLoss.sparsity" href="#saev.nn.objectives.MatryoshkaLoss.sparsity">sparsity</a></code></li>
+</ul>
 </li>
 <li>
 <h4><code><a title="saev.nn.objectives.MatryoshkaObjective" href="#saev.nn.objectives.MatryoshkaObjective">MatryoshkaObjective</a></code></h4>

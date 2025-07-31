@@ -332,7 +332,11 @@ class BatchTopKActivation(torch.nn.Module):
 
         orig_shape = x.shape
         x = x.flatten()
-        k_vals, k_inds = torch.topk(x, self.k, dim=-1, sorted=False)
+
+        # Handle case where k exceeds number of elements
+        k = min(self.k, x.numel())
+
+        k_vals, k_inds = torch.topk(x, k, dim=-1, sorted=False)
         mask = torch.zeros_like(x).scatter_(
             dim=-1, index=k_inds, src=torch.ones_like(x)
         )

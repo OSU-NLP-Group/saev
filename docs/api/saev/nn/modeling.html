@@ -46,7 +46,7 @@ hljs.highlightAll();
 sae: sparse autoencoder checkpoint to save.</p></div>
 </dd>
 <dt id="saev.nn.modeling.get_activation"><code class="name flex">
-<span>def <span class="ident">get_activation</span></span>(<span>cfg: <a title="saev.nn.modeling.Relu" href="#saev.nn.modeling.Relu">Relu</a> | <a title="saev.nn.modeling.JumpRelu" href="#saev.nn.modeling.JumpRelu">JumpRelu</a>) ‑> torch.nn.modules.module.Module</span>
+<span>def <span class="ident">get_activation</span></span>(<span>cfg: <a title="saev.nn.modeling.Relu" href="#saev.nn.modeling.Relu">Relu</a> | <a title="saev.nn.modeling.JumpRelu" href="#saev.nn.modeling.JumpRelu">JumpRelu</a> | <a title="saev.nn.modeling.TopK" href="#saev.nn.modeling.TopK">TopK</a> | <a title="saev.nn.modeling.BatchTopK" href="#saev.nn.modeling.BatchTopK">BatchTopK</a>) ‑> torch.nn.modules.module.Module</span>
 </code></dt>
 <dd>
 <div class="desc"></div>
@@ -62,6 +62,136 @@ sae: sparse autoencoder checkpoint to save.</p></div>
 <section>
 <h2 class="section-title" id="header-classes">Classes</h2>
 <dl>
+<dt id="saev.nn.modeling.BatchTopK"><code class="flex name class">
+<span>class <span class="ident">BatchTopK</span></span>
+<span>(</span><span>d_vit: int = 1024,<br>exp_factor: int = 16,<br>n_reinit_samples: int = 524288,<br>remove_parallel_grads: bool = True,<br>normalize_w_dec: bool = True,<br>seed: int = 0,<br>top_k: int = 32)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>BatchTopK(d_vit: int = 1024, exp_factor: int = 16, n_reinit_samples: int = 524288, remove_parallel_grads: bool = True, normalize_w_dec: bool = True, seed: int = 0, top_k: int = 32)</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+@dataclasses.dataclass(frozen=True, slots=True)
+class BatchTopK:
+    d_vit: int = 1024
+    exp_factor: int = 16
+    &#34;&#34;&#34;Expansion factor for SAE.&#34;&#34;&#34;
+    n_reinit_samples: int = 1024 * 16 * 32
+    &#34;&#34;&#34;Number of samples to use for SAE re-init. Anthropic proposes initializing b_dec to the geometric median of the dataset here: https://transformer-circuits.pub/2023/monosemantic-features/index.html#appendix-autoencoder-bias. We use the regular mean.&#34;&#34;&#34;
+    remove_parallel_grads: bool = True
+    &#34;&#34;&#34;Whether to remove gradients parallel to W_dec columns (which will be ignored because we force the columns to have unit norm). See https://transformer-circuits.pub/2023/monosemantic-features/index.html#appendix-autoencoder-optimization for the original discussion from Anthropic.&#34;&#34;&#34;
+    normalize_w_dec: bool = True
+    &#34;&#34;&#34;Whether to make sure W_dec has unit norm columns. See https://transformer-circuits.pub/2023/monosemantic-features/index.html#appendix-autoencoder for original citation.&#34;&#34;&#34;
+    seed: int = 0
+    &#34;&#34;&#34;Random seed.&#34;&#34;&#34;
+    top_k: int = 32
+
+    @property
+    def d_sae(self) -&gt; int:
+        return self.d_vit * self.exp_factor</code></pre>
+</details>
+<h3>Instance variables</h3>
+<dl>
+<dt id="saev.nn.modeling.BatchTopK.d_sae"><code class="name">prop <span class="ident">d_sae</span> : int</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def d_sae(self) -&gt; int:
+    return self.d_vit * self.exp_factor</code></pre>
+</details>
+</dd>
+<dt id="saev.nn.modeling.BatchTopK.d_vit"><code class="name">var <span class="ident">d_vit</span> : int</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="saev.nn.modeling.BatchTopK.exp_factor"><code class="name">var <span class="ident">exp_factor</span> : int</code></dt>
+<dd>
+<div class="desc"><p>Expansion factor for SAE.</p></div>
+</dd>
+<dt id="saev.nn.modeling.BatchTopK.n_reinit_samples"><code class="name">var <span class="ident">n_reinit_samples</span> : int</code></dt>
+<dd>
+<div class="desc"><p>Number of samples to use for SAE re-init. Anthropic proposes initializing b_dec to the geometric median of the dataset here: <a href="https://transformer-circuits.pub/2023/monosemantic-features/index.html#appendix-autoencoder-bias.">https://transformer-circuits.pub/2023/monosemantic-features/index.html#appendix-autoencoder-bias.</a> We use the regular mean.</p></div>
+</dd>
+<dt id="saev.nn.modeling.BatchTopK.normalize_w_dec"><code class="name">var <span class="ident">normalize_w_dec</span> : bool</code></dt>
+<dd>
+<div class="desc"><p>Whether to make sure W_dec has unit norm columns. See <a href="https://transformer-circuits.pub/2023/monosemantic-features/index.html#appendix-autoencoder">https://transformer-circuits.pub/2023/monosemantic-features/index.html#appendix-autoencoder</a> for original citation.</p></div>
+</dd>
+<dt id="saev.nn.modeling.BatchTopK.remove_parallel_grads"><code class="name">var <span class="ident">remove_parallel_grads</span> : bool</code></dt>
+<dd>
+<div class="desc"><p>Whether to remove gradients parallel to W_dec columns (which will be ignored because we force the columns to have unit norm). See <a href="https://transformer-circuits.pub/2023/monosemantic-features/index.html#appendix-autoencoder-optimization">https://transformer-circuits.pub/2023/monosemantic-features/index.html#appendix-autoencoder-optimization</a> for the original discussion from Anthropic.</p></div>
+</dd>
+<dt id="saev.nn.modeling.BatchTopK.seed"><code class="name">var <span class="ident">seed</span> : int</code></dt>
+<dd>
+<div class="desc"><p>Random seed.</p></div>
+</dd>
+<dt id="saev.nn.modeling.BatchTopK.top_k"><code class="name">var <span class="ident">top_k</span> : int</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+</dl>
+</dd>
+<dt id="saev.nn.modeling.BatchTopKActivation"><code class="flex name class">
+<span>class <span class="ident">BatchTopKActivation</span></span>
+<span>(</span><span>cfg: <a title="saev.nn.modeling.BatchTopK" href="#saev.nn.modeling.BatchTopK">BatchTopK</a> = BatchTopK(d_vit=1024, exp_factor=16, n_reinit_samples=524288, remove_parallel_grads=True, normalize_w_dec=True, seed=0, top_k=32))</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Batch Top-K activation function. For use as activation function of sparse encoder.</p>
+<p>Initialize internal Module state, shared by both nn.Module and ScriptModule.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@jaxtyped(typechecker=beartype.beartype)
+class BatchTopKActivation(torch.nn.Module):
+    &#34;&#34;&#34;
+    Batch Top-K activation function. For use as activation function of sparse encoder.
+    &#34;&#34;&#34;
+
+    def __init__(self, cfg: BatchTopK = BatchTopK()):
+        super().__init__()
+        self.cfg = cfg
+        self.k = cfg.top_k
+
+    def forward(self, x: Float[Tensor, &#34;batch d_sae&#34;]) -&gt; Float[Tensor, &#34;batch d_sae&#34;]:
+        &#34;&#34;&#34;
+        Apply top-k activation to the input tensor.
+        &#34;&#34;&#34;
+        if self.k &lt;= 0:
+            raise ValueError(&#34;k must be a positive integer.&#34;)
+
+        orig_shape = x.shape
+        x = x.flatten()
+
+        # Handle case where k exceeds number of elements
+        k = min(self.k, x.numel())
+
+        k_vals, k_inds = torch.topk(x, k, dim=-1, sorted=False)
+        mask = torch.zeros_like(x).scatter_(
+            dim=-1, index=k_inds, src=torch.ones_like(x)
+        )
+
+        return torch.mul(mask, x).reshape(orig_shape)</code></pre>
+</details>
+<h3>Ancestors</h3>
+<ul class="hlist">
+<li>torch.nn.modules.module.Module</li>
+</ul>
+<h3>Methods</h3>
+<dl>
+<dt id="saev.nn.modeling.BatchTopKActivation.forward"><code class="name flex">
+<span>def <span class="ident">forward</span></span>(<span>self, x: jaxtyping.Float[Tensor, 'batch d_sae']) ‑> jaxtyping.Float[Tensor, 'batch d_sae']</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Apply top-k activation to the input tensor.</p></div>
+</dd>
+</dl>
+</dd>
 <dt id="saev.nn.modeling.JumpRelu"><code class="flex name class">
 <span>class <span class="ident">JumpRelu</span></span>
 </code></dt>
@@ -78,6 +208,188 @@ class JumpRelu:
 
     pass</code></pre>
 </details>
+</dd>
+<dt id="saev.nn.modeling.MatryoshkaSparseAutoencoder"><code class="flex name class">
+<span>class <span class="ident">MatryoshkaSparseAutoencoder</span></span>
+<span>(</span><span>cfg: <a title="saev.nn.modeling.Relu" href="#saev.nn.modeling.Relu">Relu</a> | <a title="saev.nn.modeling.JumpRelu" href="#saev.nn.modeling.JumpRelu">JumpRelu</a> | <a title="saev.nn.modeling.TopK" href="#saev.nn.modeling.TopK">TopK</a> | <a title="saev.nn.modeling.BatchTopK" href="#saev.nn.modeling.BatchTopK">BatchTopK</a>)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Subclass of SparseAutoencoder for use with the Matryoshka objective function.
+Needed since the matryoshka objective requires access to the weights of the decoder in order to calculate the
+reconstructions from prefixes of the sparse encoding.</p>
+<p>Still uses L1 for sparsity penalty, though when using BatchTopK as activation (recommended), this is not relevant.</p>
+<p>Initialize internal Module state, shared by both nn.Module and ScriptModule.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@jaxtyped(typechecker=beartype.beartype)
+class MatryoshkaSparseAutoencoder(SparseAutoencoder):
+    &#34;&#34;&#34;
+    Subclass of SparseAutoencoder for use with the Matryoshka objective function.
+    Needed since the matryoshka objective requires access to the weights of the decoder in order to calculate the
+    reconstructions from prefixes of the sparse encoding.
+
+    Still uses L1 for sparsity penalty, though when using BatchTopK as activation (recommended), this is not relevant.
+    &#34;&#34;&#34;
+
+    def __init__(self, cfg: SparseAutoencoderConfig):
+        super().__init__(cfg)
+
+    def matryoshka_forward(
+        self, x: Float[Tensor, &#34;batch d_model&#34;], n_prefixes: int
+    ) -&gt; tuple[Float[Tensor, &#34;batch d_model&#34;], Float[Tensor, &#34;batch d_sae&#34;]]:
+        &#34;&#34;&#34;
+        Given x, calculates the reconstructed x_hat from the prefixes of encoded intermediate activations f_x.
+
+        Arguments:
+            x: a batch of ViT activations.
+        &#34;&#34;&#34;
+
+        # Remove encoder bias as per Anthropic
+        h_pre = (
+            einops.einsum(
+                x - self.b_dec, self.W_enc, &#34;... d_vit, d_vit d_sae -&gt; ... d_sae&#34;
+            )
+            + self.b_enc
+        )
+        f_x = self.activation(h_pre)
+
+        prefixes = self.sample_prefixes(len(f_x), n_prefixes).to(self.b_dec.device)
+
+        block_indices = torch.torch.cat((
+            torch.tensor([0]).to(self.b_dec.device),
+            prefixes,
+        ))
+        block_bounds = list(zip(block_indices[:-1], block_indices[1:]))
+
+        block_preds = [self.block_decode(f_x, block) for block in block_bounds]
+
+        prefix_preds = torch.cumsum(torch.stack(block_preds), dim=0)
+
+        return prefix_preds, f_x
+
+    def block_decode(
+        self, f_x: Float[Tensor, &#34;batch d_sae&#34;], block: tuple[int]
+    ) -&gt; Float[Tensor, &#34;batch d_model&#34;]:
+        &#34;&#34;&#34;Decodes sparse encoding using only the given interval of indices.
+
+        Arguments:
+            f_x: Sparse encoding&#34;&#34;&#34;
+
+        # Can&#39;t use einsum here because the block lengths can change
+        x_hat = (
+            torch.matmul(f_x[:, block[0] : block[1]], self.W_dec[block[0] : block[1]])
+            + self.b_dec
+        )
+
+        # x_hat = (
+        #    einops.einsum(f_x[block[0]:block[1]], self.W_dec[block[0]:block[1]], &#34;... block, block d_vit -&gt; ... d_vit&#34;)
+        #    + self.b_dec[block[0]:block[1]]
+        # )
+
+        return x_hat
+
+    @torch.no_grad()
+    def sample_prefixes(
+        self,
+        sae_dim: int,
+        n_prefixes: int,
+        min_prefix_length: int = 1,
+        pareto_power: float = 0.5,
+        replacement: bool = False,
+    ) -&gt; torch.Tensor:
+        &#34;&#34;&#34;
+        Samples prefix lengths using a Pareto distribution. Derived from &#34;Learning Multi-Level Features with
+        Matryoshka Sparse Autoencoders&#34; (https://doi.org/10.48550/arXiv.2503.17547)
+
+        Args:
+            sae_dim: Total number of latent dimensions
+            n_prefixes: Number of prefixes to sample
+            min_prefix_length: Minimum length of any prefix
+            pareto_power: Power parameter for Pareto distribution (lower = more uniform)
+
+        Returns:
+            torch.Tensor: Sorted prefix lengths
+        &#34;&#34;&#34;
+        if n_prefixes &lt;= 1:
+            return torch.tensor([sae_dim])
+
+        # Calculate probability distribution favoring shorter prefixes
+        lengths = torch.arange(1, sae_dim)
+        pareto_cdf = 1 - ((min_prefix_length / lengths.float()) ** pareto_power)
+        pareto_pdf = torch.cat([pareto_cdf[:1], pareto_cdf[1:] - pareto_cdf[:-1]])
+        probability_dist = pareto_pdf / pareto_pdf.sum()
+
+        # Sample and sort prefix lengths
+        prefixes = torch.multinomial(
+            probability_dist, num_samples=n_prefixes - 1, replacement=replacement
+        )
+
+        # Add n_latents as the final prefix
+        prefixes = torch.cat((prefixes.detach().clone(), torch.tensor([sae_dim])))
+
+        prefixes, _ = torch.sort(prefixes, descending=False)
+
+        return prefixes</code></pre>
+</details>
+<h3>Ancestors</h3>
+<ul class="hlist">
+<li><a title="saev.nn.modeling.SparseAutoencoder" href="#saev.nn.modeling.SparseAutoencoder">SparseAutoencoder</a></li>
+<li>torch.nn.modules.module.Module</li>
+</ul>
+<h3>Methods</h3>
+<dl>
+<dt id="saev.nn.modeling.MatryoshkaSparseAutoencoder.block_decode"><code class="name flex">
+<span>def <span class="ident">block_decode</span></span>(<span>self, f_x: jaxtyping.Float[Tensor, 'batch d_sae'], block: tuple[int]) ‑> jaxtyping.Float[Tensor, 'batch d_model']</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Decodes sparse encoding using only the given interval of indices.</p>
+<h2 id="arguments">Arguments</h2>
+<p>f_x: Sparse encoding</p></div>
+</dd>
+<dt id="saev.nn.modeling.MatryoshkaSparseAutoencoder.matryoshka_forward"><code class="name flex">
+<span>def <span class="ident">matryoshka_forward</span></span>(<span>self, x: jaxtyping.Float[Tensor, 'batch d_model'], n_prefixes: int) ‑> tuple[jaxtyping.Float[Tensor, 'batch d_model'], jaxtyping.Float[Tensor, 'batch d_sae']]</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Given x, calculates the reconstructed x_hat from the prefixes of encoded intermediate activations f_x.</p>
+<h2 id="arguments">Arguments</h2>
+<p>x: a batch of ViT activations.</p></div>
+</dd>
+<dt id="saev.nn.modeling.MatryoshkaSparseAutoencoder.sample_prefixes"><code class="name flex">
+<span>def <span class="ident">sample_prefixes</span></span>(<span>self,<br>sae_dim: int,<br>n_prefixes: int,<br>min_prefix_length: int = 1,<br>pareto_power: float = 0.5,<br>replacement: bool = False) ‑> torch.Tensor</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Samples prefix lengths using a Pareto distribution. Derived from "Learning Multi-Level Features with
+Matryoshka Sparse Autoencoders" (<a href="https://doi.org/10.48550/arXiv.2503.17547">https://doi.org/10.48550/arXiv.2503.17547</a>)</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>sae_dim</code></strong></dt>
+<dd>Total number of latent dimensions</dd>
+<dt><strong><code>n_prefixes</code></strong></dt>
+<dd>Number of prefixes to sample</dd>
+<dt><strong><code>min_prefix_length</code></strong></dt>
+<dd>Minimum length of any prefix</dd>
+<dt><strong><code>pareto_power</code></strong></dt>
+<dd>Power parameter for Pareto distribution (lower = more uniform)</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><code>torch.Tensor</code></dt>
+<dd>Sorted prefix lengths</dd>
+</dl></div>
+</dd>
+</dl>
+<h3>Inherited members</h3>
+<ul class="hlist">
+<li><code><b><a title="saev.nn.modeling.SparseAutoencoder" href="#saev.nn.modeling.SparseAutoencoder">SparseAutoencoder</a></b></code>:
+<ul class="hlist">
+<li><code><a title="saev.nn.modeling.SparseAutoencoder.forward" href="#saev.nn.modeling.SparseAutoencoder.forward">forward</a></code></li>
+<li><code><a title="saev.nn.modeling.SparseAutoencoder.normalize_w_dec" href="#saev.nn.modeling.SparseAutoencoder.normalize_w_dec">normalize_w_dec</a></code></li>
+<li><code><a title="saev.nn.modeling.SparseAutoencoder.remove_parallel_grads" href="#saev.nn.modeling.SparseAutoencoder.remove_parallel_grads">remove_parallel_grads</a></code></li>
+</ul>
+</li>
+</ul>
 </dd>
 <dt id="saev.nn.modeling.Relu"><code class="flex name class">
 <span>class <span class="ident">Relu</span></span>
@@ -150,7 +462,7 @@ def d_sae(self) -&gt; int:
 </dd>
 <dt id="saev.nn.modeling.SparseAutoencoder"><code class="flex name class">
 <span>class <span class="ident">SparseAutoencoder</span></span>
-<span>(</span><span>cfg: <a title="saev.nn.modeling.Relu" href="#saev.nn.modeling.Relu">Relu</a>)</span>
+<span>(</span><span>cfg: <a title="saev.nn.modeling.Relu" href="#saev.nn.modeling.Relu">Relu</a> | <a title="saev.nn.modeling.JumpRelu" href="#saev.nn.modeling.JumpRelu">JumpRelu</a> | <a title="saev.nn.modeling.TopK" href="#saev.nn.modeling.TopK">TopK</a> | <a title="saev.nn.modeling.BatchTopK" href="#saev.nn.modeling.BatchTopK">BatchTopK</a>)</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Sparse auto-encoder (SAE) using L1 sparsity penalty.</p>
@@ -165,7 +477,7 @@ class SparseAutoencoder(torch.nn.Module):
     Sparse auto-encoder (SAE) using L1 sparsity penalty.
     &#34;&#34;&#34;
 
-    def __init__(self, cfg: Relu):
+    def __init__(self, cfg: SparseAutoencoderConfig):
         super().__init__()
 
         self.cfg = cfg
@@ -246,6 +558,10 @@ class SparseAutoencoder(torch.nn.Module):
 <ul class="hlist">
 <li>torch.nn.modules.module.Module</li>
 </ul>
+<h3>Subclasses</h3>
+<ul class="hlist">
+<li><a title="saev.nn.modeling.MatryoshkaSparseAutoencoder" href="#saev.nn.modeling.MatryoshkaSparseAutoencoder">MatryoshkaSparseAutoencoder</a></li>
+</ul>
 <h3>Methods</h3>
 <dl>
 <dt id="saev.nn.modeling.SparseAutoencoder.decode"><code class="name flex">
@@ -274,6 +590,130 @@ class SparseAutoencoder(torch.nn.Module):
 <dd>
 <div class="desc"><p>Update grads so that they remove the parallel component
 (d_sae, d_vit) shape</p></div>
+</dd>
+</dl>
+</dd>
+<dt id="saev.nn.modeling.TopK"><code class="flex name class">
+<span>class <span class="ident">TopK</span></span>
+<span>(</span><span>d_vit: int = 1024,<br>exp_factor: int = 16,<br>n_reinit_samples: int = 524288,<br>remove_parallel_grads: bool = True,<br>normalize_w_dec: bool = True,<br>seed: int = 0,<br>top_k: int = 32)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>TopK(d_vit: int = 1024, exp_factor: int = 16, n_reinit_samples: int = 524288, remove_parallel_grads: bool = True, normalize_w_dec: bool = True, seed: int = 0, top_k: int = 32)</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+@dataclasses.dataclass(frozen=True, slots=True)
+class TopK:
+    d_vit: int = 1024
+    exp_factor: int = 16
+    &#34;&#34;&#34;Expansion factor for SAE.&#34;&#34;&#34;
+    n_reinit_samples: int = 1024 * 16 * 32
+    &#34;&#34;&#34;Number of samples to use for SAE re-init. Anthropic proposes initializing b_dec to the geometric median of the dataset here: https://transformer-circuits.pub/2023/monosemantic-features/index.html#appendix-autoencoder-bias. We use the regular mean.&#34;&#34;&#34;
+    remove_parallel_grads: bool = True
+    &#34;&#34;&#34;Whether to remove gradients parallel to W_dec columns (which will be ignored because we force the columns to have unit norm). See https://transformer-circuits.pub/2023/monosemantic-features/index.html#appendix-autoencoder-optimization for the original discussion from Anthropic.&#34;&#34;&#34;
+    normalize_w_dec: bool = True
+    &#34;&#34;&#34;Whether to make sure W_dec has unit norm columns. See https://transformer-circuits.pub/2023/monosemantic-features/index.html#appendix-autoencoder for original citation.&#34;&#34;&#34;
+    seed: int = 0
+    &#34;&#34;&#34;Random seed.&#34;&#34;&#34;
+    top_k: int = 32
+
+    @property
+    def d_sae(self) -&gt; int:
+        return self.d_vit * self.exp_factor</code></pre>
+</details>
+<h3>Instance variables</h3>
+<dl>
+<dt id="saev.nn.modeling.TopK.d_sae"><code class="name">prop <span class="ident">d_sae</span> : int</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def d_sae(self) -&gt; int:
+    return self.d_vit * self.exp_factor</code></pre>
+</details>
+</dd>
+<dt id="saev.nn.modeling.TopK.d_vit"><code class="name">var <span class="ident">d_vit</span> : int</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="saev.nn.modeling.TopK.exp_factor"><code class="name">var <span class="ident">exp_factor</span> : int</code></dt>
+<dd>
+<div class="desc"><p>Expansion factor for SAE.</p></div>
+</dd>
+<dt id="saev.nn.modeling.TopK.n_reinit_samples"><code class="name">var <span class="ident">n_reinit_samples</span> : int</code></dt>
+<dd>
+<div class="desc"><p>Number of samples to use for SAE re-init. Anthropic proposes initializing b_dec to the geometric median of the dataset here: <a href="https://transformer-circuits.pub/2023/monosemantic-features/index.html#appendix-autoencoder-bias.">https://transformer-circuits.pub/2023/monosemantic-features/index.html#appendix-autoencoder-bias.</a> We use the regular mean.</p></div>
+</dd>
+<dt id="saev.nn.modeling.TopK.normalize_w_dec"><code class="name">var <span class="ident">normalize_w_dec</span> : bool</code></dt>
+<dd>
+<div class="desc"><p>Whether to make sure W_dec has unit norm columns. See <a href="https://transformer-circuits.pub/2023/monosemantic-features/index.html#appendix-autoencoder">https://transformer-circuits.pub/2023/monosemantic-features/index.html#appendix-autoencoder</a> for original citation.</p></div>
+</dd>
+<dt id="saev.nn.modeling.TopK.remove_parallel_grads"><code class="name">var <span class="ident">remove_parallel_grads</span> : bool</code></dt>
+<dd>
+<div class="desc"><p>Whether to remove gradients parallel to W_dec columns (which will be ignored because we force the columns to have unit norm). See <a href="https://transformer-circuits.pub/2023/monosemantic-features/index.html#appendix-autoencoder-optimization">https://transformer-circuits.pub/2023/monosemantic-features/index.html#appendix-autoencoder-optimization</a> for the original discussion from Anthropic.</p></div>
+</dd>
+<dt id="saev.nn.modeling.TopK.seed"><code class="name">var <span class="ident">seed</span> : int</code></dt>
+<dd>
+<div class="desc"><p>Random seed.</p></div>
+</dd>
+<dt id="saev.nn.modeling.TopK.top_k"><code class="name">var <span class="ident">top_k</span> : int</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+</dl>
+</dd>
+<dt id="saev.nn.modeling.TopKActivation"><code class="flex name class">
+<span>class <span class="ident">TopKActivation</span></span>
+<span>(</span><span>cfg: <a title="saev.nn.modeling.TopK" href="#saev.nn.modeling.TopK">TopK</a> = TopK(d_vit=1024, exp_factor=16, n_reinit_samples=524288, remove_parallel_grads=True, normalize_w_dec=True, seed=0, top_k=32))</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Top-K activation function. For use as activation function of sparse encoder.</p>
+<p>Initialize internal Module state, shared by both nn.Module and ScriptModule.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@jaxtyped(typechecker=beartype.beartype)
+class TopKActivation(torch.nn.Module):
+    &#34;&#34;&#34;
+    Top-K activation function. For use as activation function of sparse encoder.
+    &#34;&#34;&#34;
+
+    def __init__(self, cfg: TopK = TopK()):
+        super().__init__()
+        self.cfg = cfg
+        self.k = cfg.top_k
+
+    def forward(self, x: Float[Tensor, &#34;batch d_sae&#34;]) -&gt; Float[Tensor, &#34;batch d_sae&#34;]:
+        &#34;&#34;&#34;
+        Apply top-k activation to the input tensor.
+        &#34;&#34;&#34;
+        if self.k &lt;= 0:
+            raise ValueError(&#34;k must be a positive integer.&#34;)
+
+        k_vals, k_inds = torch.topk(x, self.k, dim=-1, sorted=False)
+        mask = torch.zeros_like(x).scatter_(
+            dim=-1, index=k_inds, src=torch.ones_like(x)
+        )
+
+        return torch.mul(mask, x)</code></pre>
+</details>
+<h3>Ancestors</h3>
+<ul class="hlist">
+<li>torch.nn.modules.module.Module</li>
+</ul>
+<h3>Methods</h3>
+<dl>
+<dt id="saev.nn.modeling.TopKActivation.forward"><code class="name flex">
+<span>def <span class="ident">forward</span></span>(<span>self, x: jaxtyping.Float[Tensor, 'batch d_sae']) ‑> jaxtyping.Float[Tensor, 'batch d_sae']</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Apply top-k activation to the input tensor.</p></div>
 </dd>
 </dl>
 </dd>
@@ -346,7 +786,34 @@ setTimeout(() => input.focus(), 100);
 <li><h3><a href="#header-classes">Classes</a></h3>
 <ul>
 <li>
+<h4><code><a title="saev.nn.modeling.BatchTopK" href="#saev.nn.modeling.BatchTopK">BatchTopK</a></code></h4>
+<ul class="">
+<li><code><a title="saev.nn.modeling.BatchTopK.d_sae" href="#saev.nn.modeling.BatchTopK.d_sae">d_sae</a></code></li>
+<li><code><a title="saev.nn.modeling.BatchTopK.d_vit" href="#saev.nn.modeling.BatchTopK.d_vit">d_vit</a></code></li>
+<li><code><a title="saev.nn.modeling.BatchTopK.exp_factor" href="#saev.nn.modeling.BatchTopK.exp_factor">exp_factor</a></code></li>
+<li><code><a title="saev.nn.modeling.BatchTopK.n_reinit_samples" href="#saev.nn.modeling.BatchTopK.n_reinit_samples">n_reinit_samples</a></code></li>
+<li><code><a title="saev.nn.modeling.BatchTopK.normalize_w_dec" href="#saev.nn.modeling.BatchTopK.normalize_w_dec">normalize_w_dec</a></code></li>
+<li><code><a title="saev.nn.modeling.BatchTopK.remove_parallel_grads" href="#saev.nn.modeling.BatchTopK.remove_parallel_grads">remove_parallel_grads</a></code></li>
+<li><code><a title="saev.nn.modeling.BatchTopK.seed" href="#saev.nn.modeling.BatchTopK.seed">seed</a></code></li>
+<li><code><a title="saev.nn.modeling.BatchTopK.top_k" href="#saev.nn.modeling.BatchTopK.top_k">top_k</a></code></li>
+</ul>
+</li>
+<li>
+<h4><code><a title="saev.nn.modeling.BatchTopKActivation" href="#saev.nn.modeling.BatchTopKActivation">BatchTopKActivation</a></code></h4>
+<ul class="">
+<li><code><a title="saev.nn.modeling.BatchTopKActivation.forward" href="#saev.nn.modeling.BatchTopKActivation.forward">forward</a></code></li>
+</ul>
+</li>
+<li>
 <h4><code><a title="saev.nn.modeling.JumpRelu" href="#saev.nn.modeling.JumpRelu">JumpRelu</a></code></h4>
+</li>
+<li>
+<h4><code><a title="saev.nn.modeling.MatryoshkaSparseAutoencoder" href="#saev.nn.modeling.MatryoshkaSparseAutoencoder">MatryoshkaSparseAutoencoder</a></code></h4>
+<ul class="">
+<li><code><a title="saev.nn.modeling.MatryoshkaSparseAutoencoder.block_decode" href="#saev.nn.modeling.MatryoshkaSparseAutoencoder.block_decode">block_decode</a></code></li>
+<li><code><a title="saev.nn.modeling.MatryoshkaSparseAutoencoder.matryoshka_forward" href="#saev.nn.modeling.MatryoshkaSparseAutoencoder.matryoshka_forward">matryoshka_forward</a></code></li>
+<li><code><a title="saev.nn.modeling.MatryoshkaSparseAutoencoder.sample_prefixes" href="#saev.nn.modeling.MatryoshkaSparseAutoencoder.sample_prefixes">sample_prefixes</a></code></li>
+</ul>
 </li>
 <li>
 <h4><code><a title="saev.nn.modeling.Relu" href="#saev.nn.modeling.Relu">Relu</a></code></h4>
@@ -367,6 +834,25 @@ setTimeout(() => input.focus(), 100);
 <li><code><a title="saev.nn.modeling.SparseAutoencoder.forward" href="#saev.nn.modeling.SparseAutoencoder.forward">forward</a></code></li>
 <li><code><a title="saev.nn.modeling.SparseAutoencoder.normalize_w_dec" href="#saev.nn.modeling.SparseAutoencoder.normalize_w_dec">normalize_w_dec</a></code></li>
 <li><code><a title="saev.nn.modeling.SparseAutoencoder.remove_parallel_grads" href="#saev.nn.modeling.SparseAutoencoder.remove_parallel_grads">remove_parallel_grads</a></code></li>
+</ul>
+</li>
+<li>
+<h4><code><a title="saev.nn.modeling.TopK" href="#saev.nn.modeling.TopK">TopK</a></code></h4>
+<ul class="">
+<li><code><a title="saev.nn.modeling.TopK.d_sae" href="#saev.nn.modeling.TopK.d_sae">d_sae</a></code></li>
+<li><code><a title="saev.nn.modeling.TopK.d_vit" href="#saev.nn.modeling.TopK.d_vit">d_vit</a></code></li>
+<li><code><a title="saev.nn.modeling.TopK.exp_factor" href="#saev.nn.modeling.TopK.exp_factor">exp_factor</a></code></li>
+<li><code><a title="saev.nn.modeling.TopK.n_reinit_samples" href="#saev.nn.modeling.TopK.n_reinit_samples">n_reinit_samples</a></code></li>
+<li><code><a title="saev.nn.modeling.TopK.normalize_w_dec" href="#saev.nn.modeling.TopK.normalize_w_dec">normalize_w_dec</a></code></li>
+<li><code><a title="saev.nn.modeling.TopK.remove_parallel_grads" href="#saev.nn.modeling.TopK.remove_parallel_grads">remove_parallel_grads</a></code></li>
+<li><code><a title="saev.nn.modeling.TopK.seed" href="#saev.nn.modeling.TopK.seed">seed</a></code></li>
+<li><code><a title="saev.nn.modeling.TopK.top_k" href="#saev.nn.modeling.TopK.top_k">top_k</a></code></li>
+</ul>
+</li>
+<li>
+<h4><code><a title="saev.nn.modeling.TopKActivation" href="#saev.nn.modeling.TopKActivation">TopKActivation</a></code></h4>
+<ul class="">
+<li><code><a title="saev.nn.modeling.TopKActivation.forward" href="#saev.nn.modeling.TopKActivation.forward">forward</a></code></li>
 </ul>
 </li>
 </ul>

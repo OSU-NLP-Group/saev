@@ -3806,7 +3806,7 @@ You might select the dimensions with maximal values for each patch and see what 
 >>>> interactive/features.py
 import marimo
 
-__generated_with = "0.9.14"
+__generated_with = "0.9.32"
 app = marimo.App(width="full")
 
 
@@ -3831,7 +3831,7 @@ def __(mo, os):
     def make_ckpt_dropdown():
         try:
             choices = sorted(
-                os.listdir("/fs/scratch/PAS2136/samuelstevens/saev/visuals")
+                os.listdir("/research/nfs_su_809/workspace/stevens.994/saev/features")
             )
 
         except FileNotFoundError:
@@ -3858,7 +3858,7 @@ def __(ckpt_dropdown, mo):
         ),
     )
 
-    webapp_dir = f"/fs/scratch/PAS2136/samuelstevens/saev/visuals/{ckpt_dropdown.value}/sort_by_patch"
+    webapp_dir = f"/research/nfs_su_809/workspace/stevens.994/saev/features/{ckpt_dropdown.value}/sort_by_patch"
 
     get_i, set_i = mo.state(0)
     return get_i, set_i, webapp_dir
@@ -4203,13 +4203,15 @@ if __name__ == "__main__":
 >>>> interactive/metrics.py
 import marimo
 
-__generated_with = "0.9.14"
+__generated_with = "0.9.32"
 app = marimo.App(width="medium")
 
 
 @app.cell
 def __():
+    import itertools
     import json
+    import math
     import os
 
     import altair as alt
@@ -4219,9 +4221,28 @@ def __():
     import numpy as np
     import polars as pl
     import wandb
+    from adjustText import adjust_text
     from jaxtyping import Float, jaxtyped
 
-    return Float, alt, beartype, jaxtyped, json, mo, np, os, pl, plt, wandb
+    import saev.colors
+
+    return (
+        Float,
+        adjust_text,
+        alt,
+        beartype,
+        itertools,
+        jaxtyped,
+        json,
+        math,
+        mo,
+        np,
+        os,
+        pl,
+        plt,
+        saev,
+        wandb,
+    )
 
 
 @app.cell
@@ -4272,30 +4293,208 @@ def __(WANDB_PROJECT, WANDB_USERNAME, mo, tag_input):
 
 
 @app.cell
+def __(df, mo):
+    # All unique (model, layer) pairs
+    pairs = (
+        df.select(["model_key", "config/data/layer"])
+        .unique()
+        .sort(by=["model_key", "config/data/layer"])
+        .iter_rows()
+    )
+
+    pair_elems = {
+        f"{model}|{layer}": mo.ui.switch(value=True, label=f"{model} / layer {layer}")
+        for model, layer in pairs
+    }
+    pair_dict = mo.ui.dictionary(pair_elems)  # ★ reactive wrapper ★
+
+    # Global toggle for non-frontier ("rest") points
+    show_rest = mo.ui.switch(value=True, label="Show non-frontier points")
+    show_ids = mo.ui.switch(value=False, label="Annotate Pareto points")
+
+    def _make_grid(elems, ncols: int, gap: float):
+        return mo.hstack(
+            [
+                mo.vstack(elems[i : i + ncols], gap=gap, justify="start")
+                for i in range(0, len(elems), ncols)
+            ],
+            gap=gap,
+        )
+
+    elems = [*pair_dict.elements.values(), show_rest, show_ids]
+    ui_grid = _make_grid(elems, 3, 0.5)
+    ui_grid
+    return elems, pair_dict, pair_elems, pairs, show_ids, show_rest, ui_grid
+
+
+@app.cell
+def __(
+    adjust_text,
+    df,
+    itertools,
+    mo,
+    pair_dict,
+    pl,
+    plt,
+    saev,
+    show_ids,
+    show_rest,
+):
+    def plot_layerwise(
+        df: pl.DataFrame,
+        show_rest: bool,
+        show_ids: bool,
+        l0_col: str = "summary/eval/l0",
+        mse_col: str = "summary/eval/mse",
+        layer_col: str = "config/data/layer",
+        model_col: str = "model_key",
+    ):
+        """
+        Plot Pareto frontiers (L0 vs MSE) for every (layer, model) pair using **polars** only.
+        """
+
+        fig, ax = plt.subplots(figsize=(7, 4), dpi=300)
+
+        linestyles = ["-", "--", ":", "-."]
+        colors = [
+            saev.colors.CYAN_RGB01,
+            saev.colors.SEA_RGB01,
+            saev.colors.CREAM_RGB01,
+            saev.colors.GOLD_RGB01,
+            saev.colors.ORANGE_RGB01,
+            saev.colors.RUST_RGB01,
+            saev.colors.SCARLET_RGB01,
+            saev.colors.RED_RGB01,
+        ]
+        markers = ["X", "o", "+"]
+
+        models = sorted(df.select(model_col).unique().get_column(model_col).to_list())
+
+        texts = []
+
+        for model, marker in zip(models, itertools.cycle(markers)):
+            model_df = df.filter(pl.col(model_col) == model)
+
+            layers = model_df.select(layer_col).unique().get_column(layer_col).to_list()
+            for layer, color, linestyle in zip(
+                sorted(layers),
+                itertools.cycle(colors),
+                itertools.cycle(linestyles),
+            ):
+                group = (
+                    model_df.filter(pl.col(layer_col) == layer)
+                    .sort(l0_col)
+                    .with_columns(pl.col(mse_col).cum_min().alias("cummin_mse"))
+                )
+
+                pareto = group.filter(pl.col(mse_col) == pl.col("cummin_mse"))
+                ids = pareto.get_column("id").to_list()
+
+                xs = pareto.get_column(l0_col).to_numpy()
+                ys = pareto.get_column(mse_col).to_numpy()
+
+                line, *_ = ax.plot(
+                    xs,
+                    ys,
+                    color=color,
+                    linestyle=linestyle,
+                    marker=marker,
+                    alpha=0.8,
+                    label=f"{model} / layer {layer}",
+                )
+
+                if show_ids:  # <-- annotate
+                    for x, y, rid in zip(xs, ys, ids):
+                        texts.append(
+                            ax.text(
+                                x,
+                                y,
+                                rid,
+                                fontsize=6,
+                                color="black",
+                                ha="left",
+                                va="bottom",
+                            )
+                        )
+
+                rest = group.filter(pl.col(mse_col) != pl.col("cummin_mse"))
+                xs = rest.get_column(l0_col).to_numpy()
+                ys = rest.get_column(mse_col).to_numpy()
+
+                if show_rest:
+                    # Scatter
+                    ax.scatter(
+                        xs,
+                        ys,
+                        color=color,
+                        marker=marker,
+                        s=12,
+                        linewidth=0,
+                        alpha=0.5,
+                    )
+
+        ax.set_xlabel("L0 sparsity (lower is better)")
+        ax.set_ylabel("Reconstruction MSE (lower is better)")
+        ax.grid(True, linewidth=0.3, alpha=0.7)
+        ax.legend(fontsize="small", ncols=2)
+        ax.spines[["right", "top"]].set_visible(False)
+
+        adjust_text(texts)
+
+        return fig
+
+    selected_keys = [k for k, v in pair_dict.value.items() if v]
+    if selected_keys:
+        models, layers = zip(*[k.rsplit("|", 1) for k in selected_keys])
+        pairs_df = pl.DataFrame({
+            "model_key": list(models),
+            "config/data/layer": list(map(int, layers)),
+        })
+        filtered_df = df.join(
+            pairs_df, on=["model_key", "config/data/layer"], how="inner"
+        )
+    else:
+        filtered_df = pl.DataFrame(schema=df.schema)
+
+    mo.stop(filtered_df.height == 0, mo.md("No runs match the current filters."))
+
+    fig = plot_layerwise(filtered_df, show_rest.value, show_ids.value)
+    fig
+    return (
+        fig,
+        filtered_df,
+        layers,
+        models,
+        pairs_df,
+        plot_layerwise,
+        selected_keys,
+    )
+
+
+@app.cell
 def __(alt, df, mo, pl):
     chart = mo.ui.altair_chart(
         alt.Chart(
-            df.filter(
-                (pl.col("summary/_timestamp") > 1750809600)
-                & (pl.col("summary/_runtime") > 300)
-            ).select(
+            df.select(
                 "summary/eval/l0",
-                "summary/eval/mse",
+                "summary/losses/mse",
                 "id",
-                "config/objective/sparsity_coeff",
+                "config/sae/sparsity_coeff",
                 "config/lr",
                 "config/sae/d_sae",
+                "config/data/layer",
                 "model_key",
             )
         )
         .mark_point()
         .encode(
             x=alt.X("summary/eval/l0"),
-            y=alt.Y("summary/eval/mse"),
+            y=alt.Y("summary/losses/mse"),
             tooltip=["id", "config/lr"],
             color="config/lr:Q",
+            shape="config/data/layer:N",
             # shape="config/objective/sparsity_coeff:N",
-            shape="config/sae/d_sae:N",
+            # shape="config/sae/d_sae:N",
             # shape="model_key",
         )
     )
@@ -4606,8 +4805,8 @@ def __(beartype):
     @beartype.beartype
     def get_data_key(metadata: dict[str, object]) -> str | None:
         if (
-            "train_mini" in metadata["data"]["root"]
-            and metadata["data"]["__cls__"] == "ImageFolder"
+            "train_mini" in metadata["data"]
+            and "ImageFolderDataset" in metadata["data"]
         ):
             return "iNat21"
 
@@ -4665,10 +4864,13 @@ def __(df):
         "config/log_every",
         "config/slurm_acct",
         "config/device",
+        "config/n_workers",
         "config/wandb_project",
         "config/track",
+        "config/slurm",
         "config/log_to",
         "config/ckpt_path",
+        "config/sae/ghost_grads",
     )
     return
 
@@ -4738,7 +4940,49 @@ class JumpRelu:
     pass
 
 
-SparseAutoencoderConfig = Relu | JumpRelu
+@beartype.beartype
+@dataclasses.dataclass(frozen=True, slots=True)
+class TopK:
+    d_vit: int = 1024
+    exp_factor: int = 16
+    """Expansion factor for SAE."""
+    n_reinit_samples: int = 1024 * 16 * 32
+    """Number of samples to use for SAE re-init. Anthropic proposes initializing b_dec to the geometric median of the dataset here: https://transformer-circuits.pub/2023/monosemantic-features/index.html#appendix-autoencoder-bias. We use the regular mean."""
+    remove_parallel_grads: bool = True
+    """Whether to remove gradients parallel to W_dec columns (which will be ignored because we force the columns to have unit norm). See https://transformer-circuits.pub/2023/monosemantic-features/index.html#appendix-autoencoder-optimization for the original discussion from Anthropic."""
+    normalize_w_dec: bool = True
+    """Whether to make sure W_dec has unit norm columns. See https://transformer-circuits.pub/2023/monosemantic-features/index.html#appendix-autoencoder for original citation."""
+    seed: int = 0
+    """Random seed."""
+    top_k: int = 32
+
+    @property
+    def d_sae(self) -> int:
+        return self.d_vit * self.exp_factor
+
+
+@beartype.beartype
+@dataclasses.dataclass(frozen=True, slots=True)
+class BatchTopK:
+    d_vit: int = 1024
+    exp_factor: int = 16
+    """Expansion factor for SAE."""
+    n_reinit_samples: int = 1024 * 16 * 32
+    """Number of samples to use for SAE re-init. Anthropic proposes initializing b_dec to the geometric median of the dataset here: https://transformer-circuits.pub/2023/monosemantic-features/index.html#appendix-autoencoder-bias. We use the regular mean."""
+    remove_parallel_grads: bool = True
+    """Whether to remove gradients parallel to W_dec columns (which will be ignored because we force the columns to have unit norm). See https://transformer-circuits.pub/2023/monosemantic-features/index.html#appendix-autoencoder-optimization for the original discussion from Anthropic."""
+    normalize_w_dec: bool = True
+    """Whether to make sure W_dec has unit norm columns. See https://transformer-circuits.pub/2023/monosemantic-features/index.html#appendix-autoencoder for original citation."""
+    seed: int = 0
+    """Random seed."""
+    top_k: int = 32
+
+    @property
+    def d_sae(self) -> int:
+        return self.d_vit * self.exp_factor
+
+
+SparseAutoencoderConfig = Relu | JumpRelu | TopK | BatchTopK
 
 
 @jaxtyped(typechecker=beartype.beartype)
@@ -4747,7 +4991,7 @@ class SparseAutoencoder(torch.nn.Module):
     Sparse auto-encoder (SAE) using L1 sparsity penalty.
     """
 
-    def __init__(self, cfg: Relu):
+    def __init__(self, cfg: SparseAutoencoderConfig):
         super().__init__()
 
         self.cfg = cfg
@@ -4825,12 +5069,185 @@ class SparseAutoencoder(torch.nn.Module):
         )
 
 
+@jaxtyped(typechecker=beartype.beartype)
+class MatryoshkaSparseAutoencoder(SparseAutoencoder):
+    """
+    Subclass of SparseAutoencoder for use with the Matryoshka objective function.
+    Needed since the matryoshka objective requires access to the weights of the decoder in order to calculate the
+    reconstructions from prefixes of the sparse encoding.
+
+    Still uses L1 for sparsity penalty, though when using BatchTopK as activation (recommended), this is not relevant.
+    """
+
+    def __init__(self, cfg: SparseAutoencoderConfig):
+        super().__init__(cfg)
+
+    def matryoshka_forward(
+        self, x: Float[Tensor, "batch d_model"], n_prefixes: int
+    ) -> tuple[Float[Tensor, "batch d_model"], Float[Tensor, "batch d_sae"]]:
+        """
+        Given x, calculates the reconstructed x_hat from the prefixes of encoded intermediate activations f_x.
+
+        Arguments:
+            x: a batch of ViT activations.
+        """
+
+        # Remove encoder bias as per Anthropic
+        h_pre = (
+            einops.einsum(
+                x - self.b_dec, self.W_enc, "... d_vit, d_vit d_sae -> ... d_sae"
+            )
+            + self.b_enc
+        )
+        f_x = self.activation(h_pre)
+
+        prefixes = self.sample_prefixes(len(f_x), n_prefixes).to(self.b_dec.device)
+
+        block_indices = torch.torch.cat((
+            torch.tensor([0]).to(self.b_dec.device),
+            prefixes,
+        ))
+        block_bounds = list(zip(block_indices[:-1], block_indices[1:]))
+
+        block_preds = [self.block_decode(f_x, block) for block in block_bounds]
+
+        prefix_preds = torch.cumsum(torch.stack(block_preds), dim=0)
+
+        return prefix_preds, f_x
+
+    def block_decode(
+        self, f_x: Float[Tensor, "batch d_sae"], block: tuple[int]
+    ) -> Float[Tensor, "batch d_model"]:
+        """Decodes sparse encoding using only the given interval of indices.
+
+        Arguments:
+            f_x: Sparse encoding"""
+
+        # Can't use einsum here because the block lengths can change
+        x_hat = (
+            torch.matmul(f_x[:, block[0] : block[1]], self.W_dec[block[0] : block[1]])
+            + self.b_dec
+        )
+
+        # x_hat = (
+        #    einops.einsum(f_x[block[0]:block[1]], self.W_dec[block[0]:block[1]], "... block, block d_vit -> ... d_vit")
+        #    + self.b_dec[block[0]:block[1]]
+        # )
+
+        return x_hat
+
+    @torch.no_grad()
+    def sample_prefixes(
+        self,
+        sae_dim: int,
+        n_prefixes: int,
+        min_prefix_length: int = 1,
+        pareto_power: float = 0.5,
+        replacement: bool = False,
+    ) -> torch.Tensor:
+        """
+        Samples prefix lengths using a Pareto distribution. Derived from "Learning Multi-Level Features with
+        Matryoshka Sparse Autoencoders" (https://doi.org/10.48550/arXiv.2503.17547)
+
+        Args:
+            sae_dim: Total number of latent dimensions
+            n_prefixes: Number of prefixes to sample
+            min_prefix_length: Minimum length of any prefix
+            pareto_power: Power parameter for Pareto distribution (lower = more uniform)
+
+        Returns:
+            torch.Tensor: Sorted prefix lengths
+        """
+        if n_prefixes <= 1:
+            return torch.tensor([sae_dim])
+
+        # Calculate probability distribution favoring shorter prefixes
+        lengths = torch.arange(1, sae_dim)
+        pareto_cdf = 1 - ((min_prefix_length / lengths.float()) ** pareto_power)
+        pareto_pdf = torch.cat([pareto_cdf[:1], pareto_cdf[1:] - pareto_cdf[:-1]])
+        probability_dist = pareto_pdf / pareto_pdf.sum()
+
+        # Sample and sort prefix lengths
+        prefixes = torch.multinomial(
+            probability_dist, num_samples=n_prefixes - 1, replacement=replacement
+        )
+
+        # Add n_latents as the final prefix
+        prefixes = torch.cat((prefixes.detach().clone(), torch.tensor([sae_dim])))
+
+        prefixes, _ = torch.sort(prefixes, descending=False)
+
+        return prefixes
+
+
+@jaxtyped(typechecker=beartype.beartype)
+class TopKActivation(torch.nn.Module):
+    """
+    Top-K activation function. For use as activation function of sparse encoder.
+    """
+
+    def __init__(self, cfg: TopK = TopK()):
+        super().__init__()
+        self.cfg = cfg
+        self.k = cfg.top_k
+
+    def forward(self, x: Float[Tensor, "batch d_sae"]) -> Float[Tensor, "batch d_sae"]:
+        """
+        Apply top-k activation to the input tensor.
+        """
+        if self.k <= 0:
+            raise ValueError("k must be a positive integer.")
+
+        k_vals, k_inds = torch.topk(x, self.k, dim=-1, sorted=False)
+        mask = torch.zeros_like(x).scatter_(
+            dim=-1, index=k_inds, src=torch.ones_like(x)
+        )
+
+        return torch.mul(mask, x)
+
+
+@jaxtyped(typechecker=beartype.beartype)
+class BatchTopKActivation(torch.nn.Module):
+    """
+    Batch Top-K activation function. For use as activation function of sparse encoder.
+    """
+
+    def __init__(self, cfg: BatchTopK = BatchTopK()):
+        super().__init__()
+        self.cfg = cfg
+        self.k = cfg.top_k
+
+    def forward(self, x: Float[Tensor, "batch d_sae"]) -> Float[Tensor, "batch d_sae"]:
+        """
+        Apply top-k activation to the input tensor.
+        """
+        if self.k <= 0:
+            raise ValueError("k must be a positive integer.")
+
+        orig_shape = x.shape
+        x = x.flatten()
+
+        # Handle case where k exceeds number of elements
+        k = min(self.k, x.numel())
+
+        k_vals, k_inds = torch.topk(x, k, dim=-1, sorted=False)
+        mask = torch.zeros_like(x).scatter_(
+            dim=-1, index=k_inds, src=torch.ones_like(x)
+        )
+
+        return torch.mul(mask, x).reshape(orig_shape)
+
+
 @beartype.beartype
 def get_activation(cfg: SparseAutoencoderConfig) -> torch.nn.Module:
     if isinstance(cfg, Relu):
         return torch.nn.ReLU()
     elif isinstance(cfg, JumpRelu):
         raise NotImplementedError()
+    elif isinstance(cfg, TopK):
+        return TopKActivation(cfg)
+    elif isinstance(cfg, BatchTopK):
+        return BatchTopKActivation(cfg)
     else:
         typing.assert_never(cfg)
 
@@ -4909,6 +5326,8 @@ class Matryoshka:
     Reference code is here: https://github.com/noanabeshima/matryoshka-saes and the original reading is https://sparselatents.com/matryoshka.html and https://arxiv.org/pdf/2503.17547
     """
 
+    sparsity_coeff: float = 4e-4
+    """How much to weight sparsity loss term (if not using TopK/BatchTopK)."""
     n_prefixes: int = 10
     """Number of random length prefixes to use for loss calculation."""
 
@@ -4998,9 +5417,28 @@ class VanillaObjective(Objective):
 class MatryoshkaLoss(Loss):
     """The composite loss terms for an training batch."""
 
+    mse: Float[Tensor, ""]
+    """Average of reconstruction loss (mean squared error) for all prefix lengths."""
+    sparsity: Float[Tensor, ""]
+    """Sparsity loss, typically lambda * L1."""
+    l0: Float[Tensor, ""]
+    """Sum of L0 magnitudes of hidden activations for all prefix lengths."""
+    l1: Float[Tensor, ""]
+    """Sum of L1 magnitudes of hidden activations for all prefix lengths."""
+
     @property
     def loss(self) -> Float[Tensor, ""]:
-        raise NotImplementedError()
+        """Total loss."""
+        return self.mse + self.sparsity
+
+    def metrics(self) -> dict[str, object]:
+        return {
+            "loss": self.loss.item(),
+            "mse": self.mse.item(),
+            "l0": self.l0.item(),
+            "l1": self.l1.item(),
+            "sparsity": self.sparsity.item(),
+        }
 
 
 @jaxtyped(typechecker=beartype.beartype)
@@ -5011,8 +5449,21 @@ class MatryoshkaObjective(Objective):
         super().__init__()
         self.cfg = cfg
 
-    def forward(self) -> "MatryoshkaLoss.Loss":
-        raise NotImplementedError()
+    def forward(
+        self,
+        x: Float[Tensor, "batch d_model"],
+        f_x: Float[Tensor, "batch n_prefixes d_sae"],
+        prefix_preds: Float[Tensor, "batch n_prefixes d_model"],
+    ) -> "MatryoshkaLoss.Loss":
+        # Some values of x and x_hat can be very large. We can calculate a safe MSE
+        # mse_losses = torch.flatten([mean_squared_err(p, x) for p in prefix_preds])
+        mse_losses = torch.stack([mean_squared_err(p, x) for p in prefix_preds], dim=0)
+        mse_loss = mse_losses.sum(dim=-1).mean()
+        l0 = (f_x > 0).float().sum(axis=1).mean(axis=0)
+        l1 = f_x.sum(axis=1).mean(axis=0)
+        sparsity_loss = self.cfg.sparsity_coeff * l1
+
+        return MatryoshkaLoss(mse_loss, sparsity_loss, l0, l1)
 
 
 @beartype.beartype

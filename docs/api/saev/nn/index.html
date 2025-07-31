@@ -74,7 +74,7 @@ sae: sparse autoencoder checkpoint to save.</p></div>
 <dl>
 <dt id="saev.nn.SparseAutoencoder"><code class="flex name class">
 <span>class <span class="ident">SparseAutoencoder</span></span>
-<span>(</span><span>cfg: <a title="saev.nn.modeling.Relu" href="modeling.html#saev.nn.modeling.Relu">Relu</a>)</span>
+<span>(</span><span>cfg: <a title="saev.nn.modeling.Relu" href="modeling.html#saev.nn.modeling.Relu">Relu</a> | <a title="saev.nn.modeling.JumpRelu" href="modeling.html#saev.nn.modeling.JumpRelu">JumpRelu</a> | <a title="saev.nn.modeling.TopK" href="modeling.html#saev.nn.modeling.TopK">TopK</a> | <a title="saev.nn.modeling.BatchTopK" href="modeling.html#saev.nn.modeling.BatchTopK">BatchTopK</a>)</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Sparse auto-encoder (SAE) using L1 sparsity penalty.</p>
@@ -89,7 +89,7 @@ class SparseAutoencoder(torch.nn.Module):
     Sparse auto-encoder (SAE) using L1 sparsity penalty.
     &#34;&#34;&#34;
 
-    def __init__(self, cfg: Relu):
+    def __init__(self, cfg: SparseAutoencoderConfig):
         super().__init__()
 
         self.cfg = cfg
@@ -169,6 +169,10 @@ class SparseAutoencoder(torch.nn.Module):
 <h3>Ancestors</h3>
 <ul class="hlist">
 <li>torch.nn.modules.module.Module</li>
+</ul>
+<h3>Subclasses</h3>
+<ul class="hlist">
+<li><a title="saev.nn.modeling.MatryoshkaSparseAutoencoder" href="modeling.html#saev.nn.modeling.MatryoshkaSparseAutoencoder">MatryoshkaSparseAutoencoder</a></li>
 </ul>
 <h3>Methods</h3>
 <dl>
