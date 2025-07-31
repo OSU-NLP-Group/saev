@@ -20,9 +20,11 @@ class Matryoshka:
     """
     Config for the Matryoshka loss for another arbitrary SAE class.
 
-    Reference code is here: https://github.com/noanabeshima/matryoshka-saes and the original reading is https://sparselatents.com/matryoshka.html and https://arxiv.org/pdf/2503.17547
+    Reference code is here: https://github.com/noanabeshima/matryoshka-saes and the original reading is https://sparselatents.com/matryoshka.html and https://arxiv.org/pdf/2503.17547.
     """
 
+    sparsity_coeff: float = 4e-4
+    """How much to weight sparsity loss term (if not using TopK/BatchTopK)."""
     n_prefixes: int = 10
     """Number of random length prefixes to use for loss calculation."""
 
@@ -112,9 +114,28 @@ class VanillaObjective(Objective):
 class MatryoshkaLoss(Loss):
     """The composite loss terms for an training batch."""
 
+    mse: Float[Tensor, ""]
+    """Average of reconstruction loss (mean squared error) for all prefix lengths."""
+    sparsity: Float[Tensor, ""]
+    """Sparsity loss, typically lambda * L1."""
+    l0: Float[Tensor, ""]
+    """Sum of L0 magnitudes of hidden activations for all prefix lengths."""
+    l1: Float[Tensor, ""]
+    """Sum of L1 magnitudes of hidden activations for all prefix lengths."""
+
     @property
     def loss(self) -> Float[Tensor, ""]:
-        raise NotImplementedError()
+        """Total loss."""
+        return self.mse + self.sparsity
+
+    def metrics(self) -> dict[str, object]:
+        return {
+            "loss": self.loss.item(),
+            "mse": self.mse.item(),
+            "l0": self.l0.item(),
+            "l1": self.l1.item(),
+            "sparsity": self.sparsity.item(),
+        }
 
 
 @jaxtyped(typechecker=beartype.beartype)
@@ -125,8 +146,21 @@ class MatryoshkaObjective(Objective):
         super().__init__()
         self.cfg = cfg
 
-    def forward(self) -> "MatryoshkaLoss.Loss":
-        raise NotImplementedError()
+    def forward(
+        self,
+        x: Float[Tensor, "batch d_model"],
+        f_x: Float[Tensor, "batch n_prefixes d_sae"],
+        prefix_preds: Float[Tensor, "batch n_prefixes d_model"],
+    ) -> "MatryoshkaLoss.Loss":
+        # Some values of x and x_hat can be very large. We can calculate a safe MSE
+        # mse_losses = torch.flatten([mean_squared_err(p, x) for p in prefix_preds])
+        mse_losses = torch.stack([mean_squared_err(p, x) for p in prefix_preds], dim=0)
+        mse_loss = mse_losses.sum(dim=-1).mean()
+        l0 = (f_x > 0).float().sum(axis=1).mean(axis=0)
+        l1 = f_x.sum(axis=1).mean(axis=0)
+        sparsity_loss = self.cfg.sparsity_coeff * l1
+
+        return MatryoshkaLoss(mse_loss, sparsity_loss, l0, l1)
 
 
 @beartype.beartype

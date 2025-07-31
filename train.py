@@ -39,6 +39,10 @@ from saev import helpers, nn
 
 logger = logging.getLogger("train.py")
 
+log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
+logging.basicConfig(level=logging.INFO, format=log_format)
+logger = logging.getLogger("train")
+
 
 @beartype.beartype
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -106,7 +110,10 @@ def make_saes(
 ) -> tuple[torch.nn.ModuleList, torch.nn.ModuleList, list[dict[str, object]]]:
     saes, objectives, param_groups = [], [], []
     for sae_cfg, obj_cfg in cfgs:
-        sae = nn.SparseAutoencoder(sae_cfg)
+        if isinstance(obj_cfg, nn.Matryoshka):
+            sae = nn.modeling.MatryoshkaSparseAutoencoder(sae_cfg)
+        else:
+            sae = nn.SparseAutoencoder(sae_cfg)
         saes.append(sae)
         # Use an empty LR because our first step is warmup.
         param_groups.append({"params": sae.parameters(), "lr": 0.0})
@@ -225,7 +232,11 @@ def train(
         x_hats = []
         f_xs = []
         for sae, objective in zip(saes, objectives):
-            x_hat, f_x = sae(acts_BD)
+            if isinstance(objective, nn.objectives.MatryoshkaObjective):
+                # Specific case has to be given for Matryoshka SAEs since we need to decode several times with varying prefix lengths
+                x_hat, f_x = sae.matryoshka_forward(acts_BD, cfg.n_prefixes)
+            else:
+                x_hat, f_x = sae(acts_BD)
             x_hats.append(x_hat)
             f_xs.append(f_x)
             losses.append(objective(acts_BD, f_x, x_hat))
@@ -396,8 +407,14 @@ def evaluate(
     for batch in helpers.progress(dataloader, desc="eval", every=cfg.log_every):
         acts_BD = batch["act"].to(cfg.device, non_blocking=True)
         for i, (sae, objective) in enumerate(zip(saes, objectives)):
-            x_hat_BD, f_x_BS = sae(acts_BD)
-            loss = objective(acts_BD, f_x_BS, x_hat_BD)
+            if isinstance(objective, nn.objectives.MatryoshkaObjective):
+                # Specific case has to be given for Matryoshka SAEs since we need to decode several times
+                # with varying prefix lengths
+                prefix_preds, f_x_BS = sae.matryoshka_forward(acts_BD, cfg.n_prefixes)
+                loss = objective(acts_BD, f_x_BS, prefix_preds)
+            else:
+                x_hat, f_x_BS = sae(acts_BD)
+                loss = objective(acts_BD, f_x_BS, x_hat)
             n_fired[i] += einops.reduce(f_x_BS > 0, "batch d_sae -> d_sae", "sum").cpu()
             values[i] += einops.reduce(f_x_BS, "batch d_sae -> d_sae", "sum").cpu()
             total_l0[i] += loss.l0.cpu()

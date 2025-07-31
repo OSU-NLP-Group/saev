@@ -18,9 +18,8 @@ def __():
     import numpy as np
     import polars as pl
     import torch
-    from jaxtyping import Bool, Float, jaxtyped
-
     import wandb
+    from jaxtyping import Bool, Float, jaxtyped
 
     return (
         Bool,
