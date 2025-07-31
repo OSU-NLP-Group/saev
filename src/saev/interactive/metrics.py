@@ -6,10 +6,10 @@ app = marimo.App(width="medium")
 
 @app.cell
 def __():
-    import json
-    import os
     import itertools
+    import json
     import math
+    import os
 
     import altair as alt
     import beartype
@@ -18,11 +18,11 @@ def __():
     import numpy as np
     import polars as pl
     import wandb
-    from jaxtyping import Float, jaxtyped
     from adjustText import adjust_text
-
+    from jaxtyping import Float, jaxtyped
 
     import saev.colors
+
     return (
         Float,
         adjust_text,
@@ -100,18 +100,14 @@ def __(df, mo):
     )
 
     pair_elems = {
-        f"{model}|{layer}": mo.ui.switch(
-            value=True, label=f"{model} / layer {layer}"
-        )
+        f"{model}|{layer}": mo.ui.switch(value=True, label=f"{model} / layer {layer}")
         for model, layer in pairs
     }
     pair_dict = mo.ui.dictionary(pair_elems)  # ★ reactive wrapper ★
 
-
     # Global toggle for non-frontier ("rest") points
     show_rest = mo.ui.switch(value=True, label="Show non-frontier points")
     show_ids = mo.ui.switch(value=False, label="Annotate Pareto points")
-
 
     def _make_grid(elems, ncols: int, gap: float):
         return mo.hstack(
@@ -121,7 +117,6 @@ def __(df, mo):
             ],
             gap=gap,
         )
-
 
     elems = [*pair_dict.elements.values(), show_rest, show_ids]
     ui_grid = _make_grid(elems, 3, 0.5)
@@ -170,18 +165,14 @@ def __(
         ]
         markers = ["X", "o", "+"]
 
-        models = sorted(
-            df.select(model_col).unique().get_column(model_col).to_list()
-        )
+        models = sorted(df.select(model_col).unique().get_column(model_col).to_list())
 
         texts = []
 
         for model, marker in zip(models, itertools.cycle(markers)):
             model_df = df.filter(pl.col(model_col) == model)
 
-            layers = (
-                model_df.select(layer_col).unique().get_column(layer_col).to_list()
-            )
+            layers = model_df.select(layer_col).unique().get_column(layer_col).to_list()
             for layer, color, linestyle in zip(
                 sorted(layers),
                 itertools.cycle(colors),
@@ -217,7 +208,7 @@ def __(
                                 y,
                                 rid,
                                 fontsize=6,
-                                color='black',
+                                color="black",
                                 ha="left",
                                 va="bottom",
                             )
@@ -249,16 +240,13 @@ def __(
 
         return fig
 
-
     selected_keys = [k for k, v in pair_dict.value.items() if v]
     if selected_keys:
         models, layers = zip(*[k.rsplit("|", 1) for k in selected_keys])
-        pairs_df = pl.DataFrame(
-            {
-                "model_key": list(models),
-                "config/data/layer": list(map(int, layers)),
-            }
-        )
+        pairs_df = pl.DataFrame({
+            "model_key": list(models),
+            "config/data/layer": list(map(int, layers)),
+        })
         filtered_df = df.join(
             pairs_df, on=["model_key", "config/data/layer"], how="inner"
         )

@@ -20,7 +20,7 @@ class Matryoshka:
     """
     Config for the Matryoshka loss for another arbitrary SAE class.
 
-    Reference code is here: https://github.com/noanabeshima/matryoshka-saes and the original reading is https://sparselatents.com/matryoshka.html and https://arxiv.org/pdf/2503.17547.
+    Reference code is here: https://github.com/noanabeshima/matryoshka-saes and the original reading is https://sparselatents.com/matryoshka.html and https://arxiv.org/pdf/2503.17547
     """
 
     sparsity_coeff: float = 4e-4
