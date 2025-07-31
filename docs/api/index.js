@@ -60,7 +60,7 @@ INDEX=[
 {
 "ref":"saev.utils.wandb.ParallelWandbRun",
 "url":4,
-"doc":"Inspired by https: community.wandb.ai/t/is-it-possible-to-log-to-multiple-runs-simultaneously/4387/3."
+"doc":"Inspired by https: community.wandb.ai/t/is-it-possible-to-log-to-multiple-runs-simultaneously/4387"
 },
 {
 "ref":"saev.utils.wandb.ParallelWandbRun.log",
@@ -102,6 +102,17 @@ INDEX=[
 "func":1
 },
 {
+"ref":"saev.utils.scheduling.WarmupCosine",
+"url":5,
+"doc":"Linearly increases from  init to  peak over  n_warmup steps, then decrease down to final using cosine decay over n_steps - n_warmup."
+},
+{
+"ref":"saev.utils.scheduling.WarmupCosine.step",
+"url":5,
+"doc":"",
+"func":1
+},
+{
 "ref":"saev.utils.scheduling.DataLoaderLike",
 "url":5,
 "doc":"Base class for protocol classes. Protocol classes are defined as class Proto(Protocol): def meth(self) -> int:  . Such classes are primarily used with static type checkers that recognize structural subtyping (static duck-typing). For example class C: def meth(self) -> int: return 0 def func(x: Proto) -> int: return x.meth() func(C(  Passes static type check See PEP 544 for details. Protocol classes decorated with @typing.runtime_checkable act as simple-minded runtime protocols that check only the presence of given attributes, ignoring their type signatures. Protocol classes can be generic, they are defined as class GenProto[T](Protocol): def meth(self) -> T:  ."
@@ -125,6 +136,11 @@ INDEX=[
 "ref":"saev.helpers",
 "url":6,
 "doc":""
+},
+{
+"ref":"saev.helpers.RemovedFeatureError",
+"url":6,
+"doc":"Feature existed before but is no longer supported."
 },
 {
 "ref":"saev.helpers.get_cache_dir",
@@ -328,7 +344,18 @@ INDEX=[
 "doc":"How many images per SAE feature to store."
 },
 {
+"ref":"saev.scripts.visuals.Config.topk_batch_size",
+"url":8,
+"doc":""
+},
+{
 "ref":"saev.scripts.visuals.safe_load",
+"url":8,
+"doc":"",
+"func":1
+},
+{
+"ref":"saev.scripts.visuals.gather_batched",
 "url":8,
 "doc":"",
 "func":1
@@ -366,44 +393,15 @@ INDEX=[
 "func":1
 },
 {
-"ref":"saev.scripts.visuals.TopKImg",
+"ref":"saev.scripts.visuals.batched_idx",
 "url":8,
-"doc":" todo Document this class."
+"doc":"Iterate over (start, end) indices for total_size examples, where end - start is at most batch_size. Args: total_size: total number of examples batch_size: maximum distance between the generated indices. Returns: A generator of (int, int) tuples that can slice up a list or a tensor.",
+"func":1
 },
 {
-"ref":"saev.scripts.visuals.TopKImg.top_values",
+"ref":"saev.scripts.visuals.get_sae_acts",
 "url":8,
-"doc":""
-},
-{
-"ref":"saev.scripts.visuals.TopKImg.top_i",
-"url":8,
-"doc":""
-},
-{
-"ref":"saev.scripts.visuals.TopKImg.mean_values",
-"url":8,
-"doc":""
-},
-{
-"ref":"saev.scripts.visuals.TopKImg.sparsity",
-"url":8,
-"doc":""
-},
-{
-"ref":"saev.scripts.visuals.TopKImg.distributions",
-"url":8,
-"doc":""
-},
-{
-"ref":"saev.scripts.visuals.TopKImg.percentiles",
-"url":8,
-"doc":""
-},
-{
-"ref":"saev.scripts.visuals.get_topk_img",
-"url":8,
-"doc":"Gets the top k images for each latent in the SAE. The top k images are for latent i are sorted by max over all images: f_x(cls)[i] Thus, we will never have duplicate images for a given latent. But we also will not have patch-level activations (a nice heatmap). Args: cfg: Config. Returns: A tuple of TopKImg and the first m features' activation distributions.",
+"doc":"Get SAE hidden layer activations for a batch of ViT activations. Args: vit_acts: Batch of ViT activations sae: Sparse autoencder. cfg: Experimental config.",
 "func":1
 },
 {
@@ -412,45 +410,39 @@ INDEX=[
 "doc":" todo Document this class."
 },
 {
-"ref":"saev.scripts.visuals.TopKPatch.top_values_KPD",
+"ref":"saev.scripts.visuals.TopKPatch.top_values",
 "url":8,
 "doc":""
 },
 {
-"ref":"saev.scripts.visuals.TopKPatch.top_i_KD",
+"ref":"saev.scripts.visuals.TopKPatch.top_i",
 "url":8,
 "doc":""
 },
 {
-"ref":"saev.scripts.visuals.TopKPatch.mean_values_D",
+"ref":"saev.scripts.visuals.TopKPatch.mean_values",
 "url":8,
 "doc":""
 },
 {
-"ref":"saev.scripts.visuals.TopKPatch.sparsity_D",
+"ref":"saev.scripts.visuals.TopKPatch.sparsity",
 "url":8,
 "doc":""
 },
 {
-"ref":"saev.scripts.visuals.TopKPatch.distributions_MN",
+"ref":"saev.scripts.visuals.TopKPatch.distributions",
 "url":8,
 "doc":""
 },
 {
-"ref":"saev.scripts.visuals.TopKPatch.percentiles_D",
+"ref":"saev.scripts.visuals.TopKPatch.percentiles",
 "url":8,
 "doc":""
 },
 {
 "ref":"saev.scripts.visuals.get_topk_patch",
 "url":8,
-"doc":"Gets the top k images for each latent in the SAE. The top k images are for latent i are sorted by max over all patches: f_x(patch)[i] Thus, we could end up with duplicate images in the top k, if an image has more than one patch that maximally activates an SAE latent. Args: cfg: Config. Returns: A TopKPatch object.",
-"func":1
-},
-{
-"ref":"saev.scripts.visuals.get_top_im_acts",
-"url":8,
-"doc":"",
+"doc":"Gets the top k images for each latent in the SAE. The top k images are for latent i are sorted by max over all patches: f_x(patch)[i] Thus, we could end up with duplicate images in the top k, if an image has more than one patch that maximally activates an SAE latent. Args: cfg: Config. Returns: A tuple of TopKPatch and m randomly sampled activation distributions.",
 "func":1
 },
 {
@@ -531,12 +523,6 @@ INDEX=[
 },
 {
 "ref":"saev.nn.SparseAutoencoder.decode",
-"url":13,
-"doc":"",
-"func":1
-},
-{
-"ref":"saev.nn.SparseAutoencoder.init_b_dec",
 "url":13,
 "doc":"",
 "func":1
@@ -639,12 +625,6 @@ INDEX=[
 "func":1
 },
 {
-"ref":"saev.nn.modeling.SparseAutoencoder.init_b_dec",
-"url":14,
-"doc":"",
-"func":1
-},
-{
 "ref":"saev.nn.modeling.SparseAutoencoder.normalize_w_dec",
 "url":14,
 "doc":"Set W_dec to unit-norm columns.",
@@ -692,7 +672,7 @@ INDEX=[
 {
 "ref":"saev.nn.objectives.Matryoshka",
 "url":15,
-"doc":"Config for the Matryoshka loss for another arbitrary SAE class. Reference code is here: https: github.com/noanabeshima/matryoshka-saes and the original reading is https: sparselatents.com/matryoshka.html and https: arxiv.org/pdf/2503.17547."
+"doc":"Config for the Matryoshka loss for another arbitrary SAE class. Reference code is here: https: github.com/noanabeshima/matryoshka-saes and the original reading is https: sparselatents.com/matryoshka.html and https: arxiv.org/pdf/2503.17547"
 },
 {
 "ref":"saev.nn.objectives.Matryoshka.n_prefixes",
@@ -1001,6 +981,11 @@ INDEX=[
 "doc":""
 },
 {
+"ref":"saev.data.DataLoader.manager_pid",
+"url":16,
+"doc":""
+},
+{
 "ref":"saev.data.DataLoader.shutdown",
 "url":16,
 "doc":"",
@@ -1032,14 +1017,14 @@ INDEX=[
 "doc":"Batch size."
 },
 {
-"ref":"saev.data.Config.batch_timeout_s",
-"url":16,
-"doc":"How long to wait for at least one batch."
-},
-{
 "ref":"saev.data.Config.drop_last",
 "url":16,
 "doc":"Whether to drop the last batch if it's smaller than the others."
+},
+{
+"ref":"saev.data.Config.scale_norm",
+"url":16,
+"doc":"Whether to scale norms to sqrt(D)."
 },
 {
 "ref":"saev.data.Config.n_threads",
@@ -1052,6 +1037,11 @@ INDEX=[
 "doc":"Number of batches to queue in the shared-memory ring buffer. Higher values add latency but improve resilience to brief stalls."
 },
 {
+"ref":"saev.data.Config.batch_timeout_s",
+"url":16,
+"doc":"How long to wait for at least one batch."
+},
+{
 "ref":"saev.data.Config.seed",
 "url":16,
 "doc":"Random seed."
@@ -1060,6 +1050,11 @@ INDEX=[
 "ref":"saev.data.Config.debug",
 "url":16,
 "doc":"Whether the dataloader process should log debug messages."
+},
+{
+"ref":"saev.data.Config.log_every_s",
+"url":16,
+"doc":"How frequently the dataloader process should log (debug) performance messages."
 },
 {
 "ref":"saev.data.Metadata",
@@ -1195,14 +1190,14 @@ INDEX=[
 "doc":"Batch size."
 },
 {
-"ref":"saev.data.shuffled.Config.batch_timeout_s",
-"url":17,
-"doc":"How long to wait for at least one batch."
-},
-{
 "ref":"saev.data.shuffled.Config.drop_last",
 "url":17,
 "doc":"Whether to drop the last batch if it's smaller than the others."
+},
+{
+"ref":"saev.data.shuffled.Config.scale_norm",
+"url":17,
+"doc":"Whether to scale norms to sqrt(D)."
 },
 {
 "ref":"saev.data.shuffled.Config.n_threads",
@@ -1215,6 +1210,11 @@ INDEX=[
 "doc":"Number of batches to queue in the shared-memory ring buffer. Higher values add latency but improve resilience to brief stalls."
 },
 {
+"ref":"saev.data.shuffled.Config.batch_timeout_s",
+"url":17,
+"doc":"How long to wait for at least one batch."
+},
+{
 "ref":"saev.data.shuffled.Config.seed",
 "url":17,
 "doc":"Random seed."
@@ -1223,6 +1223,11 @@ INDEX=[
 "ref":"saev.data.shuffled.Config.debug",
 "url":17,
 "doc":"Whether the dataloader process should log debug messages."
+},
+{
+"ref":"saev.data.shuffled.Config.log_every_s",
+"url":17,
+"doc":"How frequently the dataloader process should log (debug) performance messages."
 },
 {
 "ref":"saev.data.shuffled.ImageOutOfBoundsError",
@@ -1261,6 +1266,11 @@ INDEX=[
 },
 {
 "ref":"saev.data.shuffled.DataLoader.drop_last",
+"url":17,
+"doc":""
+},
+{
+"ref":"saev.data.shuffled.DataLoader.manager_pid",
 "url":17,
 "doc":""
 },
@@ -2090,6 +2100,12 @@ INDEX=[
 "func":1
 },
 {
+"ref":"saev.data.buffers.RingBuffer.fill",
+"url":24,
+"doc":"Approximate proportion of filled slots (race-safe enough for tests).",
+"func":1
+},
+{
 "ref":"saev.data.buffers.RingBuffer.close",
 "url":24,
 "doc":"Release the shared-memory backing store (call once in the parent).",
@@ -2122,6 +2138,12 @@ INDEX=[
 "ref":"saev.data.buffers.ReservoirBuffer.qsize",
 "url":24,
 "doc":"Approximate number of filled slots (race-safe enough for tests).",
+"func":1
+},
+{
+"ref":"saev.data.buffers.ReservoirBuffer.fill",
+"url":24,
+"doc":"Approximate proportion of filled slots (race-safe enough for tests).",
 "func":1
 }
 ]

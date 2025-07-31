@@ -82,6 +82,29 @@ hljs.highlightAll();
 <section>
 <h2 class="section-title" id="header-classes">Classes</h2>
 <dl>
+<dt id="saev.helpers.RemovedFeatureError"><code class="flex name class">
+<span>class <span class="ident">RemovedFeatureError</span></span>
+<span>(</span><span>*args, **kwargs)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Feature existed before but is no longer supported.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+class RemovedFeatureError(RuntimeError):
+    &#34;&#34;&#34;Feature existed before but is no longer supported.&#34;&#34;&#34;
+
+    pass</code></pre>
+</details>
+<h3>Ancestors</h3>
+<ul class="hlist">
+<li>builtins.RuntimeError</li>
+<li>builtins.Exception</li>
+<li>builtins.BaseException</li>
+</ul>
+</dd>
 <dt id="saev.helpers.batched_idx"><code class="flex name class">
 <span>class <span class="ident">batched_idx</span></span>
 <span>(</span><span>total_size: int, batch_size: int)</span>
@@ -287,6 +310,9 @@ setTimeout(() => input.focus(), 100);
 </li>
 <li><h3><a href="#header-classes">Classes</a></h3>
 <ul>
+<li>
+<h4><code><a title="saev.helpers.RemovedFeatureError" href="#saev.helpers.RemovedFeatureError">RemovedFeatureError</a></code></h4>
+</li>
 <li>
 <h4><code><a title="saev.helpers.batched_idx" href="#saev.helpers.batched_idx">batched_idx</a></code></h4>
 </li>

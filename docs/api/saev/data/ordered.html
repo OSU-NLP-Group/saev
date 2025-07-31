@@ -174,8 +174,10 @@ class DataLoader:
         return self.cfg.drop_last
 
     def _start_manager(self):
+        # Always shutdown existing manager to ensure fresh start
         if self.manager_proc and self.manager_proc.is_alive():
-            return
+            self.logger.info(&#34;Shutting down existing manager process.&#34;)
+            self.shutdown()
 
         self.logger.info(&#34;Starting manager process.&#34;)
 

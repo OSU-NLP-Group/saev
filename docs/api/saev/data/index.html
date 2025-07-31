@@ -459,7 +459,7 @@ class Config:
 </dd>
 <dt id="saev.data.Config"><code class="flex name class">
 <span>class <span class="ident">ShuffledConfig</span></span>
-<span>(</span><span>shard_root: str = './shards',<br>patches: Literal['cls', 'image', 'all'] = 'image',<br>layer: Union[int, Literal['all']] = -2,<br>batch_size: int = 16384,<br>batch_timeout_s: float = 30.0,<br>drop_last: bool = False,<br>n_threads: int = 4,<br>buffer_size: int = 64,<br>seed: int = 17,<br>debug: bool = False)</span>
+<span>(</span><span>shard_root: str = './shards',<br>patches: Literal['cls', 'image', 'all'] = 'image',<br>layer: Union[int, Literal['all']] = -2,<br>batch_size: int = 16384,<br>drop_last: bool = False,<br>scale_norm: bool = False,<br>n_threads: int = 4,<br>buffer_size: int = 64,<br>batch_timeout_s: float = 30.0,<br>seed: int = 17,<br>debug: bool = False,<br>log_every_s: float = 30.0)</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Configuration for loading shuffled activation data from disk.</p></div>
@@ -480,18 +480,24 @@ class Config:
     &#34;&#34;&#34;Which ViT layer(s) to read from disk. ``-2`` selects the second-to-last layer. ``&#34;all&#34;`` enumerates every recorded layer.&#34;&#34;&#34;
     batch_size: int = 1024 * 16
     &#34;&#34;&#34;Batch size.&#34;&#34;&#34;
-    batch_timeout_s: float = 30.0
-    &#34;&#34;&#34;How long to wait for at least one batch.&#34;&#34;&#34;
     drop_last: bool = False
     &#34;&#34;&#34;Whether to drop the last batch if it&#39;s smaller than the others.&#34;&#34;&#34;
+    scale_norm: bool = False
+    &#34;&#34;&#34;Whether to scale norms to sqrt(D).&#34;&#34;&#34;
+    # Performance
     n_threads: int = 4
     &#34;&#34;&#34;Number of dataloading threads.&#34;&#34;&#34;
     buffer_size: int = 64
     &#34;&#34;&#34;Number of batches to queue in the shared-memory ring buffer. Higher values add latency but improve resilience to brief stalls.&#34;&#34;&#34;
+    batch_timeout_s: float = 30.0
+    &#34;&#34;&#34;How long to wait for at least one batch.&#34;&#34;&#34;
+    # Diagnostics
     seed: int = 17
     &#34;&#34;&#34;Random seed.&#34;&#34;&#34;
     debug: bool = False
-    &#34;&#34;&#34;Whether the dataloader process should log debug messages.&#34;&#34;&#34;</code></pre>
+    &#34;&#34;&#34;Whether the dataloader process should log debug messages.&#34;&#34;&#34;
+    log_every_s: float = 30.0
+    &#34;&#34;&#34;How frequently the dataloader process should log (debug) performance messages.&#34;&#34;&#34;</code></pre>
 </details>
 <h3>Class variables</h3>
 <dl>
@@ -519,6 +525,10 @@ class Config:
 <dd>
 <div class="desc"><p>Which ViT layer(s) to read from disk. <code>-2</code> selects the second-to-last layer. <code>"all"</code> enumerates every recorded layer.</p></div>
 </dd>
+<dt id="saev.data.Config.log_every_s"><code class="name">var <span class="ident">log_every_s</span> : float</code></dt>
+<dd>
+<div class="desc"><p>How frequently the dataloader process should log (debug) performance messages.</p></div>
+</dd>
 <dt id="saev.data.Config.n_threads"><code class="name">var <span class="ident">n_threads</span> : int</code></dt>
 <dd>
 <div class="desc"><p>Number of dataloading threads.</p></div>
@@ -526,6 +536,10 @@ class Config:
 <dt id="saev.data.Config.patches"><code class="name">var <span class="ident">patches</span> : Literal['cls', 'image', 'all']</code></dt>
 <dd>
 <div class="desc"><p>Which kinds of patches to use. 'cls' indicates just the [CLS] token (if any). 'image' indicates it will return image patches. 'all' returns all patches.</p></div>
+</dd>
+<dt id="saev.data.Config.scale_norm"><code class="name">var <span class="ident">scale_norm</span> : bool</code></dt>
+<dd>
+<div class="desc"><p>Whether to scale norms to sqrt(D).</p></div>
 </dd>
 <dt id="saev.data.Config.seed"><code class="name">var <span class="ident">seed</span> : int</code></dt>
 <dd>
@@ -592,8 +606,10 @@ class DataLoader:
         return self.cfg.drop_last
 
     def _start_manager(self):
+        # Always shutdown existing manager to ensure fresh start
         if self.manager_proc and self.manager_proc.is_alive():
-            return
+            self.logger.info(&#34;Shutting down existing manager process.&#34;)
+            self.shutdown()
 
         self.logger.info(&#34;Starting manager process.&#34;)
 
@@ -802,16 +818,21 @@ class DataLoader:
 
     def __init__(self, cfg: Config):
         self.cfg = cfg
-        if not os.path.isdir(self.cfg.shard_root):
-            raise RuntimeError(f&#34;Activations are not saved at &#39;{self.cfg.shard_root}&#39;.&#34;)
 
-        self.metadata = writers.Metadata.load(self.cfg.shard_root)
-
-        self.logger = logging.getLogger(&#34;shuffled.DataLoader&#34;)
-        self.ctx = mp.get_context()
         self.manager_proc = None
         self.reservoir = None
         self.stop_event = None
+
+        self.logger = logging.getLogger(&#34;shuffled.DataLoader&#34;)
+        self.ctx = mp.get_context()
+
+        if not os.path.isdir(self.cfg.shard_root):
+            raise RuntimeError(f&#34;Activations are not saved at &#39;{self.cfg.shard_root}&#39;.&#34;)
+
+        if self.cfg.scale_norm:
+            raise NotImplementedError(&#34;scale_norm not implemented.&#34;)
+
+        self.metadata = writers.Metadata.load(self.cfg.shard_root)
         self._n_samples = self._calculate_n_samples()
 
     @property
@@ -830,6 +851,13 @@ class DataLoader:
     def drop_last(self) -&gt; int:
         return self.cfg.drop_last
 
+    @property
+    def manager_pid(self) -&gt; int:
+        if not self.manager_proc or not self.manager_proc.is_alive():
+            return -1
+
+        return self.manager_proc.pid
+
     def _start_manager(self):
         if self.manager_proc and self.manager_proc.is_alive():
             return
@@ -841,6 +869,8 @@ class DataLoader:
             self.cfg.buffer_size * self.cfg.batch_size,
             (self.metadata.d_vit,),
             dtype=torch.float32,
+            meta_shape=(2,),
+            meta_dtype=torch.int32,
             collate_fn=torch.utils.data.default_collate,
         )
         self.stop_event = self.ctx.Event()
@@ -877,7 +907,8 @@ class DataLoader:
                     )
                     n += need
                     b += 1
-                    yield self.ExampleBatch(act=act, **meta)
+                    image_i, patch_i = meta.T
+                    yield self.ExampleBatch(act=act, image_i=image_i, patch_i=patch_i)
                     continue
                 except TimeoutError:
                     self.logger.info(
@@ -896,10 +927,18 @@ class DataLoader:
             self.shutdown()
 
     def shutdown(self):
-        if self.stop_event and not self.stop_event.is_set():
+        if (
+            hasattr(self, &#34;stop_event&#34;)
+            and self.stop_event
+            and not self.stop_event.is_set()
+        ):
             self.stop_event.set()
 
-        if self.manager_proc and self.manager_proc.is_alive():
+        if (
+            hasattr(self, &#34;manager_proc&#34;)
+            and self.manager_proc
+            and self.manager_proc.is_alive()
+        ):
             self.manager_proc.join(timeout=5.0)
             if self.manager_proc.is_alive():
                 self.logger.warning(
@@ -907,7 +946,7 @@ class DataLoader:
                 )
                 self.manager_proc.kill()
 
-        if self.reservoir:
+        if hasattr(self, &#34;reservoir&#34;) and self.reservoir:
             self.reservoir.close()
 
         self.manager_proc = None
@@ -970,6 +1009,21 @@ def batch_size(self) -&gt; int:
 <pre><code class="python">@property
 def drop_last(self) -&gt; int:
     return self.cfg.drop_last</code></pre>
+</details>
+</dd>
+<dt id="saev.data.DataLoader.manager_pid"><code class="name">prop <span class="ident">manager_pid</span> : int</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def manager_pid(self) -&gt; int:
+    if not self.manager_proc or not self.manager_proc.is_alive():
+        return -1
+
+    return self.manager_proc.pid</code></pre>
 </details>
 </dd>
 <dt id="saev.data.DataLoader.n_batches"><code class="name">prop <span class="ident">n_batches</span> : int</code></dt>
@@ -1588,8 +1642,10 @@ setTimeout(() => input.focus(), 100);
 <li><code><a title="saev.data.Config.debug" href="#saev.data.Config.debug">debug</a></code></li>
 <li><code><a title="saev.data.Config.drop_last" href="#saev.data.Config.drop_last">drop_last</a></code></li>
 <li><code><a title="saev.data.Config.layer" href="#saev.data.Config.layer">layer</a></code></li>
+<li><code><a title="saev.data.Config.log_every_s" href="#saev.data.Config.log_every_s">log_every_s</a></code></li>
 <li><code><a title="saev.data.Config.n_threads" href="#saev.data.Config.n_threads">n_threads</a></code></li>
 <li><code><a title="saev.data.Config.patches" href="#saev.data.Config.patches">patches</a></code></li>
+<li><code><a title="saev.data.Config.scale_norm" href="#saev.data.Config.scale_norm">scale_norm</a></code></li>
 <li><code><a title="saev.data.Config.seed" href="#saev.data.Config.seed">seed</a></code></li>
 <li><code><a title="saev.data.Config.shard_root" href="#saev.data.Config.shard_root">shard_root</a></code></li>
 </ul>
@@ -1611,6 +1667,7 @@ setTimeout(() => input.focus(), 100);
 <li><code><a title="saev.data.DataLoader.ExampleBatch" href="#saev.data.DataLoader.ExampleBatch">ExampleBatch</a></code></li>
 <li><code><a title="saev.data.DataLoader.batch_size" href="#saev.data.DataLoader.batch_size">batch_size</a></code></li>
 <li><code><a title="saev.data.DataLoader.drop_last" href="#saev.data.DataLoader.drop_last">drop_last</a></code></li>
+<li><code><a title="saev.data.DataLoader.manager_pid" href="#saev.data.DataLoader.manager_pid">manager_pid</a></code></li>
 <li><code><a title="saev.data.DataLoader.n_batches" href="#saev.data.DataLoader.n_batches">n_batches</a></code></li>
 <li><code><a title="saev.data.DataLoader.n_samples" href="#saev.data.DataLoader.n_samples">n_samples</a></code></li>
 <li><code><a title="saev.data.DataLoader.shutdown" href="#saev.data.DataLoader.shutdown">shutdown</a></code></li>

@@ -169,6 +169,7 @@ class SparseAutoencoder(torch.nn.Module):
         super().__init__()
 
         self.cfg = cfg
+        self.logger = logging.getLogger(f&#34;sae(seed={cfg.seed})&#34;)
 
         self.W_enc = torch.nn.Parameter(
             torch.nn.init.kaiming_uniform_(torch.empty(cfg.d_vit, cfg.d_sae))
@@ -180,9 +181,9 @@ class SparseAutoencoder(torch.nn.Module):
         )
         self.b_dec = torch.nn.Parameter(torch.zeros(cfg.d_vit))
 
-        self.activation = get_activation(cfg)
+        self.normalize_w_dec()
 
-        self.logger = logging.getLogger(f&#34;sae(seed={cfg.seed})&#34;)
+        self.activation = get_activation(cfg)
 
     def forward(
         self, x: Float[Tensor, &#34;batch d_model&#34;]
@@ -194,11 +195,8 @@ class SparseAutoencoder(torch.nn.Module):
             x: a batch of ViT activations.
         &#34;&#34;&#34;
 
-        # Remove encoder bias as per Anthropic
         h_pre = (
-            einops.einsum(
-                x - self.b_dec, self.W_enc, &#34;... d_vit, d_vit d_sae -&gt; ... d_sae&#34;
-            )
+            einops.einsum(x, self.W_enc, &#34;... d_vit, d_vit d_sae -&gt; ... d_sae&#34;)
             + self.b_enc
         )
         f_x = self.activation(h_pre)
@@ -214,24 +212,6 @@ class SparseAutoencoder(torch.nn.Module):
             + self.b_dec
         )
         return x_hat
-
-    @torch.no_grad()
-    def init_b_dec(self, vit_acts: Float[Tensor, &#34;n d_vit&#34;]):
-        if self.cfg.n_reinit_samples &lt;= 0:
-            self.logger.info(&#34;Skipping init_b_dec.&#34;)
-            return
-        previous_b_dec = self.b_dec.clone().cpu()
-        vit_acts = vit_acts[: self.cfg.n_reinit_samples]
-        assert len(vit_acts) == self.cfg.n_reinit_samples
-        mean = vit_acts.mean(axis=0)
-        previous_distances = torch.norm(vit_acts - previous_b_dec, dim=-1)
-        distances = torch.norm(vit_acts - mean, dim=-1)
-        self.logger.info(
-            &#34;Prev dist: %.3f; new dist: %.3f&#34;,
-            previous_distances.median(axis=0).values.mean().item(),
-            distances.median(axis=0).values.mean().item(),
-        )
-        self.b_dec.data = mean.to(self.b_dec.dtype).to(self.b_dec.device)
 
     @torch.no_grad()
     def normalize_w_dec(self):
@@ -281,12 +261,6 @@ class SparseAutoencoder(torch.nn.Module):
 <div class="desc"><p>Given x, calculates the reconstructed x_hat and the intermediate activations f_x.</p>
 <h2 id="arguments">Arguments</h2>
 <p>x: a batch of ViT activations.</p></div>
-</dd>
-<dt id="saev.nn.modeling.SparseAutoencoder.init_b_dec"><code class="name flex">
-<span>def <span class="ident">init_b_dec</span></span>(<span>self, vit_acts: jaxtyping.Float[Tensor, 'n d_vit'])</span>
-</code></dt>
-<dd>
-<div class="desc"></div>
 </dd>
 <dt id="saev.nn.modeling.SparseAutoencoder.normalize_w_dec"><code class="name flex">
 <span>def <span class="ident">normalize_w_dec</span></span>(<span>self)</span>
@@ -391,7 +365,6 @@ setTimeout(() => input.focus(), 100);
 <ul class="">
 <li><code><a title="saev.nn.modeling.SparseAutoencoder.decode" href="#saev.nn.modeling.SparseAutoencoder.decode">decode</a></code></li>
 <li><code><a title="saev.nn.modeling.SparseAutoencoder.forward" href="#saev.nn.modeling.SparseAutoencoder.forward">forward</a></code></li>
-<li><code><a title="saev.nn.modeling.SparseAutoencoder.init_b_dec" href="#saev.nn.modeling.SparseAutoencoder.init_b_dec">init_b_dec</a></code></li>
 <li><code><a title="saev.nn.modeling.SparseAutoencoder.normalize_w_dec" href="#saev.nn.modeling.SparseAutoencoder.normalize_w_dec">normalize_w_dec</a></code></li>
 <li><code><a title="saev.nn.modeling.SparseAutoencoder.remove_parallel_grads" href="#saev.nn.modeling.SparseAutoencoder.remove_parallel_grads">remove_parallel_grads</a></code></li>
 </ul>

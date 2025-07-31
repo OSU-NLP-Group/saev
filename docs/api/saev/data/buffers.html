@@ -39,7 +39,7 @@ hljs.highlightAll();
 <dl>
 <dt id="saev.data.buffers.ReservoirBuffer"><code class="flex name class">
 <span>class <span class="ident">ReservoirBuffer</span></span>
-<span>(</span><span>capacity: int,<br>shape: tuple[int, ...],<br>*,<br>dtype=torch.float32,<br>seed: int = 0,<br>collate_fn: collections.abc.Callable | None = None)</span>
+<span>(</span><span>capacity: int,<br>shape: tuple[int, ...],<br>*,<br>dtype: torch.dtype = torch.float32,<br>meta_shape: tuple[int, ...] = (2,),<br>meta_dtype: torch.dtype = torch.int32,<br>seed: int = 0,<br>collate_fn: collections.abc.Callable | None = None)</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Pool of (tensor, meta) pairs.
@@ -64,17 +64,22 @@ class ReservoirBuffer:
         capacity: int,
         shape: tuple[int, ...],
         *,
-        dtype=torch.float32,
+        dtype: torch.dtype = torch.float32,
+        meta_shape: tuple[int, ...] = (2,),
+        meta_dtype: torch.dtype = torch.int32,
         seed: int = 0,
         collate_fn: collections.abc.Callable | None = None,
     ):
-        self.n = capacity
-        self.data = torch.full((capacity, *shape), 123456789, dtype=dtype)
+        self.capacity = capacity
+        self._empty = 123456789
+
+        self.data = torch.full((capacity, *shape), self._empty, dtype=dtype)
         self.data.share_memory_()
 
+        self.meta = torch.full((capacity, *meta_shape), self._empty, dtype=meta_dtype)
+        self.meta.share_memory_()
+
         self.ctx = mp.get_context()
-        mgr = self.ctx.Manager()
-        self.meta = mgr.list([None] * capacity)
 
         self.size = self.ctx.Value(&#34;L&#34;, 0)  # current live items
         self.lock = self.ctx.Lock()  # guards size+swap
@@ -88,7 +93,7 @@ class ReservoirBuffer:
     def put(
         self,
         xs: Shaped[Tensor, &#34;n? ...&#34;],
-        metas: collections.abc.Sequence[object] | None = None,
+        metadata: Shaped[Tensor, &#34;n? ...&#34;] | None = None,
     ):
         if xs.dtype != self.data.dtype:
             raise ValueError(&#34;tensor dtype mismatch&#34;)
@@ -104,25 +109,32 @@ class ReservoirBuffer:
             raise ValueError(&#34;tensor shape mismatch&#34;)
 
         n, *_ = xs.shape
-        if metas is None:
-            metas_it = itertools.repeat(None, n)
+        if metadata is None:
+            metadata = torch.full(
+                (n, *self.meta.shape[1:]), self._empty, dtype=self.meta.dtype
+            )
         else:
-            if len(metas) != n:
-                raise ValueError(f&#34;len(xs) = {len(xs)} != len(metas) = {len(metas)}&#34;)
-            metas_it = iter(metas)
+            if len(metadata) != n:
+                raise ValueError(
+                    f&#34;len(xs) = {len(xs)} != len(metadata) = {len(metadata)}&#34;
+                )
 
-        for x, m in zip(xs, metas_it):
+        for _ in range(n):
             self.free.acquire()  # block if full
-            with self.lock:
-                idx = self.size.value  # append at tail
-                self.data[idx].copy_(x)
-                self.meta[idx] = m
-                self.size.value += 1
+
+        with self.lock:
+            start = self.size.value
+            end = start + n
+            self.data[start:end].copy_(xs)
+            self.meta[start:end].copy_(metadata)
+            self.size.value = end
+
+        for _ in range(n):
             self.full.release()
 
     def get(
         self, bsz: int, timeout: float | None = None
-    ) -&gt; tuple[Shaped[Tensor, &#34;bsz ...&#34;], collections.abc.Sequence[object]]:
+    ) -&gt; tuple[Shaped[Tensor, &#34;bsz ...&#34;], Shaped[Tensor, &#34;bsx ...&#34;]]:
         n_acquired = 0
         deadline = None if timeout is None else time.monotonic() + timeout
 
@@ -141,21 +153,22 @@ class ReservoirBuffer:
             raise
 
         out_x = torch.empty((bsz, *self.data.shape[1:]), dtype=self.data.dtype)
-        out_m = [None] * bsz
+        out_m = torch.empty((bsz, *self.meta.shape[1:]), dtype=self.meta.dtype)
         with self.lock:
             for i in range(bsz):
                 r = self.rng.integers(self.size.value)
                 out_x[i].copy_(self.data[r])
-                out_m[i] = self.meta[r]
+                out_m[i].copy_(self.meta[r])
 
                 last = self.size.value - 1  # swap-with-tail
                 if r != last:
                     self.data[r].copy_(self.data[last])
-                    self.meta[r] = self.meta[last]
+                    self.meta[r].copy_(self.meta[last])
                 self.size.value -= 1
-                self.free.release()
-        if self.collate_fn:
-            out_m = self.collate_fn(out_m)
+
+        for i in range(bsz):
+            self.free.release()
+
         return out_x, out_m
 
     def close(self) -&gt; None:
@@ -167,7 +180,11 @@ class ReservoirBuffer:
 
     def qsize(self) -&gt; int:
         &#34;&#34;&#34;Approximate number of filled slots (race-safe enough for tests).&#34;&#34;&#34;
-        return self.size.value</code></pre>
+        return self.size.value
+
+    def fill(self) -&gt; float:
+        &#34;&#34;&#34;Approximate proportion of filled slots (race-safe enough for tests).&#34;&#34;&#34;
+        return self.qsize() / self.capacity</code></pre>
 </details>
 <h3>Methods</h3>
 <dl>
@@ -177,14 +194,20 @@ class ReservoirBuffer:
 <dd>
 <div class="desc"><p>Release the shared-memory backing store (call once in the parent).</p></div>
 </dd>
+<dt id="saev.data.buffers.ReservoirBuffer.fill"><code class="name flex">
+<span>def <span class="ident">fill</span></span>(<span>self) ‑> float</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Approximate proportion of filled slots (race-safe enough for tests).</p></div>
+</dd>
 <dt id="saev.data.buffers.ReservoirBuffer.get"><code class="name flex">
-<span>def <span class="ident">get</span></span>(<span>self, bsz: int, timeout: float | None = None) ‑> tuple[jaxtyping.Shaped[Tensor, 'bsz ...'], collections.abc.Sequence[object]]</span>
+<span>def <span class="ident">get</span></span>(<span>self, bsz: int, timeout: float | None = None) ‑> tuple[jaxtyping.Shaped[Tensor, 'bsz ...'], jaxtyping.Shaped[Tensor, 'bsx ...']]</span>
 </code></dt>
 <dd>
 <div class="desc"></div>
 </dd>
 <dt id="saev.data.buffers.ReservoirBuffer.put"><code class="name flex">
-<span>def <span class="ident">put</span></span>(<span>self,<br>xs: jaxtyping.Shaped[Tensor, 'n? ...'],<br>metas: collections.abc.Sequence[object] | None = None)</span>
+<span>def <span class="ident">put</span></span>(<span>self,<br>xs: jaxtyping.Shaped[Tensor, 'n? ...'],<br>metadata: jaxtyping.Shaped[Tensor, 'n? ...'] | None = None)</span>
 </code></dt>
 <dd>
 <div class="desc"></div>
@@ -288,6 +311,10 @@ class RingBuffer:
         &#34;&#34;&#34;Approximate number of filled slots (race-safe enough for tests).&#34;&#34;&#34;
         return (self.head.value - self.tail.value) % (1 &lt;&lt; 64)
 
+    def fill(self) -&gt; float:
+        &#34;&#34;&#34;Approximate proportion of filled slots (race-safe enough for tests).&#34;&#34;&#34;
+        return self.qsize() / self.capacity
+
     def close(self) -&gt; None:
         &#34;&#34;&#34;Release the shared-memory backing store (call once in the parent).&#34;&#34;&#34;
         try:
@@ -302,6 +329,12 @@ class RingBuffer:
 </code></dt>
 <dd>
 <div class="desc"><p>Release the shared-memory backing store (call once in the parent).</p></div>
+</dd>
+<dt id="saev.data.buffers.RingBuffer.fill"><code class="name flex">
+<span>def <span class="ident">fill</span></span>(<span>self) ‑> float</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Approximate proportion of filled slots (race-safe enough for tests).</p></div>
 </dd>
 <dt id="saev.data.buffers.RingBuffer.get"><code class="name flex">
 <span>def <span class="ident">get</span></span>(<span>self) ‑> torch.Tensor</span>
@@ -388,6 +421,7 @@ setTimeout(() => input.focus(), 100);
 <h4><code><a title="saev.data.buffers.ReservoirBuffer" href="#saev.data.buffers.ReservoirBuffer">ReservoirBuffer</a></code></h4>
 <ul class="">
 <li><code><a title="saev.data.buffers.ReservoirBuffer.close" href="#saev.data.buffers.ReservoirBuffer.close">close</a></code></li>
+<li><code><a title="saev.data.buffers.ReservoirBuffer.fill" href="#saev.data.buffers.ReservoirBuffer.fill">fill</a></code></li>
 <li><code><a title="saev.data.buffers.ReservoirBuffer.get" href="#saev.data.buffers.ReservoirBuffer.get">get</a></code></li>
 <li><code><a title="saev.data.buffers.ReservoirBuffer.put" href="#saev.data.buffers.ReservoirBuffer.put">put</a></code></li>
 <li><code><a title="saev.data.buffers.ReservoirBuffer.qsize" href="#saev.data.buffers.ReservoirBuffer.qsize">qsize</a></code></li>
@@ -397,6 +431,7 @@ setTimeout(() => input.focus(), 100);
 <h4><code><a title="saev.data.buffers.RingBuffer" href="#saev.data.buffers.RingBuffer">RingBuffer</a></code></h4>
 <ul class="">
 <li><code><a title="saev.data.buffers.RingBuffer.close" href="#saev.data.buffers.RingBuffer.close">close</a></code></li>
+<li><code><a title="saev.data.buffers.RingBuffer.fill" href="#saev.data.buffers.RingBuffer.fill">fill</a></code></li>
 <li><code><a title="saev.data.buffers.RingBuffer.get" href="#saev.data.buffers.RingBuffer.get">get</a></code></li>
 <li><code><a title="saev.data.buffers.RingBuffer.put" href="#saev.data.buffers.RingBuffer.put">put</a></code></li>
 <li><code><a title="saev.data.buffers.RingBuffer.qsize" href="#saev.data.buffers.RingBuffer.qsize">qsize</a></code></li>

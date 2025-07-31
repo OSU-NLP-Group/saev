@@ -7,7 +7,7 @@ MetricQueue = list[tuple[int, dict[str, object]]]
 @beartype.beartype
 class ParallelWandbRun:
     """
-    Inspired by https://community.wandb.ai/t/is-it-possible-to-log-to-multiple-runs-simultaneously/4387/3.
+    Inspired by https://community.wandb.ai/t/is-it-possible-to-log-to-multiple-runs-simultaneously/4387
     """
 
     def __init__(

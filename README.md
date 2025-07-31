@@ -44,4 +44,4 @@ You can ask questions about this repo using the `llms.txt` file.
 
 Example (macOS):
 
-`curl https://osu-nlp-group.github.io/saev/llms.txt | pbcopy`, then paste into [Claude](https://claude.ai) or any LLM interface of your choice.
+`curl https://osu-nlp-group.github.io/saev/api/llms.txt | pbcopy`, then paste into [Claude](https://claude.ai) or any LLM interface of your choice.

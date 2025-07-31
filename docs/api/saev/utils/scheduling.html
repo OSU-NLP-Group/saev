@@ -61,6 +61,18 @@ class BatchLimiter:
     def __len__(self) -&gt; int:
         return self.n_samples // self.batch_size
 
+    def __getattr__(self, name: str) -&gt; Any:
+        &#34;&#34;&#34;Pass through attribute access to the wrapped dataloader.&#34;&#34;&#34;
+        # __getattr__ is only called when the attribute wasn&#39;t found on self
+        # So we delegate to the wrapped dataloader
+        try:
+            return getattr(self.dataloader, name)
+        except AttributeError:
+            # Re-raise with more context about where the attribute was not found
+            raise AttributeError(
+                f&#34;&#39;{self.__class__.__name__}&#39; object and its wrapped dataloader have no attribute &#39;{name}&#39;&#34;
+            )
+
     def __iter__(self):
         self.n_seen = 0
         while True:
@@ -158,6 +170,7 @@ class Scheduler:
 <h3>Subclasses</h3>
 <ul class="hlist">
 <li><a title="saev.utils.scheduling.Warmup" href="#saev.utils.scheduling.Warmup">Warmup</a></li>
+<li><a title="saev.utils.scheduling.WarmupCosine" href="#saev.utils.scheduling.WarmupCosine">WarmupCosine</a></li>
 </ul>
 <h3>Methods</h3>
 <dl>
@@ -208,6 +221,61 @@ class Warmup(Scheduler):
 <h3>Methods</h3>
 <dl>
 <dt id="saev.utils.scheduling.Warmup.step"><code class="name flex">
+<span>def <span class="ident">step</span></span>(<span>self) ‑> float</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+</dl>
+</dd>
+<dt id="saev.utils.scheduling.WarmupCosine"><code class="flex name class">
+<span>class <span class="ident">WarmupCosine</span></span>
+<span>(</span><span>init: float, n_warmup: int, peak: float, n_steps: int, final: float)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Linearly increases from <code>init</code> to <code>peak</code> over <code>n_warmup</code> steps, then decrease down to final using cosine decay over n_steps - n_warmup.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+class WarmupCosine(Scheduler):
+    &#34;&#34;&#34;
+    Linearly increases from `init` to `peak` over `n_warmup` steps, then decrease down to final using cosine decay over n_steps - n_warmup.
+    &#34;&#34;&#34;
+
+    def __init__(
+        self, init: float, n_warmup: int, peak: float, n_steps: int, final: float
+    ):
+        self.init = init
+        self.peak = peak
+        self.final = final
+        self.n_warmup = n_warmup
+        self.n_steps = n_steps
+        self._step = 0
+
+    def step(self) -&gt; float:
+        self._step += 1
+        if self._step &lt; self.n_warmup:
+            return self.init + (self.peak - self.init) * (self._step / self.n_warmup)
+        elif self._step &lt; self.n_steps:
+            # Cosine decay from self.peak to self.final over (n_steps - n_warmup)
+            progress = (self._step - self.n_warmup) / (self.n_steps - self.n_warmup)
+            cosine_factor = (1 + math.cos(math.pi * progress)) / 2
+            return self.final + (self.peak - self.final) * cosine_factor
+
+        return self.final
+
+    def __repr__(self) -&gt; str:
+        return f&#34;WarmupCosine(init={self.init}, peak={self.peak}, final={self.final}, n_warmup={self.n_warmup}, n_steps={self.n_steps})&#34;</code></pre>
+</details>
+<h3>Ancestors</h3>
+<ul class="hlist">
+<li><a title="saev.utils.scheduling.Scheduler" href="#saev.utils.scheduling.Scheduler">Scheduler</a></li>
+</ul>
+<h3>Methods</h3>
+<dl>
+<dt id="saev.utils.scheduling.WarmupCosine.step"><code class="name flex">
 <span>def <span class="ident">step</span></span>(<span>self) ‑> float</span>
 </code></dt>
 <dd>
@@ -296,6 +364,12 @@ setTimeout(() => input.focus(), 100);
 <h4><code><a title="saev.utils.scheduling.Warmup" href="#saev.utils.scheduling.Warmup">Warmup</a></code></h4>
 <ul class="">
 <li><code><a title="saev.utils.scheduling.Warmup.step" href="#saev.utils.scheduling.Warmup.step">step</a></code></li>
+</ul>
+</li>
+<li>
+<h4><code><a title="saev.utils.scheduling.WarmupCosine" href="#saev.utils.scheduling.WarmupCosine">WarmupCosine</a></code></h4>
+<ul class="">
+<li><code><a title="saev.utils.scheduling.WarmupCosine.step" href="#saev.utils.scheduling.WarmupCosine.step">step</a></code></li>
 </ul>
 </li>
 </ul>
