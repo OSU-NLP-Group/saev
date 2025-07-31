@@ -272,4 +272,4 @@ Great. I trained some SAEs on SigLIP2 and DINOv2 models.
 I should now:
 
 1. Get some visuals from early and late layers for both models (4x visuals scripts).
-2. Merge Jake's code so that I can also train these models with at least BatchTopK which is highly likely to be correct.
+2. Merge Jake's code so that I can also train these models with at least BatchTopK which is highly likely to be correct. [DONE]
