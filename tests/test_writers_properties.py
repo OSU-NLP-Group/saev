@@ -365,7 +365,6 @@ def test_shard_size_consistency(max_patches, n_patches, n_layers, cls_token):
         # via ShardWriter logic
         cfg = Config(
             data=images.Imagenet(),
-            # TODO:
             dump_to=str(tmp_path),
             vit_layers=list(range(n_layers)),
             n_patches_per_img=n_patches,
