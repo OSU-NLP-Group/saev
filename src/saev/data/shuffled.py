@@ -1,4 +1,5 @@
 # src/saev/data/shuffled.py
+# TODO: read https://docs.pytorch.org/tutorials/intermediate/pinmem_nonblock.html
 import collections.abc
 import dataclasses
 import logging
@@ -37,20 +38,24 @@ class Config:
     """Which ViT layer(s) to read from disk. ``-2`` selects the second-to-last layer. ``"all"`` enumerates every recorded layer."""
     batch_size: int = 1024 * 16
     """Batch size."""
-    batch_timeout_s: float = 30.0
-    """How long to wait for at least one batch."""
     drop_last: bool = False
     """Whether to drop the last batch if it's smaller than the others."""
+    scale_norm: bool = False
+    """Whether to scale norms to sqrt(D)."""
+    # Performance
     n_threads: int = 4
     """Number of dataloading threads."""
     buffer_size: int = 64
     """Number of batches to queue in the shared-memory ring buffer. Higher values add latency but improve resilience to brief stalls."""
+    batch_timeout_s: float = 30.0
+    """How long to wait for at least one batch."""
+    # Diagnostics
     seed: int = 17
     """Random seed."""
     debug: bool = False
     """Whether the dataloader process should log debug messages."""
-    log_every_s: float = 5.0
-    """How frequently the dataloader process should log performance messages."""
+    log_every_s: float = 30.0
+    """How frequently the dataloader process should log (debug) performance messages."""
 
 
 @beartype.beartype
@@ -143,7 +148,7 @@ def _io_worker(
 
                     now = time.time()
                     if now - t_last_report >= cfg.log_every_s:
-                        logger.info(
+                        logger.debug(
                             "shard=%s mb_sent=%.1f read_ms=%.2f put_ms=%.2f fill-before=%.3f fill-after=%.3f",
                             shard_i,
                             bytes_sent / 1e6,
@@ -267,6 +272,9 @@ class DataLoader:
 
         if not os.path.isdir(self.cfg.shard_root):
             raise RuntimeError(f"Activations are not saved at '{self.cfg.shard_root}'.")
+
+        if self.cfg.scale_norm:
+            raise NotImplementedError("scale_norm not implemented.")
 
         self.metadata = writers.Metadata.load(self.cfg.shard_root)
         self._n_samples = self._calculate_n_samples()
