@@ -1,3 +1,4 @@
+import math
 from typing import Any, Iterator, Protocol, runtime_checkable
 
 import beartype
@@ -35,6 +36,38 @@ class Warmup(Scheduler):
 
     def __repr__(self) -> str:
         return f"Warmup(init={self.init}, final={self.final}, n_steps={self.n_steps})"
+
+
+@beartype.beartype
+class WarmupCosine(Scheduler):
+    """
+    Linearly increases from `init` to `peak` over `n_warmup` steps, then decrease down to final using cosine decay over n_steps - n_warmup.
+    """
+
+    def __init__(
+        self, init: float, n_warmup: int, peak: float, n_steps: int, final: float
+    ):
+        self.init = init
+        self.peak = peak
+        self.final = final
+        self.n_warmup = n_warmup
+        self.n_steps = n_steps
+        self._step = 0
+
+    def step(self) -> float:
+        self._step += 1
+        if self._step < self.n_warmup:
+            return self.init + (self.peak - self.init) * (self._step / self.n_warmup)
+        elif self._step < self.n_steps:
+            # Cosine decay from self.peak to self.final over (n_steps - n_warmup)
+            progress = (self._step - self.n_warmup) / (self.n_steps - self.n_warmup)
+            cosine_factor = (1 + math.cos(math.pi * progress)) / 2
+            return self.final + (self.peak - self.final) * cosine_factor
+
+        return self.final
+
+    def __repr__(self) -> str:
+        return f"WarmupCosine(init={self.init}, peak={self.peak}, final={self.final}, n_warmup={self.n_warmup}, n_steps={self.n_steps})"
 
 
 @runtime_checkable
@@ -96,7 +129,7 @@ def _plot_example_schedules():
     n_steps = 1000
     xs = np.arange(n_steps)
 
-    schedule = Warmup(0.1, 0.9, 100)
+    schedule = WarmupCosine(0.1, 100, 0.9, 1000, 0.0)
     ys = [schedule.step() for _ in xs]
 
     ax.plot(xs, ys, label=str(schedule))

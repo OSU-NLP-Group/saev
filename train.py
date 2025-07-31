@@ -25,7 +25,6 @@ import typing
 
 import beartype
 import einops
-import numpy as np
 import psutil
 import torch
 import tyro
@@ -70,6 +69,8 @@ class Config:
     """Learning rate."""
     n_lr_warmup: int = 500
     """Number of learning rate warmup steps."""
+    grad_clip: float = 1.0
+    """Maximum gradient norm across all SAE parameters."""
 
     # Logging
     track: bool = True
@@ -97,26 +98,6 @@ class Config:
     """Node memory in GB."""
     log_to: str = os.path.join(".", "logs")
     """Where to log Slurm job stdout/stderr."""
-
-
-# TODO: can we remove this?
-@torch.no_grad()
-def init_b_dec_batched(
-    saes: torch.nn.ModuleList, dataset: saev.data.shuffled.DataLoader
-):
-    n_samples = max(sae.cfg.n_reinit_samples for sae in saes)
-    if not n_samples:
-        return
-    # Pick random samples using first SAE's seed.
-    perm = np.random.default_rng(seed=saes[0].cfg.seed).permutation(len(dataset))
-    perm = perm[:n_samples]
-    examples, _, _ = zip(*[
-        dataset[p.item()]
-        for p in helpers.progress(perm, every=25_000, desc="examples to re-init b_dec")
-    ])
-    vit_acts = torch.stack(examples)
-    for sae in saes:
-        sae.init_b_dec(vit_acts[: sae.cfg.n_reinit_samples])
 
 
 @beartype.beartype
@@ -210,7 +191,10 @@ def train(
 
     optimizer = torch.optim.Adam(param_groups, fused=True)
     lr_schedulers = [
-        saev.utils.scheduling.Warmup(0.0, c.lr, c.n_lr_warmup) for c in cfgs
+        saev.utils.scheduling.WarmupCosine(
+            0.0, c.n_lr_warmup, c.lr, len(dataloader), 0.0
+        )
+        for c in cfgs
     ]
     sparsity_schedulers = [
         saev.utils.scheduling.Warmup(
@@ -251,14 +235,18 @@ def train(
         for loss in losses:
             loss.loss.backward()
 
+        # remove parallel gradients or normalize columns?
         for sae in saes:
             sae.remove_parallel_grads()
 
         # Calculate gradient norms before optimizer step
         grad_norms = []
-        for i, sae in enumerate(saes):
+        for sae, cfg in zip(saes, cfgs):
             # Clip gradients and get the gradient norm
-            grad_norm = torch.nn.utils.clip_grad_norm_(sae.parameters(), max_norm=1e9)
+            grad_norm = torch.nn.utils.clip_grad_norm_(
+                sae.parameters(), max_norm=cfg.grad_clip
+            )
+
             grad_norms.append(grad_norm)
 
         # Log metrics after gradient computation
@@ -551,14 +539,21 @@ def main(
     with executor.batch():
         jobs = [executor.submit(worker_fn, group) for group in cfgs]
 
+    # Give the executor a second to fire the jobs off.
+    time.sleep(1.0)
+
+    # Log initial status.
     for j, job in enumerate(jobs):
         logger.info("Job %d/%d: %s %s", j + 1, len(jobs), job.job_id, job.state)
 
     for j, job in enumerate(jobs):
-        job.result()
-        logger.info("Job %d/%d finished.", j + 1, len(jobs))
+        try:
+            job.result()
+            logger.info("Job %d/%d finished.", j + 1, len(jobs))
+        except submitit.core.utils.UncompletedJobError:
+            logger.warning("Job %s (%d) did not finish.", job.job_id, j)
 
-    logger.info("Done.")
+    logger.info("Jobs done.")
 
 
 if __name__ == "__main__":
