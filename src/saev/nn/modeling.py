@@ -59,6 +59,7 @@ class SparseAutoencoder(torch.nn.Module):
         super().__init__()
 
         self.cfg = cfg
+        self.logger = logging.getLogger(f"sae(seed={cfg.seed})")
 
         self.W_enc = torch.nn.Parameter(
             torch.nn.init.kaiming_uniform_(torch.empty(cfg.d_vit, cfg.d_sae))
@@ -70,9 +71,9 @@ class SparseAutoencoder(torch.nn.Module):
         )
         self.b_dec = torch.nn.Parameter(torch.zeros(cfg.d_vit))
 
-        self.activation = get_activation(cfg)
+        self.normalize_w_dec()
 
-        self.logger = logging.getLogger(f"sae(seed={cfg.seed})")
+        self.activation = get_activation(cfg)
 
     def forward(
         self, x: Float[Tensor, "batch d_model"]
@@ -84,11 +85,8 @@ class SparseAutoencoder(torch.nn.Module):
             x: a batch of ViT activations.
         """
 
-        # Remove encoder bias as per Anthropic
         h_pre = (
-            einops.einsum(
-                x - self.b_dec, self.W_enc, "... d_vit, d_vit d_sae -> ... d_sae"
-            )
+            einops.einsum(x, self.W_enc, "... d_vit, d_vit d_sae -> ... d_sae")
             + self.b_enc
         )
         f_x = self.activation(h_pre)
@@ -104,24 +102,6 @@ class SparseAutoencoder(torch.nn.Module):
             + self.b_dec
         )
         return x_hat
-
-    @torch.no_grad()
-    def init_b_dec(self, vit_acts: Float[Tensor, "n d_vit"]):
-        if self.cfg.n_reinit_samples <= 0:
-            self.logger.info("Skipping init_b_dec.")
-            return
-        previous_b_dec = self.b_dec.clone().cpu()
-        vit_acts = vit_acts[: self.cfg.n_reinit_samples]
-        assert len(vit_acts) == self.cfg.n_reinit_samples
-        mean = vit_acts.mean(axis=0)
-        previous_distances = torch.norm(vit_acts - previous_b_dec, dim=-1)
-        distances = torch.norm(vit_acts - mean, dim=-1)
-        self.logger.info(
-            "Prev dist: %.3f; new dist: %.3f",
-            previous_distances.median(axis=0).values.mean().item(),
-            distances.median(axis=0).values.mean().item(),
-        )
-        self.b_dec.data = mean.to(self.b_dec.dtype).to(self.b_dec.device)
 
     @torch.no_grad()
     def normalize_w_dec(self):
