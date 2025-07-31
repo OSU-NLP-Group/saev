@@ -13,6 +13,13 @@ import beartype
 
 
 @beartype.beartype
+class RemovedFeatureError(RuntimeError):
+    """Feature existed before but is no longer supported."""
+
+    pass
+
+
+@beartype.beartype
 def get_cache_dir() -> str:
     """
     Get cache directory from environment variables, defaulting to the current working directory (.)

@@ -246,101 +246,6 @@ def get_sae_acts(
 
 @jaxtyped(typechecker=beartype.beartype)
 @dataclasses.dataclass(frozen=True)
-class TopKImg:
-    ".. todo:: Document this class."
-
-    top_values: Float[Tensor, "d_sae k"]
-    top_i: Int[Tensor, "d_sae k"]
-    mean_values: Float[Tensor, " d_sae"]
-    sparsity: Float[Tensor, " d_sae"]
-    distributions: Float[Tensor, "m n"]
-    percentiles: Float[Tensor, " d_sae"]
-
-
-@beartype.beartype
-@torch.inference_mode()
-def get_topk_img(cfg: Config) -> TopKImg:
-    """
-    Gets the top k images for each latent in the SAE.
-    The top k images are for latent i are sorted by
-
-        max over all images: f_x(cls)[i]
-
-    Thus, we will never have duplicate images for a given latent.
-    But we also will not have patch-level activations (a nice heatmap).
-
-    Args:
-        cfg: Config.
-
-    Returns:
-        A tuple of TopKImg and the first m features' activation distributions.
-    """
-    assert cfg.sort_by == "img"
-    assert cfg.data.patches == "cls"
-
-    sae = nn.load(cfg.ckpt).to(cfg.device)
-    dataset = activations.Dataset(cfg.data)
-
-    top_values_im_SK = torch.full((sae.cfg.d_sae, cfg.top_k), -1.0, device=cfg.device)
-    top_i_im_SK = torch.zeros(
-        (sae.cfg.d_sae, cfg.top_k), dtype=torch.int, device=cfg.device
-    )
-    sparsity_S = torch.zeros((sae.cfg.d_sae,), device=cfg.device)
-    mean_values_S = torch.zeros((sae.cfg.d_sae,), device=cfg.device)
-
-    distributions_MN = torch.zeros((cfg.n_distributions, len(dataset)), device="cpu")
-    estimator = PercentileEstimator(
-        cfg.percentile, len(dataset), shape=(sae.cfg.d_sae,)
-    )
-
-    dataloader = torch.utils.data.DataLoader(
-        dataset,
-        batch_size=cfg.topk_batch_size,
-        shuffle=False,
-        num_workers=cfg.n_workers,
-        drop_last=False,
-    )
-
-    logger.info("Loaded SAE and data.")
-
-    for batch in helpers.progress(dataloader, desc="picking top-k"):
-        vit_acts_BD = batch["act"]
-        sae_acts_BS = get_sae_acts(vit_acts_BD, sae, cfg)
-
-        for sae_act_S in sae_acts_BS:
-            estimator.update(sae_act_S)
-
-        sae_acts_SB = einops.rearrange(sae_acts_BS, "batch d_sae -> d_sae batch")
-        distributions_MN[:, batch["image_i"]] = sae_acts_SB[: cfg.n_distributions].to(
-            "cpu"
-        )
-
-        mean_values_S += einops.reduce(sae_acts_SB, "d_sae batch -> d_sae", "sum")
-        sparsity_S += einops.reduce((sae_acts_SB > 0), "d_sae batch -> d_sae", "sum")
-
-        sae_acts_SK, k = torch.topk(sae_acts_SB, k=cfg.top_k, dim=1)
-        i_im_SK = batch["image_i"].to(cfg.device)[k]
-
-        all_values_im_2SK = torch.cat((top_values_im_SK, sae_acts_SK), axis=1)
-
-        top_values_im_SK, k = torch.topk(all_values_im_2SK, k=cfg.top_k, axis=1)
-        top_i_im_SK = torch.gather(torch.cat((top_i_im_SK, i_im_SK), axis=1), 1, k)
-
-    mean_values_S /= sparsity_S
-    sparsity_S /= len(dataset)
-
-    return TopKImg(
-        top_values_im_SK,
-        top_i_im_SK,
-        mean_values_S,
-        sparsity_S,
-        distributions_MN,
-        estimator.estimate.cpu(),
-    )
-
-
-@jaxtyped(typechecker=beartype.beartype)
-@dataclasses.dataclass(frozen=True)
 class TopKPatch:
     ".. todo:: Document this class."
 
@@ -470,7 +375,7 @@ def dump_activations(cfg: Config):
         None. All data is saved to disk.
     """
     if cfg.sort_by == "img":
-        topk = get_topk_img(cfg)
+        raise helpers.RemovedFeatureError("Feature removed.")
     elif cfg.sort_by == "patch":
         topk = get_topk_patch(cfg)
     else:
