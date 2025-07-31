@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.9.14"
+__generated_with = "0.9.32"
 app = marimo.App(width="medium")
 
 
@@ -8,6 +8,8 @@ app = marimo.App(width="medium")
 def __():
     import json
     import os
+    import itertools
+    import math
 
     import altair as alt
     import beartype
@@ -17,8 +19,27 @@ def __():
     import polars as pl
     import wandb
     from jaxtyping import Float, jaxtyped
+    from adjustText import adjust_text
 
-    return Float, alt, beartype, jaxtyped, json, mo, np, os, pl, plt, wandb
+
+    import saev.colors
+    return (
+        Float,
+        adjust_text,
+        alt,
+        beartype,
+        itertools,
+        jaxtyped,
+        json,
+        math,
+        mo,
+        np,
+        os,
+        pl,
+        plt,
+        saev,
+        wandb,
+    )
 
 
 @app.cell
@@ -69,30 +90,220 @@ def __(WANDB_PROJECT, WANDB_USERNAME, mo, tag_input):
 
 
 @app.cell
+def __(df, mo):
+    # All unique (model, layer) pairs
+    pairs = (
+        df.select(["model_key", "config/data/layer"])
+        .unique()
+        .sort(by=["model_key", "config/data/layer"])
+        .iter_rows()
+    )
+
+    pair_elems = {
+        f"{model}|{layer}": mo.ui.switch(
+            value=True, label=f"{model} / layer {layer}"
+        )
+        for model, layer in pairs
+    }
+    pair_dict = mo.ui.dictionary(pair_elems)  # ★ reactive wrapper ★
+
+
+    # Global toggle for non-frontier ("rest") points
+    show_rest = mo.ui.switch(value=True, label="Show non-frontier points")
+    show_ids = mo.ui.switch(value=False, label="Annotate Pareto points")
+
+
+    def _make_grid(elems, ncols: int, gap: float):
+        return mo.hstack(
+            [
+                mo.vstack(elems[i : i + ncols], gap=gap, justify="start")
+                for i in range(0, len(elems), ncols)
+            ],
+            gap=gap,
+        )
+
+
+    elems = [*pair_dict.elements.values(), show_rest, show_ids]
+    ui_grid = _make_grid(elems, 3, 0.5)
+    ui_grid
+    return elems, pair_dict, pair_elems, pairs, show_ids, show_rest, ui_grid
+
+
+@app.cell
+def __(
+    adjust_text,
+    df,
+    itertools,
+    mo,
+    pair_dict,
+    pl,
+    plt,
+    saev,
+    show_ids,
+    show_rest,
+):
+    def plot_layerwise(
+        df: pl.DataFrame,
+        show_rest: bool,
+        show_ids: bool,
+        l0_col: str = "summary/eval/l0",
+        mse_col: str = "summary/eval/mse",
+        layer_col: str = "config/data/layer",
+        model_col: str = "model_key",
+    ):
+        """
+        Plot Pareto frontiers (L0 vs MSE) for every (layer, model) pair using **polars** only.
+        """
+
+        fig, ax = plt.subplots(figsize=(7, 4), dpi=300)
+
+        linestyles = ["-", "--", ":", "-."]
+        colors = [
+            saev.colors.CYAN_RGB01,
+            saev.colors.SEA_RGB01,
+            saev.colors.CREAM_RGB01,
+            saev.colors.GOLD_RGB01,
+            saev.colors.ORANGE_RGB01,
+            saev.colors.RUST_RGB01,
+            saev.colors.SCARLET_RGB01,
+            saev.colors.RED_RGB01,
+        ]
+        markers = ["X", "o", "+"]
+
+        models = sorted(
+            df.select(model_col).unique().get_column(model_col).to_list()
+        )
+
+        texts = []
+
+        for model, marker in zip(models, itertools.cycle(markers)):
+            model_df = df.filter(pl.col(model_col) == model)
+
+            layers = (
+                model_df.select(layer_col).unique().get_column(layer_col).to_list()
+            )
+            for layer, color, linestyle in zip(
+                sorted(layers),
+                itertools.cycle(colors),
+                itertools.cycle(linestyles),
+            ):
+                group = (
+                    model_df.filter(pl.col(layer_col) == layer)
+                    .sort(l0_col)
+                    .with_columns(pl.col(mse_col).cum_min().alias("cummin_mse"))
+                )
+
+                pareto = group.filter(pl.col(mse_col) == pl.col("cummin_mse"))
+                ids = pareto.get_column("id").to_list()
+
+                xs = pareto.get_column(l0_col).to_numpy()
+                ys = pareto.get_column(mse_col).to_numpy()
+
+                line, *_ = ax.plot(
+                    xs,
+                    ys,
+                    color=color,
+                    linestyle=linestyle,
+                    marker=marker,
+                    alpha=0.8,
+                    label=f"{model} / layer {layer}",
+                )
+
+                if show_ids:  # <-- annotate
+                    for x, y, rid in zip(xs, ys, ids):
+                        texts.append(
+                            ax.text(
+                                x,
+                                y,
+                                rid,
+                                fontsize=6,
+                                color='black',
+                                ha="left",
+                                va="bottom",
+                            )
+                        )
+
+                rest = group.filter(pl.col(mse_col) != pl.col("cummin_mse"))
+                xs = rest.get_column(l0_col).to_numpy()
+                ys = rest.get_column(mse_col).to_numpy()
+
+                if show_rest:
+                    # Scatter
+                    ax.scatter(
+                        xs,
+                        ys,
+                        color=color,
+                        marker=marker,
+                        s=12,
+                        linewidth=0,
+                        alpha=0.5,
+                    )
+
+        ax.set_xlabel("L0 sparsity (lower is better)")
+        ax.set_ylabel("Reconstruction MSE (lower is better)")
+        ax.grid(True, linewidth=0.3, alpha=0.7)
+        ax.legend(fontsize="small", ncols=2)
+        ax.spines[["right", "top"]].set_visible(False)
+
+        adjust_text(texts)
+
+        return fig
+
+
+    selected_keys = [k for k, v in pair_dict.value.items() if v]
+    if selected_keys:
+        models, layers = zip(*[k.rsplit("|", 1) for k in selected_keys])
+        pairs_df = pl.DataFrame(
+            {
+                "model_key": list(models),
+                "config/data/layer": list(map(int, layers)),
+            }
+        )
+        filtered_df = df.join(
+            pairs_df, on=["model_key", "config/data/layer"], how="inner"
+        )
+    else:
+        filtered_df = pl.DataFrame(schema=df.schema)
+
+    mo.stop(filtered_df.height == 0, mo.md("No runs match the current filters."))
+
+    fig = plot_layerwise(filtered_df, show_rest.value, show_ids.value)
+    fig
+    return (
+        fig,
+        filtered_df,
+        layers,
+        models,
+        pairs_df,
+        plot_layerwise,
+        selected_keys,
+    )
+
+
+@app.cell
 def __(alt, df, mo, pl):
     chart = mo.ui.altair_chart(
         alt.Chart(
-            df.filter(
-                (pl.col("summary/_timestamp") > 1750809600)
-                & (pl.col("summary/_runtime") > 300)
-            ).select(
+            df.select(
                 "summary/eval/l0",
-                "summary/eval/mse",
+                "summary/losses/mse",
                 "id",
-                "config/objective/sparsity_coeff",
+                "config/sae/sparsity_coeff",
                 "config/lr",
                 "config/sae/d_sae",
+                "config/data/layer",
                 "model_key",
             )
         )
         .mark_point()
         .encode(
             x=alt.X("summary/eval/l0"),
-            y=alt.Y("summary/eval/mse"),
+            y=alt.Y("summary/losses/mse"),
             tooltip=["id", "config/lr"],
             color="config/lr:Q",
+            shape="config/data/layer:N",
             # shape="config/objective/sparsity_coeff:N",
-            shape="config/sae/d_sae:N",
+            # shape="config/sae/d_sae:N",
             # shape="model_key",
         )
     )
@@ -403,8 +614,8 @@ def __(beartype):
     @beartype.beartype
     def get_data_key(metadata: dict[str, object]) -> str | None:
         if (
-            "train_mini" in metadata["data"]["root"]
-            and metadata["data"]["__cls__"] == "ImageFolder"
+            "train_mini" in metadata["data"]
+            and "ImageFolderDataset" in metadata["data"]
         ):
             return "iNat21"
 
@@ -462,10 +673,13 @@ def __(df):
         "config/log_every",
         "config/slurm_acct",
         "config/device",
+        "config/n_workers",
         "config/wandb_project",
         "config/track",
+        "config/slurm",
         "config/log_to",
         "config/ckpt_path",
+        "config/sae/ghost_grads",
     )
     return
 
