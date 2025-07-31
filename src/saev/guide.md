@@ -27,16 +27,25 @@ Run `uv run python -m saev activations --help` to see all the configuration.
 In practice, you might run:
 
 ```sh
-uv run python -m saev activations \
-  --vit-family clip \
-  --vit-ckpt ViT-B-32/openai \
-  --d-vit 768 \
-  --n-patches-per-img 49 \
-  --vit-layers -2 \
-  --dump-to /local/scratch/$USER/cache/saev \
-  --n-patches-per-shard 2_4000_000 \
-  data:imagenet-dataset
+uv run python -m saev.data \
+  --vit-family siglip \
+  --vit-ckpt hf-hub:timm/ViT-L-16-SigLIP2-256 \
+  --d-vit 1024 \
+  --n-patches-per-img 256 \
+  --no-cls-token \
+  --vit-layers 13 15 17 19 21 23 \
+  --dump-to /fs/scratch/PAS2136/samuelstevens/cache/saev/ \
+  --max-patches-per-shard 500_000 \
+  --slurm-acct PAS2136 \
+  --n-hours 48 \
+  --slurm-partition nextgen \
+  data:image-folder \
+  --data.root /fs/ess/PAS2136/foundation_model/inat21/raw/train_mini/
 ```
+
+Let's break down these arguments.
+
+
 
 This will save activations for the CLIP-pretrained model ViT-B/32, which has a residual stream dimension of 768, and has 49 patches per image (224 / 32 = 7; 7 x 7 = 49).
 It will save the second-to-last layer (`--layer -2`).
@@ -58,7 +67,7 @@ To train an SAE, we need to specify:
 2. SAE architectural stuff.
 3. Optimization-related stuff.
 
-`The `saev.training` module handles this.
+The `saev.training` module handles this.
 
 Run `uv run python -m saev train --help` to see all the configuration.
 
@@ -73,6 +82,10 @@ uv run python -m saev train \
   --data.no-scale-norm \
   --sae.d-vit 768 \
   --lr 5e-4
+```
+
+```sh
+uv run train.py --sweep configs/preprint/baseline.toml --data.shard-root /fs/scratch/PAS2136/samuelstevens/cache/saev/f9deaa8a07786087e8071f39a695200ff6713ee02b25e7a7b4a6d5ac1ad968db --data.patches image --data.layer 23 --data.no-scale-mean --data.no-scale-norm sae:relu --sae.d-vit 1024
 ```
 
 `--data.*` flags describe which activations to use.

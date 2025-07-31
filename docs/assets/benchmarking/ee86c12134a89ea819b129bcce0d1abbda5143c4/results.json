@@ -1,0 +1,1143 @@
+{
+    "meta": {
+        "vit_family": "siglip",
+        "vit_ckpt": "hf-hub:timm/ViT-L-16-SigLIP2-256",
+        "layers": [
+            13,
+            15,
+            17,
+            19,
+            21,
+            23
+        ],
+        "n_patches_per_img": 256,
+        "cls_token": false,
+        "d_vit": 1024,
+        "seed": 42,
+        "n_imgs": 500000,
+        "n_patches_per_shard": 24000000,
+        "data": "ImageFolderDataset(root='/fs/ess/PAS2136/foundation_model/inat21/raw/train_mini/')"
+    },
+    "results": [
+        {
+            "kind": "torch",
+            "n_workers": 2,
+            "batch_size": 2048,
+            "batches_per_s": 0.05244684330001997,
+            "peak_rss_mb": 6361.300992
+        },
+        {
+            "kind": "torch",
+            "n_workers": 2,
+            "batch_size": 2048,
+            "batches_per_s": 0.049380598726101614,
+            "peak_rss_mb": 6361.116672
+        },
+        {
+            "kind": "torch",
+            "n_workers": 2,
+            "batch_size": 2048,
+            "batches_per_s": 0.049659248813014555,
+            "peak_rss_mb": 6357.05344
+        },
+        {
+            "kind": "torch",
+            "n_workers": 2,
+            "batch_size": 2048,
+            "batches_per_s": 0.04945899082203879,
+            "peak_rss_mb": 6364.061696
+        },
+        {
+            "kind": "torch",
+            "n_workers": 2,
+            "batch_size": 2048,
+            "batches_per_s": 0.049617282955903966,
+            "peak_rss_mb": 6348.77952
+        },
+        {
+            "kind": "torch",
+            "n_workers": 2,
+            "batch_size": 2048,
+            "batches_per_s": 0.051831298018882484,
+            "peak_rss_mb": 6356.054016
+        },
+        {
+            "kind": "torch",
+            "n_workers": 2,
+            "batch_size": 2048,
+            "batches_per_s": 0.05144041971854864,
+            "peak_rss_mb": 6366.027776
+        },
+        {
+            "kind": "torch",
+            "n_workers": 2,
+            "batch_size": 2048,
+            "batches_per_s": 0.04811895480169801,
+            "peak_rss_mb": 6358.618112
+        },
+        {
+            "kind": "torch",
+            "n_workers": 2,
+            "batch_size": 4096,
+            "batches_per_s": 0.023948418457400724,
+            "peak_rss_mb": 6398.509056
+        },
+        {
+            "kind": "torch",
+            "n_workers": 2,
+            "batch_size": 4096,
+            "batches_per_s": 0.023672979121193358,
+            "peak_rss_mb": 6385.197056
+        },
+        {
+            "kind": "torch",
+            "n_workers": 2,
+            "batch_size": 4096,
+            "batches_per_s": 0.023682718155103633,
+            "peak_rss_mb": 6398.980096
+        },
+        {
+            "kind": "torch",
+            "n_workers": 2,
+            "batch_size": 4096,
+            "batches_per_s": 0.023752840137335873,
+            "peak_rss_mb": 6392.987648
+        },
+        {
+            "kind": "torch",
+            "n_workers": 2,
+            "batch_size": 4096,
+            "batches_per_s": 0.026105890741808708,
+            "peak_rss_mb": 6396.956672
+        },
+        {
+            "kind": "torch",
+            "n_workers": 2,
+            "batch_size": 4096,
+            "batches_per_s": 0.026021550396686386,
+            "peak_rss_mb": 6388.707328
+        },
+        {
+            "kind": "torch",
+            "n_workers": 2,
+            "batch_size": 4096,
+            "batches_per_s": 0.024793543691525744,
+            "peak_rss_mb": 6399.074304
+        },
+        {
+            "kind": "torch",
+            "n_workers": 2,
+            "batch_size": 4096,
+            "batches_per_s": 0.024603903435536627,
+            "peak_rss_mb": 6387.36384
+        },
+        {
+            "kind": "torch",
+            "n_workers": 2,
+            "batch_size": 8192,
+            "batches_per_s": 0.01092634841784103,
+            "peak_rss_mb": 6455.271424
+        },
+        {
+            "kind": "torch",
+            "n_workers": 2,
+            "batch_size": 8192,
+            "batches_per_s": 0.010915769135997623,
+            "peak_rss_mb": 6468.788224
+        },
+        {
+            "kind": "torch",
+            "n_workers": 2,
+            "batch_size": 8192,
+            "batches_per_s": 0.0109616014239389,
+            "peak_rss_mb": 6432.305152
+        },
+        {
+            "kind": "torch",
+            "n_workers": 2,
+            "batch_size": 8192,
+            "batches_per_s": 0.010981246919347891,
+            "peak_rss_mb": 6470.914048
+        },
+        {
+            "kind": "torch",
+            "n_workers": 2,
+            "batch_size": 8192,
+            "batches_per_s": 0.010907587809141119,
+            "peak_rss_mb": 6457.188352
+        },
+        {
+            "kind": "torch",
+            "n_workers": 2,
+            "batch_size": 8192,
+            "batches_per_s": 0.011033272104571909,
+            "peak_rss_mb": 6451.314688
+        },
+        {
+            "kind": "torch",
+            "n_workers": 2,
+            "batch_size": 8192,
+            "batches_per_s": 0.01076527352019705,
+            "peak_rss_mb": 6457.995264
+        },
+        {
+            "kind": "torch",
+            "n_workers": 2,
+            "batch_size": 8192,
+            "batches_per_s": 0.010998441809589744,
+            "peak_rss_mb": 6469.65248
+        },
+        {
+            "kind": "torch",
+            "n_workers": 2,
+            "batch_size": 16384,
+            "batches_per_s": 0.005523531353502731,
+            "peak_rss_mb": 6599.225344
+        },
+        {
+            "kind": "torch",
+            "n_workers": 2,
+            "batch_size": 16384,
+            "batches_per_s": 0.005531379461560867,
+            "peak_rss_mb": 6556.3648
+        },
+        {
+            "kind": "torch",
+            "n_workers": 2,
+            "batch_size": 16384,
+            "batches_per_s": 0.005431719763717177,
+            "peak_rss_mb": 6610.325504
+        },
+        {
+            "kind": "torch",
+            "n_workers": 2,
+            "batch_size": 16384,
+            "batches_per_s": 0.00544336222256749,
+            "peak_rss_mb": 6608.707584
+        },
+        {
+            "kind": "torch",
+            "n_workers": 2,
+            "batch_size": 16384,
+            "batches_per_s": 0.005451595466212907,
+            "peak_rss_mb": 6554.853376
+        },
+        {
+            "kind": "torch",
+            "n_workers": 2,
+            "batch_size": 16384,
+            "batches_per_s": 0.005419743887917398,
+            "peak_rss_mb": 6596.702208
+        },
+        {
+            "kind": "torch",
+            "n_workers": 2,
+            "batch_size": 16384,
+            "batches_per_s": 0.00543524931966183,
+            "peak_rss_mb": 6612.467712
+        },
+        {
+            "kind": "torch",
+            "n_workers": 2,
+            "batch_size": 16384,
+            "batches_per_s": 0.006527555123790714,
+            "peak_rss_mb": 6599.696384
+        },
+        {
+            "kind": "torch",
+            "n_workers": 4,
+            "batch_size": 2048,
+            "batches_per_s": 0.10052863955377857,
+            "peak_rss_mb": 7082.041344
+        },
+        {
+            "kind": "torch",
+            "n_workers": 4,
+            "batch_size": 2048,
+            "batches_per_s": 0.08105259214898833,
+            "peak_rss_mb": 7080.0384
+        },
+        {
+            "kind": "torch",
+            "n_workers": 4,
+            "batch_size": 2048,
+            "batches_per_s": 0.08029761592417564,
+            "peak_rss_mb": 7071.571968
+        },
+        {
+            "kind": "torch",
+            "n_workers": 4,
+            "batch_size": 2048,
+            "batches_per_s": 0.08082885464533583,
+            "peak_rss_mb": 7084.068864
+        },
+        {
+            "kind": "torch",
+            "n_workers": 4,
+            "batch_size": 2048,
+            "batches_per_s": 0.08023348417503968,
+            "peak_rss_mb": 7081.660416
+        },
+        {
+            "kind": "torch",
+            "n_workers": 4,
+            "batch_size": 2048,
+            "batches_per_s": 0.07512584237797,
+            "peak_rss_mb": 7074.394112
+        },
+        {
+            "kind": "torch",
+            "n_workers": 4,
+            "batch_size": 2048,
+            "batches_per_s": 0.0747844411611162,
+            "peak_rss_mb": 7058.444288
+        },
+        {
+            "kind": "torch",
+            "n_workers": 4,
+            "batch_size": 2048,
+            "batches_per_s": 0.07508149367967142,
+            "peak_rss_mb": 7084.097536
+        },
+        {
+            "kind": "torch",
+            "n_workers": 4,
+            "batch_size": 4096,
+            "batches_per_s": 0.03758776869958329,
+            "peak_rss_mb": 7132.151808
+        },
+        {
+            "kind": "torch",
+            "n_workers": 4,
+            "batch_size": 4096,
+            "batches_per_s": 0.037582283544097324,
+            "peak_rss_mb": 7138.14016
+        },
+        {
+            "kind": "torch",
+            "n_workers": 4,
+            "batch_size": 4096,
+            "batches_per_s": 0.037334518908230786,
+            "peak_rss_mb": 7149.473792
+        },
+        {
+            "kind": "torch",
+            "n_workers": 4,
+            "batch_size": 4096,
+            "batches_per_s": 0.0368705033720123,
+            "peak_rss_mb": 7123.324928
+        },
+        {
+            "kind": "torch",
+            "n_workers": 4,
+            "batch_size": 4096,
+            "batches_per_s": 0.03776798712046832,
+            "peak_rss_mb": 7150.821376
+        },
+        {
+            "kind": "torch",
+            "n_workers": 4,
+            "batch_size": 4096,
+            "batches_per_s": 0.037013085577053156,
+            "peak_rss_mb": 7147.905024
+        },
+        {
+            "kind": "torch",
+            "n_workers": 4,
+            "batch_size": 4096,
+            "batches_per_s": 0.03716222755496889,
+            "peak_rss_mb": 7109.455872
+        },
+        {
+            "kind": "torch",
+            "n_workers": 4,
+            "batch_size": 4096,
+            "batches_per_s": 0.03730753445557603,
+            "peak_rss_mb": 7156.768768
+        },
+        {
+            "kind": "torch",
+            "n_workers": 4,
+            "batch_size": 8192,
+            "batches_per_s": 0.018665816024035324,
+            "peak_rss_mb": 7276.429312
+        },
+        {
+            "kind": "torch",
+            "n_workers": 4,
+            "batch_size": 8192,
+            "batches_per_s": 0.01828215087852277,
+            "peak_rss_mb": 7270.89152
+        },
+        {
+            "kind": "torch",
+            "n_workers": 4,
+            "batch_size": 8192,
+            "batches_per_s": 0.018219398463892953,
+            "peak_rss_mb": 7245.9264
+        },
+        {
+            "kind": "torch",
+            "n_workers": 4,
+            "batch_size": 8192,
+            "batches_per_s": 0.01810558258063937,
+            "peak_rss_mb": 7270.07232
+        },
+        {
+            "kind": "torch",
+            "n_workers": 4,
+            "batch_size": 8192,
+            "batches_per_s": 0.018198838090255538,
+            "peak_rss_mb": 7280.513024
+        },
+        {
+            "kind": "torch",
+            "n_workers": 4,
+            "batch_size": 8192,
+            "batches_per_s": 0.01811362028222776,
+            "peak_rss_mb": 7272.996864
+        },
+        {
+            "kind": "torch",
+            "n_workers": 4,
+            "batch_size": 8192,
+            "batches_per_s": 0.018111950416602636,
+            "peak_rss_mb": 7289.946112
+        },
+        {
+            "kind": "torch",
+            "n_workers": 4,
+            "batch_size": 8192,
+            "batches_per_s": 0.01828695964059566,
+            "peak_rss_mb": 7318.745088
+        },
+        {
+            "kind": "torch",
+            "n_workers": 4,
+            "batch_size": 16384,
+            "batches_per_s": 0.009183655991304388,
+            "peak_rss_mb": 7582.322688
+        },
+        {
+            "kind": "torch",
+            "n_workers": 4,
+            "batch_size": 16384,
+            "batches_per_s": 0.009169592425690043,
+            "peak_rss_mb": 7564.333056
+        },
+        {
+            "kind": "torch",
+            "n_workers": 4,
+            "batch_size": 16384,
+            "batches_per_s": 0.00916506420394299,
+            "peak_rss_mb": 7577.849856
+        },
+        {
+            "kind": "torch",
+            "n_workers": 4,
+            "batch_size": 16384,
+            "batches_per_s": 0.009167972792440925,
+            "peak_rss_mb": 7533.023232
+        },
+        {
+            "kind": "torch",
+            "n_workers": 4,
+            "batch_size": 16384,
+            "batches_per_s": 0.009177186782699515,
+            "peak_rss_mb": 7534.563328
+        },
+        {
+            "kind": "torch",
+            "n_workers": 4,
+            "batch_size": 16384,
+            "batches_per_s": 0.008146981670985388,
+            "peak_rss_mb": 7555.899392
+        },
+        {
+            "kind": "torch",
+            "n_workers": 4,
+            "batch_size": 16384,
+            "batches_per_s": 0.008142815348410602,
+            "peak_rss_mb": 7559.544832
+        },
+        {
+            "kind": "torch",
+            "n_workers": 4,
+            "batch_size": 16384,
+            "batches_per_s": 0.008110961533729743,
+            "peak_rss_mb": 7563.268096
+        },
+        {
+            "kind": "torch",
+            "n_workers": 8,
+            "batch_size": 2048,
+            "batches_per_s": 0.12844355534999746,
+            "peak_rss_mb": 8516.038656
+        },
+        {
+            "kind": "torch",
+            "n_workers": 8,
+            "batch_size": 2048,
+            "batches_per_s": 0.12799053516910947,
+            "peak_rss_mb": 8499.675136
+        },
+        {
+            "kind": "torch",
+            "n_workers": 8,
+            "batch_size": 2048,
+            "batches_per_s": 0.12682133827028072,
+            "peak_rss_mb": 8525.750272
+        },
+        {
+            "kind": "torch",
+            "n_workers": 8,
+            "batch_size": 2048,
+            "batches_per_s": 0.11265201864307817,
+            "peak_rss_mb": 8517.914624
+        },
+        {
+            "kind": "torch",
+            "n_workers": 8,
+            "batch_size": 2048,
+            "batches_per_s": 0.11293992301378124,
+            "peak_rss_mb": 8502.419456
+        },
+        {
+            "kind": "torch",
+            "n_workers": 8,
+            "batch_size": 2048,
+            "batches_per_s": 0.11282144388439055,
+            "peak_rss_mb": 8522.633216
+        },
+        {
+            "kind": "torch",
+            "n_workers": 8,
+            "batch_size": 2048,
+            "batches_per_s": 0.1113590942944373,
+            "peak_rss_mb": 8502.226944
+        },
+        {
+            "kind": "torch",
+            "n_workers": 8,
+            "batch_size": 2048,
+            "batches_per_s": 0.10959148928163087,
+            "peak_rss_mb": 8494.731264
+        },
+        {
+            "kind": "torch",
+            "n_workers": 8,
+            "batch_size": 4096,
+            "batches_per_s": 0.05472738587190699,
+            "peak_rss_mb": 8654.147584
+        },
+        {
+            "kind": "torch",
+            "n_workers": 8,
+            "batch_size": 4096,
+            "batches_per_s": 0.08763797528158358,
+            "peak_rss_mb": 8654.659584
+        },
+        {
+            "kind": "torch",
+            "n_workers": 8,
+            "batch_size": 4096,
+            "batches_per_s": 0.05959204153700004,
+            "peak_rss_mb": 8634.744832
+        },
+        {
+            "kind": "torch",
+            "n_workers": 8,
+            "batch_size": 4096,
+            "batches_per_s": 0.059557975094839115,
+            "peak_rss_mb": 8625.152
+        },
+        {
+            "kind": "torch",
+            "n_workers": 8,
+            "batch_size": 4096,
+            "batches_per_s": 0.06033826871414461,
+            "peak_rss_mb": 8603.316224
+        },
+        {
+            "kind": "torch",
+            "n_workers": 8,
+            "batch_size": 4096,
+            "batches_per_s": 0.060163274358352115,
+            "peak_rss_mb": 8662.618112
+        },
+        {
+            "kind": "torch",
+            "n_workers": 8,
+            "batch_size": 4096,
+            "batches_per_s": 0.05983931599088408,
+            "peak_rss_mb": 8647.35232
+        },
+        {
+            "kind": "torch",
+            "n_workers": 8,
+            "batch_size": 4096,
+            "batches_per_s": 0.05760889806972301,
+            "peak_rss_mb": 8625.881088
+        },
+        {
+            "kind": "torch",
+            "n_workers": 8,
+            "batch_size": 8192,
+            "batches_per_s": 0.02868196670796391,
+            "peak_rss_mb": 8944.705536
+        },
+        {
+            "kind": "torch",
+            "n_workers": 8,
+            "batch_size": 8192,
+            "batches_per_s": 0.028873015090878692,
+            "peak_rss_mb": 8901.98016
+        },
+        {
+            "kind": "torch",
+            "n_workers": 8,
+            "batch_size": 8192,
+            "batches_per_s": 0.028547963920363385,
+            "peak_rss_mb": 8955.12576
+        },
+        {
+            "kind": "torch",
+            "n_workers": 8,
+            "batch_size": 8192,
+            "batches_per_s": 0.02876977270990044,
+            "peak_rss_mb": 8939.925504
+        },
+        {
+            "kind": "torch",
+            "n_workers": 8,
+            "batch_size": 8192,
+            "batches_per_s": 0.02784760737812775,
+            "peak_rss_mb": 8904.216576
+        },
+        {
+            "kind": "torch",
+            "n_workers": 8,
+            "batch_size": 8192,
+            "batches_per_s": 0.027257485878174306,
+            "peak_rss_mb": 8885.612544
+        },
+        {
+            "kind": "torch",
+            "n_workers": 8,
+            "batch_size": 8192,
+            "batches_per_s": 0.027268220462892994,
+            "peak_rss_mb": 8952.684544
+        },
+        {
+            "kind": "torch",
+            "n_workers": 8,
+            "batch_size": 8192,
+            "batches_per_s": 0.026912369989820894,
+            "peak_rss_mb": 8895.758336
+        },
+        {
+            "kind": "torch",
+            "n_workers": 8,
+            "batch_size": 16384,
+            "batches_per_s": 0.013835214115346635,
+            "peak_rss_mb": 9422.147584
+        },
+        {
+            "kind": "torch",
+            "n_workers": 8,
+            "batch_size": 16384,
+            "batches_per_s": 0.013775144732090466,
+            "peak_rss_mb": 9457.217536
+        },
+        {
+            "kind": "torch",
+            "n_workers": 8,
+            "batch_size": 16384,
+            "batches_per_s": 0.013702213730038574,
+            "peak_rss_mb": 9385.193472
+        },
+        {
+            "kind": "torch",
+            "n_workers": 8,
+            "batch_size": 16384,
+            "batches_per_s": 0.013199593638238503,
+            "peak_rss_mb": 9430.319104
+        },
+        {
+            "kind": "torch",
+            "n_workers": 8,
+            "batch_size": 16384,
+            "batches_per_s": 0.013193093449883635,
+            "peak_rss_mb": 9448.599552
+        },
+        {
+            "kind": "torch",
+            "n_workers": 8,
+            "batch_size": 16384,
+            "batches_per_s": 0.013127924412375992,
+            "peak_rss_mb": 9471.83616
+        },
+        {
+            "kind": "torch",
+            "n_workers": 8,
+            "batch_size": 16384,
+            "batches_per_s": 0.01325005957295296,
+            "peak_rss_mb": 9467.117568
+        },
+        {
+            "kind": "torch",
+            "n_workers": 8,
+            "batch_size": 16384,
+            "batches_per_s": 0.013116551138527876,
+            "peak_rss_mb": 9462.837248
+        },
+        {
+            "kind": "torch",
+            "n_workers": 16,
+            "batch_size": 2048,
+            "batches_per_s": 0.20411107996888173,
+            "peak_rss_mb": 11327.557632
+        },
+        {
+            "kind": "torch",
+            "n_workers": 16,
+            "batch_size": 2048,
+            "batches_per_s": 0.3197839578274886,
+            "peak_rss_mb": 11380.002816
+        },
+        {
+            "kind": "torch",
+            "n_workers": 16,
+            "batch_size": 2048,
+            "batches_per_s": 0.22400576136169548,
+            "peak_rss_mb": 11295.932416
+        },
+        {
+            "kind": "torch",
+            "n_workers": 16,
+            "batch_size": 2048,
+            "batches_per_s": 0.2275411078051512,
+            "peak_rss_mb": 11295.002624
+        },
+        {
+            "kind": "torch",
+            "n_workers": 16,
+            "batch_size": 2048,
+            "batches_per_s": 0.22287262528131113,
+            "peak_rss_mb": 11337.547776
+        },
+        {
+            "kind": "torch",
+            "n_workers": 16,
+            "batch_size": 2048,
+            "batches_per_s": 0.22577511413640122,
+            "peak_rss_mb": 11376.705536
+        },
+        {
+            "kind": "torch",
+            "n_workers": 16,
+            "batch_size": 2048,
+            "batches_per_s": 0.2301019091890772,
+            "peak_rss_mb": 11328.790528
+        },
+        {
+            "kind": "torch",
+            "n_workers": 16,
+            "batch_size": 2048,
+            "batches_per_s": 0.2171695084710515,
+            "peak_rss_mb": 11289.23136
+        },
+        {
+            "kind": "torch",
+            "n_workers": 16,
+            "batch_size": 4096,
+            "batches_per_s": 0.06272571452315152,
+            "peak_rss_mb": 11545.309184
+        },
+        {
+            "kind": "torch",
+            "n_workers": 16,
+            "batch_size": 4096,
+            "batches_per_s": 0.0627744855811619,
+            "peak_rss_mb": 11585.59744
+        },
+        {
+            "kind": "torch",
+            "n_workers": 16,
+            "batch_size": 4096,
+            "batches_per_s": 0.07011296880186266,
+            "peak_rss_mb": 11547.29984
+        },
+        {
+            "kind": "torch",
+            "n_workers": 16,
+            "batch_size": 4096,
+            "batches_per_s": 0.05878343395020356,
+            "peak_rss_mb": 11477.168128
+        },
+        {
+            "kind": "torch",
+            "n_workers": 16,
+            "batch_size": 4096,
+            "batches_per_s": 0.06191675741161637,
+            "peak_rss_mb": 11527.053312
+        },
+        {
+            "kind": "torch",
+            "n_workers": 16,
+            "batch_size": 4096,
+            "batches_per_s": 0.06212229815775001,
+            "peak_rss_mb": 11519.6928
+        },
+        {
+            "kind": "torch",
+            "n_workers": 16,
+            "batch_size": 4096,
+            "batches_per_s": 0.05971922244152084,
+            "peak_rss_mb": 11550.74048
+        },
+        {
+            "kind": "torch",
+            "n_workers": 16,
+            "batch_size": 4096,
+            "batches_per_s": 0.06331199646392013,
+            "peak_rss_mb": 11512.233984
+        },
+        {
+            "kind": "torch",
+            "n_workers": 16,
+            "batch_size": 8192,
+            "batches_per_s": 0.03211395552229531,
+            "peak_rss_mb": 12089.298944
+        },
+        {
+            "kind": "torch",
+            "n_workers": 16,
+            "batch_size": 8192,
+            "batches_per_s": 0.032828274558165796,
+            "peak_rss_mb": 12119.79776
+        },
+        {
+            "kind": "torch",
+            "n_workers": 16,
+            "batch_size": 8192,
+            "batches_per_s": 0.03233961290144414,
+            "peak_rss_mb": 12133.871616
+        },
+        {
+            "kind": "torch",
+            "n_workers": 16,
+            "batch_size": 8192,
+            "batches_per_s": 0.029910952507814552,
+            "peak_rss_mb": 12098.146304
+        },
+        {
+            "kind": "torch",
+            "n_workers": 16,
+            "batch_size": 8192,
+            "batches_per_s": 0.032130510720334536,
+            "peak_rss_mb": 12183.937024
+        },
+        {
+            "kind": "torch",
+            "n_workers": 16,
+            "batch_size": 8192,
+            "batches_per_s": 0.03033186513722842,
+            "peak_rss_mb": 12094.513152
+        },
+        {
+            "kind": "torch",
+            "n_workers": 16,
+            "batch_size": 8192,
+            "batches_per_s": 0.06443484365185688,
+            "peak_rss_mb": 12205.4656
+        },
+        {
+            "kind": "torch",
+            "n_workers": 16,
+            "batch_size": 8192,
+            "batches_per_s": 0.062146082932027925,
+            "peak_rss_mb": 12137.066496
+        },
+        {
+            "kind": "torch",
+            "n_workers": 16,
+            "batch_size": 16384,
+            "batches_per_s": 0.021240396833683395,
+            "peak_rss_mb": 13163.466752
+        },
+        {
+            "kind": "torch",
+            "n_workers": 16,
+            "batch_size": 16384,
+            "batches_per_s": 0.021242228228429166,
+            "peak_rss_mb": 13255.7824
+        },
+        {
+            "kind": "torch",
+            "n_workers": 16,
+            "batch_size": 16384,
+            "batches_per_s": 0.021213163749077793,
+            "peak_rss_mb": 13309.5424
+        },
+        {
+            "kind": "torch",
+            "n_workers": 16,
+            "batch_size": 16384,
+            "batches_per_s": 0.020470796938057912,
+            "peak_rss_mb": 13244.665856
+        },
+        {
+            "kind": "torch",
+            "n_workers": 16,
+            "batch_size": 16384,
+            "batches_per_s": 0.02035457890077407,
+            "peak_rss_mb": 13306.068992
+        },
+        {
+            "kind": "torch",
+            "n_workers": 16,
+            "batch_size": 16384,
+            "batches_per_s": 0.03954037028135468,
+            "peak_rss_mb": 13388.603392
+        },
+        {
+            "kind": "torch",
+            "n_workers": 16,
+            "batch_size": 16384,
+            "batches_per_s": 0.011005704294776009,
+            "peak_rss_mb": 13233.524736
+        },
+        {
+            "kind": "torch",
+            "n_workers": 16,
+            "batch_size": 16384,
+            "batches_per_s": 0.01099173413867668,
+            "peak_rss_mb": 13223.038976
+        },
+        {
+            "kind": "torch",
+            "n_workers": 32,
+            "batch_size": 2048,
+            "batches_per_s": 0.17682132924572205,
+            "peak_rss_mb": 16771.551232
+        },
+        {
+            "kind": "torch",
+            "n_workers": 32,
+            "batch_size": 2048,
+            "batches_per_s": 0.164867488349654,
+            "peak_rss_mb": 16882.610176
+        },
+        {
+            "kind": "torch",
+            "n_workers": 32,
+            "batch_size": 2048,
+            "batches_per_s": 0.17000371323159894,
+            "peak_rss_mb": 16900.677632
+        },
+        {
+            "kind": "torch",
+            "n_workers": 32,
+            "batch_size": 2048,
+            "batches_per_s": 0.163656069755976,
+            "peak_rss_mb": 16908.455936
+        },
+        {
+            "kind": "torch",
+            "n_workers": 32,
+            "batch_size": 2048,
+            "batches_per_s": 0.3655922498442549,
+            "peak_rss_mb": 16983.703552
+        },
+        {
+            "kind": "torch",
+            "n_workers": 32,
+            "batch_size": 2048,
+            "batches_per_s": 0.3901211712311342,
+            "peak_rss_mb": 16952.020992
+        },
+        {
+            "kind": "torch",
+            "n_workers": 32,
+            "batch_size": 2048,
+            "batches_per_s": 0.14980521486413703,
+            "peak_rss_mb": 16972.92288
+        },
+        {
+            "kind": "torch",
+            "n_workers": 32,
+            "batch_size": 2048,
+            "batches_per_s": 0.14639380184559303,
+            "peak_rss_mb": 16954.519552
+        },
+        {
+            "kind": "torch",
+            "n_workers": 32,
+            "batch_size": 4096,
+            "batches_per_s": 0.0770396600467233,
+            "peak_rss_mb": 17369.063424
+        },
+        {
+            "kind": "torch",
+            "n_workers": 32,
+            "batch_size": 4096,
+            "batches_per_s": 0.07729790617912687,
+            "peak_rss_mb": 17469.5424
+        },
+        {
+            "kind": "torch",
+            "n_workers": 32,
+            "batch_size": 4096,
+            "batches_per_s": 0.07533084156765898,
+            "peak_rss_mb": 17363.800064
+        },
+        {
+            "kind": "torch",
+            "n_workers": 32,
+            "batch_size": 4096,
+            "batches_per_s": 0.06842411892984662,
+            "peak_rss_mb": 17451.70432
+        },
+        {
+            "kind": "torch",
+            "n_workers": 32,
+            "batch_size": 4096,
+            "batches_per_s": 0.08941877480562234,
+            "peak_rss_mb": 17386.205184
+        },
+        {
+            "kind": "torch",
+            "n_workers": 32,
+            "batch_size": 4096,
+            "batches_per_s": 0.08755861746800077,
+            "peak_rss_mb": 17429.843968
+        },
+        {
+            "kind": "torch",
+            "n_workers": 32,
+            "batch_size": 4096,
+            "batches_per_s": 0.088029317324221,
+            "peak_rss_mb": 17444.806656
+        },
+        {
+            "kind": "torch",
+            "n_workers": 32,
+            "batch_size": 4096,
+            "batches_per_s": 0.08867393208039244,
+            "peak_rss_mb": 17266.937856
+        },
+        {
+            "kind": "torch",
+            "n_workers": 32,
+            "batch_size": 8192,
+            "batches_per_s": 0.043679449832553854,
+            "peak_rss_mb": 18504.794112
+        },
+        {
+            "kind": "torch",
+            "n_workers": 32,
+            "batch_size": 8192,
+            "batches_per_s": 0.03838271628333638,
+            "peak_rss_mb": 18588.471296
+        },
+        {
+            "kind": "torch",
+            "n_workers": 32,
+            "batch_size": 8192,
+            "batches_per_s": 0.03599744385388923,
+            "peak_rss_mb": 18578.604032
+        },
+        {
+            "kind": "torch",
+            "n_workers": 32,
+            "batch_size": 8192,
+            "batches_per_s": 0.041951556537540555,
+            "peak_rss_mb": 18637.930496
+        },
+        {
+            "kind": "torch",
+            "n_workers": 32,
+            "batch_size": 8192,
+            "batches_per_s": 0.03797554496602341,
+            "peak_rss_mb": 18602.123264
+        },
+        {
+            "kind": "torch",
+            "n_workers": 32,
+            "batch_size": 8192,
+            "batches_per_s": 0.03523973514361645,
+            "peak_rss_mb": 18520.489984
+        },
+        {
+            "kind": "torch",
+            "n_workers": 32,
+            "batch_size": 8192,
+            "batches_per_s": 0.03631345128218852,
+            "peak_rss_mb": 18675.011584
+        },
+        {
+            "kind": "torch",
+            "n_workers": 32,
+            "batch_size": 8192,
+            "batches_per_s": 0.07008616461595774,
+            "peak_rss_mb": 18678.444032
+        },
+        {
+            "kind": "torch",
+            "n_workers": 32,
+            "batch_size": 16384,
+            "batches_per_s": 0.03435813469635431,
+            "peak_rss_mb": 20790.554624
+        },
+        {
+            "kind": "torch",
+            "n_workers": 32,
+            "batch_size": 16384,
+            "batches_per_s": 0.034874610106278396,
+            "peak_rss_mb": 20702.580736
+        },
+        {
+            "kind": "torch",
+            "n_workers": 32,
+            "batch_size": 16384,
+            "batches_per_s": 0.028711013003776355,
+            "peak_rss_mb": 20882.866176
+        },
+        {
+            "kind": "torch",
+            "n_workers": 32,
+            "batch_size": 16384,
+            "batches_per_s": 0.028683281715607422,
+            "peak_rss_mb": 20822.470656
+        },
+        {
+            "kind": "torch",
+            "n_workers": 32,
+            "batch_size": 16384,
+            "batches_per_s": 0.029006897653459377,
+            "peak_rss_mb": 20904.349696
+        },
+        {
+            "kind": "torch",
+            "n_workers": 32,
+            "batch_size": 16384,
+            "batches_per_s": 0.028328956777033724,
+            "peak_rss_mb": 20734.943232
+        },
+        {
+            "kind": "torch",
+            "n_workers": 32,
+            "batch_size": 16384,
+            "batches_per_s": 0.048216452060854995,
+            "peak_rss_mb": 20819.492864
+        },
+        {
+            "kind": "torch",
+            "n_workers": 32,
+            "batch_size": 16384,
+            "batches_per_s": 0.04756588541748548,
+            "peak_rss_mb": 20499.668992
+        }
+    ]
+}

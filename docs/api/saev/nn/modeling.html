@@ -36,16 +36,6 @@ hljs.highlightAll();
 <section>
 <h2 class="section-title" id="header-functions">Functions</h2>
 <dl>
-<dt id="saev.nn.modeling.current_git_commit"><code class="name flex">
-<span>def <span class="ident">current_git_commit</span></span>(<span>) ‑> str | None</span>
-</code></dt>
-<dd>
-<div class="desc"><p>Best-effort short SHA of the repo containing <em>this</em> file.</p>
-<p>Returns <code>None</code> when
-* <code>git</code> executable is missing,
-* we’re not inside a git repo (e.g. installed wheel),
-* or any git call errors out.</p></div>
-</dd>
 <dt id="saev.nn.modeling.dump"><code class="name flex">
 <span>def <span class="ident">dump</span></span>(<span>fpath: str,<br>sae: <a title="saev.nn.modeling.SparseAutoencoder" href="#saev.nn.modeling.SparseAutoencoder">SparseAutoencoder</a>)</span>
 </code></dt>
@@ -56,7 +46,7 @@ hljs.highlightAll();
 sae: sparse autoencoder checkpoint to save.</p></div>
 </dd>
 <dt id="saev.nn.modeling.get_activation"><code class="name flex">
-<span>def <span class="ident">get_activation</span></span>(<span>cfg: <a title="saev.config.Relu" href="../config.html#saev.config.Relu">Relu</a> | <a title="saev.config.JumpRelu" href="../config.html#saev.config.JumpRelu">JumpRelu</a>) ‑> torch.nn.modules.module.Module</span>
+<span>def <span class="ident">get_activation</span></span>(<span>cfg: <a title="saev.nn.modeling.Relu" href="#saev.nn.modeling.Relu">Relu</a> | <a title="saev.nn.modeling.JumpRelu" href="#saev.nn.modeling.JumpRelu">JumpRelu</a>) ‑> torch.nn.modules.module.Module</span>
 </code></dt>
 <dd>
 <div class="desc"></div>
@@ -72,9 +62,95 @@ sae: sparse autoencoder checkpoint to save.</p></div>
 <section>
 <h2 class="section-title" id="header-classes">Classes</h2>
 <dl>
+<dt id="saev.nn.modeling.JumpRelu"><code class="flex name class">
+<span>class <span class="ident">JumpRelu</span></span>
+</code></dt>
+<dd>
+<div class="desc"><p>Implementation of the JumpReLU activation function for SAEs. Not implemented.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+@dataclasses.dataclass(frozen=True, slots=True)
+class JumpRelu:
+    &#34;&#34;&#34;Implementation of the JumpReLU activation function for SAEs. Not implemented.&#34;&#34;&#34;
+
+    pass</code></pre>
+</details>
+</dd>
+<dt id="saev.nn.modeling.Relu"><code class="flex name class">
+<span>class <span class="ident">Relu</span></span>
+<span>(</span><span>d_vit: int = 1024,<br>exp_factor: int = 16,<br>n_reinit_samples: int = 524288,<br>remove_parallel_grads: bool = True,<br>normalize_w_dec: bool = True,<br>seed: int = 0)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Relu(d_vit: int = 1024, exp_factor: int = 16, n_reinit_samples: int = 524288, remove_parallel_grads: bool = True, normalize_w_dec: bool = True, seed: int = 0)</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+@dataclasses.dataclass(frozen=True, slots=True)
+class Relu:
+    d_vit: int = 1024
+    exp_factor: int = 16
+    &#34;&#34;&#34;Expansion factor for SAE.&#34;&#34;&#34;
+    n_reinit_samples: int = 1024 * 16 * 32
+    &#34;&#34;&#34;Number of samples to use for SAE re-init. Anthropic proposes initializing b_dec to the geometric median of the dataset here: https://transformer-circuits.pub/2023/monosemantic-features/index.html#appendix-autoencoder-bias. We use the regular mean.&#34;&#34;&#34;
+    remove_parallel_grads: bool = True
+    &#34;&#34;&#34;Whether to remove gradients parallel to W_dec columns (which will be ignored because we force the columns to have unit norm). See https://transformer-circuits.pub/2023/monosemantic-features/index.html#appendix-autoencoder-optimization for the original discussion from Anthropic.&#34;&#34;&#34;
+    normalize_w_dec: bool = True
+    &#34;&#34;&#34;Whether to make sure W_dec has unit norm columns. See https://transformer-circuits.pub/2023/monosemantic-features/index.html#appendix-autoencoder for original citation.&#34;&#34;&#34;
+    seed: int = 0
+    &#34;&#34;&#34;Random seed.&#34;&#34;&#34;
+
+    @property
+    def d_sae(self) -&gt; int:
+        return self.d_vit * self.exp_factor</code></pre>
+</details>
+<h3>Instance variables</h3>
+<dl>
+<dt id="saev.nn.modeling.Relu.d_sae"><code class="name">prop <span class="ident">d_sae</span> : int</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def d_sae(self) -&gt; int:
+    return self.d_vit * self.exp_factor</code></pre>
+</details>
+</dd>
+<dt id="saev.nn.modeling.Relu.d_vit"><code class="name">var <span class="ident">d_vit</span> : int</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="saev.nn.modeling.Relu.exp_factor"><code class="name">var <span class="ident">exp_factor</span> : int</code></dt>
+<dd>
+<div class="desc"><p>Expansion factor for SAE.</p></div>
+</dd>
+<dt id="saev.nn.modeling.Relu.n_reinit_samples"><code class="name">var <span class="ident">n_reinit_samples</span> : int</code></dt>
+<dd>
+<div class="desc"><p>Number of samples to use for SAE re-init. Anthropic proposes initializing b_dec to the geometric median of the dataset here: <a href="https://transformer-circuits.pub/2023/monosemantic-features/index.html#appendix-autoencoder-bias.">https://transformer-circuits.pub/2023/monosemantic-features/index.html#appendix-autoencoder-bias.</a> We use the regular mean.</p></div>
+</dd>
+<dt id="saev.nn.modeling.Relu.normalize_w_dec"><code class="name">var <span class="ident">normalize_w_dec</span> : bool</code></dt>
+<dd>
+<div class="desc"><p>Whether to make sure W_dec has unit norm columns. See <a href="https://transformer-circuits.pub/2023/monosemantic-features/index.html#appendix-autoencoder">https://transformer-circuits.pub/2023/monosemantic-features/index.html#appendix-autoencoder</a> for original citation.</p></div>
+</dd>
+<dt id="saev.nn.modeling.Relu.remove_parallel_grads"><code class="name">var <span class="ident">remove_parallel_grads</span> : bool</code></dt>
+<dd>
+<div class="desc"><p>Whether to remove gradients parallel to W_dec columns (which will be ignored because we force the columns to have unit norm). See <a href="https://transformer-circuits.pub/2023/monosemantic-features/index.html#appendix-autoencoder-optimization">https://transformer-circuits.pub/2023/monosemantic-features/index.html#appendix-autoencoder-optimization</a> for the original discussion from Anthropic.</p></div>
+</dd>
+<dt id="saev.nn.modeling.Relu.seed"><code class="name">var <span class="ident">seed</span> : int</code></dt>
+<dd>
+<div class="desc"><p>Random seed.</p></div>
+</dd>
+</dl>
+</dd>
 <dt id="saev.nn.modeling.SparseAutoencoder"><code class="flex name class">
 <span>class <span class="ident">SparseAutoencoder</span></span>
-<span>(</span><span>cfg: <a title="saev.config.Relu" href="../config.html#saev.config.Relu">Relu</a>)</span>
+<span>(</span><span>cfg: <a title="saev.nn.modeling.Relu" href="#saev.nn.modeling.Relu">Relu</a>)</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Sparse auto-encoder (SAE) using L1 sparsity penalty.</p>
@@ -89,10 +165,11 @@ class SparseAutoencoder(torch.nn.Module):
     Sparse auto-encoder (SAE) using L1 sparsity penalty.
     &#34;&#34;&#34;
 
-    def __init__(self, cfg: config.Relu):
+    def __init__(self, cfg: Relu):
         super().__init__()
 
         self.cfg = cfg
+        self.logger = logging.getLogger(f&#34;sae(seed={cfg.seed})&#34;)
 
         self.W_enc = torch.nn.Parameter(
             torch.nn.init.kaiming_uniform_(torch.empty(cfg.d_vit, cfg.d_sae))
@@ -104,9 +181,9 @@ class SparseAutoencoder(torch.nn.Module):
         )
         self.b_dec = torch.nn.Parameter(torch.zeros(cfg.d_vit))
 
-        self.activation = get_activation(cfg)
+        self.normalize_w_dec()
 
-        self.logger = logging.getLogger(f&#34;sae(seed={cfg.seed})&#34;)
+        self.activation = get_activation(cfg)
 
     def forward(
         self, x: Float[Tensor, &#34;batch d_model&#34;]
@@ -118,11 +195,8 @@ class SparseAutoencoder(torch.nn.Module):
             x: a batch of ViT activations.
         &#34;&#34;&#34;
 
-        # Remove encoder bias as per Anthropic
         h_pre = (
-            einops.einsum(
-                x - self.b_dec, self.W_enc, &#34;... d_vit, d_vit d_sae -&gt; ... d_sae&#34;
-            )
+            einops.einsum(x, self.W_enc, &#34;... d_vit, d_vit d_sae -&gt; ... d_sae&#34;)
             + self.b_enc
         )
         f_x = self.activation(h_pre)
@@ -138,24 +212,6 @@ class SparseAutoencoder(torch.nn.Module):
             + self.b_dec
         )
         return x_hat
-
-    @torch.no_grad()
-    def init_b_dec(self, vit_acts: Float[Tensor, &#34;n d_vit&#34;]):
-        if self.cfg.n_reinit_samples &lt;= 0:
-            self.logger.info(&#34;Skipping init_b_dec.&#34;)
-            return
-        previous_b_dec = self.b_dec.clone().cpu()
-        vit_acts = vit_acts[: self.cfg.n_reinit_samples]
-        assert len(vit_acts) == self.cfg.n_reinit_samples
-        mean = vit_acts.mean(axis=0)
-        previous_distances = torch.norm(vit_acts - previous_b_dec, dim=-1)
-        distances = torch.norm(vit_acts - mean, dim=-1)
-        self.logger.info(
-            &#34;Prev dist: %.3f; new dist: %.3f&#34;,
-            previous_distances.median(axis=0).values.mean().item(),
-            distances.median(axis=0).values.mean().item(),
-        )
-        self.b_dec.data = mean.to(self.b_dec.dtype).to(self.b_dec.device)
 
     @torch.no_grad()
     def normalize_w_dec(self):
@@ -205,12 +261,6 @@ class SparseAutoencoder(torch.nn.Module):
 <div class="desc"><p>Given x, calculates the reconstructed x_hat and the intermediate activations f_x.</p>
 <h2 id="arguments">Arguments</h2>
 <p>x: a batch of ViT activations.</p></div>
-</dd>
-<dt id="saev.nn.modeling.SparseAutoencoder.init_b_dec"><code class="name flex">
-<span>def <span class="ident">init_b_dec</span></span>(<span>self, vit_acts: jaxtyping.Float[Tensor, 'n d_vit'])</span>
-</code></dt>
-<dd>
-<div class="desc"></div>
 </dd>
 <dt id="saev.nn.modeling.SparseAutoencoder.normalize_w_dec"><code class="name flex">
 <span>def <span class="ident">normalize_w_dec</span></span>(<span>self)</span>
@@ -288,7 +338,6 @@ setTimeout(() => input.focus(), 100);
 </li>
 <li><h3><a href="#header-functions">Functions</a></h3>
 <ul class="">
-<li><code><a title="saev.nn.modeling.current_git_commit" href="#saev.nn.modeling.current_git_commit">current_git_commit</a></code></li>
 <li><code><a title="saev.nn.modeling.dump" href="#saev.nn.modeling.dump">dump</a></code></li>
 <li><code><a title="saev.nn.modeling.get_activation" href="#saev.nn.modeling.get_activation">get_activation</a></code></li>
 <li><code><a title="saev.nn.modeling.load" href="#saev.nn.modeling.load">load</a></code></li>
@@ -297,11 +346,25 @@ setTimeout(() => input.focus(), 100);
 <li><h3><a href="#header-classes">Classes</a></h3>
 <ul>
 <li>
+<h4><code><a title="saev.nn.modeling.JumpRelu" href="#saev.nn.modeling.JumpRelu">JumpRelu</a></code></h4>
+</li>
+<li>
+<h4><code><a title="saev.nn.modeling.Relu" href="#saev.nn.modeling.Relu">Relu</a></code></h4>
+<ul class="">
+<li><code><a title="saev.nn.modeling.Relu.d_sae" href="#saev.nn.modeling.Relu.d_sae">d_sae</a></code></li>
+<li><code><a title="saev.nn.modeling.Relu.d_vit" href="#saev.nn.modeling.Relu.d_vit">d_vit</a></code></li>
+<li><code><a title="saev.nn.modeling.Relu.exp_factor" href="#saev.nn.modeling.Relu.exp_factor">exp_factor</a></code></li>
+<li><code><a title="saev.nn.modeling.Relu.n_reinit_samples" href="#saev.nn.modeling.Relu.n_reinit_samples">n_reinit_samples</a></code></li>
+<li><code><a title="saev.nn.modeling.Relu.normalize_w_dec" href="#saev.nn.modeling.Relu.normalize_w_dec">normalize_w_dec</a></code></li>
+<li><code><a title="saev.nn.modeling.Relu.remove_parallel_grads" href="#saev.nn.modeling.Relu.remove_parallel_grads">remove_parallel_grads</a></code></li>
+<li><code><a title="saev.nn.modeling.Relu.seed" href="#saev.nn.modeling.Relu.seed">seed</a></code></li>
+</ul>
+</li>
+<li>
 <h4><code><a title="saev.nn.modeling.SparseAutoencoder" href="#saev.nn.modeling.SparseAutoencoder">SparseAutoencoder</a></code></h4>
 <ul class="">
 <li><code><a title="saev.nn.modeling.SparseAutoencoder.decode" href="#saev.nn.modeling.SparseAutoencoder.decode">decode</a></code></li>
 <li><code><a title="saev.nn.modeling.SparseAutoencoder.forward" href="#saev.nn.modeling.SparseAutoencoder.forward">forward</a></code></li>
-<li><code><a title="saev.nn.modeling.SparseAutoencoder.init_b_dec" href="#saev.nn.modeling.SparseAutoencoder.init_b_dec">init_b_dec</a></code></li>
 <li><code><a title="saev.nn.modeling.SparseAutoencoder.normalize_w_dec" href="#saev.nn.modeling.SparseAutoencoder.normalize_w_dec">normalize_w_dec</a></code></li>
 <li><code><a title="saev.nn.modeling.SparseAutoencoder.remove_parallel_grads" href="#saev.nn.modeling.SparseAutoencoder.remove_parallel_grads">remove_parallel_grads</a></code></li>
 </ul>

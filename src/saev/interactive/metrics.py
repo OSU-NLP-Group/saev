@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.9.32"
+__generated_with = "0.9.14"
 app = marimo.App(width="medium")
 
 
@@ -69,14 +69,17 @@ def __(WANDB_PROJECT, WANDB_USERNAME, mo, tag_input):
 
 
 @app.cell
-def __(alt, df, mo):
+def __(alt, df, mo, pl):
     chart = mo.ui.altair_chart(
         alt.Chart(
-            df.select(
+            df.filter(
+                (pl.col("summary/_timestamp") > 1750809600)
+                & (pl.col("summary/_runtime") > 300)
+            ).select(
                 "summary/eval/l0",
-                "summary/losses/mse",
+                "summary/eval/mse",
                 "id",
-                "config/sae/sparsity_coeff",
+                "config/objective/sparsity_coeff",
                 "config/lr",
                 "config/sae/d_sae",
                 "model_key",
@@ -85,10 +88,10 @@ def __(alt, df, mo):
         .mark_point()
         .encode(
             x=alt.X("summary/eval/l0"),
-            y=alt.Y("summary/losses/mse"),
+            y=alt.Y("summary/eval/mse"),
             tooltip=["id", "config/lr"],
             color="config/lr:Q",
-            # shape="config/sae/sparsity_coeff:N",
+            # shape="config/objective/sparsity_coeff:N",
             shape="config/sae/d_sae:N",
             # shape="model_key",
         )
@@ -334,6 +337,12 @@ def __(
                 for key, value in run.config.pop("sae").items()
             })
 
+            if "objective" in run.config:
+                row.update(**{
+                    f"config/objective/{key}": value
+                    for key, value in run.config.pop("objective").items()
+                })
+
             row.update(**{f"config/{key}": value for key, value in run.config.items()})
 
             try:
@@ -385,6 +394,8 @@ def __(beartype):
             return "CLIP ViT-B/16"
         if family == "clip" and ckpt == "hf-hub:imageomics/bioclip":
             return "BioCLIP ViT-B/16"
+        if family == "siglip" and ckpt == "hf-hub:timm/ViT-L-16-SigLIP2-256":
+            return "SigLIP2 ViT-L/16"
 
         print(f"Unknown model: {(family, ckpt)}")
         return ckpt
@@ -392,8 +403,8 @@ def __(beartype):
     @beartype.beartype
     def get_data_key(metadata: dict[str, object]) -> str | None:
         if (
-            "train_mini" in metadata["data"]
-            and "ImageFolderDataset" in metadata["data"]
+            "train_mini" in metadata["data"]["root"]
+            and metadata["data"]["__cls__"] == "ImageFolder"
         ):
             return "iNat21"
 
@@ -451,13 +462,10 @@ def __(df):
         "config/log_every",
         "config/slurm_acct",
         "config/device",
-        "config/n_workers",
         "config/wandb_project",
         "config/track",
-        "config/slurm",
         "config/log_to",
         "config/ckpt_path",
-        "config/sae/ghost_grads",
     )
     return
 

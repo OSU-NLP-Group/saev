@@ -13,7 +13,6 @@ logs/
 .DS_Store
 tmp/
 elm-stuff/
-data/
 
 # Testing
 .coverage

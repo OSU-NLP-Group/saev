@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1">
 <meta name="generator" content="pdoc3 0.11.1">
 <title>saev.helpers API documentation</title>
-<meta name="description" content="Useful helpers for `saev`.">
+<meta name="description" content="">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/13.0.0/sanitize.min.css" integrity="sha512-y1dtMcuvtTMJc1yPgEqF0ZjQbhnc/bFhyvIyVNb9Zk5mIGtqVaAB1Ttl28su8AvFMOY0EwRbAe+HCLqj6W7/KA==" crossorigin>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/13.0.0/typography.min.css" integrity="sha512-Y1DYSb995BAfxobCkKepB1BqJJTPrOp3zPL74AWFugHHmmdcvO+C48WLrUOlhGMc0QG7AE3f7gmvvcrmX2fDoA==" crossorigin>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css" crossorigin>
@@ -27,7 +27,6 @@ hljs.highlightAll();
 <h1 class="title">Module <code>saev.helpers</code></h1>
 </header>
 <section id="section-intro">
-<p>Useful helpers for <code><a title="saev" href="index.html">saev</a></code>.</p>
 </section>
 <section>
 </section>
@@ -36,6 +35,22 @@ hljs.highlightAll();
 <section>
 <h2 class="section-title" id="header-functions">Functions</h2>
 <dl>
+<dt id="saev.helpers.current_git_commit"><code class="name flex">
+<span>def <span class="ident">current_git_commit</span></span>(<span>) ‑> str | None</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Best-effort short SHA of the repo containing <em>this</em> file.</p>
+<p>Returns <code>None</code> when
+* <code>git</code> executable is missing,
+* we’re not inside a git repo (e.g. installed wheel),
+* or any git call errors out.</p></div>
+</dd>
+<dt id="saev.helpers.expand"><code class="name flex">
+<span>def <span class="ident">expand</span></span>(<span>config: dict[str, object]) ‑> collections.abc.Iterator[dict[str, object]]</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Expand a nested dict that may contain lists into many dicts.</p></div>
+</dd>
 <dt id="saev.helpers.flattened"><code class="name flex">
 <span>def <span class="ident">flattened</span></span>(<span>dct: dict[str, object], *, sep: str = '.') ‑> dict[str, str | int | float | bool | None]</span>
 </code></dt>
@@ -56,11 +71,99 @@ hljs.highlightAll();
 <h2 id="returns">Returns</h2>
 <p>A path to a cache directory (might not exist yet).</p></div>
 </dd>
+<dt id="saev.helpers.grid"><code class="name flex">
+<span>def <span class="ident">grid</span></span>(<span>cfg: ~T, sweep_dct: dict[str, object]) ‑> tuple[list[~T], list[str]]</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Generate configs from <code>cfg</code> according to <code>sweep_dct</code>.</p></div>
+</dd>
 </dl>
 </section>
 <section>
 <h2 class="section-title" id="header-classes">Classes</h2>
 <dl>
+<dt id="saev.helpers.RemovedFeatureError"><code class="flex name class">
+<span>class <span class="ident">RemovedFeatureError</span></span>
+<span>(</span><span>*args, **kwargs)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Feature existed before but is no longer supported.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+class RemovedFeatureError(RuntimeError):
+    &#34;&#34;&#34;Feature existed before but is no longer supported.&#34;&#34;&#34;
+
+    pass</code></pre>
+</details>
+<h3>Ancestors</h3>
+<ul class="hlist">
+<li>builtins.RuntimeError</li>
+<li>builtins.Exception</li>
+<li>builtins.BaseException</li>
+</ul>
+</dd>
+<dt id="saev.helpers.batched_idx"><code class="flex name class">
+<span>class <span class="ident">batched_idx</span></span>
+<span>(</span><span>total_size: int, batch_size: int)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Iterate over (start, end) indices for total_size examples, where end - start is at most batch_size.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>total_size</code></strong></dt>
+<dd>total number of examples</dd>
+<dt><strong><code>batch_size</code></strong></dt>
+<dd>maximum distance between the generated indices.</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<p>A generator of (int, int) tuples that can slice up a list or a tensor.</p>
+<h2 id="args_1">Args</h2>
+<dl>
+<dt><strong><code>total_size</code></strong></dt>
+<dd>total number of examples</dd>
+<dt><strong><code>batch_size</code></strong></dt>
+<dd>maximum distance between the generated indices</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+class batched_idx:
+    &#34;&#34;&#34;
+    Iterate over (start, end) indices for total_size examples, where end - start is at most batch_size.
+
+    Args:
+        total_size: total number of examples
+        batch_size: maximum distance between the generated indices.
+
+    Returns:
+        A generator of (int, int) tuples that can slice up a list or a tensor.
+    &#34;&#34;&#34;
+
+    def __init__(self, total_size: int, batch_size: int):
+        &#34;&#34;&#34;
+        Args:
+            total_size: total number of examples
+            batch_size: maximum distance between the generated indices
+        &#34;&#34;&#34;
+        self.total_size = total_size
+        self.batch_size = batch_size
+
+    def __iter__(self) -&gt; collections.abc.Iterator[tuple[int, int]]:
+        &#34;&#34;&#34;Yield (start, end) index pairs for batching.&#34;&#34;&#34;
+        for start in range(0, self.total_size, self.batch_size):
+            stop = min(start + self.batch_size, self.total_size)
+            yield start, stop
+
+    def __len__(self) -&gt; int:
+        &#34;&#34;&#34;Return the number of batches.&#34;&#34;&#34;
+        return (self.total_size + self.batch_size - 1) // self.batch_size</code></pre>
+</details>
+</dd>
 <dt id="saev.helpers.progress"><code class="flex name class">
 <span>class <span class="ident">progress</span></span>
 <span>(</span><span>it, *, every: int = 10, desc: str = 'progress', total: int = 0)</span>
@@ -196,14 +299,23 @@ setTimeout(() => input.focus(), 100);
 </ul>
 </li>
 <li><h3><a href="#header-functions">Functions</a></h3>
-<ul class="">
+<ul class="two-column">
+<li><code><a title="saev.helpers.current_git_commit" href="#saev.helpers.current_git_commit">current_git_commit</a></code></li>
+<li><code><a title="saev.helpers.expand" href="#saev.helpers.expand">expand</a></code></li>
 <li><code><a title="saev.helpers.flattened" href="#saev.helpers.flattened">flattened</a></code></li>
 <li><code><a title="saev.helpers.get" href="#saev.helpers.get">get</a></code></li>
 <li><code><a title="saev.helpers.get_cache_dir" href="#saev.helpers.get_cache_dir">get_cache_dir</a></code></li>
+<li><code><a title="saev.helpers.grid" href="#saev.helpers.grid">grid</a></code></li>
 </ul>
 </li>
 <li><h3><a href="#header-classes">Classes</a></h3>
 <ul>
+<li>
+<h4><code><a title="saev.helpers.RemovedFeatureError" href="#saev.helpers.RemovedFeatureError">RemovedFeatureError</a></code></h4>
+</li>
+<li>
+<h4><code><a title="saev.helpers.batched_idx" href="#saev.helpers.batched_idx">batched_idx</a></code></h4>
+</li>
 <li>
 <h4><code><a title="saev.helpers.progress" href="#saev.helpers.progress">progress</a></code></h4>
 </li>

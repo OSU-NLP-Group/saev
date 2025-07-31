@@ -3,22 +3,25 @@ name = "saev"
 version = "0.1.0"
 description = "Sparse autoencoders for vision transformers in PyTorch"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 dependencies = [
     "altair>=5.4.1",
     "beartype>=0.19.0",
     "datasets>=3.0.1",
     "einops>=0.8.0",
-    "jaxtyping>=0.2.34",
+    "jaxtyping>=0.3.2",
     "marimo>=0.9.10",
     "matplotlib>=3.9.2",
     "open-clip-torch>=2.28.0",
     "pillow>=10.4.0",
     "polars>=1.12.0",
+    "psutil>=6.1.0",
+    "scikit-learn>=1.7.0",
     "submitit>=1.5.2",
     "torch>=2.5.0",
     "tqdm>=4.66.5",
     "tyro>=0.8.12",
+    "wandb>=0.19.6",
 ]
 
 [build-system]
@@ -29,11 +32,6 @@ build-backend = "hatchling.build"
 Homepage = "https://osu-nlp-group.github.io/saev"
 Issues = "https://github.com/OSU-NLP-Group/saev/issues"
 
-[project.optional-dependencies]
-training = [
-    "wandb>=0.19.6",
-]
-
 [tool.ruff.lint]
 select = ["E", "F", "I"]
 ignore = ["F722", "E402", "E501"]
@@ -42,9 +40,12 @@ ignore = ["F722", "E402", "E501"]
 package = true
 default-groups = "all"
 
+[tool.uv.workspace]
+members = ["contrib/trait_discovery"]
+
 [dependency-groups]
 dev = [
-    "hypothesis>=6.119.0",
+    "hypothesis[codemods]>=6.119.0",
     "hypothesis-torch>=0.8.4",
     "pdoc3>=0.11.1",
     "pytest>=8.3.3",
@@ -55,10 +56,16 @@ dev = [
     "pytest-cov>=6.1.1",
     "pytest-json-report>=1.5.0",
     "coverage-badge>=1.1.2",
+    "vl-convert-python>=1.8.0",
+    "pytest-timeout>=2.2.0",
 ]
 
 [tool.pytest.ini_options]
+timeout = 300
+timeout_method = "thread"
+filterwarnings = [
+    "ignore:Can't initialize NVML:UserWarning"
+]
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
-    "serial",
 ]

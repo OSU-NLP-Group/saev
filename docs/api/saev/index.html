@@ -50,19 +50,25 @@ hljs.highlightAll();
 <li>Where on disk and how we would like to save activations.</li>
 <li>Which images we want to save activations for.</li>
 </ol>
-<p>The <code><a title="saev.activations" href="activations.html">saev.activations</a></code> module does all of this for us.</p>
+<p>The <code>saev.activations</code> module does all of this for us.</p>
 <p>Run <code>uv run python -m saev activations --help</code> to see all the configuration.</p>
 <p>In practice, you might run:</p>
-<pre><code class="language-sh">uv run python -m saev activations \
-  --vit-family clip \
-  --vit-ckpt ViT-B-32/openai \
-  --d-vit 768 \
-  --n-patches-per-img 49 \
-  --vit-layers -2 \
-  --dump-to /local/scratch/$USER/cache/saev \
-  --n-patches-per-shard 2_4000_000 \
-  data:imagenet-dataset
+<pre><code class="language-sh">uv run python -m saev.data \
+  --vit-family siglip \
+  --vit-ckpt hf-hub:timm/ViT-L-16-SigLIP2-256 \
+  --d-vit 1024 \
+  --n-patches-per-img 256 \
+  --no-cls-token \
+  --vit-layers 13 15 17 19 21 23 \
+  --dump-to /fs/scratch/PAS2136/samuelstevens/cache/saev/ \
+  --max-patches-per-shard 500_000 \
+  --slurm-acct PAS2136 \
+  --n-hours 48 \
+  --slurm-partition nextgen \
+  data:image-folder \
+  --data.root /fs/ess/PAS2136/foundation_model/inat21/raw/train_mini/
 </code></pre>
+<p>Let's break down these arguments.</p>
 <p>This will save activations for the CLIP-pretrained model ViT-B/32, which has a residual stream dimension of 768, and has 49 patches per image (224 / 32 = 7; 7 x 7 = 49).
 It will save the second-to-last layer (<code>--layer -2</code>).
 It will write 2.4M patches per shard, and save shards to a new directory <code>/local/scratch/$USER/cache/saev</code>.</p>
@@ -71,7 +77,7 @@ It will write 2.4M patches per shard, and save shards to a new directory <code>/
 </div>
 <p>This script will also save a <code>metadata.json</code> file that will record the relevant metadata for these activations, which will be read by future steps.
 The activations will be in <code>.bin</code> files, numbered starting from 000000.</p>
-<p>To add your own models, see the guide to extending in <code><a title="saev.activations" href="activations.html">saev.activations</a></code>.</p>
+<p>To add your own models, see the guide to extending in <code>saev.activations</code>.</p>
 <h2 id="train-saes-on-activations">Train SAEs on Activations</h2>
 <p>To train an SAE, we need to specify:</p>
 <ol>
@@ -79,7 +85,7 @@ The activations will be in <code>.bin</code> files, numbered starting from 00000
 <li>SAE architectural stuff.</li>
 <li>Optimization-related stuff.</li>
 </ol>
-<p><code>The </code>saev.training` module handles this.</p>
+<p>The <code>saev.training</code> module handles this.</p>
 <p>Run <code>uv run python -m saev train --help</code> to see all the configuration.</p>
 <p>Continuing on from our example before, you might want to run something like:</p>
 <pre><code class="language-sh">uv run python -m saev train \
@@ -90,6 +96,8 @@ The activations will be in <code>.bin</code> files, numbered starting from 00000
   --data.no-scale-norm \
   --sae.d-vit 768 \
   --lr 5e-4
+</code></pre>
+<pre><code class="language-sh">uv run train.py --sweep configs/preprint/baseline.toml --data.shard-root /fs/scratch/PAS2136/samuelstevens/cache/saev/f9deaa8a07786087e8071f39a695200ff6713ee02b25e7a7b4a6d5ac1ad968db --data.patches image --data.layer 23 --data.no-scale-mean --data.no-scale-norm sae:relu --sae.d-vit 1024
 </code></pre>
 <p><code>--data.*</code> flags describe which activations to use.</p>
 <p><code>--data.shard-root</code> should point to a directory with <code>*.bin</code> files and the <code>metadata.json</code> file.
@@ -109,7 +117,7 @@ Then, we pick out the images those patches correspond to and create a heatmap ba
 <div class="admonition note">
 <p class="admonition-title">Note:&ensp;More advanced forms of visualization are possible (and valuable!), but should not be included in <code><a title="saev" href="#saev">saev</a></code> unless they can be applied to every SAE/dataset combination. If you have specific visualizations, please add them to <code>contrib/</code> or another location.</p>
 </div>
-<p><code><a title="saev.visuals" href="visuals.html">saev.visuals</a></code> records these maximally activating images for us.
+<p><code>saev.visuals</code> records these maximally activating images for us.
 You can see all the options with <code>uv run python -m saev visuals --help</code>.</p>
 <p>The most important configuration options:</p>
 <ol>
@@ -276,25 +284,17 @@ x_hat, f_x, loss = sae(vit_acts)
 <section>
 <h2 class="section-title" id="header-submodules">Sub-modules</h2>
 <dl>
-<dt><code class="name"><a title="saev.activations" href="activations.html">saev.activations</a></code></dt>
-<dd>
-<div class="desc"><p>To save lots of activations, we want to do things in parallel, with lots of slurm jobs, and save multiple files, rather than just one …</p></div>
-</dd>
-<dt><code class="name"><a title="saev.app" href="app/index.html">saev.app</a></code></dt>
-<dd>
-<div class="desc"><p>Gradio web application for exploring SAE latent activations …</p></div>
-</dd>
 <dt><code class="name"><a title="saev.colors" href="colors.html">saev.colors</a></code></dt>
 <dd>
 <div class="desc"><p>Utility color palettes used across saev visualizations.</p></div>
 </dd>
-<dt><code class="name"><a title="saev.config" href="config.html">saev.config</a></code></dt>
+<dt><code class="name"><a title="saev.data" href="data/index.html">saev.data</a></code></dt>
 <dd>
-<div class="desc"><p>All configs for all saev jobs …</p></div>
+<div class="desc"><p>SAEV Sharded-Activation File Protocol v1 (2025-06-17) …</p></div>
 </dd>
 <dt><code class="name"><a title="saev.helpers" href="helpers.html">saev.helpers</a></code></dt>
 <dd>
-<div class="desc"><p>Useful helpers for <code><a title="saev" href="#saev">saev</a></code>.</p></div>
+<div class="desc"></div>
 </dd>
 <dt><code class="name"><a title="saev.imaging" href="imaging.html">saev.imaging</a></code></dt>
 <dd>
@@ -308,30 +308,17 @@ x_hat, f_x, loss = sae(vit_acts)
 <dd>
 <div class="desc"></div>
 </dd>
-<dt><code class="name"><a title="saev.test_activations" href="test_activations.html">saev.test_activations</a></code></dt>
-<dd>
-<div class="desc"><p>Test that the cached activations are actually correct.
-These tests are quite slow</p></div>
-</dd>
-<dt><code class="name"><a title="saev.test_config" href="test_config.html">saev.test_config</a></code></dt>
+<dt><code class="name"><a title="saev.ops" href="ops.html">saev.ops</a></code></dt>
 <dd>
 <div class="desc"></div>
 </dd>
-<dt><code class="name"><a title="saev.test_training" href="test_training.html">saev.test_training</a></code></dt>
+<dt><code class="name"><a title="saev.scripts" href="scripts/index.html">saev.scripts</a></code></dt>
 <dd>
 <div class="desc"></div>
 </dd>
-<dt><code class="name"><a title="saev.test_visuals" href="test_visuals.html">saev.test_visuals</a></code></dt>
+<dt><code class="name"><a title="saev.utils" href="utils/index.html">saev.utils</a></code></dt>
 <dd>
 <div class="desc"></div>
-</dd>
-<dt><code class="name"><a title="saev.training" href="training.html">saev.training</a></code></dt>
-<dd>
-<div class="desc"><p>Trains many SAEs in parallel to amortize the cost of loading a single batch of data over many SAE training runs.</p></div>
-</dd>
-<dt><code class="name"><a title="saev.visuals" href="visuals.html">saev.visuals</a></code></dt>
-<dd>
-<div class="desc"><p>There is some important notation used only in this file to dramatically shorten variable names …</p></div>
 </dd>
 </dl>
 </section>
@@ -417,20 +404,15 @@ setTimeout(() => input.focus(), 100);
 <ul id="index">
 <li><h3><a href="#header-submodules">Sub-modules</a></h3>
 <ul>
-<li><code><a title="saev.activations" href="activations.html">saev.activations</a></code></li>
-<li><code><a title="saev.app" href="app/index.html">saev.app</a></code></li>
 <li><code><a title="saev.colors" href="colors.html">saev.colors</a></code></li>
-<li><code><a title="saev.config" href="config.html">saev.config</a></code></li>
+<li><code><a title="saev.data" href="data/index.html">saev.data</a></code></li>
 <li><code><a title="saev.helpers" href="helpers.html">saev.helpers</a></code></li>
 <li><code><a title="saev.imaging" href="imaging.html">saev.imaging</a></code></li>
 <li><code><a title="saev.interactive" href="interactive/index.html">saev.interactive</a></code></li>
 <li><code><a title="saev.nn" href="nn/index.html">saev.nn</a></code></li>
-<li><code><a title="saev.test_activations" href="test_activations.html">saev.test_activations</a></code></li>
-<li><code><a title="saev.test_config" href="test_config.html">saev.test_config</a></code></li>
-<li><code><a title="saev.test_training" href="test_training.html">saev.test_training</a></code></li>
-<li><code><a title="saev.test_visuals" href="test_visuals.html">saev.test_visuals</a></code></li>
-<li><code><a title="saev.training" href="training.html">saev.training</a></code></li>
-<li><code><a title="saev.visuals" href="visuals.html">saev.visuals</a></code></li>
+<li><code><a title="saev.ops" href="ops.html">saev.ops</a></code></li>
+<li><code><a title="saev.scripts" href="scripts/index.html">saev.scripts</a></code></li>
+<li><code><a title="saev.utils" href="utils/index.html">saev.utils</a></code></li>
 </ul>
 </li>
 </ul>
