@@ -248,3 +248,28 @@ $$\lVert\nabla\theta\rVert_2$$
 grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1e9)
 ```
 
+# 07/25/2025
+
+I have kicked off a training job for a lot of SAEs across many different layers of SigLIP 2 on iNat21 train-mini (job ID: 1856101).
+
+I'm also going to save activations for DINOv2 and BioCLIP-2.
+
+BioCLIP 2:
+```sh
+uv run python -m saev.data --slurm-acct PAS2136 --n-hours 48 --slurm-partition nextgen --vit-family clip --vit-ckpt hf-hub:imageomics/bioclip-2 --d-vit 1024 --n-patches-per-img 256 --vit-layers 13 15 17 19 21 23 --dump-to /fs/scratch/PAS2136/samuelstevens/cache/saev/ --max-patches-per-shard 500_000 data:image-folder --data.root /fs/ess/PAS2136/foundation_model/inat21/raw/train_mini/
+```
+Job ID: 1856237
+
+DINOv2
+```sh
+uv run python -m saev.data --slurm-acct PAS2136 --n-hours 48 --slurm-partition nextgen --vit-family dinov2 --vit-ckpt dinov2_vitl14_reg --d-vit 1024 --n-patches-per-img 256 --vit-layers 13 15 17 19 21 23 --dump-to /fs/scratch/PAS2136/samuelstevens/cache/saev/ --max-patches-per-shard 500_000 data:image-folder --data.root /fs/ess/PAS2136/foundation_model/inat21/raw/train_mini/
+```
+Job ID: 1856263
+
+# 07/31/2025
+
+Great. I trained some SAEs on SigLIP2 and DINOv2 models.
+I should now:
+
+1. Get some visuals from early and late layers for both models (4x visuals scripts).
+2. Merge Jake's code so that I can also train these models with at least BatchTopK which is highly likely to be correct.
