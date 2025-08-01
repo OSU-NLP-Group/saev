@@ -115,13 +115,7 @@ def test_shard_writer_and_dataset_e2e(tmp_path):
     )
     writer = ShardWriter(cfg)
     dataset = Dataset(
-        IndexedConfig(
-            shard_root=get_acts_dir(cfg),
-            patches="cls",
-            layer=-1,
-            scale_mean=False,
-            scale_norm=False,
-        )
+        IndexedConfig(shard_root=get_acts_dir(cfg), patches="cls", layer=-1)
     )
 
     i = 0

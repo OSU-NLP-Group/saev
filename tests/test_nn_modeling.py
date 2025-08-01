@@ -1,3 +1,6 @@
+import itertools
+import typing as tp
+
 import hypothesis.strategies as st
 import numpy as np
 import pytest
@@ -16,55 +19,78 @@ def test_factories():
     )
 
 
-def relu_cfgs():
+def sae_cfgs():
     return st.builds(
-        modeling.Relu,
+        modeling.SparseAutoencoderConfig,
         d_vit=st.sampled_from([32, 64, 128]),
         exp_factor=st.sampled_from([2, 4]),
+    )
+
+
+def sae_cfgs_comprehensive():
+    """Comprehensive SAE config strategy for testing various combinations."""
+    # Define activation strategies
+    relu_strategy = st.builds(modeling.Relu)
+    topk_strategy = st.builds(
+        modeling.TopK, top_k=st.sampled_from([8, 16, 32, 64, 128])
+    )
+    batch_topk_strategy = st.builds(
+        modeling.BatchTopK, top_k=st.sampled_from([8, 16, 32, 64, 128])
+    )
+
+    activation_strategy = st.one_of(relu_strategy, topk_strategy, batch_topk_strategy)
+
+    return st.builds(
+        modeling.SparseAutoencoderConfig,
+        d_vit=st.sampled_from([256, 384, 512, 768, 1024]),
+        exp_factor=st.sampled_from([2, 4, 8, 16, 32]),
+        seed=st.integers(min_value=0, max_value=100),
+        normalize_w_dec=st.booleans(),
+        remove_parallel_grads=st.booleans(),
+        n_reinit_samples=st.sampled_from([1024, 1024 * 16, 1024 * 16 * 32]),
+        activation=activation_strategy,
     )
 
 
 def topk_cfgs():
-    return st.builds(
-        modeling.TopK,
-        d_vit=st.sampled_from([32, 64, 128]),
-        exp_factor=st.sampled_from([2, 4]),
-        top_k=st.sampled_from([1, 2, 4, 8]),
-    )
+    return st.builds(modeling.TopK, top_k=st.sampled_from([1, 2, 4, 8]))
 
 
 def batch_topk_cfgs():
-    return st.builds(
-        modeling.BatchTopK,
-        d_vit=st.sampled_from([32, 64, 128]),
-        exp_factor=st.sampled_from([2, 4]),
-        top_k=st.sampled_from([1, 2, 4, 8]),
-    )
+    return st.builds(modeling.BatchTopK, top_k=st.sampled_from([1, 2, 4, 8]))
 
 
-@given(cfg=topk_cfgs(), batch=st.integers(min_value=1, max_value=4))
-def test_topk_activation(cfg, batch):
+@given(
+    cfg=topk_cfgs(),
+    batch=st.integers(min_value=1, max_value=4),
+    d_sae=st.integers(min_value=256, max_value=2048),
+)
+def test_topk_activation(cfg, batch, d_sae):
     act = modeling.get_activation(cfg)
-    x = torch.randn(batch, cfg.d_vit * cfg.exp_factor)
+    x = torch.randn(batch, d_sae)
     y = act(x)
-    assert y.shape == (batch, cfg.d_vit * cfg.exp_factor)
+    assert y.shape == (batch, d_sae)
     # Check that only k elements are non-zero per sample
     assert (y != 0).sum(dim=1).eq(cfg.top_k).all()
 
 
-@given(cfg=batch_topk_cfgs(), batch=st.integers(min_value=1, max_value=4))
-def test_batch_topk_activation(cfg, batch):
+@given(
+    cfg=batch_topk_cfgs(),
+    batch=st.integers(min_value=1, max_value=4),
+    d_sae=st.integers(min_value=256, max_value=2048),
+)
+def test_batch_topk_activation(cfg, batch, d_sae):
     act = modeling.get_activation(cfg)
-    x = torch.randn(batch, cfg.d_vit * cfg.exp_factor)
+    x = torch.randn(batch, d_sae)
     y = act(x)
-    assert y.shape == (batch, cfg.d_vit * cfg.exp_factor)
+    assert y.shape == (batch, d_sae)
     # Check that only k elements are non-zero per batch
     assert (y != 0).sum(dim=1).sum(dim=0).eq(cfg.top_k)
 
 
 def test_topk_basic_forward():
     """Test basic TopK forward pass with known values."""
-    cfg = modeling.TopK(d_vit=4, exp_factor=1, top_k=2)
+    cfg = modeling.TopK(top_k=2)
     act = modeling.TopKActivation(cfg)
 
     x = torch.tensor([[5.0, 1.0, 3.0, 2.0], [2.0, 4.0, 1.0, 3.0]])
@@ -76,7 +102,7 @@ def test_topk_basic_forward():
 
 def test_topk_ties():
     """Test TopK behavior with tied values."""
-    cfg = modeling.TopK(d_vit=4, exp_factor=1, top_k=2)
+    cfg = modeling.TopK(top_k=2)
     act = modeling.TopKActivation(cfg)
 
     x = torch.tensor([[2.0, 2.0, 2.0, 2.0]])
@@ -90,7 +116,7 @@ def test_topk_ties():
 
 def test_topk_k_equals_size():
     """Test TopK when k equals tensor size."""
-    cfg = modeling.TopK(d_vit=4, exp_factor=1, top_k=4)
+    cfg = modeling.TopK(top_k=4)
     act = modeling.TopKActivation(cfg)
 
     x = torch.tensor([[5.0, 1.0, 3.0, 2.0]])
@@ -102,7 +128,7 @@ def test_topk_k_equals_size():
 
 def test_topk_negative_values():
     """Test TopK with negative values."""
-    cfg = modeling.TopK(d_vit=4, exp_factor=1, top_k=2)
+    cfg = modeling.TopK(top_k=2)
     act = modeling.TopKActivation(cfg)
 
     x = torch.tensor([[-5.0, -1.0, -3.0, -2.0]])
@@ -115,7 +141,7 @@ def test_topk_negative_values():
 
 def test_topk_gradient_flow():
     """Test that gradients flow correctly through TopK."""
-    cfg = modeling.TopK(d_vit=4, exp_factor=1, top_k=2)
+    cfg = modeling.TopK(top_k=2)
     act = modeling.TopKActivation(cfg)
 
     x = torch.tensor([[5.0, 1.0, 3.0, 2.0], [2.0, 4.0, 1.0, 3.0]], requires_grad=True)
@@ -132,7 +158,7 @@ def test_topk_gradient_flow():
 
 def test_topk_gradient_sparsity():
     """Verify gradient sparsity matches forward pass selection."""
-    cfg = modeling.TopK(d_vit=8, exp_factor=1, top_k=3)
+    cfg = modeling.TopK(top_k=3)
     act = modeling.TopKActivation(cfg)
 
     torch.manual_seed(42)
@@ -156,7 +182,7 @@ def test_topk_gradient_sparsity():
 
 def test_topk_zero_gradient_for_unselected():
     """Explicitly verify that non-selected elements have exactly 0.0 gradients."""
-    cfg = modeling.TopK(d_vit=6, exp_factor=1, top_k=2)
+    cfg = modeling.TopK(top_k=2)
     act = modeling.TopKActivation(cfg)
 
     x = torch.tensor([[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]], requires_grad=True)
@@ -178,7 +204,7 @@ def test_topk_zero_gradient_for_unselected():
 # BatchTopK Edge Case Tests
 def test_batchtopk_basic_forward():
     """Test basic BatchTopK forward pass with known values."""
-    cfg = modeling.BatchTopK(d_vit=3, exp_factor=1, top_k=3)
+    cfg = modeling.BatchTopK(top_k=3)
     act = modeling.BatchTopKActivation(cfg)
 
     x = torch.tensor([[5.0, 1.0, 3.0], [2.0, 4.0, 1.0]])
@@ -191,7 +217,7 @@ def test_batchtopk_basic_forward():
 
 def test_batchtopk_k_exceeds_total_elements():
     """Test BatchTopK when k exceeds total number of elements."""
-    cfg = modeling.BatchTopK(d_vit=3, exp_factor=1, top_k=8)
+    cfg = modeling.BatchTopK(top_k=8)
     act = modeling.BatchTopKActivation(cfg)
 
     x = torch.tensor([[5.0, 1.0, 3.0], [2.0, 4.0, 1.0]])
@@ -203,7 +229,7 @@ def test_batchtopk_k_exceeds_total_elements():
 
 def test_batchtopk_single_batch():
     """Test BatchTopK with single element batch."""
-    cfg = modeling.BatchTopK(d_vit=4, exp_factor=1, top_k=2)
+    cfg = modeling.BatchTopK(top_k=2)
     act = modeling.BatchTopKActivation(cfg)
 
     x = torch.tensor([[1.0, 2.0, 3.0, 4.0]])
@@ -216,7 +242,7 @@ def test_batchtopk_single_batch():
 
 def test_batchtopk_uneven_distribution():
     """Test BatchTopK with uneven value distribution across batch."""
-    cfg = modeling.BatchTopK(d_vit=3, exp_factor=1, top_k=3)
+    cfg = modeling.BatchTopK(top_k=3)
     act = modeling.BatchTopKActivation(cfg)
 
     # First batch has large values, second has small values
@@ -230,7 +256,7 @@ def test_batchtopk_uneven_distribution():
 
 def test_batchtopk_ties():
     """Test BatchTopK behavior with tied values."""
-    cfg = modeling.BatchTopK(d_vit=3, exp_factor=1, top_k=3)
+    cfg = modeling.BatchTopK(top_k=3)
     act = modeling.BatchTopKActivation(cfg)
 
     x = torch.tensor([[2.0, 2.0, 2.0], [2.0, 2.0, 2.0]])
@@ -244,7 +270,7 @@ def test_batchtopk_ties():
 # BatchTopK Gradient Tests
 def test_batchtopk_gradient_flow():
     """Test that gradients flow correctly through BatchTopK."""
-    cfg = modeling.BatchTopK(d_vit=3, exp_factor=1, top_k=3)
+    cfg = modeling.BatchTopK(top_k=3)
     act = modeling.BatchTopKActivation(cfg)
 
     x = torch.tensor([[5.0, 1.0, 3.0], [2.0, 4.0, 1.0]], requires_grad=True)
@@ -261,7 +287,7 @@ def test_batchtopk_gradient_flow():
 
 def test_batchtopk_gradient_global_sparsity():
     """Verify gradient sparsity is global across batch."""
-    cfg = modeling.BatchTopK(d_vit=4, exp_factor=1, top_k=4)
+    cfg = modeling.BatchTopK(top_k=4)
     act = modeling.BatchTopKActivation(cfg)
 
     torch.manual_seed(42)
@@ -288,7 +314,7 @@ def test_batchtopk_gradient_global_sparsity():
 
 def test_batchtopk_gradient_distribution():
     """Test gradient distribution with uneven value distribution."""
-    cfg = modeling.BatchTopK(d_vit=3, exp_factor=1, top_k=3)
+    cfg = modeling.BatchTopK(top_k=3)
     act = modeling.BatchTopKActivation(cfg)
 
     # First batch has large values, second has small values
@@ -306,7 +332,7 @@ def test_batchtopk_gradient_distribution():
 
 def test_batchtopk_zero_gradient_verification():
     """Explicitly verify BatchTopK zero gradients for unselected elements."""
-    cfg = modeling.BatchTopK(d_vit=2, exp_factor=1, top_k=2)
+    cfg = modeling.BatchTopK(top_k=2)
     act = modeling.BatchTopKActivation(cfg)
 
     x = torch.tensor([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]], requires_grad=True)
@@ -324,15 +350,18 @@ def test_batchtopk_zero_gradient_verification():
     torch.testing.assert_close(x.grad[2, 1], torch.tensor(1.0))
 
 
-# Hypothesis-based Property Tests
 @settings(deadline=None)
-@given(cfg=topk_cfgs(), batch=st.integers(min_value=1, max_value=8))
-def test_topk_gradient_properties(cfg, batch):
+@given(
+    cfg=topk_cfgs(),
+    batch=st.integers(min_value=1, max_value=8),
+    d_sae=st.integers(min_value=256, max_value=2048),
+)
+def test_topk_gradient_properties(cfg, batch, d_sae):
     """Property-based test for TopK gradients."""
     act = modeling.TopKActivation(cfg)
 
     torch.manual_seed(42)
-    x = torch.randn(batch, cfg.d_sae, requires_grad=True)
+    x = torch.randn(batch, d_sae, requires_grad=True)
     y = act(x)
 
     # Create random upstream gradient
@@ -361,17 +390,21 @@ def test_topk_gradient_properties(cfg, batch):
 
 
 @settings(deadline=None)
-@given(cfg=batch_topk_cfgs(), batch=st.integers(min_value=1, max_value=8))
-def test_batchtopk_gradient_properties(cfg, batch):
+@given(
+    cfg=batch_topk_cfgs(),
+    batch=st.integers(min_value=1, max_value=8),
+    d_sae=st.integers(min_value=256, max_value=2048),
+)
+def test_batchtopk_gradient_properties(cfg, batch, d_sae):
     """Property-based test for BatchTopK gradients."""
     act = modeling.BatchTopKActivation(cfg)
 
     torch.manual_seed(42)
-    x = torch.randn(batch, cfg.d_sae, requires_grad=True)
+    x = torch.randn(batch, d_sae, requires_grad=True)
     y = act(x)
 
     # Skip if k > total elements (edge case handled separately)
-    total_elements = batch * cfg.d_sae
+    total_elements = batch * d_sae
     if cfg.top_k > total_elements:
         return
 
@@ -403,7 +436,7 @@ def test_batchtopk_gradient_properties(cfg, batch):
 # Chain Rule and Advanced Gradient Tests
 def test_topk_chain_rule():
     """Test gradient flow through TopK in a deeper network."""
-    cfg = modeling.TopK(d_vit=4, exp_factor=1, top_k=2)
+    cfg = modeling.TopK(top_k=2)
     act = modeling.TopKActivation(cfg)
 
     # Build a simple network: Linear -> TopK -> Linear
@@ -439,7 +472,7 @@ def test_topk_chain_rule():
 
 def test_batchtopk_chain_rule():
     """Test gradient flow through BatchTopK in a deeper network."""
-    cfg = modeling.BatchTopK(d_vit=3, exp_factor=1, top_k=3)
+    cfg = modeling.BatchTopK(top_k=3)
     act = modeling.BatchTopKActivation(cfg)
 
     # Build a simple network
@@ -468,7 +501,7 @@ def test_batchtopk_chain_rule():
 
 def test_topk_non_differentiable_selection():
     """Verify that TopK gradient is not differentiable w.r.t. the selection boundary."""
-    cfg = modeling.TopK(d_vit=4, exp_factor=1, top_k=2)
+    cfg = modeling.TopK(top_k=2)
     act = modeling.TopKActivation(cfg)
 
     # Test that gradients exist for first order
@@ -486,7 +519,7 @@ def test_topk_non_differentiable_selection():
 
 def test_gradient_magnitude_preservation():
     """Test that gradient magnitudes are preserved for selected elements."""
-    cfg = modeling.TopK(d_vit=4, exp_factor=1, top_k=2)
+    cfg = modeling.TopK(top_k=2)
     act = modeling.TopKActivation(cfg)
 
     x = torch.tensor([[5.0, 1.0, 3.0, 2.0]], requires_grad=True)
@@ -509,7 +542,7 @@ def test_gradient_magnitude_preservation():
 
 
 @settings(deadline=None)
-@given(cfg=relu_cfgs(), batch=st.integers(min_value=1, max_value=4))
+@given(cfg=sae_cfgs(), batch=st.integers(min_value=1, max_value=4))
 def test_sae_shapes(cfg, batch):
     sae = modeling.SparseAutoencoder(cfg)
     x = torch.randn(batch, cfg.d_vit)
@@ -527,7 +560,7 @@ hf_ckpts = [
 
 @pytest.mark.parametrize("repo_id", hf_ckpts)
 @pytest.mark.slow
-def test_load_bioclip_checkpoint(repo_id, tmp_path):
+def test_load_existing_checkpoint(repo_id, tmp_path):
     pytest.importorskip("huggingface_hub")
 
     import huggingface_hub
@@ -547,15 +580,46 @@ def test_load_bioclip_checkpoint(repo_id, tmp_path):
     assert torch.isfinite(x_hat).all()
 
 
-roundtrip_cases = [
-    modeling.Relu(d_vit=512, exp_factor=8, seed=0),
-    modeling.Relu(d_vit=768, exp_factor=16, seed=1),
-    modeling.Relu(d_vit=1024, exp_factor=32, seed=2),
-]
+def test_dump_load_roundtrip_exhaustive(tmp_path):
+    """Test dump/load roundtrip for all combinations of activations and various configs."""
+    # Test all activation types with different configurations
+    activation_cfgs = [cls() for cls in tp.get_args(modeling.ActivationConfig)]
+
+    # Various SAE configurations - reduced set for faster testing
+    sae_cfgs = [
+        {"d_vit": 256, "exp_factor": 4, "seed": 0},
+        {"d_vit": 512, "exp_factor": 8, "seed": 1, "normalize_w_dec": False},
+        {"d_vit": 384, "exp_factor": 12, "seed": 2, "remove_parallel_grads": False},
+    ]
+
+    for i, (act_cfg, cfg_args) in enumerate(
+        itertools.product(activation_cfgs, sae_cfgs)
+    ):
+        sae_cfg = modeling.SparseAutoencoderConfig(**cfg_args, activation=act_cfg)
+        sae = modeling.SparseAutoencoder(sae_cfg)
+        _ = sae(torch.randn(2, sae_cfg.d_vit))  # touch all params once
+
+        ckpt = tmp_path / f"sae_{i}.pt"
+        modeling.dump(str(ckpt), sae)
+        sae_loaded = modeling.load(str(ckpt))
+
+        # configs identical
+        assert sae_cfg == sae_loaded.cfg
+
+        # tensors identical
+        for k, v in sae.state_dict().items():
+            torch.testing.assert_close(v, sae_loaded.state_dict()[k])
 
 
-@pytest.mark.parametrize("sae_cfg", roundtrip_cases)
-def test_dump_load_roundtrip(tmp_path, sae_cfg):
+@pytest.mark.parametrize(
+    "sae_cfg",
+    [
+        modeling.SparseAutoencoderConfig(d_vit=512, exp_factor=8, seed=0),
+        modeling.SparseAutoencoderConfig(d_vit=768, exp_factor=16, seed=1),
+        modeling.SparseAutoencoderConfig(d_vit=1024, exp_factor=32, seed=2),
+    ],
+)
+def test_dump_load_roundtrip_simple(tmp_path, sae_cfg):
     """Write → load → verify state-dict & cfg equality."""
     sae = modeling.SparseAutoencoder(sae_cfg)
     _ = sae(torch.randn(2, sae_cfg.d_vit))  # touch all params once
@@ -572,7 +636,30 @@ def test_dump_load_roundtrip(tmp_path, sae_cfg):
         torch.testing.assert_close(v, sae_loaded.state_dict()[k])
 
 
-@given(cfg=relu_cfgs(), n=st.integers(20, 100), pareto_power=st.floats(0.1, 0.8))
+@given(sae_cfg=sae_cfgs_comprehensive())
+@settings(deadline=None, max_examples=10)
+def test_dump_load_roundtrip_hypothesis(sae_cfg):
+    """Property-based test for dump/load roundtrip with random configurations."""
+    import tempfile
+
+    # Create SAE and test roundtrip
+    sae = modeling.SparseAutoencoder(sae_cfg)
+    _ = sae(torch.randn(2, sae_cfg.d_vit))  # touch all params once
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        ckpt = f"{tmp_dir}/sae.pt"
+        modeling.dump(ckpt, sae)
+        sae_loaded = modeling.load(ckpt)
+
+        # configs identical
+        assert sae_cfg == sae_loaded.cfg
+
+        # tensors identical
+        for k, v in sae.state_dict().items():
+            torch.testing.assert_close(v, sae_loaded.state_dict()[k])
+
+
+@given(cfg=sae_cfgs(), n=st.integers(20, 100), pareto_power=st.floats(0.1, 0.8))
 @settings(deadline=None)
 def test_sample_prefix(cfg, n, pareto_power):
     """Check to make sure that the prefix sampling follows a pareto dist."""
@@ -601,3 +688,37 @@ def test_sample_prefix(cfg, n, pareto_power):
     statistic, p_value = kstest(prefixes, pareto_prefixes)
 
     assert p_value > 0.01
+
+
+def test_load_local_checkpoint(request):
+    """Test loading a checkpoint from a local path specified via --ckpt-path."""
+    ckpt_path = request.config.getoption("--ckpt-path")
+    if ckpt_path is None:
+        pytest.skip("No checkpoint path provided. Use --ckpt-path to specify one.")
+
+    # Test loading the checkpoint
+    model = modeling.load(ckpt_path)
+
+    # Basic smoke tests
+    assert isinstance(model, modeling.SparseAutoencoder)
+    assert hasattr(model, "cfg")
+    assert isinstance(model.cfg, modeling.SparseAutoencoderConfig)
+
+    # Test forward pass
+    x = torch.randn(2, model.cfg.d_vit)
+    x_hat, f_x = model(x)
+
+    # Check shapes
+    assert x_hat.shape == x.shape
+    assert f_x.shape == (2, model.cfg.d_sae)
+
+    # Check that outputs are finite
+    assert torch.isfinite(x_hat).all()
+    assert torch.isfinite(f_x).all()
+
+    # Print some info about the loaded checkpoint
+    print(f"\nLoaded checkpoint from: {ckpt_path}")
+    print(f"Model config: d_vit={model.cfg.d_vit}, d_sae={model.cfg.d_sae}")
+    print(f"Activation: {type(model.cfg.activation).__name__}")
+    if hasattr(model.cfg.activation, "top_k"):
+        print(f"Top-k value: {model.cfg.activation.top_k}")

@@ -19,57 +19,33 @@ from .. import __version__, helpers
 
 
 @beartype.beartype
-@dataclasses.dataclass(frozen=True, slots=True)
+@dataclasses.dataclass(frozen=True)
 class Relu:
-    d_vit: int = 1024
-    exp_factor: int = 16
-    """Expansion factor for SAE."""
-    n_reinit_samples: int = 1024 * 16 * 32
-    """Number of samples to use for SAE re-init. Anthropic proposes initializing b_dec to the geometric median of the dataset here: https://transformer-circuits.pub/2023/monosemantic-features/index.html#appendix-autoencoder-bias. We use the regular mean."""
-    remove_parallel_grads: bool = True
-    """Whether to remove gradients parallel to W_dec columns (which will be ignored because we force the columns to have unit norm). See https://transformer-circuits.pub/2023/monosemantic-features/index.html#appendix-autoencoder-optimization for the original discussion from Anthropic."""
-    normalize_w_dec: bool = True
-    """Whether to make sure W_dec has unit norm columns. See https://transformer-circuits.pub/2023/monosemantic-features/index.html#appendix-autoencoder for original citation."""
-    seed: int = 0
-    """Random seed."""
-
-    @property
-    def d_sae(self) -> int:
-        return self.d_vit * self.exp_factor
-
-
-@beartype.beartype
-@dataclasses.dataclass(frozen=True, slots=True)
-class JumpRelu:
-    """Implementation of the JumpReLU activation function for SAEs. Not implemented."""
+    """Vanilla ReLU"""
 
     pass
 
 
 @beartype.beartype
-@dataclasses.dataclass(frozen=True, slots=True)
+@dataclasses.dataclass(frozen=True)
 class TopK:
-    d_vit: int = 1024
-    exp_factor: int = 16
-    """Expansion factor for SAE."""
-    n_reinit_samples: int = 1024 * 16 * 32
-    """Number of samples to use for SAE re-init. Anthropic proposes initializing b_dec to the geometric median of the dataset here: https://transformer-circuits.pub/2023/monosemantic-features/index.html#appendix-autoencoder-bias. We use the regular mean."""
-    remove_parallel_grads: bool = True
-    """Whether to remove gradients parallel to W_dec columns (which will be ignored because we force the columns to have unit norm). See https://transformer-circuits.pub/2023/monosemantic-features/index.html#appendix-autoencoder-optimization for the original discussion from Anthropic."""
-    normalize_w_dec: bool = True
-    """Whether to make sure W_dec has unit norm columns. See https://transformer-circuits.pub/2023/monosemantic-features/index.html#appendix-autoencoder for original citation."""
-    seed: int = 0
-    """Random seed."""
     top_k: int = 32
-
-    @property
-    def d_sae(self) -> int:
-        return self.d_vit * self.exp_factor
+    """How many values are allowed to be non-zero."""
 
 
 @beartype.beartype
-@dataclasses.dataclass(frozen=True, slots=True)
+@dataclasses.dataclass(frozen=True)
 class BatchTopK:
+    top_k: int = 32
+    """How many values are allowed to be non-zero."""
+
+
+ActivationConfig = Relu | TopK | BatchTopK
+
+
+@beartype.beartype
+@dataclasses.dataclass(frozen=True)
+class SparseAutoencoderConfig:
     d_vit: int = 1024
     exp_factor: int = 16
     """Expansion factor for SAE."""
@@ -81,14 +57,11 @@ class BatchTopK:
     """Whether to make sure W_dec has unit norm columns. See https://transformer-circuits.pub/2023/monosemantic-features/index.html#appendix-autoencoder for original citation."""
     seed: int = 0
     """Random seed."""
-    top_k: int = 32
+    activation: ActivationConfig = Relu()
 
     @property
     def d_sae(self) -> int:
         return self.d_vit * self.exp_factor
-
-
-SparseAutoencoderConfig = Relu | JumpRelu | TopK | BatchTopK
 
 
 @jaxtyped(typechecker=beartype.beartype)
@@ -115,7 +88,7 @@ class SparseAutoencoder(torch.nn.Module):
 
         self.normalize_w_dec()
 
-        self.activation = get_activation(cfg)
+        self.activation = get_activation(cfg.activation)
 
     def forward(
         self, x: Float[Tensor, "batch d_model"]
@@ -345,11 +318,9 @@ class BatchTopKActivation(torch.nn.Module):
 
 
 @beartype.beartype
-def get_activation(cfg: SparseAutoencoderConfig) -> torch.nn.Module:
+def get_activation(cfg: ActivationConfig) -> torch.nn.Module:
     if isinstance(cfg, Relu):
         return torch.nn.ReLU()
-    elif isinstance(cfg, JumpRelu):
-        raise NotImplementedError()
     elif isinstance(cfg, TopK):
         return TopKActivation(cfg)
     elif isinstance(cfg, BatchTopK):
@@ -367,10 +338,18 @@ def dump(fpath: str, sae: SparseAutoencoder):
         fpath: filepath to save checkpoint to.
         sae: sparse autoencoder checkpoint to save.
     """
+    # Custom serialization to handle activation object
+    cfg_dict = dataclasses.asdict(sae.cfg)
+    # Replace activation dict with custom format
+    activation = sae.cfg.activation
+    cfg_dict["activation"] = {
+        "cls": activation.__class__.__name__,
+        "params": dataclasses.asdict(activation),
+    }
+
     header = {
-        "schema": 1,
-        "cfg": dataclasses.asdict(sae.cfg),
-        "cls": sae.cfg.__class__.__name__,
+        "schema": 2,
+        "cfg": cfg_dict,
         "commit": helpers.current_git_commit() or "unknown",
         "lib": __version__,
     }
@@ -392,13 +371,51 @@ def load(fpath: str, *, device="cpu") -> SparseAutoencoder:
         buffer = io.BytesIO(fd.read())
 
     if "schema" not in header:
-        # Original, pre-schema stuff.
-        for keyword in ("sparsity_coeff", "ghost_grads"):
-            header.pop(keyword)
-        cfg = Relu(**header)
+        # Original, pre-schema format: just raw config parameters
+        # Remove old parameters that no longer exist
+        for keyword in ("sparsity_coeff", "ghost_grads", "l1_coeff", "use_ghost_grads"):
+            header.pop(keyword, None)
+        # Legacy format - create SparseAutoencoderConfig with Relu activation
+        cfg = SparseAutoencoderConfig(**header, activation=Relu())
     elif header["schema"] == 1:
-        cls = globals()[header["cls"]]  # default for v0
-        cfg = cls(**header["cfg"])
+        # Schema version 1: A cautionary tale of poor version management
+        #
+        # This schema version unfortunately has TWO incompatible formats because we made breaking changes without incrementing the schema version. This is exactly what schema versioning is supposed to prevent!
+        #
+        # Format 1A (original): cls field contains activation type ("Relu", "TopK", etc.)
+        # Format 1B (later): cls field is "SparseAutoencoderConfig" and activation is a dict
+        #
+        # The complex logic below exists to handle both formats. This should have been avoided by incrementing to schema version 2 when we changed the format.
+        #
+        # Apologies from Sam for this mess - proper schema versioning discipline would have prevented this confusing situation. Every breaking change should increment the version number!
+
+        cls_name = header.get("cls", "SparseAutoencoderConfig")
+        cfg_dict = header["cfg"]
+
+        if cls_name in ["Relu", "TopK", "BatchTopK"]:
+            # Format 1A: Old format where cls indicates the activation type
+            activation_cls = globals()[cls_name]
+            if cls_name in ["TopK", "BatchTopK"]:
+                activation = activation_cls(top_k=cfg_dict.get("top_k", 32))
+            else:
+                activation = activation_cls()
+            cfg = SparseAutoencoderConfig(**cfg_dict, activation=activation)
+        else:
+            # Format 1B: Newer format with activation as dict
+            if "activation" in cfg_dict:
+                activation_info = cfg_dict["activation"]
+                activation_cls = globals()[activation_info["cls"]]
+                activation = activation_cls(**activation_info["params"])
+                cfg_dict["activation"] = activation
+            cfg = SparseAutoencoderConfig(**cfg_dict)
+    elif header["schema"] == 2:
+        # Schema version 2: cleaner format with activation serialization
+        cfg_dict = header["cfg"]
+        activation_info = cfg_dict["activation"]
+        activation_cls = globals()[activation_info["cls"]]
+        activation = activation_cls(**activation_info["params"])
+        cfg_dict["activation"] = activation
+        cfg = SparseAutoencoderConfig(**cfg_dict)
     else:
         raise ValueError(f"Unknown schema version: {header['schema']}")
 

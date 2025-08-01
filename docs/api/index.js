@@ -540,6 +540,51 @@ INDEX=[
 "func":1
 },
 {
+"ref":"saev.nn.SparseAutoencoderConfig",
+"url":13,
+"doc":"SparseAutoencoderConfig(d_vit: int = 1024, exp_factor: int = 16, n_reinit_samples: int = 524288, remove_parallel_grads: bool = True, normalize_w_dec: bool = True, seed: int = 0, activation: saev.nn.modeling.Relu | saev.nn.modeling.TopK | saev.nn.modeling.BatchTopK = Relu( "
+},
+{
+"ref":"saev.nn.SparseAutoencoderConfig.d_vit",
+"url":13,
+"doc":""
+},
+{
+"ref":"saev.nn.SparseAutoencoderConfig.exp_factor",
+"url":13,
+"doc":"Expansion factor for SAE."
+},
+{
+"ref":"saev.nn.SparseAutoencoderConfig.n_reinit_samples",
+"url":13,
+"doc":"Number of samples to use for SAE re-init. Anthropic proposes initializing b_dec to the geometric median of the dataset here: https: transformer-circuits.pub/2023/monosemantic-features/index.html appendix-autoencoder-bias. We use the regular mean."
+},
+{
+"ref":"saev.nn.SparseAutoencoderConfig.remove_parallel_grads",
+"url":13,
+"doc":"Whether to remove gradients parallel to W_dec columns (which will be ignored because we force the columns to have unit norm). See https: transformer-circuits.pub/2023/monosemantic-features/index.html appendix-autoencoder-optimization for the original discussion from Anthropic."
+},
+{
+"ref":"saev.nn.SparseAutoencoderConfig.normalize_w_dec",
+"url":13,
+"doc":"Whether to make sure W_dec has unit norm columns. See https: transformer-circuits.pub/2023/monosemantic-features/index.html appendix-autoencoder for original citation."
+},
+{
+"ref":"saev.nn.SparseAutoencoderConfig.seed",
+"url":13,
+"doc":"Random seed."
+},
+{
+"ref":"saev.nn.SparseAutoencoderConfig.activation",
+"url":13,
+"doc":""
+},
+{
+"ref":"saev.nn.SparseAutoencoderConfig.d_sae",
+"url":13,
+"doc":""
+},
+{
 "ref":"saev.nn.dump",
 "url":13,
 "doc":"Save an SAE checkpoint to disk along with configuration, using the [trick from equinox](https: docs.kidger.site/equinox/examples/serialisation). Arguments: fpath: filepath to save checkpoint to. sae: sparse autoencoder checkpoint to save.",
@@ -565,135 +610,70 @@ INDEX=[
 {
 "ref":"saev.nn.modeling.Relu",
 "url":14,
-"doc":"Relu(d_vit: int = 1024, exp_factor: int = 16, n_reinit_samples: int = 524288, remove_parallel_grads: bool = True, normalize_w_dec: bool = True, seed: int = 0)"
-},
-{
-"ref":"saev.nn.modeling.Relu.d_sae",
-"url":14,
-"doc":""
-},
-{
-"ref":"saev.nn.modeling.Relu.d_vit",
-"url":14,
-"doc":""
-},
-{
-"ref":"saev.nn.modeling.Relu.exp_factor",
-"url":14,
-"doc":"Expansion factor for SAE."
-},
-{
-"ref":"saev.nn.modeling.Relu.n_reinit_samples",
-"url":14,
-"doc":"Number of samples to use for SAE re-init. Anthropic proposes initializing b_dec to the geometric median of the dataset here: https: transformer-circuits.pub/2023/monosemantic-features/index.html appendix-autoencoder-bias. We use the regular mean."
-},
-{
-"ref":"saev.nn.modeling.Relu.normalize_w_dec",
-"url":14,
-"doc":"Whether to make sure W_dec has unit norm columns. See https: transformer-circuits.pub/2023/monosemantic-features/index.html appendix-autoencoder for original citation."
-},
-{
-"ref":"saev.nn.modeling.Relu.remove_parallel_grads",
-"url":14,
-"doc":"Whether to remove gradients parallel to W_dec columns (which will be ignored because we force the columns to have unit norm). See https: transformer-circuits.pub/2023/monosemantic-features/index.html appendix-autoencoder-optimization for the original discussion from Anthropic."
-},
-{
-"ref":"saev.nn.modeling.Relu.seed",
-"url":14,
-"doc":"Random seed."
-},
-{
-"ref":"saev.nn.modeling.JumpRelu",
-"url":14,
-"doc":"Implementation of the JumpReLU activation function for SAEs. Not implemented."
+"doc":"Vanilla ReLU"
 },
 {
 "ref":"saev.nn.modeling.TopK",
 "url":14,
-"doc":"TopK(d_vit: int = 1024, exp_factor: int = 16, n_reinit_samples: int = 524288, remove_parallel_grads: bool = True, normalize_w_dec: bool = True, seed: int = 0, top_k: int = 32)"
-},
-{
-"ref":"saev.nn.modeling.TopK.d_sae",
-"url":14,
-"doc":""
-},
-{
-"ref":"saev.nn.modeling.TopK.d_vit",
-"url":14,
-"doc":""
-},
-{
-"ref":"saev.nn.modeling.TopK.exp_factor",
-"url":14,
-"doc":"Expansion factor for SAE."
-},
-{
-"ref":"saev.nn.modeling.TopK.n_reinit_samples",
-"url":14,
-"doc":"Number of samples to use for SAE re-init. Anthropic proposes initializing b_dec to the geometric median of the dataset here: https: transformer-circuits.pub/2023/monosemantic-features/index.html appendix-autoencoder-bias. We use the regular mean."
-},
-{
-"ref":"saev.nn.modeling.TopK.normalize_w_dec",
-"url":14,
-"doc":"Whether to make sure W_dec has unit norm columns. See https: transformer-circuits.pub/2023/monosemantic-features/index.html appendix-autoencoder for original citation."
-},
-{
-"ref":"saev.nn.modeling.TopK.remove_parallel_grads",
-"url":14,
-"doc":"Whether to remove gradients parallel to W_dec columns (which will be ignored because we force the columns to have unit norm). See https: transformer-circuits.pub/2023/monosemantic-features/index.html appendix-autoencoder-optimization for the original discussion from Anthropic."
-},
-{
-"ref":"saev.nn.modeling.TopK.seed",
-"url":14,
-"doc":"Random seed."
+"doc":"TopK(top_k: int = 32)"
 },
 {
 "ref":"saev.nn.modeling.TopK.top_k",
 "url":14,
-"doc":""
+"doc":"How many values are allowed to be non-zero."
 },
 {
 "ref":"saev.nn.modeling.BatchTopK",
 "url":14,
-"doc":"BatchTopK(d_vit: int = 1024, exp_factor: int = 16, n_reinit_samples: int = 524288, remove_parallel_grads: bool = True, normalize_w_dec: bool = True, seed: int = 0, top_k: int = 32)"
+"doc":"BatchTopK(top_k: int = 32)"
 },
 {
-"ref":"saev.nn.modeling.BatchTopK.d_sae",
+"ref":"saev.nn.modeling.BatchTopK.top_k",
+"url":14,
+"doc":"How many values are allowed to be non-zero."
+},
+{
+"ref":"saev.nn.modeling.SparseAutoencoderConfig",
+"url":14,
+"doc":"SparseAutoencoderConfig(d_vit: int = 1024, exp_factor: int = 16, n_reinit_samples: int = 524288, remove_parallel_grads: bool = True, normalize_w_dec: bool = True, seed: int = 0, activation: saev.nn.modeling.Relu | saev.nn.modeling.TopK | saev.nn.modeling.BatchTopK = Relu( "
+},
+{
+"ref":"saev.nn.modeling.SparseAutoencoderConfig.d_vit",
 "url":14,
 "doc":""
 },
 {
-"ref":"saev.nn.modeling.BatchTopK.d_vit",
-"url":14,
-"doc":""
-},
-{
-"ref":"saev.nn.modeling.BatchTopK.exp_factor",
+"ref":"saev.nn.modeling.SparseAutoencoderConfig.exp_factor",
 "url":14,
 "doc":"Expansion factor for SAE."
 },
 {
-"ref":"saev.nn.modeling.BatchTopK.n_reinit_samples",
+"ref":"saev.nn.modeling.SparseAutoencoderConfig.n_reinit_samples",
 "url":14,
 "doc":"Number of samples to use for SAE re-init. Anthropic proposes initializing b_dec to the geometric median of the dataset here: https: transformer-circuits.pub/2023/monosemantic-features/index.html appendix-autoencoder-bias. We use the regular mean."
 },
 {
-"ref":"saev.nn.modeling.BatchTopK.normalize_w_dec",
-"url":14,
-"doc":"Whether to make sure W_dec has unit norm columns. See https: transformer-circuits.pub/2023/monosemantic-features/index.html appendix-autoencoder for original citation."
-},
-{
-"ref":"saev.nn.modeling.BatchTopK.remove_parallel_grads",
+"ref":"saev.nn.modeling.SparseAutoencoderConfig.remove_parallel_grads",
 "url":14,
 "doc":"Whether to remove gradients parallel to W_dec columns (which will be ignored because we force the columns to have unit norm). See https: transformer-circuits.pub/2023/monosemantic-features/index.html appendix-autoencoder-optimization for the original discussion from Anthropic."
 },
 {
-"ref":"saev.nn.modeling.BatchTopK.seed",
+"ref":"saev.nn.modeling.SparseAutoencoderConfig.normalize_w_dec",
+"url":14,
+"doc":"Whether to make sure W_dec has unit norm columns. See https: transformer-circuits.pub/2023/monosemantic-features/index.html appendix-autoencoder for original citation."
+},
+{
+"ref":"saev.nn.modeling.SparseAutoencoderConfig.seed",
 "url":14,
 "doc":"Random seed."
 },
 {
-"ref":"saev.nn.modeling.BatchTopK.top_k",
+"ref":"saev.nn.modeling.SparseAutoencoderConfig.activation",
+"url":14,
+"doc":""
+},
+{
+"ref":"saev.nn.modeling.SparseAutoencoderConfig.d_sae",
 "url":14,
 "doc":""
 },
