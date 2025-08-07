@@ -2,10 +2,11 @@ import collections
 import dataclasses
 import os
 import sys
+import tempfile
 
 import beartype
 import numpy as np
-from hypothesis import given
+from hypothesis import given, settings
 from hypothesis import strategies as st
 from jaxtyping import Int, jaxtyped
 
@@ -196,7 +197,7 @@ def test_grid_empty_sweep():
     """Test that empty sweep returns original config."""
     base = Parent()
     configs, errs = helpers.grid(base, {})
-    
+
     assert len(configs) == 1
     assert len(errs) == 0
     assert configs[0].name == base.name
@@ -217,6 +218,7 @@ def test_grid_single_nested_update():
 
 def test_grid_with_none_values():
     """Test grid expansion with None values."""
+
     @dataclasses.dataclass(frozen=True)
     class OptionalChild:
         value: int | None = None
@@ -263,7 +265,7 @@ def test_grid_sae_activation_sweep():
 def test_grid_multiple_sae_params_with_activation():
     """Test sweeping multiple SAE parameters including nested activation."""
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    
+
     from saev import nn
     from train import Config
 
@@ -291,58 +293,30 @@ def test_grid_multiple_sae_params_with_activation():
 def test_grid_nested_objective_config():
     """Test sweeping nested objective configuration."""
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    
+
     from saev import nn
     from train import Config
 
-    base_cfg = Config(
-        objective=nn.objectives.Vanilla(sparsity_coeff=1e-3, sparsity_warmup_steps=1000)
-    )
+    base_cfg = Config(objective=nn.objectives.Vanilla(sparsity_coeff=1e-3))
 
     sweep = {
         "objective": {
             "sparsity_coeff": [1e-4, 1e-3, 1e-2],
-            "sparsity_warmup_steps": [500, 1000],
         }
     }
 
     configs, errs = helpers.grid(base_cfg, sweep)
 
-    assert len(configs) == 6  # 3 * 2
+    assert len(configs) == 3
     assert len(errs) == 0
     assert all(isinstance(c.objective, nn.objectives.Vanilla) for c in configs)
     coeffs = [c.objective.sparsity_coeff for c in configs]
     assert 1e-4 in coeffs and 1e-2 in coeffs
 
 
-def test_grid_complex_nested_data_config():
-    """Test complex nested case with data config."""
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    
-    from saev import nn
-    from train import Config
-
-    base_cfg = Config(
-        data=helpers.get(
-            dataclasses.asdict(Config()), "data"
-        ),  # Get default data config
-        sae=nn.SparseAutoencoderConfig(activation=nn.modeling.BatchTopK(top_k=64)),
-    )
-
-    sweep = {
-        "data": {"layer": [11, 12, 13], "buffer_size": [128, 256]},
-        "sae": {"activation": {"top_k": [32, 64]}},
-    }
-
-    configs, errs = helpers.grid(base_cfg, sweep)
-
-    # Note: This test might fail with current implementation
-    # because data config might not be a dataclass that supports
-    # nested updates. This demonstrates the limitation.
-
-
 def test_grid_invalid_field_error():
     """Test that invalid field names produce errors."""
+
     @dataclasses.dataclass
     class SimpleConfig:
         value: int = 1
@@ -359,6 +333,7 @@ def test_grid_invalid_field_error():
 
 def test_grid_type_mismatch():
     """Test handling of type mismatches."""
+
     @dataclasses.dataclass
     class SimpleConfig:
         value: int = 1
@@ -368,8 +343,7 @@ def test_grid_type_mismatch():
     sweep = {"value": ["not_an_int"]}
     configs, errs = helpers.grid(base, sweep)
 
-    # This might or might not produce an error depending on implementation
-    # but let's check that it's handled gracefully
+    # This might or might not produce an error depending on implementation but let's check that it's handled gracefully
     assert len(configs) + len(errs) == 1
 
 
@@ -397,6 +371,7 @@ def test_grid_union_type_update():
 
 def test_grid_frozen_dataclass():
     """Test that frozen dataclasses can be updated via replacement."""
+
     @dataclasses.dataclass(frozen=True)
     class FrozenConfig:
         value: int = 1
@@ -419,6 +394,7 @@ def test_grid_frozen_dataclass():
 
 def test_grid_list_of_dataclasses():
     """Test handling of lists containing dataclasses."""
+
     @dataclasses.dataclass
     class ListItem:
         id: int = 0
@@ -437,3 +413,94 @@ def test_grid_list_of_dataclasses():
     # Just check it doesn't crash
     assert isinstance(configs, list)
     assert isinstance(errs, list)
+
+
+def test_fssafe_common_cases():
+    """Test fssafe with common checkpoint names."""
+    # HuggingFace hub format
+    assert (
+        helpers.fssafe("hf-hub:timm/ViT-L-16-SigLIP2-256")
+        == "hf-hub_timm_ViT-L-16-SigLIP2-256"
+    )
+
+    # Path with slashes
+    assert helpers.fssafe("/path/to/model.pt") == "_path_to_model.pt"
+
+    # Windows path
+    assert (
+        helpers.fssafe("C:\\Users\\Model\\checkpoint.bin")
+        == "C__Users_Model_checkpoint.bin"
+    )
+
+    # Special characters
+    assert helpers.fssafe("model*name?test") == "model_name_test"
+
+    # Already safe string
+    assert helpers.fssafe("safe_filename_123.txt") == "safe_filename_123.txt"
+
+
+def test_fssafe_edge_cases():
+    """Test fssafe edge cases."""
+    # Empty string
+    assert helpers.fssafe("") == ""
+
+    # Only special characters
+    assert helpers.fssafe('://\\*?"<>|') == "__________"
+
+    # Spaces
+    assert helpers.fssafe("file with spaces.txt") == "file_with_spaces.txt"
+
+    # Newlines and tabs
+    assert (
+        helpers.fssafe("file\nwith\nnewlines\tand\ttabs")
+        == "file_with_newlines_and_tabs"
+    )
+
+
+def test_fssafe_creates_valid_files():
+    """Test that fssafe output can be used as filenames."""
+    test_cases = [
+        "hf-hub:timm/ViT-L-16-SigLIP2-256",
+        "path/to/model:version2",
+        "model<>name|with*special?chars",
+        'file"with"quotes',
+        "tabs\tand\nnewlines\rtest",
+    ]
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        for original in test_cases:
+            safe_name = helpers.fssafe(original)
+            if safe_name:  # Skip empty names
+                file_path = os.path.join(tmpdir, safe_name + ".txt")
+                # This should not raise an exception
+                with open(file_path, "w") as f:
+                    f.write("test")
+                assert os.path.exists(file_path)
+
+
+@given(
+    st.text(
+        alphabet=st.characters(min_codepoint=1, max_codepoint=1000),
+        min_size=1,
+        max_size=200,
+    )
+)
+@settings(max_examples=1000, deadline=None)
+def test_fssafe_property(input_string):
+    """Property test: fssafe should always produce valid filenames."""
+    safe_name = helpers.fssafe(input_string)
+
+    # If the result is not empty, we should be able to create a file with it
+    if safe_name:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Truncate to avoid filesystem limits
+            truncated = safe_name[:200] if len(safe_name) > 200 else safe_name
+            file_path = os.path.join(tmpdir, truncated + ".test")
+
+            # This should not raise an exception
+            with open(file_path, "w") as f:
+                f.write("test")
+
+            # Verify we can read it back
+            with open(file_path, "r") as f:
+                assert f.read() == "test"

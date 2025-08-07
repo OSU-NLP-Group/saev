@@ -51,17 +51,13 @@ class Config:
     Configuration for training a sparse autoencoder on a vision transformer.
     """
 
-    data: saev.data.ShuffledConfig = dataclasses.field(
-        default_factory=saev.data.ShuffledConfig
-    )
+    data: saev.data.ShuffledConfig = saev.data.ShuffledConfig()
     """Data configuration"""
     n_train: int = 100_000_000
     """Number of SAE training samples."""
     n_test: int = 10_000_000
     """Number of SAE evaluation samples."""
-    sae: nn.SparseAutoencoderConfig = dataclasses.field(
-        default_factory=nn.modeling.Relu
-    )
+    sae: nn.SparseAutoencoderConfig = nn.SparseAutoencoderConfig()
     """SAE configuration."""
     objective: nn.ObjectiveConfig = dataclasses.field(
         default_factory=nn.objectives.Vanilla
@@ -110,7 +106,7 @@ def make_saes(
 ) -> tuple[torch.nn.ModuleList, torch.nn.ModuleList, list[dict[str, object]]]:
     saes, objectives, param_groups = [], [], []
     for sae_cfg, obj_cfg in cfgs:
-        if isinstance(obj_cfg, nn.Matryoshka):
+        if isinstance(obj_cfg, nn.objectives.Matryoshka):
             sae = nn.modeling.MatryoshkaSparseAutoencoder(sae_cfg)
         else:
             sae = nn.SparseAutoencoder(sae_cfg)
@@ -334,6 +330,7 @@ def train(
     return saes, objectives, run, global_step
 
 
+# TODO: I think this needs to be jaxtyped, but jaxtyped in a submitit context can cause real issues.
 @beartype.beartype
 @dataclasses.dataclass(frozen=True)
 class EvalMetrics:

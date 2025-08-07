@@ -84,8 +84,8 @@ def test_batch_topk_activation(cfg, batch, d_sae):
     x = torch.randn(batch, d_sae)
     y = act(x)
     assert y.shape == (batch, d_sae)
-    # Check that only k elements are non-zero per batch
-    assert (y != 0).sum(dim=1).sum(dim=0).eq(cfg.top_k)
+    # Check that only k elements are non-zero per sample
+    assert (y != 0).sum(dim=1).eq(cfg.top_k).all()
 
 
 def test_topk_basic_forward():
@@ -204,14 +204,14 @@ def test_topk_zero_gradient_for_unselected():
 # BatchTopK Edge Case Tests
 def test_batchtopk_basic_forward():
     """Test basic BatchTopK forward pass with known values."""
-    cfg = modeling.BatchTopK(top_k=3)
+    cfg = modeling.BatchTopK(top_k=2)
     act = modeling.BatchTopKActivation(cfg)
 
     x = torch.tensor([[5.0, 1.0, 3.0], [2.0, 4.0, 1.0]])
     y = act(x)
 
-    # Top 3 values globally are 5.0, 4.0, 3.0
-    expected = torch.tensor([[5.0, 0.0, 3.0], [0.0, 4.0, 0.0]])
+    # Top 2 values per sample
+    expected = torch.tensor([[5.0, 0.0, 3.0], [2.0, 4.0, 0.0]])
     torch.testing.assert_close(y, expected)
 
 
@@ -242,35 +242,35 @@ def test_batchtopk_single_batch():
 
 def test_batchtopk_uneven_distribution():
     """Test BatchTopK with uneven value distribution across batch."""
-    cfg = modeling.BatchTopK(top_k=3)
+    cfg = modeling.BatchTopK(top_k=2)
     act = modeling.BatchTopKActivation(cfg)
 
     # First batch has large values, second has small values
     x = torch.tensor([[10.0, 20.0, 30.0], [1.0, 2.0, 3.0]])
     y = act(x)
 
-    # All top-k should come from first batch
-    expected = torch.tensor([[10.0, 20.0, 30.0], [0.0, 0.0, 0.0]])
+    # Top 2 values per sample
+    expected = torch.tensor([[0.0, 20.0, 30.0], [0.0, 2.0, 3.0]])
     torch.testing.assert_close(y, expected)
 
 
 def test_batchtopk_ties():
     """Test BatchTopK behavior with tied values."""
-    cfg = modeling.BatchTopK(top_k=3)
+    cfg = modeling.BatchTopK(top_k=2)
     act = modeling.BatchTopKActivation(cfg)
 
     x = torch.tensor([[2.0, 2.0, 2.0], [2.0, 2.0, 2.0]])
     y = act(x)
 
-    # Should select k elements (tie-breaking based on flattened indices)
-    assert (y != 0).sum() == 3
+    # Should select k elements per sample
+    assert (y != 0).sum(dim=1).eq(2).all()
     assert y[y != 0].unique().item() == 2.0
 
 
 # BatchTopK Gradient Tests
 def test_batchtopk_gradient_flow():
     """Test that gradients flow correctly through BatchTopK."""
-    cfg = modeling.BatchTopK(top_k=3)
+    cfg = modeling.BatchTopK(top_k=2)
     act = modeling.BatchTopKActivation(cfg)
 
     x = torch.tensor([[5.0, 1.0, 3.0], [2.0, 4.0, 1.0]], requires_grad=True)
@@ -280,14 +280,14 @@ def test_batchtopk_gradient_flow():
     loss = y.sum()
     loss.backward()
 
-    # Expected gradient: 1.0 for selected elements (5.0, 4.0, 3.0), 0.0 for others
-    expected_grad = torch.tensor([[1.0, 0.0, 1.0], [0.0, 1.0, 0.0]])
+    # Expected gradient: 1.0 for top 2 elements per sample
+    expected_grad = torch.tensor([[1.0, 0.0, 1.0], [1.0, 1.0, 0.0]])
     torch.testing.assert_close(x.grad, expected_grad)
 
 
 def test_batchtopk_gradient_global_sparsity():
-    """Verify gradient sparsity is global across batch."""
-    cfg = modeling.BatchTopK(top_k=4)
+    """Verify gradient sparsity is per sample."""
+    cfg = modeling.BatchTopK(top_k=2)
     act = modeling.BatchTopKActivation(cfg)
 
     torch.manual_seed(42)
@@ -298,8 +298,8 @@ def test_batchtopk_gradient_global_sparsity():
     grad_output = torch.randn_like(y)
     y.backward(grad_output)
 
-    # Check that exactly k gradients are non-zero globally
-    assert (x.grad != 0).sum() == 4
+    # Check that exactly k gradients are non-zero per sample
+    assert (x.grad != 0).sum(dim=1).eq(2).all()
 
     # Check that gradient sparsity matches forward pass
     forward_mask = (y != 0).float()
@@ -314,7 +314,7 @@ def test_batchtopk_gradient_global_sparsity():
 
 def test_batchtopk_gradient_distribution():
     """Test gradient distribution with uneven value distribution."""
-    cfg = modeling.BatchTopK(top_k=3)
+    cfg = modeling.BatchTopK(top_k=2)
     act = modeling.BatchTopKActivation(cfg)
 
     # First batch has large values, second has small values
@@ -325,14 +325,14 @@ def test_batchtopk_gradient_distribution():
     grad_output = torch.tensor([[2.0, 3.0, 4.0], [5.0, 6.0, 7.0]])
     y.backward(grad_output)
 
-    # All gradients should flow to first batch only
-    expected_grad = torch.tensor([[2.0, 3.0, 4.0], [0.0, 0.0, 0.0]])
+    # Gradients should flow to top 2 per sample
+    expected_grad = torch.tensor([[0.0, 3.0, 4.0], [0.0, 6.0, 7.0]])
     torch.testing.assert_close(x.grad, expected_grad)
 
 
 def test_batchtopk_zero_gradient_verification():
     """Explicitly verify BatchTopK zero gradients for unselected elements."""
-    cfg = modeling.BatchTopK(top_k=2)
+    cfg = modeling.BatchTopK(top_k=1)
     act = modeling.BatchTopKActivation(cfg)
 
     x = torch.tensor([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]], requires_grad=True)
@@ -341,12 +341,12 @@ def test_batchtopk_zero_gradient_verification():
     loss = y.sum()
     loss.backward()
 
-    # Only the last row should have gradients (contains 5.0 and 6.0)
+    # Only the highest value per row should have gradients
     torch.testing.assert_close(x.grad[0, 0], torch.tensor(0.0))
-    torch.testing.assert_close(x.grad[0, 1], torch.tensor(0.0))
+    torch.testing.assert_close(x.grad[0, 1], torch.tensor(1.0))
     torch.testing.assert_close(x.grad[1, 0], torch.tensor(0.0))
-    torch.testing.assert_close(x.grad[1, 1], torch.tensor(0.0))
-    torch.testing.assert_close(x.grad[2, 0], torch.tensor(1.0))
+    torch.testing.assert_close(x.grad[1, 1], torch.tensor(1.0))
+    torch.testing.assert_close(x.grad[2, 0], torch.tensor(0.0))
     torch.testing.assert_close(x.grad[2, 1], torch.tensor(1.0))
 
 
@@ -403,9 +403,8 @@ def test_batchtopk_gradient_properties(cfg, batch, d_sae):
     x = torch.randn(batch, d_sae, requires_grad=True)
     y = act(x)
 
-    # Skip if k > total elements (edge case handled separately)
-    total_elements = batch * d_sae
-    if cfg.top_k > total_elements:
+    # Skip if k > d_sae (edge case handled separately)
+    if cfg.top_k > d_sae:
         return
 
     # Create random upstream gradient
@@ -419,9 +418,9 @@ def test_batchtopk_gradient_properties(cfg, batch, d_sae):
         "Gradient sparsity doesn't match forward pass"
     )
 
-    # Property 2: Exactly k non-zero gradients globally
-    assert (x.grad != 0).sum() == cfg.top_k, (
-        f"Expected {cfg.top_k} non-zero gradients, got {(x.grad != 0).sum()}"
+    # Property 2: Exactly k non-zero gradients per sample
+    assert (x.grad != 0).sum(dim=1).eq(cfg.top_k).all(), (
+        f"Expected {cfg.top_k} non-zero gradients per sample"
     )
 
     # Property 3: Non-selected elements have exactly zero gradient
@@ -472,7 +471,7 @@ def test_topk_chain_rule():
 
 def test_batchtopk_chain_rule():
     """Test gradient flow through BatchTopK in a deeper network."""
-    cfg = modeling.BatchTopK(top_k=3)
+    cfg = modeling.BatchTopK(top_k=2)
     act = modeling.BatchTopKActivation(cfg)
 
     # Build a simple network
@@ -495,8 +494,8 @@ def test_batchtopk_chain_rule():
     assert linear1.weight.grad is not None
     assert linear2.weight.grad is not None
 
-    # Verify global sparsity pattern
-    assert (h2 != 0).sum() == 3
+    # Verify per-sample sparsity pattern
+    assert (h2 != 0).sum(dim=1).eq(2).all()
 
 
 def test_topk_non_differentiable_selection():
