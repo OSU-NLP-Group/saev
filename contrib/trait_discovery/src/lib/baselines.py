@@ -29,7 +29,7 @@ class Scorer(torch.nn.Module):
         """The constructor's kwargs."""
         raise NotImplementedError()
 
-    def train(self, dataloader: saev.data.iterable.DataLoader):
+    def train(self, dataloader: saev.data.shuffled.DataLoader):
         """ """
         raise NotImplementedError()
 
@@ -44,10 +44,8 @@ class Scorer(torch.nn.Module):
 
 
 @beartype.beartype
-def load(fpath: str, *, device="cpu") -> Scorer:
-    """
-    Loads a sparse autoencoder from disk.
-    """
+def load(fpath: str) -> Scorer:
+    """Loads a `Scorer` from disk."""
     with open(fpath, "rb") as fd:
         header = json.loads(fd.readline())
         buffer = io.BytesIO(fd.read())
@@ -58,7 +56,7 @@ def load(fpath: str, *, device="cpu") -> Scorer:
     else:
         raise ValueError(f"Unknown schema version: {header['schema']}")
 
-    scorer.load_state_dict(torch.load(buffer, weights_only=True, map_location=device))
+    scorer.load_state_dict(torch.load(buffer, weights_only=True, map_location="cpu"))
     return scorer
 
 
@@ -106,7 +104,7 @@ class RandomVectors(Scorer):
         """The constructor's kwargs."""
         return dict(n_prototypes=self.n_prototypes, d=self._d, seed=self._seed)
 
-    def train(self, dataloader: saev.data.iterable.DataLoader):
+    def train(self, dataloader: saev.data.shuffled.DataLoader):
         """Uniformly sample n_prototypes vectors from a streaming DataLoader using reservoir sampling.
 
         Args:
@@ -148,6 +146,8 @@ class RandomVectors(Scorer):
                 self.prototypes_KD[replace_pos] = x_BD[keep_mask]
             n_seen += b
 
+        self._trained = True
+
     def forward(self, activations_BD: Float[Tensor, "B D"]) -> Float[Tensor, "B K"]:
         if not self._trained:
             raise RuntimeError("Call train() first.")
@@ -171,7 +171,7 @@ class KMeans(Scorer):
     def n_prototypes(self) -> int:
         return self._n_means
 
-    def train(self, dataloader: saev.data.iterable.DataLoader):
+    def train(self, dataloader: saev.data.shuffled.DataLoader):
         raise NotImplementedError()
 
     def forward(self, activations_BD: Float[Tensor, "B D"]) -> Float[Tensor, "B K"]:
@@ -197,7 +197,7 @@ class PCA(Scorer):
     def n_prototypes(self) -> int:
         return self._n_components
 
-    def train(self, dataloader: saev.data.iterable.DataLoader):
+    def train(self, dataloader: saev.data.shuffled.DataLoader):
         raise NotImplementedError()
 
     def forward(self, activations_BD: Float[Tensor, "B D"]) -> Float[Tensor, "B K"]:

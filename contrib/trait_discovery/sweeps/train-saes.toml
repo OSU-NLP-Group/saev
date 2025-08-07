@@ -1,15 +1,17 @@
-tag = "train-v2.0"
+tag = "train-v1.0"
 
 lr = [3e-4, 1e-3, 3e-3]
 
 n_lr_warmup = 500
+n_sparsity_warmup = 6000
 
 [sae]
 normalize_w_dec = true
 remove_parallel_grads = true
 exp_factor = [16]
-activation = "batch-top-k"
-activation.top_k = [32, 128, 512, 2048]
+
+[objective]
+sparsity_coeff = [4e-4, 8e-4, 1.6e-3]
 
 [data]
 layer = [13, 17, 21, 23]
