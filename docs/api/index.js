@@ -48,6 +48,12 @@ INDEX=[
 "func":1
 },
 {
+"ref":"saev.helpers.fssafe",
+"url":1,
+"doc":"Convert a string to be filesystem-safe by replacing special characters. This is particularly useful for checkpoint names that contain characters like 'hf-hub:timm/ViT-L-16-SigLIP2-256' which need to be converted to something like 'hf-hub_timm_ViT-L-16-SigLIP2-256'. Args: s: String to make filesystem-safe. Returns: Filesystem-safe version of the string.",
+"func":1
+},
+{
 "ref":"saev.helpers.progress",
 "url":1,
 "doc":"Wraps an iterable with a logger like tqdm but doesn't use any control codes to manipulate a progress bar, which doesn't work well when your output is redirected to a file. Instead, simple logging statements are used, but it includes quality-of-life features like iteration speed and predicted time to finish. Args: it: Iterable to wrap. every: How many iterations between logging progress. desc: What to name the logger. total: If non-zero, how long the iterable is."
@@ -85,6 +91,24 @@ INDEX=[
 "ref":"saev.helpers.current_git_commit",
 "url":1,
 "doc":"Best-effort short SHA of the repo containing  this file. Returns  None when   git executable is missing,  we\u2019re not inside a git repo (e.g. installed wheel),  or any git call errors out.",
+"func":1
+},
+{
+"ref":"saev.helpers.get_slurm_max_array_size",
+"url":1,
+"doc":"Get the MaxArraySize configuration from the current Slurm cluster. Returns: int: The maximum array size allowed on the cluster. Returns 1000 as fallback if unable to determine.",
+"func":1
+},
+{
+"ref":"saev.helpers.get_slurm_max_submit_jobs",
+"url":1,
+"doc":"Get the MaxSubmitJobs limit from the current user's QOS. Returns: int: The maximum number of jobs that can be submitted at once. Returns 1000 as fallback.",
+"func":1
+},
+{
+"ref":"saev.helpers.get_slurm_job_count",
+"url":1,
+"doc":"Get the current number of jobs in the queue for the current user. Uses squeue's -r flag to properly count job array elements individually. For example, a job array 12345_[0-99] will be counted as 100 jobs.",
 "func":1
 },
 {
@@ -522,6 +546,12 @@ INDEX=[
 "func":1
 },
 {
+"ref":"saev.nn.SparseAutoencoder.encode",
+"url":13,
+"doc":"",
+"func":1
+},
+{
 "ref":"saev.nn.SparseAutoencoder.decode",
 "url":13,
 "doc":"",
@@ -630,7 +660,7 @@ INDEX=[
 {
 "ref":"saev.nn.modeling.BatchTopK.top_k",
 "url":14,
-"doc":"How many values are allowed to be non-zero."
+"doc":"How many values are allowed to be non-zero per sample in the batch."
 },
 {
 "ref":"saev.nn.modeling.SparseAutoencoderConfig",
@@ -686,6 +716,12 @@ INDEX=[
 "ref":"saev.nn.modeling.SparseAutoencoder.forward",
 "url":14,
 "doc":"Given x, calculates the reconstructed x_hat and the intermediate activations f_x. Arguments: x: a batch of ViT activations.",
+"func":1
+},
+{
+"ref":"saev.nn.modeling.SparseAutoencoder.encode",
+"url":14,
+"doc":"",
 "func":1
 },
 {
@@ -761,12 +797,12 @@ INDEX=[
 {
 "ref":"saev.nn.modeling.BatchTopKActivation",
 "url":14,
-"doc":"Batch Top-K activation function. For use as activation function of sparse encoder. Initialize internal Module state, shared by both nn.Module and ScriptModule."
+"doc":"Batch Top-K activation function. For use as activation function of sparse encoder. Applies top-k selection per sample in the batch. Initialize internal Module state, shared by both nn.Module and ScriptModule."
 },
 {
 "ref":"saev.nn.modeling.BatchTopKActivation.forward",
 "url":14,
-"doc":"Apply top-k activation to the input tensor.",
+"doc":"Apply top-k activation to each sample in the batch.",
 "func":1
 },
 {

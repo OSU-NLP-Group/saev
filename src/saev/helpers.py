@@ -5,6 +5,7 @@ import itertools
 import logging
 import os
 import pathlib
+import re
 import subprocess
 import time
 import typing
@@ -31,6 +32,40 @@ def get_cache_dir() -> str:
     for var in ("SAEV_CACHE", "HF_HOME", "HF_HUB_CACHE"):
         cache_dir = cache_dir or os.environ.get(var, "")
     return cache_dir or "."
+
+
+@beartype.beartype
+def fssafe(s: str) -> str:
+    """
+    Convert a string to be filesystem-safe by replacing special characters.
+
+    This is particularly useful for checkpoint names that contain characters like
+    'hf-hub:timm/ViT-L-16-SigLIP2-256' which need to be converted to something like
+    'hf-hub_timm_ViT-L-16-SigLIP2-256'.
+
+    Args:
+        s: String to make filesystem-safe.
+
+    Returns:
+        Filesystem-safe version of the string.
+    """
+    # Replace common problematic characters with underscores
+    replacements = {
+        "/": "_",
+        "\\": "_",
+        ":": "_",
+        "*": "_",
+        "?": "_",
+        '"': "_",
+        "<": "_",
+        ">": "_",
+        "|": "_",
+        " ": "_",
+    }
+    for old, new in replacements.items():
+        s = s.replace(old, new)
+    # Remove any remaining non-alphanumeric characters except - _ .
+    return "".join(c if c.isalnum() or c in "-_." else "_" for c in s)
 
 
 @beartype.beartype
@@ -195,6 +230,39 @@ def _expand_discrete(
             yield {**c, key: value}
 
 
+def _recursive_dataclass_update(obj, updates: dict[str, object], base_cfg, d: int):
+    """Recursively update nested dataclasses."""
+    if not dataclasses.is_dataclass(obj):
+        # If obj is not a dataclass, we can't update it recursively
+        return updates
+
+    result = {}
+    for key, value in updates.items():
+        if not hasattr(obj, key):
+            # Key doesn't exist on this object, pass it through
+            result[key] = value
+            continue
+
+        attr = getattr(obj, key)
+
+        if dataclasses.is_dataclass(attr) and isinstance(value, dict):
+            # Recursively update the nested dataclass
+            nested_updates = _recursive_dataclass_update(attr, value, base_cfg, d)
+
+            # Handle seed updates for nested objects
+            if hasattr(attr, "seed") and "seed" not in nested_updates:
+                base_seed = getattr(base_cfg, "seed", 0) if base_cfg else 0
+                nested_updates["seed"] = getattr(attr, "seed", 0) + base_seed + d
+
+            # Create a new instance of the nested dataclass with updates
+            result[key] = dataclasses.replace(attr, **nested_updates)
+        else:
+            # Direct assignment for non-dataclass fields or non-dict values
+            result[key] = value
+
+    return result
+
+
 @beartype.beartype
 def grid(cfg: T, sweep_dct: dict[str, object]) -> tuple[list[T], list[str]]:
     """Generate configs from ``cfg`` according to ``sweep_dct``."""
@@ -203,25 +271,14 @@ def grid(cfg: T, sweep_dct: dict[str, object]) -> tuple[list[T], list[str]]:
     errs: list[str] = []
 
     for d, dct in enumerate(expand(sweep_dct)):
-        updates = {}
-        for key, value in dct.items():
-            attr = getattr(cfg, key)
-            if dataclasses.is_dataclass(attr) and isinstance(value, dict):
-                sub_updates = dict(value)
-                if hasattr(attr, "seed"):
-                    sub_updates["seed"] = (
-                        sub_updates.get("seed", attr.seed) + getattr(cfg, "seed", 0) + d
-                    )
-                updates[key] = dataclasses.replace(attr, **sub_updates)
-            else:
-                updates[key] = value
+        updates = _recursive_dataclass_update(cfg, dct, cfg, d)
 
-        if hasattr(cfg, "seed"):
-            updates.setdefault("seed", getattr(cfg, "seed") + d)
+        if hasattr(cfg, "seed") and "seed" not in updates:
+            updates["seed"] = getattr(cfg, "seed", 0) + d
 
         try:
             cfgs.append(dataclasses.replace(cfg, **updates))
-        except Exception as err:  # pragma: no cover - passthrough for caller
+        except Exception as err:
             errs.append(str(err))
 
     return cfgs, errs
@@ -256,3 +313,122 @@ def current_git_commit() -> str | None:
         return result.stdout.strip() or None
     except (FileNotFoundError, subprocess.CalledProcessError):
         return None
+
+
+@beartype.beartype
+def get_slurm_max_array_size() -> int:
+    """
+    Get the MaxArraySize configuration from the current Slurm cluster.
+
+    Returns:
+        int: The maximum array size allowed on the cluster. Returns 1000 as fallback if unable to determine.
+    """
+    logger = logging.getLogger("helpers.slurm")
+    try:
+        # Run scontrol command to get config information
+        result = subprocess.run(
+            ["scontrol", "show", "config"], capture_output=True, text=True, check=True
+        )
+
+        # Search for MaxArraySize in the output
+        match = re.search(r"MaxArraySize\s*=\s*(\d+)", result.stdout)
+        if match:
+            max_array_size = int(match.group(1))
+            logger.info("Detected MaxArraySize = %d", max_array_size)
+            return max_array_size
+        else:
+            logger.warning(
+                "Could not find MaxArraySize in scontrol output, using default of 1000"
+            )
+            return 1000
+
+    except subprocess.SubprocessError as e:
+        logger.error("Error running scontrol: %s", e)
+        return 1000  # Safe default
+    except ValueError as e:
+        logger.error("Error parsing MaxArraySize: %s", e)
+        return 1000  # Safe default
+    except FileNotFoundError:
+        logger.warning(
+            "scontrol command not found. Assuming not in Slurm environment. Returning default MaxArraySize=1000."
+        )
+        return 1000
+
+
+@beartype.beartype
+def get_slurm_max_submit_jobs() -> int:
+    """
+    Get the MaxSubmitJobs limit from the current user's QOS.
+
+    Returns:
+        int: The maximum number of jobs that can be submitted at once. Returns 1000 as fallback.
+    """
+    logger = logging.getLogger("helpers.slurm")
+    try:
+        # First, try to get the QOS from a recent job
+        result = subprocess.run(
+            ["scontrol", "show", "job", "-o"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        qos_name = None
+        if result.returncode == 0 and result.stdout:
+            # Extract QOS from job info
+            match = re.search(r"QOS=(\S+)", result.stdout)
+            if match:
+                qos_name = match.group(1)
+
+        if not qos_name:
+            # If no jobs, try to get default QOS from association
+            # This is less reliable but better than nothing
+            logger.warning("No active jobs to determine QOS, using default of 1000")
+            return 1000
+
+        # Get the MaxSubmitJobs for this QOS
+        result = subprocess.run(
+            ["sacctmgr", "show", "qos", qos_name, "format=maxsubmitjobs", "-n", "-P"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+
+        max_submit = result.stdout.strip()
+        if max_submit and max_submit.isdigit():
+            limit = int(max_submit)
+            logger.info("Detected MaxSubmitJobs = %d for QOS %s", limit, qos_name)
+            return limit
+        else:
+            logger.warning("Could not parse MaxSubmitJobs, using default of 1000")
+            return 1000
+
+    except subprocess.SubprocessError as e:
+        logger.error("Error getting MaxSubmitJobs: %s", e)
+        return 1000
+    except (ValueError, FileNotFoundError) as e:
+        logger.error("Error: %s", e)
+        return 1000
+
+
+@beartype.beartype
+def get_slurm_job_count() -> int:
+    """
+    Get the current number of jobs in the queue for the current user.
+
+    Uses squeue's -r flag to properly count job array elements individually.
+    For example, a job array 12345_[0-99] will be counted as 100 jobs.
+    """
+    try:
+        # Use -r to display each array element on its own line
+        result = subprocess.run(
+            ["squeue", "--me", "-h", "-r"], capture_output=True, text=True, check=True
+        )
+
+        # Count non-empty lines
+        lines = result.stdout.strip().split("\n")
+        return len([line for line in lines if line.strip()])
+
+    except (subprocess.SubprocessError, FileNotFoundError):
+        # If we can't check, assume no jobs
+        return 0

@@ -57,6 +57,22 @@ hljs.highlightAll();
 <dd>
 <div class="desc"><p>Flatten a potentially nested dict to a single-level dict with <code>.</code>-separated keys.</p></div>
 </dd>
+<dt id="saev.helpers.fssafe"><code class="name flex">
+<span>def <span class="ident">fssafe</span></span>(<span>s: str) ‑> str</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Convert a string to be filesystem-safe by replacing special characters.</p>
+<p>This is particularly useful for checkpoint names that contain characters like
+'hf-hub:timm/ViT-L-16-SigLIP2-256' which need to be converted to something like
+'hf-hub_timm_ViT-L-16-SigLIP2-256'.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>s</code></strong></dt>
+<dd>String to make filesystem-safe.</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<p>Filesystem-safe version of the string.</p></div>
+</dd>
 <dt id="saev.helpers.get"><code class="name flex">
 <span>def <span class="ident">get</span></span>(<span>dct: dict[str, object], key: str, *, sep: str = '.') ‑> object</span>
 </code></dt>
@@ -70,6 +86,36 @@ hljs.highlightAll();
 <div class="desc"><p>Get cache directory from environment variables, defaulting to the current working directory (.)</p>
 <h2 id="returns">Returns</h2>
 <p>A path to a cache directory (might not exist yet).</p></div>
+</dd>
+<dt id="saev.helpers.get_slurm_job_count"><code class="name flex">
+<span>def <span class="ident">get_slurm_job_count</span></span>(<span>) ‑> int</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Get the current number of jobs in the queue for the current user.</p>
+<p>Uses squeue's -r flag to properly count job array elements individually.
+For example, a job array 12345_[0-99] will be counted as 100 jobs.</p></div>
+</dd>
+<dt id="saev.helpers.get_slurm_max_array_size"><code class="name flex">
+<span>def <span class="ident">get_slurm_max_array_size</span></span>(<span>) ‑> int</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Get the MaxArraySize configuration from the current Slurm cluster.</p>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><code>int</code></dt>
+<dd>The maximum array size allowed on the cluster. Returns 1000 as fallback if unable to determine.</dd>
+</dl></div>
+</dd>
+<dt id="saev.helpers.get_slurm_max_submit_jobs"><code class="name flex">
+<span>def <span class="ident">get_slurm_max_submit_jobs</span></span>(<span>) ‑> int</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Get the MaxSubmitJobs limit from the current user's QOS.</p>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><code>int</code></dt>
+<dd>The maximum number of jobs that can be submitted at once. Returns 1000 as fallback.</dd>
+</dl></div>
 </dd>
 <dt id="saev.helpers.grid"><code class="name flex">
 <span>def <span class="ident">grid</span></span>(<span>cfg: ~T, sweep_dct: dict[str, object]) ‑> tuple[list[~T], list[str]]</span>
@@ -299,12 +345,16 @@ setTimeout(() => input.focus(), 100);
 </ul>
 </li>
 <li><h3><a href="#header-functions">Functions</a></h3>
-<ul class="two-column">
+<ul class="">
 <li><code><a title="saev.helpers.current_git_commit" href="#saev.helpers.current_git_commit">current_git_commit</a></code></li>
 <li><code><a title="saev.helpers.expand" href="#saev.helpers.expand">expand</a></code></li>
 <li><code><a title="saev.helpers.flattened" href="#saev.helpers.flattened">flattened</a></code></li>
+<li><code><a title="saev.helpers.fssafe" href="#saev.helpers.fssafe">fssafe</a></code></li>
 <li><code><a title="saev.helpers.get" href="#saev.helpers.get">get</a></code></li>
 <li><code><a title="saev.helpers.get_cache_dir" href="#saev.helpers.get_cache_dir">get_cache_dir</a></code></li>
+<li><code><a title="saev.helpers.get_slurm_job_count" href="#saev.helpers.get_slurm_job_count">get_slurm_job_count</a></code></li>
+<li><code><a title="saev.helpers.get_slurm_max_array_size" href="#saev.helpers.get_slurm_max_array_size">get_slurm_max_array_size</a></code></li>
+<li><code><a title="saev.helpers.get_slurm_max_submit_jobs" href="#saev.helpers.get_slurm_max_submit_jobs">get_slurm_max_submit_jobs</a></code></li>
 <li><code><a title="saev.helpers.grid" href="#saev.helpers.grid">grid</a></code></li>
 </ul>
 </li>

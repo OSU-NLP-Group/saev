@@ -118,15 +118,18 @@ class SparseAutoencoder(torch.nn.Module):
         Arguments:
             x: a batch of ViT activations.
         &#34;&#34;&#34;
+        f_x = self.encode(x)
+        x_hat = self.decode(f_x)
 
+        return x_hat, f_x
+
+    def encode(self, x: Float[Tensor, &#34;batch d_model&#34;]) -&gt; Float[Tensor, &#34;batch d_sae&#34;]:
         h_pre = (
             einops.einsum(x, self.W_enc, &#34;... d_vit, d_vit d_sae -&gt; ... d_sae&#34;)
             + self.b_enc
         )
         f_x = self.activation(h_pre)
-        x_hat = self.decode(f_x)
-
-        return x_hat, f_x
+        return f_x
 
     def decode(
         self, f_x: Float[Tensor, &#34;batch d_sae&#34;]
@@ -178,6 +181,12 @@ class SparseAutoencoder(torch.nn.Module):
 <dl>
 <dt id="saev.nn.SparseAutoencoder.decode"><code class="name flex">
 <span>def <span class="ident">decode</span></span>(<span>self, f_x: jaxtyping.Float[Tensor, 'batch d_sae']) ‑> jaxtyping.Float[Tensor, 'batch d_model']</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="saev.nn.SparseAutoencoder.encode"><code class="name flex">
+<span>def <span class="ident">encode</span></span>(<span>self, x: jaxtyping.Float[Tensor, 'batch d_model']) ‑> jaxtyping.Float[Tensor, 'batch d_sae']</span>
 </code></dt>
 <dd>
 <div class="desc"></div>
@@ -360,6 +369,7 @@ setTimeout(() => input.focus(), 100);
 <h4><code><a title="saev.nn.SparseAutoencoder" href="#saev.nn.SparseAutoencoder">SparseAutoencoder</a></code></h4>
 <ul class="">
 <li><code><a title="saev.nn.SparseAutoencoder.decode" href="#saev.nn.SparseAutoencoder.decode">decode</a></code></li>
+<li><code><a title="saev.nn.SparseAutoencoder.encode" href="#saev.nn.SparseAutoencoder.encode">encode</a></code></li>
 <li><code><a title="saev.nn.SparseAutoencoder.forward" href="#saev.nn.SparseAutoencoder.forward">forward</a></code></li>
 <li><code><a title="saev.nn.SparseAutoencoder.normalize_w_dec" href="#saev.nn.SparseAutoencoder.normalize_w_dec">normalize_w_dec</a></code></li>
 <li><code><a title="saev.nn.SparseAutoencoder.remove_parallel_grads" href="#saev.nn.SparseAutoencoder.remove_parallel_grads">remove_parallel_grads</a></code></li>
