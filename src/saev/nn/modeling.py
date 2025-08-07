@@ -37,7 +37,7 @@ class TopK:
 @dataclasses.dataclass(frozen=True)
 class BatchTopK:
     top_k: int = 32
-    """How many values are allowed to be non-zero."""
+    """How many values are allowed to be non-zero per sample in the batch."""
 
 
 ActivationConfig = Relu | TopK | BatchTopK
@@ -99,15 +99,18 @@ class SparseAutoencoder(torch.nn.Module):
         Arguments:
             x: a batch of ViT activations.
         """
+        f_x = self.encode(x)
+        x_hat = self.decode(f_x)
 
+        return x_hat, f_x
+
+    def encode(self, x: Float[Tensor, "batch d_model"]) -> Float[Tensor, "batch d_sae"]:
         h_pre = (
             einops.einsum(x, self.W_enc, "... d_vit, d_vit d_sae -> ... d_sae")
             + self.b_enc
         )
         f_x = self.activation(h_pre)
-        x_hat = self.decode(f_x)
-
-        return x_hat, f_x
+        return f_x
 
     def decode(
         self, f_x: Float[Tensor, "batch d_sae"]
@@ -289,6 +292,7 @@ class TopKActivation(torch.nn.Module):
 class BatchTopKActivation(torch.nn.Module):
     """
     Batch Top-K activation function. For use as activation function of sparse encoder.
+    Applies top-k selection per sample in the batch.
     """
 
     def __init__(self, cfg: BatchTopK = BatchTopK()):
@@ -298,23 +302,21 @@ class BatchTopKActivation(torch.nn.Module):
 
     def forward(self, x: Float[Tensor, "batch d_sae"]) -> Float[Tensor, "batch d_sae"]:
         """
-        Apply top-k activation to the input tensor.
+        Apply top-k activation to each sample in the batch.
         """
         if self.k <= 0:
             raise ValueError("k must be a positive integer.")
 
-        orig_shape = x.shape
-        x = x.flatten()
+        # Handle case where k exceeds number of elements per sample
+        k = min(self.k, x.shape[-1])
 
-        # Handle case where k exceeds number of elements
-        k = min(self.k, x.numel())
-
+        # Apply top-k per sample (along the last dimension)
         k_vals, k_inds = torch.topk(x, k, dim=-1, sorted=False)
         mask = torch.zeros_like(x).scatter_(
             dim=-1, index=k_inds, src=torch.ones_like(x)
         )
 
-        return torch.mul(mask, x).reshape(orig_shape)
+        return torch.mul(mask, x)
 
 
 @beartype.beartype
