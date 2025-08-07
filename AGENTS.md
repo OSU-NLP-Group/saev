@@ -22,3 +22,7 @@ The key for these suffixes:
 * C: Number of classes in ADE20K (151)
 
 For example, an activation tensor with shape (batch, width, height d_vit) is `acts_BWHD`.
+
+# Running Code
+
+Run code with `uv run python <args>` or `uv run <scriptname.py> <args>` to run Python code.
