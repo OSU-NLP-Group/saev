@@ -77,7 +77,9 @@ def __(json, mo, os, pl):
 def __(df, np, pl, plt):
     def graph(df):
         df = (
-            df.group_by(["n_prototypes", "n_train", "vit_family", "vit_ckpt", "layer"])
+            df
+            # .filter(pl.col("vit_ckpt") == "dinov2_vitl14_reg")
+            .group_by(["n_prototypes", "n_train", "vit_family", "vit_ckpt", "layer"])
             .agg(
                 pl.col("average_precision").mean().alias("mAP"),
                 pl.col("average_precision").quantile(0.05).alias("5%"),
@@ -89,43 +91,51 @@ def __(df, np, pl, plt):
         )
 
         fig, axes = plt.subplots(
-            nrows=2,
-            ncols=2,
+            nrows=4,
+            ncols=3,
             sharex=True,
             sharey=True,
             dpi=300,
-            figsize=(6, 6),
+            figsize=(8, 12),
             layout="constrained",
         )
         axes = axes.reshape(-1)
 
         n_prototype_vals = sorted(df.get_column("n_prototypes").unique())
         layer_vals = sorted(df.get_column("layer").unique())
+        model_vals = sorted(df.get_column("vit_family").unique())
 
         colors = plt.cm.viridis(np.linspace(0, 1, len(n_prototype_vals)))
         markers = ["o", "s", "^", "v", "D", "P", "X", "*"]  # extend if needed
 
-        for layer, ax in zip(layer_vals, axes):
-            for color, marker, n in zip(colors, markers, n_prototype_vals):
-                sub = df.filter(
-                    (pl.col("n_prototypes") == n) & (pl.col("layer") == layer)
-                )
+        for marker, vit in zip(markers, model_vals):
+            for i, (ax, layer) in enumerate(zip(axes, layer_vals)):
+                for color, n in zip(colors, n_prototype_vals):
+                    sub = df.filter(
+                        (pl.col("n_prototypes") == n)
+                        & (pl.col("layer") == layer)
+                        & (pl.col("vit_family") == vit)
+                    )
 
-                ax.plot(
-                    sub.get_column("n_train"),
-                    sub.get_column("mAP"),
-                    color=color,
-                    marker=marker,
-                    label=f"{n}",
-                )
-                ax.set_title(f"Layer {layer}")
+                    ax.plot(
+                        sub.get_column("n_train"),
+                        sub.get_column("mAP"),
+                        color=color,
+                        marker=marker,
+                        label=f"{vit}/{n}",
+                        alpha=0.5,
+                    )
+                    ax.set_title(f"Layer {layer}")
 
-                ax.set_xlabel("$n$ Train")
-                ax.set_ylabel("mAP")
+                    ax.set_xlabel("$n$ Train")
+                    ax.set_ylabel("mAP")
+                    ax.set_xscale("log")
 
-                ax.spines[["top", "right"]].set_visible(False)
-                # ax.set_ylim(0, 1)
-        ax.legend(title="$n$ Prototypes")
+                    ax.spines[["top", "right"]].set_visible(False)
+                    # ax.set_ylim(0, 1)
+
+                if i == 2:
+                    ax.legend(ncols=1)
 
         return fig
 
@@ -146,7 +156,7 @@ def __(df, pl):
         )
         .sort(["n_prototypes", "n_train", "layer"])
         .rename({"n_prototypes": "Prototypes", "n_train": "Train", "layer": "Layer"})
-        .drop("vit_family", "vit_ckpt", "std", "median")
+        .drop("vit_ckpt", "std", "median")
         .to_pandas()
         .to_markdown(index=False, tablefmt="github")
     )

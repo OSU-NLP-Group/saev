@@ -23,6 +23,7 @@ import json
 import logging
 import os
 import os.path
+import time
 import tomllib
 import typing as tp
 
@@ -82,9 +83,6 @@ class Config:
     output_format: tp.Literal["json", "csv", "both"] = "json"
     """Output format for results."""
 
-    # Hardware configuration
-    device: tp.Literal["cuda", "cpu"] = "cuda"
-    """Hardware device."""
     seed: int = 42
     """Random seed."""
 
@@ -334,46 +332,79 @@ def main(cfg: tp.Annotated[Config, tyro.conf.arg(name="")], sweep: str = ""):
     else:
         cfgs = [cfg]
 
+    # Calculate safe limits (95% of max, at least 2 smaller)
+    max_array_size = helpers.get_slurm_max_array_size()
+    max_submit_jobs = helpers.get_slurm_max_submit_jobs()
+
     if cfg.slurm_acct:
+        safe_array_size = min(int(max_array_size * 0.95), max_array_size - 2)
+        safe_array_size = max(1, safe_array_size)  # Ensure at least 1
+
+        safe_submit_jobs = min(int(max_submit_jobs * 0.95), max_submit_jobs - 2)
+        safe_submit_jobs = max(1, safe_submit_jobs)  # Ensure at least 1
+
+        logger.info(
+            "Using safe limits - Array size: %d (max: %d), Submit jobs: %d (max: %d)",
+            safe_array_size,
+            max_array_size,
+            safe_submit_jobs,
+            max_submit_jobs,
+        )
         executor = submitit.SlurmExecutor(folder=cfg.log_to)
         executor.update_parameters(
             time=int(cfg.n_hours * 60),
             partition=cfg.slurm_partition,
-            gpus_per_node=1,
+            gpus_per_node=0,
             ntasks_per_node=1,
             # Request 8 CPUs because I want more memory and I don't know how else to get memory.
             cpus_per_task=8,
             stderr_to_stdout=True,
             account=cfg.slurm_acct,
+            array_parallelism=safe_array_size,  # Limit array size
         )
     else:
         executor = submitit.DebugExecutor(folder=cfg.log_to)
-
-    # Calculate safe array size (95% of max, at least 2 smaller)
-    max_array_size = helpers.get_slurm_max_array_size()
-    safe_array_size = min(int(max_array_size * 0.95), max_array_size - 2)
-    safe_array_size = max(1, safe_array_size)  # Ensure at least 1
+        safe_array_size = len(cfgs)  # No limit for debug executor
+        safe_submit_jobs = len(cfgs)  # No limit for debug executor
 
     if cfg.slurm_acct and len(cfgs) > safe_array_size:
         logger.info(
-            "Will submit %d jobs in batches of %d (MaxArraySize=%d)",
+            "Will submit %d jobs in batches of %d",
             len(cfgs),
             safe_array_size,
-            max_array_size,
         )
 
-    # Process jobs in batches to respect Slurm's maximum array size
+    # Process jobs in batches to respect Slurm's maximum array size and QOS limits
     all_jobs = []
-    batch_iter = helpers.batched_idx(len(cfgs), safe_array_size)
-    for batch_idx, (start, end) in enumerate(batch_iter):
+    batches = helpers.batched_idx(len(cfgs), safe_array_size)
+
+    for b, (start, end) in enumerate(batches):
         batch_cfgs = cfgs[start:end]
+
+        # Check current job count and adjust batch size if needed
+        if cfg.slurm_acct:
+            current_jobs = helpers.get_slurm_job_count()
+            jobs_available = max(0, safe_submit_jobs - current_jobs)
+
+            # Wait if we're at the QOS limit
+            while jobs_available < len(batch_cfgs):
+                logger.info(
+                    "Can only submit %d jobs but need %d. Waiting for more jobs to complete.",
+                    jobs_available,
+                    len(batch_cfgs),
+                )
+
+                # Wait and check again
+                time.sleep(120)  # Wait 30 seconds before checking again
+                current_jobs = helpers.get_slurm_job_count()
+                jobs_available = max(0, safe_submit_jobs - current_jobs)
 
         logger.info(
             "Submitting batch %d/%d: jobs %d-%d (%d jobs)",
-            batch_idx + 1,
-            len(batch_iter),
+            b + 1,
+            len(batches),
             start,
-            end - 1,
+            start + len(batch_cfgs) - 1,
             len(batch_cfgs),
         )
 
@@ -381,8 +412,7 @@ def main(cfg: tp.Annotated[Config, tyro.conf.arg(name="")], sweep: str = ""):
             batch_jobs = [executor.submit(worker_fn, c) for c in batch_cfgs]
 
         all_jobs.extend(batch_jobs)
-
-        logger.info("Submitted batch %d/%d", batch_idx + 1, len(batch_iter))
+        logger.info("Submitted batch %d/%d", b + 1, len(batches))
 
     logger.info("Submitted %d total jobs.", len(all_jobs))
     for j, job in enumerate(all_jobs):

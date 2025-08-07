@@ -611,7 +611,23 @@ Here are the raw results (for LLMs, agents, etc):
 Jake suggested trying all of the last 12 layers.
 Since the CUB vectors are small (only 12K images, about 72GB for 12 layers), we can simply store all of the last 12 layers.
 
+# 08/07/2025
+
 ```sh
 # Run 
 uv run eval_cub200.py --sweep sweeps/cub200-baselines.toml --cub-root /fs/ess/PAS2136/cub2011/CUB_200_2011_ImageFolder --train-data.shard-root /fs/scratch/PAS2136/samuelstevens/cache/saev/5d7021d1fef171427b0a165c89fae8cbae5af7e91080ca9bafccbadb5318c9d9 --test-data.shard-root /fs/scratch/PAS2136/samuelstevens/cache/saev/706cafabc5a038769ace3c5025c021cac1b3259c7b3ffb80759eab521bedaf04/ --slurm-acct PAS2136 --slurm-partition nextgen
+```
+
+Okay. I think I got it figured out for DINOv2.
+It seems to follow smoother trends than SigLIP2.
+I think I want to regenerate the SigLIP2 activations for CUB and try these experiments again.
+But I need to keep these old results around.
+
+So now I need to:
+
+1. Regenerate the SigLIP 2 activations for CUB, all layers (12-23)
+2. Move the existing siglip results to `results.backup`.
+3. Re-run the random vector experiment with the new siglip2 activations
+4. Compare against DINOv2.
+5. Compare against SAEs for both DINOv2 and SigLIP2.
 
