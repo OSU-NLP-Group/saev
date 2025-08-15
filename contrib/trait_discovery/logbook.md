@@ -625,9 +625,68 @@ But I need to keep these old results around.
 
 So now I need to:
 
-1. Regenerate the SigLIP 2 activations for CUB, all layers (12-23)
-2. Move the existing siglip results to `results.backup`.
-3. Re-run the random vector experiment with the new siglip2 activations
-4. Compare against DINOv2.
+1. Regenerate the SigLIP 2 activations for CUB, all layers (12-23) [done]
+2. Move the existing siglip results to `results.backup`. [done]
+3. Re-run the random vector experiment with the new siglip2 activations. [done]
+4. Compare against DINOv2. [done]
 5. Compare against SAEs for both DINOv2 and SigLIP2.
 
+If this leads to meaningfully different results, then I need to update the siglip shards for iNat21 as well.
+
+```sh
+# Train split
+uv run python -m saev.data --slurm-acct PAS2136 --n-hours 48 --slurm-partition nextgen --vit-family siglip --vit-ckpt hf-hub:timm/ViT-L-16-SigLIP2-256 --d-vit 1024 --n-patches-per-img 256 --vit-layers 12 13 14 15 16 17 18 19 20 21 22 23 --dump-to /fs/scratch/PAS2136/samuelstevens/cache/saev/ --no-cls-token --max-patches-per-shard 500_000 data:image-folder --data.root /fs/ess/PAS2136/cub2011/CUB_200_2011_ImageFolder/train/
+
+# Test split
+uv run python -m saev.data --slurm-acct PAS2136 --n-hours 48 --slurm-partition nextgen --vit-family siglip --vit-ckpt hf-hub:timm/ViT-L-16-SigLIP2-256 --d-vit 1024 --n-patches-per-img 256 --vit-layers 12 13 14 15 16 17 18 19 20 21 22 23 --dump-to /fs/scratch/PAS2136/samuelstevens/cache/saev/ --no-cls-token --max-patches-per-shard 500_000 data:image-folder --data.root /fs/ess/PAS2136/cub2011/CUB_200_2011_ImageFolder/test/
+```
+
+
+NIH ChestX-ray14, 5.5K citations
+
+https://nihcc.app.box.com/v/ChestXray-NIHCC
+https://arxiv.org/pdf/1705.02315
+
+112,120 total images with size 1024 x 1024
+8 possible labels (multi-label)
+880 also include bounding boxes for four findings
+
+Not really like CUB, where birds have a set of components. On average, each image has 1.2 pathologies.
+
+
+VinDr-CXR: An open dataset of chest X-rays with radiologist’s annotations (400+ citation)
+
+> Out of this raw data, we release 18,000 images that were manually annotated by a total of 17 experienced radiologists with 22 local labels of rectangles surrounding abnormalities and 6 global labels of suspected diseases.
+
+15K training, 3K test with 22 localizel labels, 6 global/image-level labels.
+
+
+MIMIC-CXR (Scientific Data, used in SAE-Rad)
+
+377K images
+
+
+HAM10000
+https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi%3A10.7910%2FDVN%2FDBW86T
+
+I'm not sure what annotations are provided. But it seems that there are pixel-level annotations. These could be used to produce bounding boxes or something like that.
+
+It's similar to semantic segmentation.
+
+
+```sh
+# Run SigLIP 2 random vectors
+uv run eval_cub200.py --sweep sweeps/cub200-baselines.toml --cub-root /fs/ess/PAS2136/cub2011/CUB_200_2011_ImageFolder --train-data.shard-root /fs/scratch/PAS2136/samuelstevens/cache/saev/d111f368ba4ae9515c9efd7f75f568e40a13072a48f88702166a76bc458628b5 --test-data.shard-root /fs/scratch/PAS2136/samuelstevens/cache/saev/0d868f6ea242faebb5c167d7131358e6dd1a4d9ebbd0268b43667f27c8bcbd75/ --slurm-acct PAS2136 --slurm-partition nextgen
+```
+
+# 08/12/2025
+
+1. DINOv2 instead of SigLIP?
+2. Earlier layers?
+3. Better SAEs (activation functions, objectives)?
+4. Train SAEs on bird-only images?
+
+- Jake will figure out BatchTopK/TopK aux + threshold during inference
+- I will train a linear classifier for each of the traits.
+- I will actually compare the SAEs to random vectors.
+- Ask Rayeed about kmeans/pca; if those don't improve then we're in real trouble.

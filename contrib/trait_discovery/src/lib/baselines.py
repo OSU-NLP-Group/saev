@@ -228,6 +228,16 @@ class LinearClassifier(Scorer):
         self._seed = seed
         self._device = device
         self._trained = False
+        self._cub_root = cub_root
+
+        # Store all training hyperparameters
+        self._lr = 1e-3
+        self._patience = 20
+        self._min_delta = 1e-3
+        self._loss_window_size = 10
+        self._max_steps = 100
+        self._log_every = 10
+        self._convergence_check_every = 10
 
         self.linear = torch.nn.Linear(d, n_traits, device=device)
         self._train_y_true_NT = cub200.load_attrs(cub_root, is_train=True)
@@ -236,10 +246,24 @@ class LinearClassifier(Scorer):
 
     @property
     def n_prototypes(self) -> int:
-        return self._n_components
+        return self._n_traits
+
+    @property
+    def kwargs(self) -> dict[str, object]:
+        """The constructor's kwargs."""
+        return dict(
+            cub_root=self._cub_root,
+            d=self._d,
+            seed=self._seed,
+            n_traits=self._n_traits,
+            device=self._device,
+        )
 
     def train(self, dataloader: saev.data.ShuffledDataLoader):
         """Fits a linear classifier using the image-level traits as supervision.
+
+        Uses AdamW optimizer with early stopping based on validation loss.
+        Automatically determines convergence without needing to set epochs.
 
         Args:
             dataloader: DataLoader.
@@ -247,25 +271,88 @@ class LinearClassifier(Scorer):
         d_vit = saev.data.Metadata.load(dataloader.cfg.shard_root).d_vit
         assert d_vit == self._d, "mismatch in ViT dimension"
 
-        optim = torch.optim.SGD(
-            self.linear.parameters(), momentum=0.9, nesterov=True, fused=True
-        )
+        # Use AdamW for faster convergence
+        optim = torch.optim.AdamW(self.linear.parameters(), lr=self._lr)
 
-        for b, batch in enumerate(helpers.progress(dataloader)):
-            logits_BK = self.linear(batch["act"])
-            y_true_BK = self._train_y_true_NT[batch["image_i"]].float()
-            loss = torch.nn.functional.binary_cross_entropy_with_logits(
-                logits_BK, y_true_BK
-            )
-            loss.backward()
-            optim.step()
-            if b % 1 == 0:
-                self.logger.info("step: %d, loss: %.5f", b, loss.item())
+        # Early stopping state
+        best_loss = float("inf")
+        patience_counter = 0
+
+        # Moving average for loss smoothing
+        loss_history = []
+
+        step = 0
+        converged = False
+
+        while not converged:
+            for batch in dataloader:
+                # Forward pass
+                logits_BK = self.linear(batch["act"])
+                y_true_BK = self._train_y_true_NT[batch["image_i"]].float()
+                loss = torch.nn.functional.binary_cross_entropy_with_logits(
+                    logits_BK, y_true_BK
+                )
+
+                # Backward pass
+                optim.zero_grad()
+                loss.backward()
+
+                optim.step()
+
+                # Track loss
+                current_loss = loss.item()
+                loss_history.append(current_loss)
+
+                n_losses = min(len(loss_history), self._loss_window_size)
+                # Log progress periodically
+                if step % self._log_every == 0:
+                    avg_loss = sum(loss_history[-self._loss_window_size :]) / n_losses
+                    self.logger.info(
+                        "step: %d, loss: %.5f, avg_loss: %.5f",
+                        step,
+                        current_loss,
+                        avg_loss,
+                    )
+
+                # Check for convergence periodically
+                if step > 0 and step % self._convergence_check_interval == 0:
+                    avg_loss = sum(loss_history[-self._loss_window_size :]) / n_losses
+
+                    # Check if loss improved
+                    if avg_loss < best_loss - self._min_delta:
+                        best_loss = avg_loss
+                        patience_counter = 0
+                    else:
+                        patience_counter += 1
+
+                    # Early stopping check
+                    if patience_counter >= self._patience:
+                        self.logger.info(
+                            "Early stopping triggered at step %d with loss %.5f",
+                            step,
+                            avg_loss,
+                        )
+                        converged = True
+                        break
+
+                step += 1
+
+                # Hard limit to prevent infinite training
+                if step >= self._max_steps:
+                    self.logger.info("Reached maximum steps limit")
+                    converged = True
+                    break
+
+            # Break outer loop if converged
+            if converged:
+                break
 
         self._trained = True
+        self.logger.info("Training completed in %d steps", step)
 
     def forward(self, activations_BD: Float[Tensor, "B D"]) -> Float[Tensor, "B K"]:
         if not self._trained:
             raise RuntimeError("Call train() first.")
 
-        return self.linear(activations_BD)
+        with torch.no_grad():
+            return self.linear(activations_BD)
