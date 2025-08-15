@@ -1,5 +1,6 @@
 import io
 import json
+import logging
 import os.path
 
 import beartype
@@ -9,6 +10,8 @@ from torch import Tensor
 
 import saev.data
 from saev import helpers
+
+from . import cub200
 
 
 @jaxtyped(typechecker=beartype.beartype)
@@ -104,7 +107,7 @@ class RandomVectors(Scorer):
         """The constructor's kwargs."""
         return dict(n_prototypes=self.n_prototypes, d=self._d, seed=self._seed)
 
-    def train(self, dataloader: saev.data.shuffled.DataLoader):
+    def train(self, dataloader: saev.data.ShuffledDataLoader):
         """Uniformly sample n_prototypes vectors from a streaming DataLoader using reservoir sampling.
 
         Args:
@@ -157,7 +160,7 @@ class RandomVectors(Scorer):
 
 @beartype.beartype
 class KMeans(Scorer):
-    def __init__(self, *, n_means: int, d: int, seed: int, device: str = "cuda"):
+    def __init__(self, *, n_means: int, d: int, seed: int, device: str = "cpu"):
         super().__init__()
 
         self._n_means = n_means
@@ -183,7 +186,7 @@ class KMeans(Scorer):
 
 @beartype.beartype
 class PCA(Scorer):
-    def __init__(self, *, n_components: int, d: int, seed: int, device: str = "cuda"):
+    def __init__(self, *, n_components: int, d: int, seed: int, device: str = "cpu"):
         super().__init__()
 
         self._n_components = n_components
@@ -205,3 +208,64 @@ class PCA(Scorer):
             raise RuntimeError("Call train() first.")
 
         return activations_BD @ self.components_KD.T
+
+
+@beartype.beartype
+class LinearClassifier(Scorer):
+    def __init__(
+        self,
+        *,
+        cub_root: str,
+        d: int,
+        seed: int,
+        n_traits: int = 312,
+        device: str = "cpu",
+    ):
+        super().__init__()
+
+        self._d = d
+        self._n_traits = n_traits
+        self._seed = seed
+        self._device = device
+        self._trained = False
+
+        self.linear = torch.nn.Linear(d, n_traits, device=device)
+        self._train_y_true_NT = cub200.load_attrs(cub_root, is_train=True)
+
+        self.logger = logging.getLogger("linear-clf")
+
+    @property
+    def n_prototypes(self) -> int:
+        return self._n_components
+
+    def train(self, dataloader: saev.data.ShuffledDataLoader):
+        """Fits a linear classifier using the image-level traits as supervision.
+
+        Args:
+            dataloader: DataLoader.
+        """
+        d_vit = saev.data.Metadata.load(dataloader.cfg.shard_root).d_vit
+        assert d_vit == self._d, "mismatch in ViT dimension"
+
+        optim = torch.optim.SGD(
+            self.linear.parameters(), momentum=0.9, nesterov=True, fused=True
+        )
+
+        for b, batch in enumerate(helpers.progress(dataloader)):
+            logits_BK = self.linear(batch["act"])
+            y_true_BK = self._train_y_true_NT[batch["image_i"]].float()
+            loss = torch.nn.functional.binary_cross_entropy_with_logits(
+                logits_BK, y_true_BK
+            )
+            loss.backward()
+            optim.step()
+            if b % 1 == 0:
+                self.logger.info("step: %d, loss: %.5f", b, loss.item())
+
+        self._trained = True
+
+    def forward(self, activations_BD: Float[Tensor, "B D"]) -> Float[Tensor, "B K"]:
+        if not self._trained:
+            raise RuntimeError("Call train() first.")
+
+        return self.linear(activations_BD)

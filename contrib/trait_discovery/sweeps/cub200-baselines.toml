@@ -1,7 +1,7 @@
 # Unified sweep configuration for baseline methods evaluation on CUB-200
 # 
 # Methods to evaluate
-method = ["random"]
+method = ["linear-clf"]
 
 # Number of prototypes/components for each method
 n_prototypes = [128, 512, 2048, 8224, 32768]

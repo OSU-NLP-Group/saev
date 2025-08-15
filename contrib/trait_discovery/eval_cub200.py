@@ -51,7 +51,7 @@ class Config:
     """
 
     # Method configuration
-    method: tp.Literal["random", "pca", "kmeans", "sae"] = "random"
+    method: tp.Literal["random", "pca", "kmeans", "linear-clf", "sae"] = "random"
     """Which method we are evaluating."""
     n_prototypes: int = 1024 * 32
     """Number of prototypes/components."""
@@ -110,6 +110,8 @@ def get_scorer(cfg: Config) -> baselines.Scorer:
         return baselines.KMeans(n_means=cfg.n_prototypes, d=d_vit, seed=cfg.seed)
     elif cfg.method == "pca":
         return baselines.PCA(n_components=cfg.n_prototypes, d=d_vit, seed=cfg.seed)
+    elif cfg.method == "linear-clf":
+        return baselines.LinearClassifier(cub_root=cfg.cub_root, d=d_vit, seed=cfg.seed)
     elif cfg.method == "sae":
         if not cfg.sae_ckpt:
             raise ValueError("SAE checkpoint path required when method='sae'")
