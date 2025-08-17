@@ -60,6 +60,25 @@ def batch_topk_cfgs():
     return st.builds(modeling.BatchTopK, top_k=st.sampled_from([1, 2, 4, 8]))
 
 
+def aux_cfgs():
+    return st.builds(modeling.AuxiliaryConfig, top_k=st.sampled_from([1, 2, 4, 8]))
+
+
+@given(
+    cfg=aux_cfgs(),
+    batch=st.integers(min_value=1, max_value=4),
+    d_sae=st.integers(min_value=256, max_value=2048),
+)
+def test_auxiliary_activation(cfg, batch, d_sae):
+    act = modeling.get_activation(cfg)
+    x = torch.rand(batch, d_sae)
+    y = act(x)
+
+    assert y.shape == (batch, d_sae)
+    # Check that only k elements are non-zero per sample
+    assert (y != 0).sum(dim=1).eq(cfg.top_k).all()
+
+
 @given(
     cfg=topk_cfgs(),
     batch=st.integers(min_value=1, max_value=4),

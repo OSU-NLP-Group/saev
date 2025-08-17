@@ -45,6 +45,13 @@ ActivationConfig = Relu | TopK | BatchTopK
 
 @beartype.beartype
 @dataclasses.dataclass(frozen=True)
+class AuxiliaryConfig:
+    top_k: int = 512
+    """How many dead latents to consider for auxiliary loss."""
+
+
+@beartype.beartype
+@dataclasses.dataclass(frozen=True)
 class SparseAutoencoderConfig:
     d_vit: int = 1024
     exp_factor: int = 16
@@ -317,6 +324,41 @@ class BatchTopKActivation(torch.nn.Module):
         )
 
         return torch.mul(mask, x)
+
+class AuxiliaryLossActivation(torch.nn.Module):
+    """
+    Auxiliary loss activation function. Used to take the top-k dead latents before calculating the auxiliary loss.
+    """
+
+    def __init__(self, cfg: AuxiliaryConfig = AuxiliaryConfig()):
+        super().__init__()
+        self.cfg = cfg
+
+    def forward(self, f_x: Float[Tensor, "batch d_sae"], dead_latents: Float[Tensor, "batch d_sae"]) -> Float[Tensor, "batch d_sae"]:
+        """
+        Apply auxiliary loss activation (top-k of dead latents) to the input tensor.
+        """
+
+        # First, mask out all but dead latents
+        f_x = f_x * dead_latents
+
+        masked_dead_top_k = torch.zeros_like(f_x)
+
+        # Now, populate top k of the dead latents
+        if self.cfg.top_k > 0 and dead_latents.sum() > 0:
+            # First, mask out dead latents
+            masked_dead_latents = f_x * dead_latents
+
+            # Find top k of dead latents
+            k_vals, k_inds = torch.topk(masked_dead_latents, self.cfg.top_k, dim=1, sorted=False)
+            top_k_mask = torch.zeros_like(masked_dead_latents).scatter_(
+                dim=-1, index=k_inds, src=torch.ones_like(masked_dead_latents)
+            )
+            
+            # Mask out all but top k dead latents
+            masked_dead_top_k = torch.mul(top_k_mask, f_x)
+
+        return masked_dead_top_k
 
 
 @beartype.beartype

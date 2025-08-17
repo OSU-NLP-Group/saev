@@ -63,6 +63,14 @@ class Config:
         default_factory=nn.objectives.Vanilla
     )
     """SAE loss configuration."""
+    auxiliary_loss: bool = False
+    """Auxiliary Loss configuration."""
+    auxiliary_loss_coeff: float = 0.03125
+    """Coefficient for the auxiliary loss term."""
+    tokens_until_dead: int = 10_000_000
+    """Number of tokens for feature to not fire after which a feature is considered dead."""
+    dead_top_k: int = 512
+    """Number of dead features to reconstruct from."""
     n_sparsity_warmup: int = 0
     """Number of sparsity coefficient warmup steps."""
     lr: float = 0.0004
@@ -211,9 +219,34 @@ def train(
     objectives.train()
     objectives = objectives.to(cfg.device)
 
+
+    aux_activations = [
+        nn.modeling.AuxiliaryLossActivation(
+            nn.modeling.AuxiliaryConfig(c.dead_top_k)
+        )
+        for c in cfgs
+    ]
+
+    aux_objectives = [
+        nn.objectives.AuxiliaryObjective(
+            nn.objectives.Auxiliary(c.auxiliary_loss_coeff)
+        )
+        for c in cfgs
+    ]
+
     global_step, n_patches_seen = 0, 0
 
     p_dataloader, p_children, last_rb, last_t = None, None, 0, time.time()
+
+    iterations_dead = [torch.zeros(
+        (s.cfg.d_sae), dtype=torch.float, device=cfg.device)
+        for s in saes
+    ]
+
+    dead_latents = [
+        torch.zeros((s.cfg.d_sae), dtype=torch.float, device=cfg.device)
+        for s in saes
+    ]
 
     for batch in helpers.progress(dataloader, every=cfg.log_every):
         if p_dataloader is None:
@@ -227,15 +260,29 @@ def train(
         losses = []
         x_hats = []
         f_xs = []
-        for sae, objective in zip(saes, objectives):
+        for sae, objective, aux_activation, aux_objective, iters_dead, dead_lts in zip(saes, objectives, aux_activations, aux_objectives, iterations_dead, dead_latents):
             if isinstance(objective, nn.objectives.MatryoshkaObjective):
                 # Specific case has to be given for Matryoshka SAEs since we need to decode several times with varying prefix lengths
                 x_hat, f_x = sae.matryoshka_forward(acts_BD, cfg.n_prefixes)
             else:
                 x_hat, f_x = sae(acts_BD)
+
             x_hats.append(x_hat)
             f_xs.append(f_x)
-            losses.append(objective(acts_BD, f_x, x_hat))
+            if cfg.auxiliary_loss:
+                # Auxiliary loss is a separate term from the main objective, so we add it separately.
+                aux_f_x = aux_activation(f_x, dead_latents=dead_lts)
+                aux_x_hat = sae.decode(aux_f_x)
+
+                losses.append(objective(acts_BD, f_x, x_hat) +
+                              aux_objective(acts_BD, aux_x_hat))
+            else:
+                losses.append(objective(acts_BD, f_x, x_hat))
+
+            # Count if feature was dead this iteration, update dead latents mask
+            iters_dead += ((f_x.abs() > 1e-8).sum(0) == 0).float() * acts_BD.shape[0]
+            iters_dead[(f_x.abs() > 1e-8).sum(0) != 0] = 0
+            dead_lts = (iters_dead > cfg.tokens_until_dead).sum(0).float()
 
         n_patches_seen += len(acts_BD)
 

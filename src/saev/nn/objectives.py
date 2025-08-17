@@ -32,6 +32,18 @@ class Matryoshka:
 ObjectiveConfig = Vanilla | Matryoshka
 
 
+@beartype.beartype
+@dataclasses.dataclass(frozen=True, slots=True)
+class Auxiliary:
+    """
+    Config for the Auxiliary loss (not for the SAE itself, but for auxiliary loss).
+    
+    Reference paper is https://doi.org/10.48550/arXiv.2412.06410
+    """
+
+    aux_coeff: float = 0.03125
+    """Coefficient for the auxiliary loss term."""
+
 @jaxtyped(typechecker=beartype.beartype)
 @dataclasses.dataclass(frozen=True, slots=True)
 class Loss:
@@ -162,6 +174,44 @@ class MatryoshkaObjective(Objective):
 
         return MatryoshkaLoss(mse_loss, sparsity_loss, l0, l1)
 
+
+@jaxtyped(typechecker=beartype.beartype)
+@dataclasses.dataclass(frozen=True, slots=True)
+class AuxiliaryLoss(Loss):
+    """The vanilla loss terms for an training batch."""
+
+    mse: Float[Tensor, ""]
+    """Reconstruction loss (mean squared error)."""
+
+    @property
+    def loss(self) -> Float[Tensor, ""]:
+        """Total loss."""
+        return self.mse
+
+    def metrics(self) -> dict[str, object]:
+        return {
+            "loss": self.loss.item(),
+            "mse": self.mse.item(),
+        }
+
+
+@jaxtyped(typechecker=beartype.beartype)
+class AuxiliaryObjective(Objective):
+    def __init__(self, cfg: Auxiliary):
+        super().__init__()
+        self.cfg = cfg
+
+    def forward(
+        self,
+        x: Float[Tensor, "batch d_model"],
+        x_hat: Float[Tensor, "batch d_model"],
+    ) -> VanillaLoss:
+        # Some values of x and x_hat can be very large. We can calculate a safe MSE
+        mse_loss = mean_squared_err(x_hat, x)
+
+        mse_loss = mse_loss.mean()
+
+        return AuxiliaryLoss(self.cfg.aux_coeff * mse_loss)
 
 @beartype.beartype
 def get_objective(cfg: ObjectiveConfig) -> Objective:
