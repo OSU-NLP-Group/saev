@@ -188,8 +188,17 @@ def train(
 
     mode = "online" if cfg.track else "disabled"
     tags = [cfg.tag] if cfg.tag else []
+
+    # Add metadata to configs for WandB logging
+    metadata_dict = dataclasses.asdict(dataloader.metadata)
+    wandb_configs = []
+    for c in cfgs:
+        cfg_dict = dataclasses.asdict(c)
+        cfg_dict["data"]["metadata"] = metadata_dict
+        wandb_configs.append(cfg_dict)
+
     run = saev.utils.wandb.ParallelWandbRun(
-        cfg.wandb_project, [dataclasses.asdict(c) for c in cfgs], mode, tags
+        cfg.wandb_project, wandb_configs, mode, tags
     )
 
     optimizer = torch.optim.Adam(param_groups, fused=True)
@@ -213,12 +222,10 @@ def train(
 
     global_step, n_patches_seen = 0, 0
 
-    p_dataloader, p_children, last_rb, last_t = None, None, 0, time.time()
+    p_dataloader, p_children, last_rb, last_t = None, [], 0, time.time()
 
     for batch in helpers.progress(dataloader, every=cfg.log_every):
-        if p_dataloader is None:
-            p_dataloader = psutil.Process(dataloader.manager_pid)
-            p_children = p_dataloader.children(recursive=True)
+        p_dataloader, p_children = get_p_dl(p_dataloader, dataloader.manager_pid)
 
         acts_BD = batch["act"].to(cfg.device, non_blocking=True)
         for sae in saes:
@@ -260,13 +267,22 @@ def train(
         with torch.no_grad():
             if (global_step + 1) % cfg.log_every == 0:
                 now = time.time()
-                rb = p_dataloader.io_counters().read_bytes
-                read_mb = (rb - last_rb) / (1024 * 1024)
-                read_mb_s = read_mb / (now - last_t)
-                cpu_util = sum(
-                    t.cpu_percent(None) for t in p_children
-                ) + p_dataloader.cpu_percent(None)
-                last_rb, last_t = rb, now
+                # Dataloader stuff
+                loader_metrics = {}
+                if p_dataloader is not None:
+                    rb = p_dataloader.io_counters().read_bytes
+                    read_mb = (rb - last_rb) / (1024 * 1024)
+                    read_mb_s = read_mb / (now - last_t)
+                    cpu_util = sum(
+                        t.cpu_percent(None) for t in p_children
+                    ) + p_dataloader.cpu_percent(None)
+                    last_rb, last_t = rb, now
+                    loader_metrics = {
+                        "loader/read_mb": read_mb,
+                        "loader/read_mb_s": read_mb_s,
+                        "loader/cpu_util": cpu_util,
+                        "loader/buffer_fill": dataloader.reservoir.fill(),
+                    }
 
                 metrics = []
                 for i, (loss, sae, objective, group, x_hat, f_x) in enumerate(
@@ -298,11 +314,9 @@ def train(
                         "metrics/dictionary_coherence": coherence.item(),
                         "metrics/avg_decoder_row_norm": avg_w_row_norm.item(),
                         "metrics/grad_norm": grad_norms[i].item(),
-                        "loader/read_mb": read_mb,
-                        "loader/read_mb_s": read_mb_s,
-                        "loader/cpu_util": cpu_util,
-                        "loader/buffer_fill": dataloader.reservoir.fill(),
+                        **loader_metrics,
                     }
+
                     metrics.append(metric)
                 run.log(metrics, step=global_step)
 
@@ -328,6 +342,23 @@ def train(
         global_step += 1
 
     return saes, objectives, run, global_step
+
+
+@beartype.beartype
+def get_p_dl(
+    p_dataloader: psutil.Process | None, manager_pid: int
+) -> tuple[psutil.Process | None, list[psutil.Process]]:
+    needs_updating = (
+        p_dataloader is None
+        or not p_dataloader.is_running()
+        or p_dataloader.pid != manager_pid
+    )
+    if psutil.pid_exists(manager_pid) and needs_updating:
+        p_dataloader = psutil.Process(manager_pid)
+        p_children = p_dataloader.children(recursive=True)
+        return p_dataloader, p_children
+    else:
+        return None, []
 
 
 # TODO: I think this needs to be jaxtyped, but jaxtyped in a submitit context can cause real issues.
@@ -553,8 +584,8 @@ def main(
     with executor.batch():
         jobs = [executor.submit(worker_fn, group) for group in cfgs]
 
-    # Give the executor a second to fire the jobs off.
-    time.sleep(1.0)
+    # Give the executor five seconds to fire the jobs off.
+    time.sleep(5.0)
 
     # Log initial status.
     for j, job in enumerate(jobs):

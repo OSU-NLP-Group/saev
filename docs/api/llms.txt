@@ -1,14 +1,19 @@
 >>>> AGENTS.md
-# Conventions
+- Use `uv run SCRIPT.py` or `uv run python ARGS` to run python instead of Just plain `python`.
+- After making edits, run `uvx ruff format --preview .` to format the file, then run `uvx ruff check --fix .` to lint, then run `uvx ty check FILEPATH` to type check (`ty` is prerelease software, and typechecking often will have false positives). Only do this if you think you're finished, or if you can't figure out a bug. Maybe linting will make it obvious. Don't fix linting or typing errors in files you haven't modified.
+- Don't hard-wrap comments. Only use linebreaks for new paragraphs. Let the editor soft wrap content.
+- Prefer negative if statements in combination with early returns/continues. Rather than nesting multiple positive if statements, just check if a condition is False, then return/continue in a loop. This reduces indentation.
+- This project uses Python 3.12. You can use `dict`, `list`, `tuple` instead of the imports from `typing`. You can use `| None` instead of `Optional`.
+- Use single-backticks for variables. We use Markdown and [pdoc3](https://pdoc3.github.io/pdoc/) for docs rather than ReST and Sphinx.
+- File descriptors from `open()` are called `fd`.
+- Use types where possible, including `jaxtyping` hints.
+- Decorate functions with `beartype.beartype` unless they use a `jaxtyping` hint, in which case use `jaxtyped(typechecker=beartype.beartype)`.
+- Variables referring to a absolute filepath should be suffixed with `_fpath`. Filenames are `_fname`. Directories are `_dpath`.
+- Prefer `make` over `build` when naming functions that construct objects, and use `get` when constructing primitives (like string paths or config values).
+- Only use `setup` for naming functions that don't return anything.
+- You can use `gh` to access issues and PRs on GitHub to gather more context. We use GitHub issues a lot to share ideas and communicate about problems, so you should almost always check to see if there's a relevant GitHub issue for whatever you're working on.
 
-This document outlines some programming conventions that are not caught by automated tools.
-
-* File descriptors from `open()` are called `fd`.
-* Use types where possible, including `jaxtyping` hints.
-* Decorate functions with `beartype.beartype` unless they use a `jaxtyping` hint, in which case use `jaxtyped(typechecker=beartype.beartype)`.
-* Variables referring to a filepath should be suffixed with `_fpath`. Directories are `_dpath`.
-* Prefer `make` over `build` when naming functions that construct objects, and use `get` when constructing primitives (like string paths or config values).
-* Only use `setup` for naming functions that don't return anything.
+# Tensor Variables
 
 Throughout the code, variables are annotated with shape suffixes, as [recommended by Noam Shazeer](https://medium.com/@NoamShazeer/shape-suffixes-good-coding-style-f836e72e24fd).
 
@@ -23,10 +28,6 @@ The key for these suffixes:
 * C: Number of classes in ADE20K (151)
 
 For example, an activation tensor with shape (batch, width, height d_vit) is `acts_BWHD`.
-
-# Running Code
-
-Run code with `uv run python <args>` or `uv run <scriptname.py> <args>` to run Python code.
 
 >>>> README.md
 # saev - Sparse Auto-Encoders for Vision
@@ -1538,6 +1539,7 @@ import logging
 import math
 import os
 import queue
+import time
 import traceback
 import typing
 from multiprocessing.queues import Queue
@@ -1601,9 +1603,13 @@ def _manager_main(
     """
     log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
     level = logging.DEBUG if cfg.debug else logging.INFO
-    logging.basicConfig(level=level, format=log_format)
+    logging.basicConfig(level=level, format=log_format, force=True)
     logger = logging.getLogger("ordered.manager")
-    logger.info("Manager process started.")
+    logger.info(
+        "Manager process started (debug=%s, logging=%s)",
+        cfg.debug,
+        logging.getLevelName(logger.getEffectiveLevel()),
+    )
 
     # 0. PRE-CONDITIONS
     if cfg.patches != "image" or not isinstance(cfg.layer, int):
@@ -1632,6 +1638,8 @@ def _manager_main(
 
         # Calculate total number of samples
         total_samples = metadata.n_imgs * metadata.n_patches_per_img
+
+        logger.debug("Found %d samples.", total_samples)
 
         # Process batches in order
         current_idx = 0
@@ -1707,6 +1715,8 @@ def _manager_main(
     finally:
         logger.info("Manager process finished.")
 
+    time.sleep(60.0)
+
 
 @beartype.beartype
 class DataLoader:
@@ -1735,6 +1745,11 @@ class DataLoader:
         self.batch_queue = None
         self.stop_event = None
         self._n_samples = self._calculate_n_samples()
+        self.logger.info(
+            "Initialized ordered.DataLoader with %d samples. (debug=%s)",
+            self.n_samples,
+            self.cfg.debug,
+        )
 
     @property
     def n_batches(self) -> int:
@@ -1809,6 +1824,9 @@ class DataLoader:
                         "Did not get a batch from manager process in %.1fs seconds.",
                         self.cfg.batch_timeout_s,
                     )
+                except FileNotFoundError:
+                    self.logger.info("Manager process (probably) closed.")
+                    continue
 
                 # If we don't continue, then we should check on the manager process.
                 if not self.manager_proc.is_alive():
@@ -2460,7 +2478,7 @@ class DataLoader:
         )
         self.manager_proc.start()
 
-    def __iter__(self) -> collections.abc.Iterable[ExampleBatch]:
+    def __iter__(self) -> collections.abc.Iterator[ExampleBatch]:
         """Yields batches."""
         self._start_manager()
         n, b = 0, 0
@@ -4451,7 +4469,7 @@ def __(mo):
 @app.cell
 def __():
     WANDB_USERNAME = "samuelstevens"
-    WANDB_PROJECT = "saev"
+    WANDB_PROJECT = "beetle-saes"
     return WANDB_PROJECT, WANDB_USERNAME
 
 
@@ -4835,6 +4853,8 @@ def __(Float, beartype, jaxtyped, np):
 
 @app.cell
 def __(
+    WANDB_PROJECT,
+    WANDB_USERNAME,
     beartype,
     get_data_key,
     get_model_key,
@@ -4853,7 +4873,12 @@ def __(
         pass
 
     @beartype.beartype
-    def find_metadata(shard_root: str):
+    def find_metadata(shard_root: str, wandb_metadata: dict | None = None):
+        # First check if metadata is available from WandB config
+        if wandb_metadata is not None:
+            return wandb_metadata
+
+        # Fall back to reading from file system for backward compatibility
         if not os.path.exists(shard_root):
             msg = f"""
     ERROR: Shard root '{shard_root}' not found. You need to either:
@@ -4878,7 +4903,9 @@ def __(
         filters = {}
         if tag:
             filters["config.tag"] = tag
-        runs = wandb.Api().runs(path="samuelstevens/saev", filters=filters)
+        runs = wandb.Api().runs(
+            path=f"{WANDB_USERNAME}/{WANDB_PROJECT}", filters=filters
+        )
 
         rows = []
         for run in mo.status.progress_bar(
@@ -4929,7 +4956,9 @@ def __(
             row.update(**{f"config/{key}": value for key, value in run.config.items()})
 
             try:
-                metadata = find_metadata(row["config/data/shard_root"])
+                # Check if metadata is available in WandB config
+                wandb_metadata = row.get("config/data/metadata")
+                metadata = find_metadata(row["config/data/shard_root"], wandb_metadata)
             except MetadataAccessError as err:
                 print(f"Bad run {run.id}: {err}")
                 continue
@@ -4979,6 +5008,8 @@ def __(beartype):
             return "CLIP ViT-B/16"
         if family == "clip" and ckpt == "hf-hub:imageomics/bioclip":
             return "BioCLIP ViT-B/16"
+        if family == "clip" and ckpt == "hf-hub:imageomics/bioclip-2":
+            return "BioCLIP 2 ViT-L/14"
         if family == "siglip" and ckpt == "hf-hub:timm/ViT-L-16-SigLIP2-256":
             return "SigLIP2 ViT-L/16"
 
@@ -4992,6 +5023,12 @@ def __(beartype):
             and metadata["data"]["__class__"] == "ImageFolder"
         ):
             return "iNat21"
+
+        if (
+            "all-beetles" in metadata["data"]["root"]
+            and metadata["data"]["__class__"] == "ImageFolder"
+        ):
+            return "Beetles"
 
         if "train" in metadata["data"] and "Imagenet" in metadata["data"]:
             return "ImageNet-1K"

@@ -228,7 +228,7 @@ class DataLoader:
         )
         self.manager_proc.start()
 
-    def __iter__(self) -&gt; collections.abc.Iterable[ExampleBatch]:
+    def __iter__(self) -&gt; collections.abc.Iterator[ExampleBatch]:
         &#34;&#34;&#34;Yields batches.&#34;&#34;&#34;
         self._start_manager()
         n, b = 0, 0

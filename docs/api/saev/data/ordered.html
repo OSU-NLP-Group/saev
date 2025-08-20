@@ -156,6 +156,11 @@ class DataLoader:
         self.batch_queue = None
         self.stop_event = None
         self._n_samples = self._calculate_n_samples()
+        self.logger.info(
+            &#34;Initialized ordered.DataLoader with %d samples. (debug=%s)&#34;,
+            self.n_samples,
+            self.cfg.debug,
+        )
 
     @property
     def n_batches(self) -&gt; int:
@@ -230,6 +235,9 @@ class DataLoader:
                         &#34;Did not get a batch from manager process in %.1fs seconds.&#34;,
                         self.cfg.batch_timeout_s,
                     )
+                except FileNotFoundError:
+                    self.logger.info(&#34;Manager process (probably) closed.&#34;)
+                    continue
 
                 # If we don&#39;t continue, then we should check on the manager process.
                 if not self.manager_proc.is_alive():
