@@ -1,5 +1,6 @@
 # tests/test_indexed_dataset.py
 import gc
+import json
 import os
 import time
 
@@ -462,3 +463,70 @@ def test_memmap_file_access(shards_path, layer, metadata):
     assert example_first["patch_i"] == 0
     assert example_last["image_i"] == 0
     assert example_last["patch_i"] == metadata.n_patches_per_img - 1
+
+
+@pytest.mark.slow
+def test_missing_shard_file_not_detected_at_init(tmp_path):
+    """Test that missing shard files are NOT detected at initialization - exposes the validation gap."""
+    from saev.data import images, writers
+
+    # Create a small dataset with multiple shards
+    n_imgs = 10
+    d_vit = 128
+    n_patches = 16
+    layers = [0]
+
+    # Use small max_patches_per_shard to force multiple shards
+    # Each image has 17 tokens (16 patches + 1 CLS), so with 2 images per shard we get 34 patches per shard
+    max_patches_per_shard = 34  # This will create ~5 shards for 10 images
+
+    # Create activation shards
+    cfg = writers.Config(
+        data=images.Fake(n_imgs=n_imgs),
+        dump_to=str(tmp_path),
+        vit_family="clip",
+        vit_ckpt="hf-hub:hf-internal-testing/tiny-open-clip-model",
+        d_vit=d_vit,
+        vit_layers=layers,
+        n_patches_per_img=n_patches,
+        cls_token=True,
+        max_patches_per_shard=max_patches_per_shard,
+        vit_batch_size=2,
+        n_workers=0,
+        device="cpu",
+    )
+
+    # Generate the activation shards
+    writers.worker_fn(cfg)
+
+    # Get the actual shard directory
+    metadata = writers.Metadata.from_cfg(cfg)
+    shard_root = os.path.join(str(tmp_path), metadata.hash)
+
+    # Verify we have multiple shards
+    shard_files = [f for f in os.listdir(shard_root) if f.endswith(".bin")]
+    assert len(shard_files) > 1, f"Expected multiple shards, got {len(shard_files)}"
+
+    # Delete one of the middle shard files (not the first one)
+    missing_shard = "acts000001.bin"
+    missing_file_path = os.path.join(shard_root, missing_shard)
+    assert os.path.exists(missing_file_path), (
+        f"Shard file {missing_shard} should exist before deletion"
+    )
+    os.remove(missing_file_path)
+    assert not os.path.exists(missing_file_path), (
+        f"Shard file {missing_shard} should be deleted"
+    )
+
+    # Verify shards.json still lists the deleted file
+    with open(os.path.join(shard_root, "shards.json")) as fd:
+        shards_data = json.load(fd)
+    shard_names = [s["name"] for s in shards_data]
+    assert missing_shard in shard_names, (
+        f"shards.json should still list {missing_shard}"
+    )
+
+    # Create indexed dataset. This should raise an error at initialization because missing files should be detected early
+    with pytest.raises(FileNotFoundError):
+        cfg = IndexedConfig(shard_root=shard_root, patches="image", layer=layers[0])
+        IndexedDataset(cfg)

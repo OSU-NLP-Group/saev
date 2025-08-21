@@ -24,6 +24,7 @@ import logging
 import math
 import os
 import queue
+import time
 import traceback
 import typing
 from multiprocessing.queues import Queue
@@ -87,9 +88,13 @@ def _manager_main(
     """
     log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
     level = logging.DEBUG if cfg.debug else logging.INFO
-    logging.basicConfig(level=level, format=log_format)
+    logging.basicConfig(level=level, format=log_format, force=True)
     logger = logging.getLogger("ordered.manager")
-    logger.info("Manager process started.")
+    logger.info(
+        "Manager process started (debug=%s, logging=%s)",
+        cfg.debug,
+        logging.getLevelName(logger.getEffectiveLevel()),
+    )
 
     # 0. PRE-CONDITIONS
     if cfg.patches != "image" or not isinstance(cfg.layer, int):
@@ -118,6 +123,8 @@ def _manager_main(
 
         # Calculate total number of samples
         total_samples = metadata.n_imgs * metadata.n_patches_per_img
+
+        logger.debug("Found %d samples.", total_samples)
 
         # Process batches in order
         current_idx = 0
@@ -193,6 +200,11 @@ def _manager_main(
     finally:
         logger.info("Manager process finished.")
 
+    logger.info("Manager process sleeping.")
+    #
+    time.sleep(60.0)
+    logger.info("Manager process finished.")
+
 
 @beartype.beartype
 class DataLoader:
@@ -221,6 +233,11 @@ class DataLoader:
         self.batch_queue = None
         self.stop_event = None
         self._n_samples = self._calculate_n_samples()
+        self.logger.info(
+            "Initialized ordered.DataLoader with %d samples. (debug=%s)",
+            self.n_samples,
+            self.cfg.debug,
+        )
 
     @property
     def n_batches(self) -> int:
@@ -295,6 +312,9 @@ class DataLoader:
                         "Did not get a batch from manager process in %.1fs seconds.",
                         self.cfg.batch_timeout_s,
                     )
+                except FileNotFoundError:
+                    self.logger.info("Manager process (probably) closed.")
+                    continue
 
                 # If we don't continue, then we should check on the manager process.
                 if not self.manager_proc.is_alive():

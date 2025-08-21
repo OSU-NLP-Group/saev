@@ -1,6 +1,7 @@
 # tests/test_ordered_dataloader.py
 import dataclasses
 import gc
+import json
 import os
 import time
 
@@ -340,7 +341,9 @@ def test_memory_stability(ordered_cfg):
 def test_cross_shard_batches(shards_path, layer, metadata):
     """Test that batches spanning multiple shards work correctly."""
     # Use a batch size likely to span shards
-    patches_per_shard = metadata.n_imgs_per_shard * metadata.n_patches_per_img
+    patches_per_shard = (
+        metadata.n_imgs_per_shard * metadata.n_patches_per_img / len(metadata.layers)
+    )
     batch_size = int(patches_per_shard * 1.5)  # Should span 2 shards
 
     cfg = OrderedConfig(
@@ -348,6 +351,7 @@ def test_cross_shard_batches(shards_path, layer, metadata):
         patches="image",
         layer=layer,
         batch_size=batch_size,
+        debug=True,
     )
     dl = DataLoader(cfg)
 
@@ -429,3 +433,72 @@ def test_ordered_dataloader_with_tiny_fake_dataset(tmp_path):
     # The actual iteration might still fail due to multiprocessing,
     # but at least we've tested the calculation logic
     dl.shutdown()
+
+
+@pytest.mark.slow
+def test_missing_shard_file_not_detected_at_init(tmp_path):
+    """Test that missing shard files are NOT detected at initialization - exposes the validation gap."""
+    from saev.data import images, writers
+
+    # Create a small dataset with multiple shards
+    n_imgs = 10
+    d_vit = 128
+    n_patches = 16
+    layers = [0]
+
+    # Use small max_patches_per_shard to force multiple shards
+    # Each image has 17 tokens (16 patches + 1 CLS), so with 2 images per shard we get 34 patches per shard
+    max_patches_per_shard = 34  # This will create ~5 shards for 10 images
+
+    # Create activation shards
+    cfg = writers.Config(
+        data=images.Fake(n_imgs=n_imgs),
+        dump_to=str(tmp_path),
+        vit_family="clip",
+        vit_ckpt="hf-hub:hf-internal-testing/tiny-open-clip-model",
+        d_vit=d_vit,
+        vit_layers=layers,
+        n_patches_per_img=n_patches,
+        cls_token=True,
+        max_patches_per_shard=max_patches_per_shard,
+        vit_batch_size=2,
+        n_workers=0,
+        device="cpu",
+    )
+
+    # Generate the activation shards
+    writers.worker_fn(cfg)
+
+    # Get the actual shard directory
+    metadata = writers.Metadata.from_cfg(cfg)
+    shard_root = os.path.join(str(tmp_path), metadata.hash)
+
+    # Verify we have multiple shards
+    shard_files = [f for f in os.listdir(shard_root) if f.endswith(".bin")]
+    assert len(shard_files) > 1, f"Expected multiple shards, got {len(shard_files)}"
+
+    # Delete one of the middle shard files (not the first one)
+    missing_shard = "acts000001.bin"
+    missing_file_path = os.path.join(shard_root, missing_shard)
+    assert os.path.exists(missing_file_path), (
+        f"Shard file {missing_shard} should exist before deletion"
+    )
+    os.remove(missing_file_path)
+    assert not os.path.exists(missing_file_path), (
+        f"Shard file {missing_shard} should be deleted"
+    )
+
+    # Verify shards.json still lists the deleted file
+    with open(os.path.join(shard_root, "shards.json")) as fd:
+        shards_data = json.load(fd)
+    shard_names = [s["name"] for s in shards_data]
+    assert missing_shard in shard_names, (
+        f"shards.json should still list {missing_shard}"
+    )
+
+    # Create dataloader. this should raise an error at initialization because missing files should be detected early
+    with pytest.raises(FileNotFoundError):
+        cfg = OrderedConfig(
+            shard_root=shard_root, patches="image", layer=layers[0], drop_last=False
+        )
+        DataLoader(cfg)
