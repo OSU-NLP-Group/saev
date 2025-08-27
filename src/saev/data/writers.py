@@ -30,7 +30,7 @@ class Config:
     """Which dataset to use."""
     dump_to: str = os.path.join(".", "shards")
     """Where to write shards."""
-    vit_family: typing.Literal["clip", "siglip", "dinov2"] = "clip"
+    vit_family: typing.Literal["clip", "siglip", "dinov2", "dinov3"] = "clip"
     """Which model family."""
     vit_ckpt: str = "ViT-L-14/openai"
     """Specific model checkpoint."""
@@ -260,7 +260,7 @@ def get_acts_dir(cfg: Config) -> str:
 @beartype.beartype
 @dataclasses.dataclass(frozen=True)
 class Metadata:
-    vit_family: typing.Literal["clip", "siglip", "dinov2"]
+    vit_family: typing.Literal["clip", "siglip", "dinov2", "dinov3"]
     vit_ckpt: str
     layers: tuple[int, ...]
     n_patches_per_img: int
