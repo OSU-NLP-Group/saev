@@ -5,7 +5,6 @@ import typing as tp
 import beartype
 import einops
 import torch
-import torch.nn.functional as F
 from jaxtyping import Float, jaxtyped
 from PIL import Image
 from torch import Tensor, nn
@@ -14,21 +13,33 @@ from torchvision.transforms import v2
 
 @beartype.beartype
 class FlexResize(v2.Transform):
-    def __init__(self, patch_size: int, n_patches: int):
+    def __init__(
+        self,
+        patch_size: int,
+        n_patches: int,
+        resample: Image.Resampling | int = Image.LANCZOS,
+    ):
         super().__init__()
         self.patch_size = patch_size
         self.n_patches = n_patches
+        self.resample = resample
 
     def transform(self, inpt: tp.Any, params: dict[str, tp.Any]):
         if isinstance(inpt, Image.Image):
-            return _resize_to_patch_grid(inpt, p=self.patch_size, n=self.n_patches)
+            return _resize_to_patch_grid(
+                inpt, p=self.patch_size, n=self.n_patches, resample=self.resample
+            )
         else:
             raise TypeError(type(inpt))
 
 
 @beartype.beartype
 def _resize_to_patch_grid(
-    img: Image.Image, *, p: int, n: int, resample=Image.LANCZOS
+    img: Image.Image,
+    *,
+    p: int,
+    n: int,
+    resample: Image.Resampling | int = Image.LANCZOS,
 ) -> Image.Image:
     """
     Resize image to (w, h) so that:
@@ -65,25 +76,28 @@ def _resize_to_patch_grid(
 
 
 @beartype.beartype
-class Unfold(nn.Module):
-    def __init__(self, patch_size: int, n_patches: int):
+class Patchify(nn.Module):
+    def __init__(self, patch_size: int, n_patches: int, key: str = "image"):
         super().__init__()
         self.patch_size = patch_size
         self.n_patches = n_patches
+        self.key = key
 
     def forward(self, sample: dict[str, object]) -> dict[str, object]:
-        assert "image" in sample
-        img = sample["image"]
+        assert self.key in sample
+        img = sample[self.key]
         c, h, w = img.shape
         p = self.patch_size
         assert (h % p == 0) and (w % p == 0), f"Got {h}x{w}, patch={p}"
 
-        cols_bpn = F.unfold(img[None, ...], kernel_size=p, stride=p)
-        _, k, n = cols_bpn.shape
+        patches_nd = einops.rearrange(
+            img, "c (hp p1) (wp p2) -> (hp wp) (c p1 p2)", p1=p, p2=p
+        )
+        n, d = patches_nd.shape
         assert n == self.n_patches, f"Expected n={self.n_patches}, got {n}"
-        assert k == c * p * p, f"k mismatch: {k} != {c}*{p}*{p}"
+        assert d == c * p * p, f"d mismatch: {d} != {c}*{p}*{p}"
 
-        sample["image"] = einops.rearrange(cols_bpn, "() k n -> n k").contiguous()
+        sample["image"] = patches_nd.contiguous()
         sample["grid"] = torch.tensor([h // p, w // p], dtype=torch.int16)
         return sample
 
@@ -104,13 +118,15 @@ def unfolded_conv2d(
     assert conv.groups == 1
     assert conv.dilation == (1, 1)
 
-    b, c, h, w = x_bchw.shape
+    *b, c, h, w = x_bchw.shape
 
     assert h % k == 0 and w % k == 0
 
-    cols_bpn = F.unfold(x_bchw, kernel_size=k, stride=k)  # (B, C x P x P, D)
+    tokens_bnd = einops.rearrange(
+        x_bchw, "b c (hp p1) (wp p2) -> b (hp wp) (c p1 p2)", p1=k, p2=k
+    ).contiguous()
     w_dp = conv.weight.reshape(conv.out_channels, c * k * k)
-    tokens_bnd = einops.rearrange(cols_bpn, "b px n -> b n px") @ w_dp.T
+    tokens_bnd = tokens_bnd @ w_dp.T
     if conv.bias is not None:
         tokens_bnd = tokens_bnd + conv.bias[None, None, :]
     return tokens_bnd

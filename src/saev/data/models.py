@@ -231,7 +231,7 @@ def make_transforms(vit_family: str, vit_ckpt: str) -> tuple[Callable, Callable 
             v2.ToDtype(torch.float32, scale=True),
             v2.Normalize(mean=[0.4850, 0.4560, 0.4060], std=[0.2290, 0.2240, 0.2250]),
         ])
-        sample_transform = transforms.Unfold(patch_size=16, n_patches=640)
+        sample_transform = transforms.Patchify(patch_size=16, n_patches=640)
         return img_transform, sample_transform
     else:
         tp.assert_never(vit_family)
