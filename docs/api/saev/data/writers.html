@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1">
-<meta name="generator" content="pdoc3 0.11.1">
+<meta name="generator" content="pdoc3 0.11.6">
 <title>saev.data.writers API documentation</title>
 <meta name="description" content="">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/13.0.0/sanitize.min.css" integrity="sha512-y1dtMcuvtTMJc1yPgEqF0ZjQbhnc/bFhyvIyVNb9Zk5mIGtqVaAB1Ttl28su8AvFMOY0EwRbAe+HCLqj6W7/KA==" crossorigin>
@@ -48,6 +48,31 @@ Also saves a metadata.json file to that directory for human reference.</p>
 </dl>
 <h2 id="returns">Returns</h2>
 <p>Directory to where activations should be dumped/loaded from.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+def get_acts_dir(cfg: Config) -&gt; str:
+    &#34;&#34;&#34;
+    Return the activations directory based on the relevant values of a config.
+    Also saves a metadata.json file to that directory for human reference.
+
+    Args:
+        cfg: Config for experiment.
+
+    Returns:
+        Directory to where activations should be dumped/loaded from.
+    &#34;&#34;&#34;
+    metadata = Metadata.from_cfg(cfg)
+
+    acts_dir = os.path.join(cfg.dump_to, metadata.hash)
+    os.makedirs(acts_dir, exist_ok=True)
+
+    metadata.dump(acts_dir)
+
+    return acts_dir</code></pre>
+</details>
 </dd>
 <dt id="saev.data.writers.get_dataloader"><code class="name flex">
 <span>def <span class="ident">get_dataloader</span></span>(<span>cfg: <a title="saev.data.writers.Config" href="#saev.data.writers.Config">Config</a>,<br>*,<br>img_transform: collections.abc.Callable | None = None) ‑> torch.utils.data.dataloader.DataLoader</span>
@@ -63,6 +88,37 @@ Also saves a metadata.json file to that directory for human reference.</p>
 </dl>
 <h2 id="returns">Returns</h2>
 <p>A PyTorch Dataloader that yields dictionaries with <code>'image'</code> keys containing image batches, <code>'index'</code> keys containing original dataset indices and <code>'label'</code> keys containing label batches.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+def get_dataloader(
+    cfg: Config, *, img_transform: Callable | None = None
+) -&gt; torch.utils.data.DataLoader:
+    &#34;&#34;&#34;
+    Get a dataloader for a default map-style dataset.
+
+    Args:
+        cfg: Config.
+        img_transform: Image transform to be applied to each image.
+
+    Returns:
+        A PyTorch Dataloader that yields dictionaries with `&#39;image&#39;` keys containing image batches, `&#39;index&#39;` keys containing original dataset indices and `&#39;label&#39;` keys containing label batches.
+    &#34;&#34;&#34;
+    dataset = images.get_dataset(cfg.data, img_transform=img_transform)
+
+    dataloader = torch.utils.data.DataLoader(
+        dataset=dataset,
+        batch_size=cfg.vit_batch_size,
+        drop_last=False,
+        num_workers=cfg.n_workers,
+        persistent_workers=cfg.n_workers &gt; 0,
+        shuffle=False,
+        pin_memory=False,
+    )
+    return dataloader</code></pre>
+</details>
 </dd>
 <dt id="saev.data.writers.worker_fn"><code class="name flex">
 <span>def <span class="ident">worker_fn</span></span>(<span>cfg: <a title="saev.data.writers.Config" href="#saev.data.writers.Config">Config</a>)</span>
@@ -73,6 +129,66 @@ Also saves a metadata.json file to that directory for human reference.</p>
 <dt><strong><code>cfg</code></strong></dt>
 <dd>Config for activations.</dd>
 </dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+def worker_fn(cfg: Config):
+    &#34;&#34;&#34;
+    Args:
+        cfg: Config for activations.
+    &#34;&#34;&#34;
+    from . import models
+
+    if torch.cuda.is_available():
+        # This enables tf32 on Ampere GPUs which is only 8% slower than
+        # float16 and almost as accurate as float32
+        # This was a default in pytorch until 1.12
+        torch.backends.cuda.matmul.allow_tf32 = True
+        torch.backends.cudnn.benchmark = True
+        torch.backends.cudnn.deterministic = False
+
+    log_format = &#34;[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s&#34;
+    logging.basicConfig(level=logging.INFO, format=log_format)
+    logger = logging.getLogger(&#34;worker_fn&#34;)
+
+    if cfg.device == &#34;cuda&#34; and not torch.cuda.is_available():
+        logger.warning(&#34;No CUDA device available, using CPU.&#34;)
+        cfg = dataclasses.replace(cfg, device=&#34;cpu&#34;)
+
+    vit = models.make_vit(cfg.vit_family, cfg.vit_ckpt).to(cfg.device)
+    vit = RecordedVisionTransformer(
+        vit, cfg.n_patches_per_img, cfg.cls_token, cfg.vit_layers
+    )
+    img_transform = models.make_img_transform(cfg.vit_family, cfg.vit_ckpt)
+    dataloader = get_dataloader(cfg, img_transform=img_transform)
+
+    writer = ShardWriter(cfg)
+
+    n_batches = cfg.data.n_imgs // cfg.vit_batch_size + 1
+    logger.info(&#34;Dumping %d batches of %d examples.&#34;, n_batches, cfg.vit_batch_size)
+
+    vit = vit.to(cfg.device)
+    # vit = torch.compile(vit)
+
+    i = 0
+    # Calculate and write ViT activations.
+    with torch.inference_mode():
+        for batch in helpers.progress(dataloader, total=n_batches):
+            imgs = batch.get(&#34;image&#34;).to(cfg.device)
+            size = batch.get(&#34;size&#34;)
+            if size is not None:
+                size = size.to(cfg.device)
+            # cache has shape [batch size, n layers, n patches + 1, d vit]
+            out, cache = vit(imgs, size=size)
+            del out
+
+            writer[i : i + len(cache)] = cache
+            i += len(cache)
+
+    writer.flush()</code></pre>
+</details>
 </dd>
 </dl>
 </section>
@@ -81,7 +197,7 @@ Also saves a metadata.json file to that directory for human reference.</p>
 <dl>
 <dt id="saev.data.writers.Config"><code class="flex name class">
 <span>class <span class="ident">Config</span></span>
-<span>(</span><span>data: <a title="saev.data.images.Imagenet" href="images.html#saev.data.images.Imagenet">Imagenet</a> | <a title="saev.data.images.ImageFolder" href="images.html#saev.data.images.ImageFolder">ImageFolder</a> | <a title="saev.data.images.Ade20k" href="images.html#saev.data.images.Ade20k">Ade20k</a> | <a title="saev.data.images.Fake" href="images.html#saev.data.images.Fake">Fake</a> = &lt;factory&gt;,<br>dump_to: str = './shards',<br>vit_family: Literal['clip', 'siglip', 'dinov2'] = 'clip',<br>vit_ckpt: str = 'ViT-L-14/openai',<br>vit_batch_size: int = 1024,<br>n_workers: int = 8,<br>d_vit: int = 1024,<br>vit_layers: list[int] = &lt;factory&gt;,<br>n_patches_per_img: int = 256,<br>cls_token: bool = True,<br>max_patches_per_shard: int = 2400000,<br>ssl: bool = True,<br>device: str = 'cuda',<br>n_hours: float = 24.0,<br>slurm_acct: str = '',<br>slurm_partition: str = '',<br>log_to: str = './logs')</span>
+<span>(</span><span>data: <a title="saev.data.images.Imagenet" href="images.html#saev.data.images.Imagenet">Imagenet</a> | <a title="saev.data.images.ImageFolder" href="images.html#saev.data.images.ImageFolder">ImageFolder</a> | <a title="saev.data.images.Ade20k" href="images.html#saev.data.images.Ade20k">Ade20k</a> | <a title="saev.data.images.Fake" href="images.html#saev.data.images.Fake">Fake</a> = &lt;factory&gt;,<br>dump_to: str = './shards',<br>vit_family: Literal['clip', 'siglip', 'dinov2', 'dinov3'] = 'clip',<br>vit_ckpt: str = 'ViT-L-14/openai',<br>vit_batch_size: int = 1024,<br>n_workers: int = 8,<br>d_vit: int = 1024,<br>vit_layers: list[int] = &lt;factory&gt;,<br>n_patches_per_img: int = 256,<br>cls_token: bool = True,<br>max_patches_per_shard: int = 2400000,<br>ssl: bool = True,<br>device: str = 'cuda',<br>n_hours: float = 24.0,<br>slurm_acct: str = '',<br>slurm_partition: str = '',<br>log_to: str = './logs')</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Configuration for calculating and saving ViT activations.</p></div>
@@ -98,7 +214,7 @@ class Config:
     &#34;&#34;&#34;Which dataset to use.&#34;&#34;&#34;
     dump_to: str = os.path.join(&#34;.&#34;, &#34;shards&#34;)
     &#34;&#34;&#34;Where to write shards.&#34;&#34;&#34;
-    vit_family: typing.Literal[&#34;clip&#34;, &#34;siglip&#34;, &#34;dinov2&#34;] = &#34;clip&#34;
+    vit_family: typing.Literal[&#34;clip&#34;, &#34;siglip&#34;, &#34;dinov2&#34;, &#34;dinov3&#34;] = &#34;clip&#34;
     &#34;&#34;&#34;Which model family.&#34;&#34;&#34;
     vit_ckpt: str = &#34;ViT-L-14/openai&#34;
     &#34;&#34;&#34;Specific model checkpoint.&#34;&#34;&#34;
@@ -132,7 +248,7 @@ class Config:
     log_to: str = &#34;./logs&#34;
     &#34;&#34;&#34;Where to log Slurm job stdout/stderr.&#34;&#34;&#34;</code></pre>
 </details>
-<h3>Class variables</h3>
+<h3>Instance variables</h3>
 <dl>
 <dt id="saev.data.writers.Config.cls_token"><code class="name">var <span class="ident">cls_token</span> : bool</code></dt>
 <dd>
@@ -194,7 +310,7 @@ class Config:
 <dd>
 <div class="desc"><p>Specific model checkpoint.</p></div>
 </dd>
-<dt id="saev.data.writers.Config.vit_family"><code class="name">var <span class="ident">vit_family</span> : Literal['clip', 'siglip', 'dinov2']</code></dt>
+<dt id="saev.data.writers.Config.vit_family"><code class="name">var <span class="ident">vit_family</span> : Literal['clip', 'siglip', 'dinov2', 'dinov3']</code></dt>
 <dd>
 <div class="desc"><p>Which model family.</p></div>
 </dd>
@@ -206,7 +322,7 @@ class Config:
 </dd>
 <dt id="saev.data.writers.IndexLookup"><code class="flex name class">
 <span>class <span class="ident">IndexLookup</span></span>
-<span>(</span><span>metadata: <a title="saev.data.writers.Metadata" href="#saev.data.writers.Metadata">Metadata</a>,<br>patches: Literal['cls', 'image', 'all'],<br>layer: Union[int, Literal['all']])</span>
+<span>(</span><span>metadata: <a title="saev.data.writers.Metadata" href="#saev.data.writers.Metadata">Metadata</a>,<br>patches: Literal['cls', 'image', 'all'],<br>layer: int | Literal['all'])</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Index &lt;-&gt; shard helper.</p>
@@ -377,6 +493,44 @@ class IndexLookup:
 </code></dt>
 <dd>
 <div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def length(self) -&gt; int:
+    match (self.patches, self.layer):
+        case (&#34;cls&#34;, &#34;all&#34;):
+            # Return a CLS token from a random image and random layer.
+            return self.metadata.n_imgs * len(self.metadata.layers)
+        case (&#34;cls&#34;, int()):
+            # Return a CLS token from a random image and fixed layer.
+            return self.metadata.n_imgs
+        case (&#34;image&#34;, int()):
+            # Return a patch from a random image, fixed layer, and random patch.
+            return self.metadata.n_imgs * (self.metadata.n_patches_per_img)
+            return self.metadata.n_imgs * (self.metadata.n_patches_per_img)
+        case (&#34;image&#34;, &#34;all&#34;):
+            # Return a patch from a random image, random layer and random patch.
+            return (
+                self.metadata.n_imgs
+                * len(self.metadata.layers)
+                * self.metadata.n_patches_per_img
+            )
+        case (&#34;all&#34;, int()):
+            # Return a patch from a random image, specific layer and random patch.
+            return self.metadata.n_imgs * (
+                self.metadata.n_patches_per_img + int(self.metadata.cls_token)
+            )
+        case (&#34;all&#34;, &#34;all&#34;):
+            # Return a patch from a random image, random layer and random patch.
+            return (
+                self.metadata.n_imgs
+                * len(self.metadata.layers)
+                * (self.metadata.n_patches_per_img + int(self.metadata.cls_token))
+            )
+        case _:
+            typing.assert_never((self.patches, self.layer))</code></pre>
+</details>
 </dd>
 <dt id="saev.data.writers.IndexLookup.map_global"><code class="name flex">
 <span>def <span class="ident">map_global</span></span>(<span>self, i: int) ‑> tuple[int, tuple[int, int, int]]</span>
@@ -387,6 +541,71 @@ class IndexLookup:
 shard_i,
 index in shard (img_i_in_shard, layer_i, token_i)
 )</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def map_global(self, i: int) -&gt; tuple[int, tuple[int, int, int]]:
+    &#34;&#34;&#34;
+    Return
+    -------
+    (
+        shard_i,
+        index in shard (img_i_in_shard, layer_i, token_i)
+    )
+    &#34;&#34;&#34;
+    n = self.length()
+
+    if i &lt; 0 or i &gt;= n:
+        raise IndexError(f&#34;{i=} out of range [0, {n})&#34;)
+
+    match (self.patches, self.layer):
+        case (&#34;cls&#34;, int()):
+            # For CLS token with specific layer, i is the image index
+            img_i = i
+            shard_i, img_i_in_shard = self.map_img(img_i)
+            # CLS token is at position 0
+            return shard_i, (img_i_in_shard, self.layer_to_idx[self.layer], 0)
+        case (&#34;image&#34;, int()):
+            # For image patches with specific layer, i is (img_idx * n_patches_per_img + patch_idx)
+            img_i = i // self.metadata.n_patches_per_img
+            token_i = i % self.metadata.n_patches_per_img
+
+            shard_i, img_i_in_shard = self.map_img(img_i)
+            return shard_i, (img_i_in_shard, self.layer_to_idx[self.layer], token_i)
+        case (&#34;image&#34;, &#34;all&#34;):
+            raise NotImplementedError()
+        case (&#34;all&#34;, int()):
+            n_tokens_per_img = self.metadata.n_patches_per_img + (
+                1 if self.metadata.cls_token else 0
+            )
+            img_i = i // n_tokens_per_img
+            token_i = i % n_tokens_per_img
+            shard_i, img_i_in_shard = self.map_img(img_i)
+            return shard_i, (img_i_in_shard, self.layer_to_idx[self.layer], token_i)
+        case (&#34;all&#34;, &#34;all&#34;):
+            # For all tokens (CLS + patches) with all layers
+            # Calculate total tokens per image across all layers
+            n_tokens_per_img = self.metadata.n_patches_per_img + (
+                1 if self.metadata.cls_token else 0
+            )
+            total_tokens_per_img = n_tokens_per_img * len(self.metadata.layers)
+
+            # Calculate which image and which token within that image
+            img_i = i // total_tokens_per_img
+            remainder = i % total_tokens_per_img
+
+            # Calculate which layer and which token within that layer
+            layer_idx = remainder // n_tokens_per_img
+            token_i = remainder % n_tokens_per_img
+
+            # Map to physical location
+            shard_i, img_i_in_shard = self.map_img(img_i)
+            return shard_i, (img_i_in_shard, layer_idx, token_i)
+
+        case _:
+            typing.assert_never((self.patches, self.layer))</code></pre>
+</details>
 </dd>
 <dt id="saev.data.writers.IndexLookup.map_img"><code class="name flex">
 <span>def <span class="ident">map_img</span></span>(<span>self, img_i: int) ‑> tuple[int, int]</span>
@@ -394,15 +613,34 @@ index in shard (img_i_in_shard, layer_i, token_i)
 <dd>
 <div class="desc"><h2 id="return">Return</h2>
 <p>(shard_i, img_i_in_shard)</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def map_img(self, img_i: int) -&gt; tuple[int, int]:
+    &#34;&#34;&#34;
+    Return
+    -------
+    (shard_i, img_i_in_shard)
+    &#34;&#34;&#34;
+    if img_i &lt; 0 or img_i &gt;= self.metadata.n_imgs:
+        raise IndexError(f&#34;{img_i=} out of range [0, {self.metadata.n_imgs})&#34;)
+
+    # Calculate which shard contains this image
+    shard_i = img_i // self.metadata.n_imgs_per_shard
+    img_i_in_shard = img_i % self.metadata.n_imgs_per_shard
+
+    return shard_i, img_i_in_shard</code></pre>
+</details>
 </dd>
 </dl>
 </dd>
 <dt id="saev.data.writers.Metadata"><code class="flex name class">
 <span>class <span class="ident">Metadata</span></span>
-<span>(</span><span>vit_family: Literal['clip', 'siglip', 'dinov2'],<br>vit_ckpt: str,<br>layers: tuple[int, ...],<br>n_patches_per_img: int,<br>cls_token: bool,<br>d_vit: int,<br>n_imgs: int,<br>max_patches_per_shard: int,<br>data: dict[str, object],<br>dtype: Literal['float32'] = 'float32',<br>protocol: Literal['1.0.0'] = '1.0.0')</span>
+<span>(</span><span>vit_family: Literal['clip', 'siglip', 'dinov2', 'dinov3'],<br>vit_ckpt: str,<br>layers: tuple[int, ...],<br>n_patches_per_img: int,<br>cls_token: bool,<br>d_vit: int,<br>n_imgs: int,<br>max_patches_per_shard: int,<br>data: dict[str, object],<br>dtype: Literal['float32'] = 'float32',<br>protocol: Literal['1.0.0'] = '1.0.0')</span>
 </code></dt>
 <dd>
-<div class="desc"><p>Metadata(vit_family: Literal['clip', 'siglip', 'dinov2'], vit_ckpt: str, layers: tuple[int, &hellip;], n_patches_per_img: int, cls_token: bool, d_vit: int, n_imgs: int, max_patches_per_shard: int, data: dict[str, object], dtype: Literal['float32'] = 'float32', protocol: Literal['1.0.0'] = '1.0.0')</p></div>
+<div class="desc"><p>Metadata(vit_family: Literal['clip', 'siglip', 'dinov2', 'dinov3'], vit_ckpt: str, layers: tuple[int, &hellip;], n_patches_per_img: int, cls_token: bool, d_vit: int, n_imgs: int, max_patches_per_shard: int, data: dict[str, object], dtype: Literal['float32'] = 'float32', protocol: Literal['1.0.0'] = '1.0.0')</p></div>
 <details class="source">
 <summary>
 <span>Expand source code</span>
@@ -410,7 +648,7 @@ index in shard (img_i_in_shard, layer_i, token_i)
 <pre><code class="python">@beartype.beartype
 @dataclasses.dataclass(frozen=True)
 class Metadata:
-    vit_family: typing.Literal[&#34;clip&#34;, &#34;siglip&#34;, &#34;dinov2&#34;]
+    vit_family: typing.Literal[&#34;clip&#34;, &#34;siglip&#34;, &#34;dinov2&#34;, &#34;dinov3&#34;]
     vit_ckpt: str
     layers: tuple[int, ...]
     n_patches_per_img: int
@@ -488,7 +726,51 @@ class Metadata:
             self.d_vit,
         )</code></pre>
 </details>
-<h3>Class variables</h3>
+<h3>Static methods</h3>
+<dl>
+<dt id="saev.data.writers.Metadata.from_cfg"><code class="name flex">
+<span>def <span class="ident">from_cfg</span></span>(<span>cls,<br>cfg: <a title="saev.data.writers.Config" href="#saev.data.writers.Config">Config</a>) ‑> <a title="saev.data.writers.Metadata" href="#saev.data.writers.Metadata">Metadata</a></span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@classmethod
+def from_cfg(cls, cfg: Config) -&gt; &#34;Metadata&#34;:
+    return cls(
+        cfg.vit_family,
+        cfg.vit_ckpt,
+        tuple(cfg.vit_layers),
+        cfg.n_patches_per_img,
+        cfg.cls_token,
+        cfg.d_vit,
+        cfg.data.n_imgs,
+        cfg.max_patches_per_shard,
+        {**dataclasses.asdict(cfg.data), &#34;__class__&#34;: cfg.data.__class__.__name__},
+    )</code></pre>
+</details>
+</dd>
+<dt id="saev.data.writers.Metadata.load"><code class="name flex">
+<span>def <span class="ident">load</span></span>(<span>cls, shard_root: str) ‑> <a title="saev.data.writers.Metadata" href="#saev.data.writers.Metadata">Metadata</a></span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@classmethod
+def load(cls, shard_root: str) -&gt; &#34;Metadata&#34;:
+    with open(os.path.join(shard_root, &#34;metadata.json&#34;)) as fd:
+        dct = json.load(fd)
+    dct[&#34;layers&#34;] = tuple(dct.pop(&#34;layers&#34;))
+    return cls(**dct)</code></pre>
+</details>
+</dd>
+</dl>
+<h3>Instance variables</h3>
 <dl>
 <dt id="saev.data.writers.Metadata.cls_token"><code class="name">var <span class="ident">cls_token</span> : bool</code></dt>
 <dd>
@@ -506,52 +788,6 @@ class Metadata:
 <dd>
 <div class="desc"></div>
 </dd>
-<dt id="saev.data.writers.Metadata.layers"><code class="name">var <span class="ident">layers</span> : tuple[int, ...]</code></dt>
-<dd>
-<div class="desc"></div>
-</dd>
-<dt id="saev.data.writers.Metadata.max_patches_per_shard"><code class="name">var <span class="ident">max_patches_per_shard</span> : int</code></dt>
-<dd>
-<div class="desc"></div>
-</dd>
-<dt id="saev.data.writers.Metadata.n_imgs"><code class="name">var <span class="ident">n_imgs</span> : int</code></dt>
-<dd>
-<div class="desc"></div>
-</dd>
-<dt id="saev.data.writers.Metadata.n_patches_per_img"><code class="name">var <span class="ident">n_patches_per_img</span> : int</code></dt>
-<dd>
-<div class="desc"></div>
-</dd>
-<dt id="saev.data.writers.Metadata.protocol"><code class="name">var <span class="ident">protocol</span> : Literal['1.0.0']</code></dt>
-<dd>
-<div class="desc"></div>
-</dd>
-<dt id="saev.data.writers.Metadata.vit_ckpt"><code class="name">var <span class="ident">vit_ckpt</span> : str</code></dt>
-<dd>
-<div class="desc"></div>
-</dd>
-<dt id="saev.data.writers.Metadata.vit_family"><code class="name">var <span class="ident">vit_family</span> : Literal['clip', 'siglip', 'dinov2']</code></dt>
-<dd>
-<div class="desc"></div>
-</dd>
-</dl>
-<h3>Static methods</h3>
-<dl>
-<dt id="saev.data.writers.Metadata.from_cfg"><code class="name flex">
-<span>def <span class="ident">from_cfg</span></span>(<span>cls,<br>cfg: <a title="saev.data.writers.Config" href="#saev.data.writers.Config">Config</a>) ‑> <a title="saev.data.writers.Metadata" href="#saev.data.writers.Metadata">Metadata</a></span>
-</code></dt>
-<dd>
-<div class="desc"></div>
-</dd>
-<dt id="saev.data.writers.Metadata.load"><code class="name flex">
-<span>def <span class="ident">load</span></span>(<span>cls, shard_root: str) ‑> <a title="saev.data.writers.Metadata" href="#saev.data.writers.Metadata">Metadata</a></span>
-</code></dt>
-<dd>
-<div class="desc"></div>
-</dd>
-</dl>
-<h3>Instance variables</h3>
-<dl>
 <dt id="saev.data.writers.Metadata.hash"><code class="name">prop <span class="ident">hash</span> : str</code></dt>
 <dd>
 <div class="desc"></div>
@@ -566,6 +802,18 @@ def hash(self) -&gt; str:
     ).encode(&#34;utf-8&#34;)
     return hashlib.sha256(cfg_bytes).hexdigest()</code></pre>
 </details>
+</dd>
+<dt id="saev.data.writers.Metadata.layers"><code class="name">var <span class="ident">layers</span> : tuple[int, ...]</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="saev.data.writers.Metadata.max_patches_per_shard"><code class="name">var <span class="ident">max_patches_per_shard</span> : int</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="saev.data.writers.Metadata.n_imgs"><code class="name">var <span class="ident">n_imgs</span> : int</code></dt>
+<dd>
+<div class="desc"></div>
 </dd>
 <dt id="saev.data.writers.Metadata.n_imgs_per_shard"><code class="name">prop <span class="ident">n_imgs_per_shard</span> : int</code></dt>
 <dd>
@@ -587,6 +835,10 @@ def n_imgs_per_shard(self) -&gt; int:
     n_tokens_per_img = self.n_patches_per_img + (1 if self.cls_token else 0)
     return self.max_patches_per_shard // (n_tokens_per_img * len(self.layers))</code></pre>
 </details>
+</dd>
+<dt id="saev.data.writers.Metadata.n_patches_per_img"><code class="name">var <span class="ident">n_patches_per_img</span> : int</code></dt>
+<dd>
+<div class="desc"></div>
 </dd>
 <dt id="saev.data.writers.Metadata.n_shards"><code class="name">prop <span class="ident">n_shards</span> : int</code></dt>
 <dd>
@@ -612,6 +864,10 @@ def n_tokens_per_img(self) -&gt; int:
     return self.n_patches_per_img + int(self.cls_token)</code></pre>
 </details>
 </dd>
+<dt id="saev.data.writers.Metadata.protocol"><code class="name">var <span class="ident">protocol</span> : Literal['1.0.0']</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
 <dt id="saev.data.writers.Metadata.shard_shape"><code class="name">prop <span class="ident">shard_shape</span> : tuple[int, int, int, int]</code></dt>
 <dd>
 <div class="desc"></div>
@@ -629,6 +885,14 @@ def shard_shape(self) -&gt; tuple[int, int, int, int]:
     )</code></pre>
 </details>
 </dd>
+<dt id="saev.data.writers.Metadata.vit_ckpt"><code class="name">var <span class="ident">vit_ckpt</span> : str</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="saev.data.writers.Metadata.vit_family"><code class="name">var <span class="ident">vit_family</span> : Literal['clip', 'siglip', 'dinov2', 'dinov3']</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
 </dl>
 <h3>Methods</h3>
 <dl>
@@ -637,6 +901,14 @@ def shard_shape(self) -&gt; tuple[int, int, int, int]:
 </code></dt>
 <dd>
 <div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def dump(self, shard_root: str):
+    with open(os.path.join(shard_root, &#34;metadata.json&#34;), &#34;w&#34;) as fd:
+        json.dump(dataclasses.asdict(self), fd, indent=4)</code></pre>
+</details>
 </dd>
 </dl>
 </dd>
@@ -647,10 +919,11 @@ def shard_shape(self) -&gt; tuple[int, int, int, int]:
 <dd>
 <div class="desc"><p>Base class for all neural network modules.</p>
 <p>Your models should also subclass this class.</p>
-<p>Modules can also contain other Modules, allowing to nest them in
+<p>Modules can also contain other Modules, allowing them to be nested in
 a tree structure. You can assign the submodules as regular attributes::</p>
 <pre><code>import torch.nn as nn
 import torch.nn.functional as F
+
 
 class Model(nn.Module):
     def __init__(self) -&gt; None:
@@ -662,8 +935,8 @@ class Model(nn.Module):
         x = F.relu(self.conv1(x))
         return F.relu(self.conv2(x))
 </code></pre>
-<p>Submodules assigned in this way will be registered, and will have their
-parameters converted too when you call :meth:<code>to</code>, etc.</p>
+<p>Submodules assigned in this way will be registered, and will also have their
+parameters converted when you call :meth:<code>to</code>, etc.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>As per the example above, an <code>__init__()</code> call to the parent class
@@ -790,18 +1063,62 @@ this function, one should call the :class:<code>Module</code> instance afterward
 instead of this since the former takes care of running the
 registered hooks while the latter silently ignores them.</p>
 </div></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def forward(
+    self, batch: Float[Tensor, &#34;batch 3 width height&#34;]
+) -&gt; tuple[
+    Float[Tensor, &#34;batch patches dim&#34;],
+    Float[Tensor, &#34;batch n_layers all_patches dim&#34;],
+]:
+    self.reset()
+    result = self.vit(batch)
+    return result, self.activations</code></pre>
+</details>
 </dd>
 <dt id="saev.data.writers.RecordedVisionTransformer.hook"><code class="name flex">
 <span>def <span class="ident">hook</span></span>(<span>self, module, args: tuple, output: jaxtyping.Float[Tensor, 'batch n_layers dim']) ‑> None</span>
 </code></dt>
 <dd>
 <div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def hook(
+    self, module, args: tuple, output: Float[Tensor, &#34;batch n_layers dim&#34;]
+) -&gt; None:
+    if self._storage is None:
+        batch, _, dim = output.shape
+        self._storage = self._empty_storage(batch, dim, output.device)
+
+    if self._storage[:, self._i, 0, :].shape != output[:, 0, :].shape:
+        batch, _, dim = output.shape
+
+        old_batch, _, _, old_dim = self._storage.shape
+        msg = &#34;Output shape does not match storage shape: (batch) %d != %d or (dim) %d != %d&#34;
+        self.logger.warning(msg, old_batch, batch, old_dim, dim)
+
+        self._storage = self._empty_storage(batch, dim, output.device)
+
+    self._storage[:, self._i] = output[:, self.patches, :].detach()
+    self._i += 1</code></pre>
+</details>
 </dd>
 <dt id="saev.data.writers.RecordedVisionTransformer.reset"><code class="name flex">
 <span>def <span class="ident">reset</span></span>(<span>self)</span>
 </code></dt>
 <dd>
 <div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def reset(self):
+    self._i = 0</code></pre>
+</details>
 </dd>
 </dl>
 </dd>
@@ -825,7 +1142,7 @@ class Shard:
     name: str
     n_imgs: int</code></pre>
 </details>
-<h3>Class variables</h3>
+<h3>Instance variables</h3>
 <dl>
 <dt id="saev.data.writers.Shard.n_imgs"><code class="name">var <span class="ident">n_imgs</span> : int</code></dt>
 <dd>
@@ -878,18 +1195,28 @@ class ShardInfo:
     def __iter__(self):
         yield from self.shards</code></pre>
 </details>
-<h3>Class variables</h3>
-<dl>
-<dt id="saev.data.writers.ShardInfo.shards"><code class="name">var <span class="ident">shards</span> : list[<a title="saev.data.writers.Shard" href="#saev.data.writers.Shard">Shard</a>]</code></dt>
-<dd>
-<div class="desc"></div>
-</dd>
-</dl>
 <h3>Static methods</h3>
 <dl>
 <dt id="saev.data.writers.ShardInfo.load"><code class="name flex">
 <span>def <span class="ident">load</span></span>(<span>cls, shard_path: str) ‑> <a title="saev.data.writers.ShardInfo" href="#saev.data.writers.ShardInfo">ShardInfo</a></span>
 </code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@classmethod
+def load(cls, shard_path: str) -&gt; &#34;ShardInfo&#34;:
+    with open(os.path.join(shard_path, &#34;shards.json&#34;)) as fd:
+        data = json.load(fd)
+    return cls([Shard(**entry) for entry in data])</code></pre>
+</details>
+</dd>
+</dl>
+<h3>Instance variables</h3>
+<dl>
+<dt id="saev.data.writers.ShardInfo.shards"><code class="name">var <span class="ident">shards</span> : list[<a title="saev.data.writers.Shard" href="#saev.data.writers.Shard">Shard</a>]</code></dt>
 <dd>
 <div class="desc"></div>
 </dd>
@@ -901,12 +1228,27 @@ class ShardInfo:
 </code></dt>
 <dd>
 <div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def append(self, shard: Shard):
+    self.shards.append(shard)</code></pre>
+</details>
 </dd>
 <dt id="saev.data.writers.ShardInfo.dump"><code class="name flex">
 <span>def <span class="ident">dump</span></span>(<span>self, fpath: str) ‑> None</span>
 </code></dt>
 <dd>
 <div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def dump(self, fpath: str) -&gt; None:
+    with open(os.path.join(fpath, &#34;shards.json&#34;), &#34;w&#34;) as fd:
+        json.dump([dataclasses.asdict(s) for s in self.shards], fd, indent=2)</code></pre>
+</details>
 </dd>
 </dl>
 </dd>
@@ -1045,12 +1387,45 @@ class ShardWriter:
 </code></dt>
 <dd>
 <div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def flush(self) -&gt; None:
+    if self.acts is not None:
+        self.acts.flush()
+
+        # record shard info
+        self._shards.append(
+            Shard(name=os.path.basename(self.acts_path), n_imgs=self.filled)
+        )
+        self._shards.dump(self.root)
+
+    self.acts = None</code></pre>
+</details>
 </dd>
 <dt id="saev.data.writers.ShardWriter.next_shard"><code class="name flex">
 <span>def <span class="ident">next_shard</span></span>(<span>self) ‑> None</span>
 </code></dt>
 <dd>
 <div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def next_shard(self) -&gt; None:
+    self.flush()
+
+    self.shard += 1
+    self._count = 0
+    self.acts_path = os.path.join(self.root, f&#34;acts{self.shard:06}.bin&#34;)
+    self.acts = np.memmap(
+        self.acts_path, mode=&#34;w+&#34;, dtype=np.float32, shape=self.shape
+    )
+    self.filled = 0
+
+    self.logger.info(&#34;Opened shard &#39;%s&#39;.&#34;, self.acts_path)</code></pre>
+</details>
 </dd>
 </dl>
 </dd>
@@ -1220,7 +1595,7 @@ setTimeout(() => input.focus(), 100);
 </nav>
 </main>
 <footer id="footer">
-<p>Generated by <a href="https://pdoc3.github.io/pdoc" title="pdoc: Python API documentation generator"><cite>pdoc</cite> 0.11.1</a>.</p>
+<p>Generated by <a href="https://pdoc3.github.io/pdoc" title="pdoc: Python API documentation generator"><cite>pdoc</cite> 0.11.6</a>.</p>
 </footer>
 </body>
 </html>

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1">
-<meta name="generator" content="pdoc3 0.11.1">
+<meta name="generator" content="pdoc3 0.11.6">
 <title>saev.nn.objectives API documentation</title>
 <meta name="description" content="">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/13.0.0/sanitize.min.css" integrity="sha512-y1dtMcuvtTMJc1yPgEqF0ZjQbhnc/bFhyvIyVNb9Zk5mIGtqVaAB1Ttl28su8AvFMOY0EwRbAe+HCLqj6W7/KA==" crossorigin>
@@ -40,18 +40,65 @@ hljs.highlightAll();
 </code></dt>
 <dd>
 <div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+def get_objective(cfg: ObjectiveConfig) -&gt; Objective:
+    if isinstance(cfg, Vanilla):
+        return VanillaObjective(cfg)
+    elif isinstance(cfg, Matryoshka):
+        return MatryoshkaObjective(cfg)
+    else:
+        typing.assert_never(cfg)</code></pre>
+</details>
 </dd>
 <dt id="saev.nn.objectives.mean_squared_err"><code class="name flex">
 <span>def <span class="ident">mean_squared_err</span></span>(<span>x_hat: jaxtyping.Float[Tensor, '*batch d'],<br>x: jaxtyping.Float[Tensor, '*batch d'],<br>norm: bool = False) ‑> jaxtyping.Float[Tensor, '*batch d']</span>
 </code></dt>
 <dd>
 <div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@jaxtyped(typechecker=beartype.beartype)
+def mean_squared_err(
+    x_hat: Float[Tensor, &#34;*batch d&#34;], x: Float[Tensor, &#34;*batch d&#34;], norm: bool = False
+) -&gt; Float[Tensor, &#34;*batch d&#34;]:
+    upper = x.abs().max()
+    x = x / upper
+    x_hat = x_hat / upper
+
+    mse = (x_hat - x) ** 2
+    # (sam): I am now realizing that we normalize by the L2 norm of x.
+    if norm:
+        mse /= torch.linalg.norm(x, axis=-1, keepdim=True) + 1e-12
+        return mse * upper
+
+    return mse * upper * upper</code></pre>
+</details>
 </dd>
 <dt id="saev.nn.objectives.ref_mean_squared_err"><code class="name flex">
 <span>def <span class="ident">ref_mean_squared_err</span></span>(<span>x_hat: jaxtyping.Float[Tensor, '*d'],<br>x: jaxtyping.Float[Tensor, '*d'],<br>norm: bool = False) ‑> jaxtyping.Float[Tensor, '*d']</span>
 </code></dt>
 <dd>
 <div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@jaxtyped(typechecker=beartype.beartype)
+def ref_mean_squared_err(
+    x_hat: Float[Tensor, &#34;*d&#34;], x: Float[Tensor, &#34;*d&#34;], norm: bool = False
+) -&gt; Float[Tensor, &#34;*d&#34;]:
+    mse_loss = torch.pow((x_hat - x.float()), 2)
+
+    if norm:
+        mse_loss /= (x**2).sum(dim=-1, keepdim=True).sqrt()
+    return mse_loss</code></pre>
+</details>
 </dd>
 </dl>
 </section>
@@ -110,6 +157,13 @@ def loss(self) -&gt; Float[Tensor, &#34;&#34;]:
 </code></dt>
 <dd>
 <div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def metrics(self) -&gt; dict[str, object]:
+    raise NotImplementedError()</code></pre>
+</details>
 </dd>
 </dl>
 </dd>
@@ -143,10 +197,46 @@ class Matryoshka:
 <dt id="saev.nn.objectives.Matryoshka.n_prefixes"><code class="name">var <span class="ident">n_prefixes</span> : int</code></dt>
 <dd>
 <div class="desc"><p>Number of random length prefixes to use for loss calculation.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+@dataclasses.dataclass(frozen=True, slots=True)
+class Matryoshka:
+    &#34;&#34;&#34;
+    Config for the Matryoshka loss for another arbitrary SAE class.
+
+    Reference code is here: https://github.com/noanabeshima/matryoshka-saes and the original reading is https://sparselatents.com/matryoshka.html and https://arxiv.org/pdf/2503.17547
+    &#34;&#34;&#34;
+
+    sparsity_coeff: float = 4e-4
+    &#34;&#34;&#34;How much to weight sparsity loss term (if not using TopK/BatchTopK).&#34;&#34;&#34;
+    n_prefixes: int = 10
+    &#34;&#34;&#34;Number of random length prefixes to use for loss calculation.&#34;&#34;&#34;</code></pre>
+</details>
 </dd>
 <dt id="saev.nn.objectives.Matryoshka.sparsity_coeff"><code class="name">var <span class="ident">sparsity_coeff</span> : float</code></dt>
 <dd>
 <div class="desc"><p>How much to weight sparsity loss term (if not using TopK/BatchTopK).</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+@dataclasses.dataclass(frozen=True, slots=True)
+class Matryoshka:
+    &#34;&#34;&#34;
+    Config for the Matryoshka loss for another arbitrary SAE class.
+
+    Reference code is here: https://github.com/noanabeshima/matryoshka-saes and the original reading is https://sparselatents.com/matryoshka.html and https://arxiv.org/pdf/2503.17547
+    &#34;&#34;&#34;
+
+    sparsity_coeff: float = 4e-4
+    &#34;&#34;&#34;How much to weight sparsity loss term (if not using TopK/BatchTopK).&#34;&#34;&#34;
+    n_prefixes: int = 10
+    &#34;&#34;&#34;Number of random length prefixes to use for loss calculation.&#34;&#34;&#34;</code></pre>
+</details>
 </dd>
 </dl>
 </dd>
@@ -197,18 +287,146 @@ class MatryoshkaLoss(Loss):
 <dt id="saev.nn.objectives.MatryoshkaLoss.l0"><code class="name">var <span class="ident">l0</span> : jaxtyping.Float[Tensor, '']</code></dt>
 <dd>
 <div class="desc"><p>Sum of L0 magnitudes of hidden activations for all prefix lengths.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@jaxtyped(typechecker=beartype.beartype)
+@dataclasses.dataclass(frozen=True, slots=True)
+class MatryoshkaLoss(Loss):
+    &#34;&#34;&#34;The composite loss terms for an training batch.&#34;&#34;&#34;
+
+    mse: Float[Tensor, &#34;&#34;]
+    &#34;&#34;&#34;Average of reconstruction loss (mean squared error) for all prefix lengths.&#34;&#34;&#34;
+    sparsity: Float[Tensor, &#34;&#34;]
+    &#34;&#34;&#34;Sparsity loss, typically lambda * L1.&#34;&#34;&#34;
+    l0: Float[Tensor, &#34;&#34;]
+    &#34;&#34;&#34;Sum of L0 magnitudes of hidden activations for all prefix lengths.&#34;&#34;&#34;
+    l1: Float[Tensor, &#34;&#34;]
+    &#34;&#34;&#34;Sum of L1 magnitudes of hidden activations for all prefix lengths.&#34;&#34;&#34;
+
+    @property
+    def loss(self) -&gt; Float[Tensor, &#34;&#34;]:
+        &#34;&#34;&#34;Total loss.&#34;&#34;&#34;
+        return self.mse + self.sparsity
+
+    def metrics(self) -&gt; dict[str, object]:
+        return {
+            &#34;loss&#34;: self.loss.item(),
+            &#34;mse&#34;: self.mse.item(),
+            &#34;l0&#34;: self.l0.item(),
+            &#34;l1&#34;: self.l1.item(),
+            &#34;sparsity&#34;: self.sparsity.item(),
+        }</code></pre>
+</details>
 </dd>
 <dt id="saev.nn.objectives.MatryoshkaLoss.l1"><code class="name">var <span class="ident">l1</span> : jaxtyping.Float[Tensor, '']</code></dt>
 <dd>
 <div class="desc"><p>Sum of L1 magnitudes of hidden activations for all prefix lengths.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@jaxtyped(typechecker=beartype.beartype)
+@dataclasses.dataclass(frozen=True, slots=True)
+class MatryoshkaLoss(Loss):
+    &#34;&#34;&#34;The composite loss terms for an training batch.&#34;&#34;&#34;
+
+    mse: Float[Tensor, &#34;&#34;]
+    &#34;&#34;&#34;Average of reconstruction loss (mean squared error) for all prefix lengths.&#34;&#34;&#34;
+    sparsity: Float[Tensor, &#34;&#34;]
+    &#34;&#34;&#34;Sparsity loss, typically lambda * L1.&#34;&#34;&#34;
+    l0: Float[Tensor, &#34;&#34;]
+    &#34;&#34;&#34;Sum of L0 magnitudes of hidden activations for all prefix lengths.&#34;&#34;&#34;
+    l1: Float[Tensor, &#34;&#34;]
+    &#34;&#34;&#34;Sum of L1 magnitudes of hidden activations for all prefix lengths.&#34;&#34;&#34;
+
+    @property
+    def loss(self) -&gt; Float[Tensor, &#34;&#34;]:
+        &#34;&#34;&#34;Total loss.&#34;&#34;&#34;
+        return self.mse + self.sparsity
+
+    def metrics(self) -&gt; dict[str, object]:
+        return {
+            &#34;loss&#34;: self.loss.item(),
+            &#34;mse&#34;: self.mse.item(),
+            &#34;l0&#34;: self.l0.item(),
+            &#34;l1&#34;: self.l1.item(),
+            &#34;sparsity&#34;: self.sparsity.item(),
+        }</code></pre>
+</details>
 </dd>
 <dt id="saev.nn.objectives.MatryoshkaLoss.mse"><code class="name">var <span class="ident">mse</span> : jaxtyping.Float[Tensor, '']</code></dt>
 <dd>
 <div class="desc"><p>Average of reconstruction loss (mean squared error) for all prefix lengths.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@jaxtyped(typechecker=beartype.beartype)
+@dataclasses.dataclass(frozen=True, slots=True)
+class MatryoshkaLoss(Loss):
+    &#34;&#34;&#34;The composite loss terms for an training batch.&#34;&#34;&#34;
+
+    mse: Float[Tensor, &#34;&#34;]
+    &#34;&#34;&#34;Average of reconstruction loss (mean squared error) for all prefix lengths.&#34;&#34;&#34;
+    sparsity: Float[Tensor, &#34;&#34;]
+    &#34;&#34;&#34;Sparsity loss, typically lambda * L1.&#34;&#34;&#34;
+    l0: Float[Tensor, &#34;&#34;]
+    &#34;&#34;&#34;Sum of L0 magnitudes of hidden activations for all prefix lengths.&#34;&#34;&#34;
+    l1: Float[Tensor, &#34;&#34;]
+    &#34;&#34;&#34;Sum of L1 magnitudes of hidden activations for all prefix lengths.&#34;&#34;&#34;
+
+    @property
+    def loss(self) -&gt; Float[Tensor, &#34;&#34;]:
+        &#34;&#34;&#34;Total loss.&#34;&#34;&#34;
+        return self.mse + self.sparsity
+
+    def metrics(self) -&gt; dict[str, object]:
+        return {
+            &#34;loss&#34;: self.loss.item(),
+            &#34;mse&#34;: self.mse.item(),
+            &#34;l0&#34;: self.l0.item(),
+            &#34;l1&#34;: self.l1.item(),
+            &#34;sparsity&#34;: self.sparsity.item(),
+        }</code></pre>
+</details>
 </dd>
 <dt id="saev.nn.objectives.MatryoshkaLoss.sparsity"><code class="name">var <span class="ident">sparsity</span> : jaxtyping.Float[Tensor, '']</code></dt>
 <dd>
 <div class="desc"><p>Sparsity loss, typically lambda * L1.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@jaxtyped(typechecker=beartype.beartype)
+@dataclasses.dataclass(frozen=True, slots=True)
+class MatryoshkaLoss(Loss):
+    &#34;&#34;&#34;The composite loss terms for an training batch.&#34;&#34;&#34;
+
+    mse: Float[Tensor, &#34;&#34;]
+    &#34;&#34;&#34;Average of reconstruction loss (mean squared error) for all prefix lengths.&#34;&#34;&#34;
+    sparsity: Float[Tensor, &#34;&#34;]
+    &#34;&#34;&#34;Sparsity loss, typically lambda * L1.&#34;&#34;&#34;
+    l0: Float[Tensor, &#34;&#34;]
+    &#34;&#34;&#34;Sum of L0 magnitudes of hidden activations for all prefix lengths.&#34;&#34;&#34;
+    l1: Float[Tensor, &#34;&#34;]
+    &#34;&#34;&#34;Sum of L1 magnitudes of hidden activations for all prefix lengths.&#34;&#34;&#34;
+
+    @property
+    def loss(self) -&gt; Float[Tensor, &#34;&#34;]:
+        &#34;&#34;&#34;Total loss.&#34;&#34;&#34;
+        return self.mse + self.sparsity
+
+    def metrics(self) -&gt; dict[str, object]:
+        return {
+            &#34;loss&#34;: self.loss.item(),
+            &#34;mse&#34;: self.mse.item(),
+            &#34;l0&#34;: self.l0.item(),
+            &#34;l1&#34;: self.l1.item(),
+            &#34;sparsity&#34;: self.sparsity.item(),
+        }</code></pre>
+</details>
 </dd>
 </dl>
 <h3>Methods</h3>
@@ -218,6 +436,19 @@ class MatryoshkaLoss(Loss):
 </code></dt>
 <dd>
 <div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def metrics(self) -&gt; dict[str, object]:
+    return {
+        &#34;loss&#34;: self.loss.item(),
+        &#34;mse&#34;: self.mse.item(),
+        &#34;l0&#34;: self.l0.item(),
+        &#34;l1&#34;: self.l1.item(),
+        &#34;sparsity&#34;: self.sparsity.item(),
+    }</code></pre>
+</details>
 </dd>
 </dl>
 <h3>Inherited members</h3>
@@ -285,10 +516,11 @@ class MatryoshkaObjective(Objective):
 <dd>
 <div class="desc"><p>Base class for all neural network modules.</p>
 <p>Your models should also subclass this class.</p>
-<p>Modules can also contain other Modules, allowing to nest them in
+<p>Modules can also contain other Modules, allowing them to be nested in
 a tree structure. You can assign the submodules as regular attributes::</p>
 <pre><code>import torch.nn as nn
 import torch.nn.functional as F
+
 
 class Model(nn.Module):
     def __init__(self) -&gt; None:
@@ -300,8 +532,8 @@ class Model(nn.Module):
         x = F.relu(self.conv1(x))
         return F.relu(self.conv2(x))
 </code></pre>
-<p>Submodules assigned in this way will be registered, and will have their
-parameters converted too when you call :meth:<code>to</code>, etc.</p>
+<p>Submodules assigned in this way will be registered, and will also have their
+parameters converted when you call :meth:<code>to</code>, etc.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>As per the example above, an <code>__init__()</code> call to the parent class
@@ -349,6 +581,18 @@ this function, one should call the :class:<code>Module</code> instance afterward
 instead of this since the former takes care of running the
 registered hooks while the latter silently ignores them.</p>
 </div></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def forward(
+    self,
+    x: Float[Tensor, &#34;batch d_model&#34;],
+    f_x: Float[Tensor, &#34;batch d_sae&#34;],
+    x_hat: Float[Tensor, &#34;batch d_model&#34;],
+) -&gt; Loss:
+    raise NotImplementedError()</code></pre>
+</details>
 </dd>
 </dl>
 </dd>
@@ -373,6 +617,16 @@ class Vanilla:
 <dt id="saev.nn.objectives.Vanilla.sparsity_coeff"><code class="name">var <span class="ident">sparsity_coeff</span> : float</code></dt>
 <dd>
 <div class="desc"><p>How much to weight sparsity loss term.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+@dataclasses.dataclass(frozen=True, slots=True)
+class Vanilla:
+    sparsity_coeff: float = 4e-4
+    &#34;&#34;&#34;How much to weight sparsity loss term.&#34;&#34;&#34;</code></pre>
+</details>
 </dd>
 </dl>
 </dd>
@@ -423,18 +677,146 @@ class VanillaLoss(Loss):
 <dt id="saev.nn.objectives.VanillaLoss.l0"><code class="name">var <span class="ident">l0</span> : jaxtyping.Float[Tensor, '']</code></dt>
 <dd>
 <div class="desc"><p>L0 magnitude of hidden activations.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@jaxtyped(typechecker=beartype.beartype)
+@dataclasses.dataclass(frozen=True, slots=True)
+class VanillaLoss(Loss):
+    &#34;&#34;&#34;The vanilla loss terms for an training batch.&#34;&#34;&#34;
+
+    mse: Float[Tensor, &#34;&#34;]
+    &#34;&#34;&#34;Reconstruction loss (mean squared error).&#34;&#34;&#34;
+    sparsity: Float[Tensor, &#34;&#34;]
+    &#34;&#34;&#34;Sparsity loss, typically lambda * L1.&#34;&#34;&#34;
+    l0: Float[Tensor, &#34;&#34;]
+    &#34;&#34;&#34;L0 magnitude of hidden activations.&#34;&#34;&#34;
+    l1: Float[Tensor, &#34;&#34;]
+    &#34;&#34;&#34;L1 magnitude of hidden activations.&#34;&#34;&#34;
+
+    @property
+    def loss(self) -&gt; Float[Tensor, &#34;&#34;]:
+        &#34;&#34;&#34;Total loss.&#34;&#34;&#34;
+        return self.mse + self.sparsity
+
+    def metrics(self) -&gt; dict[str, object]:
+        return {
+            &#34;loss&#34;: self.loss.item(),
+            &#34;mse&#34;: self.mse.item(),
+            &#34;l0&#34;: self.l0.item(),
+            &#34;l1&#34;: self.l1.item(),
+            &#34;sparsity&#34;: self.sparsity.item(),
+        }</code></pre>
+</details>
 </dd>
 <dt id="saev.nn.objectives.VanillaLoss.l1"><code class="name">var <span class="ident">l1</span> : jaxtyping.Float[Tensor, '']</code></dt>
 <dd>
 <div class="desc"><p>L1 magnitude of hidden activations.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@jaxtyped(typechecker=beartype.beartype)
+@dataclasses.dataclass(frozen=True, slots=True)
+class VanillaLoss(Loss):
+    &#34;&#34;&#34;The vanilla loss terms for an training batch.&#34;&#34;&#34;
+
+    mse: Float[Tensor, &#34;&#34;]
+    &#34;&#34;&#34;Reconstruction loss (mean squared error).&#34;&#34;&#34;
+    sparsity: Float[Tensor, &#34;&#34;]
+    &#34;&#34;&#34;Sparsity loss, typically lambda * L1.&#34;&#34;&#34;
+    l0: Float[Tensor, &#34;&#34;]
+    &#34;&#34;&#34;L0 magnitude of hidden activations.&#34;&#34;&#34;
+    l1: Float[Tensor, &#34;&#34;]
+    &#34;&#34;&#34;L1 magnitude of hidden activations.&#34;&#34;&#34;
+
+    @property
+    def loss(self) -&gt; Float[Tensor, &#34;&#34;]:
+        &#34;&#34;&#34;Total loss.&#34;&#34;&#34;
+        return self.mse + self.sparsity
+
+    def metrics(self) -&gt; dict[str, object]:
+        return {
+            &#34;loss&#34;: self.loss.item(),
+            &#34;mse&#34;: self.mse.item(),
+            &#34;l0&#34;: self.l0.item(),
+            &#34;l1&#34;: self.l1.item(),
+            &#34;sparsity&#34;: self.sparsity.item(),
+        }</code></pre>
+</details>
 </dd>
 <dt id="saev.nn.objectives.VanillaLoss.mse"><code class="name">var <span class="ident">mse</span> : jaxtyping.Float[Tensor, '']</code></dt>
 <dd>
 <div class="desc"><p>Reconstruction loss (mean squared error).</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@jaxtyped(typechecker=beartype.beartype)
+@dataclasses.dataclass(frozen=True, slots=True)
+class VanillaLoss(Loss):
+    &#34;&#34;&#34;The vanilla loss terms for an training batch.&#34;&#34;&#34;
+
+    mse: Float[Tensor, &#34;&#34;]
+    &#34;&#34;&#34;Reconstruction loss (mean squared error).&#34;&#34;&#34;
+    sparsity: Float[Tensor, &#34;&#34;]
+    &#34;&#34;&#34;Sparsity loss, typically lambda * L1.&#34;&#34;&#34;
+    l0: Float[Tensor, &#34;&#34;]
+    &#34;&#34;&#34;L0 magnitude of hidden activations.&#34;&#34;&#34;
+    l1: Float[Tensor, &#34;&#34;]
+    &#34;&#34;&#34;L1 magnitude of hidden activations.&#34;&#34;&#34;
+
+    @property
+    def loss(self) -&gt; Float[Tensor, &#34;&#34;]:
+        &#34;&#34;&#34;Total loss.&#34;&#34;&#34;
+        return self.mse + self.sparsity
+
+    def metrics(self) -&gt; dict[str, object]:
+        return {
+            &#34;loss&#34;: self.loss.item(),
+            &#34;mse&#34;: self.mse.item(),
+            &#34;l0&#34;: self.l0.item(),
+            &#34;l1&#34;: self.l1.item(),
+            &#34;sparsity&#34;: self.sparsity.item(),
+        }</code></pre>
+</details>
 </dd>
 <dt id="saev.nn.objectives.VanillaLoss.sparsity"><code class="name">var <span class="ident">sparsity</span> : jaxtyping.Float[Tensor, '']</code></dt>
 <dd>
 <div class="desc"><p>Sparsity loss, typically lambda * L1.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@jaxtyped(typechecker=beartype.beartype)
+@dataclasses.dataclass(frozen=True, slots=True)
+class VanillaLoss(Loss):
+    &#34;&#34;&#34;The vanilla loss terms for an training batch.&#34;&#34;&#34;
+
+    mse: Float[Tensor, &#34;&#34;]
+    &#34;&#34;&#34;Reconstruction loss (mean squared error).&#34;&#34;&#34;
+    sparsity: Float[Tensor, &#34;&#34;]
+    &#34;&#34;&#34;Sparsity loss, typically lambda * L1.&#34;&#34;&#34;
+    l0: Float[Tensor, &#34;&#34;]
+    &#34;&#34;&#34;L0 magnitude of hidden activations.&#34;&#34;&#34;
+    l1: Float[Tensor, &#34;&#34;]
+    &#34;&#34;&#34;L1 magnitude of hidden activations.&#34;&#34;&#34;
+
+    @property
+    def loss(self) -&gt; Float[Tensor, &#34;&#34;]:
+        &#34;&#34;&#34;Total loss.&#34;&#34;&#34;
+        return self.mse + self.sparsity
+
+    def metrics(self) -&gt; dict[str, object]:
+        return {
+            &#34;loss&#34;: self.loss.item(),
+            &#34;mse&#34;: self.mse.item(),
+            &#34;l0&#34;: self.l0.item(),
+            &#34;l1&#34;: self.l1.item(),
+            &#34;sparsity&#34;: self.sparsity.item(),
+        }</code></pre>
+</details>
 </dd>
 </dl>
 <h3>Methods</h3>
@@ -444,6 +826,19 @@ class VanillaLoss(Loss):
 </code></dt>
 <dd>
 <div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def metrics(self) -&gt; dict[str, object]:
+    return {
+        &#34;loss&#34;: self.loss.item(),
+        &#34;mse&#34;: self.mse.item(),
+        &#34;l0&#34;: self.l0.item(),
+        &#34;l1&#34;: self.l1.item(),
+        &#34;sparsity&#34;: self.sparsity.item(),
+    }</code></pre>
+</details>
 </dd>
 </dl>
 <h3>Inherited members</h3>
@@ -462,10 +857,11 @@ class VanillaLoss(Loss):
 <dd>
 <div class="desc"><p>Base class for all neural network modules.</p>
 <p>Your models should also subclass this class.</p>
-<p>Modules can also contain other Modules, allowing to nest them in
+<p>Modules can also contain other Modules, allowing them to be nested in
 a tree structure. You can assign the submodules as regular attributes::</p>
 <pre><code>import torch.nn as nn
 import torch.nn.functional as F
+
 
 class Model(nn.Module):
     def __init__(self) -&gt; None:
@@ -477,8 +873,8 @@ class Model(nn.Module):
         x = F.relu(self.conv1(x))
         return F.relu(self.conv2(x))
 </code></pre>
-<p>Submodules assigned in this way will be registered, and will have their
-parameters converted too when you call :meth:<code>to</code>, etc.</p>
+<p>Submodules assigned in this way will be registered, and will also have their
+parameters converted when you call :meth:<code>to</code>, etc.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>As per the example above, an <code>__init__()</code> call to the parent class
@@ -654,7 +1050,7 @@ setTimeout(() => input.focus(), 100);
 </nav>
 </main>
 <footer id="footer">
-<p>Generated by <a href="https://pdoc3.github.io/pdoc" title="pdoc: Python API documentation generator"><cite>pdoc</cite> 0.11.1</a>.</p>
+<p>Generated by <a href="https://pdoc3.github.io/pdoc" title="pdoc: Python API documentation generator"><cite>pdoc</cite> 0.11.6</a>.</p>
 </footer>
 </body>
 </html>

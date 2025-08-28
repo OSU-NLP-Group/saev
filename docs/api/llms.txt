@@ -220,6 +220,14 @@ ALL_RGB01 = [
     RED_RGB01,
 ]
 
+>>>> data/DINOv3.md
+# Using DINOv3
+
+1. Clone the DINOv3 repo.
+2. Download the checkpoints from Meta.
+3. Put your checkpoints in $REPO/CHECKPOINTS/.
+4. Pass a path to the specific checkpoint you want to load.
+
 >>>> data/README.md
 # Data Loading Architecture
 
@@ -788,613 +796,610 @@ class Activations:
     """Whether to scale average dataset norm to sqrt(d_vit). If a string, manually load from the filepath."""
 
 >>>> data/dinov3.py
-import enum
-import os
+import dataclasses
+import math
 import pathlib
-import urllib.parse
+import typing as tp
 
+import beartype
+import einops
 import torch
-
-DINOV3_BASE_URL = "https://dl.fbaipublicfiles.com/dinov3"
-
-
-class Weights(enum.Enum):
-    LVD1689M = "LVD1689M"
-    SAT493M = "SAT493M"
+import torch.nn.functional as F
+import torch.nn.init
+from jaxtyping import Float, Int, jaxtyped
+from torch import Tensor, nn
 
 
-def is_url(path: str) -> bool:
-    parsed = urllib.parse.urlparse(path)
-    return parsed.scheme in ("https", "file")
+@beartype.beartype
+@dataclasses.dataclass(frozen=True)
+class Config:
+    img_size: int = 224
+    """Image width and height in pixels."""
+    patch_size: int = 16
+    """Size of each patch in pixels."""
+    in_chans: int = 3
+    """Number of input image channels."""
+    pos_embed_rope_base: float = 100.0
+    """Base frequency for RoPE positional encoding."""
+    pos_embed_rope_min_period: float | None = None
+    """Minimum period for RoPE positional encoding."""
+    pos_embed_rope_max_period: float | None = None
+    """Maximum period for RoPE positional encoding."""
+    pos_embed_rope_normalize_coords: tp.Literal["min", "max", "separate"] = "separate"
+    """Coordinate normalization method for RoPE encoding."""
+    pos_embed_rope_dtype: str = "bf16"
+    """Data type for RoPE positional encoding."""
+    embed_dim: int = 768
+    """Embedding dimension for transformer."""
+    depth: int = 12
+    """Number of transformer blocks."""
+    num_heads: int = 12
+    """Number of attention heads."""
+    ffn_ratio: float = 4.0
+    """Feed-forward network expansion ratio."""
+    qkv_bias: bool = True
+    """Whether to use bias in QKV projection."""
+    ffn_layer: str = "mlp"
+    """Type of feed-forward network layer."""
+    ffn_bias: bool = True
+    """Whether to use bias in feed-forward network."""
+    proj_bias: bool = True
+    """Whether to use bias in output projection."""
+    n_storage_tokens: int = 0
+    """Number of storage/register tokens."""
+    mask_k_bias: bool = False
+    """Whether to mask K bias in attention."""
+    untie_global_and_local_cls_norm: bool = False
+    """Whether to use separate norms for global and local CLS tokens."""
+    device: tp.Any | None = None
+    """Device for tensor operations."""
 
 
-def convert_path_or_url_to_url(path: str) -> str:
-    if is_url(path):
-        return path
-    return pathlib.Path(path).expanduser().resolve().as_uri()
+@beartype.beartype
+def make_2tuple(x: int | tuple[int, int]) -> tuple[int, int]:
+    if isinstance(x, tuple):
+        assert len(x) == 2
+        return x
+
+    assert isinstance(x, int)
+    return (x, x)
 
 
-def _make_dinov3_vit_model_arch(
-    *, patch_size: int = 16, compact_arch_name: str = "vitb"
-):
-    if "plus" in compact_arch_name:
-        model_arch = compact_arch_name.replace("plus", f"{patch_size}plus")
-    else:
-        model_arch = f"{compact_arch_name}{patch_size}"
-    return model_arch
+@jaxtyped(typechecker=beartype.beartype)
+class PatchEmbed(nn.Module):
+    """
+    2D image to patch embedding: (B,C,H,W) -> (B,N,D)
 
+    Args:
+        img_size: Image size.
+        patch_size: Patch token size.
+        in_chans: Number of input image channels.
+        embed_dim: Number of linear projection output channels.
+    """
 
-def _make_dinov3_vit_model_url(
-    *,
-    patch_size: int = 16,
-    compact_arch_name: str = "vitb",
-    version: str | None = None,
-    weights: Weights | str = Weights.LVD1689M,
-    hash: str | None = None,
-):
-    model_name = "dinov3"
-    model_arch = _make_dinov3_vit_model_arch(
-        patch_size=patch_size, compact_arch_name=compact_arch_name
-    )
-    version_suffix = f"_{version}" if version else ""
-    weights_name = weights.value.lower()
-    hash_suffix = f"-{hash}" if hash else ""
-    model_dir = f"{model_name}_{model_arch}"
-    model_filename = f"{model_name}_{model_arch}_pretrain_{weights_name}{version_suffix}{hash_suffix}.pth"
-    return os.path.join(DINOV3_BASE_URL, model_dir, model_filename)
+    def __init__(
+        self,
+        img_size: int | tuple[int, int] = 224,
+        patch_size: int | tuple[int, int] = 16,
+        in_chans: int = 3,
+        embed_dim: int = 768,
+        flatten_embedding: bool = True,
+    ) -> None:
+        super().__init__()
 
+        image_hw = make_2tuple(img_size)
+        patch_hw = make_2tuple(patch_size)
 
-def _make_dinov3_vit(
-    *,
-    img_size: int = 224,
-    patch_size: int = 16,
-    in_chans: int = 3,
-    compact_arch_name: str = "vitb",
-    pos_embed_rope_base: float = 100.0,
-    pos_embed_rope_min_period: float | None = None,
-    pos_embed_rope_max_period: float | None = None,
-    pos_embed_rope_normalize_coords: str = "separate",
-    pos_embed_rope_shift_coords: float | None = None,
-    pos_embed_rope_jitter_coords: float | None = None,
-    pos_embed_rope_rescale_coords: float | None = None,
-    pos_embed_rope_dtype: str = "fp32",
-    embed_dim: int = 768,
-    depth: int = 12,
-    num_heads: int = 12,
-    ffn_ratio: float = 4.0,
-    qkv_bias: bool = True,
-    drop_path_rate: float = 0.0,
-    layerscale_init: float | None = None,
-    norm_layer: str = "layernorm",
-    ffn_layer: str = "mlp",
-    ffn_bias: bool = True,
-    proj_bias: bool = True,
-    n_storage_tokens: int = 0,
-    mask_k_bias: bool = False,
-    pretrained: bool = True,
-    version: str | None = None,
-    weights: Weights | str = Weights.LVD1689M,
-    hash: str | None = None,
-    check_hash: bool = False,
-    **kwargs,
-):
-    from ..models.vision_transformer import DinoVisionTransformer
+        self.img_size = image_hw
+        self.patch_size = patch_hw
 
-    vit_kwargs = dict(
-        img_size=img_size,
-        patch_size=patch_size,
-        in_chans=in_chans,
-        pos_embed_rope_base=pos_embed_rope_base,
-        pos_embed_rope_min_period=pos_embed_rope_min_period,
-        pos_embed_rope_max_period=pos_embed_rope_max_period,
-        pos_embed_rope_normalize_coords=pos_embed_rope_normalize_coords,
-        pos_embed_rope_shift_coords=pos_embed_rope_shift_coords,
-        pos_embed_rope_jitter_coords=pos_embed_rope_jitter_coords,
-        pos_embed_rope_rescale_coords=pos_embed_rope_rescale_coords,
-        pos_embed_rope_dtype=pos_embed_rope_dtype,
-        embed_dim=embed_dim,
-        depth=depth,
-        num_heads=num_heads,
-        ffn_ratio=ffn_ratio,
-        qkv_bias=qkv_bias,
-        drop_path_rate=drop_path_rate,
-        layerscale_init=layerscale_init,
-        norm_layer=norm_layer,
-        ffn_layer=ffn_layer,
-        ffn_bias=ffn_bias,
-        proj_bias=proj_bias,
-        n_storage_tokens=n_storage_tokens,
-        mask_k_bias=mask_k_bias,
-    )
-    vit_kwargs.update(**kwargs)
-    model = DinoVisionTransformer(**vit_kwargs)
-    if pretrained:
-        if type(weights) is Weights and weights not in {
-            Weights.LVD1689M,
-            Weights.SAT493M,
-        }:
-            raise ValueError(f"Unsupported weights for the backbone: {weights}")
-        elif type(weights) is Weights:
-            url = _make_dinov3_vit_model_url(
-                patch_size=patch_size,
-                compact_arch_name=compact_arch_name,
-                version=version,
-                weights=weights,
-                hash=hash,
-            )
-        else:
-            url = convert_path_or_url_to_url(weights)
-        state_dict = torch.hub.load_state_dict_from_url(
-            url, map_location="cpu", check_hash=check_hash
+        self.in_chans = in_chans
+        self.embed_dim = embed_dim
+
+        self.proj = nn.Conv2d(
+            in_chans, embed_dim, kernel_size=patch_hw, stride=patch_hw
         )
-        model.load_state_dict(state_dict, strict=True)
-    else:
-        model.init_weights()
-    return model
+        self.k = patch_hw[0]
+        assert self.proj.kernel_size == (self.k, self.k)
+        assert self.proj.stride == (self.k, self.k)
+        assert self.proj.padding == (0, 0)
+        assert self.proj.groups == 1
+        assert self.proj.dilation == (1, 1)
 
-
-def _make_dinov3_convnext_model_url(
-    *,
-    compact_arch_name: str = "convnext_base",
-    weights: Weights | str = Weights.LVD1689M,
-    hash: str | None = None,
-):
-    model_name = "dinov3"
-    weights_name = weights.value.lower()
-    hash_suffix = f"-{hash}" if hash else ""
-
-    model_dir = f"{model_name}_{compact_arch_name}"
-    model_filename = (
-        f"{model_name}_{compact_arch_name}_pretrain_{weights_name}{hash_suffix}.pth"
-    )
-    return os.path.join(DINOV3_BASE_URL, model_dir, model_filename)
-
-
-def _make_dinov3_convnext(
-    in_chans: int = 3,
-    depths: list[int] = [3, 3, 27, 3],
-    dims: list[int] = [128, 256, 512, 1024],
-    compact_arch_name: str = "convnext_base",
-    drop_path_rate: float = 0.0,
-    layer_scale_init_value: float = 1e-6,
-    pretrained: bool = True,
-    weights: Weights | str = Weights.LVD1689M,
-    hash: str | None = None,
-    **kwargs,
-):
-    from ..models.convnext import ConvNeXt
-
-    model_kwargs = dict(
-        in_chans=in_chans,
-        depths=depths,
-        dims=dims,
-        drop_path_rate=drop_path_rate,
-        layer_scale_init_value=layer_scale_init_value,
-    )
-    model_kwargs.update(**kwargs)
-    model = ConvNeXt(**model_kwargs)
-    if pretrained:
-        if type(weights) is Weights and weights not in {
-            Weights.LVD1689M,
-            Weights.SAT493M,
-        }:
-            raise ValueError(f"Unsupported weights for the backbone: {weights}")
-        elif type(weights) is Weights:
-            url = _make_dinov3_convnext_model_url(
-                compact_arch_name=compact_arch_name,
-                weights=weights,
-                hash=hash,
+    def forward(
+        self,
+        x: Float[Tensor, "batch 3 width height"] | Float[Tensor, "batch n kernel"],
+    ) -> Float[Tensor, "batch n dim"]:
+        if x.ndim == 4:
+            x_bdhw = self.proj(x)  # B C H W
+            _, _, h, w = x_bdhw.shape
+            x_bnd = einops.rearrange(x_bdhw, "b d h w -> b (h w) d")
+        elif x.ndim == 3:
+            w_dp = self.conv.weight.reshape(
+                self.embed_dim, self.in_chans * self.patch_hw[0] * self.patch_hw[1]
             )
+            x_bnd = x @ w_dp.T
+            if self.proj.bias is not None:
+                x_bnd = x_bnd + self.proj.bias[None, None, :]
         else:
-            url = convert_path_or_url_to_url(weights)
-        state_dict = torch.hub.load_state_dict_from_url(url, map_location="cpu")
-        model.load_state_dict(state_dict, strict=True)
-    return model
+            raise TypeError(f"Wrong shape for x: {x.shape}")
+        return x_bnd
 
 
-def dinov3_vits16(
-    *,
-    pretrained: bool = True,
-    weights: Weights | str = Weights.LVD1689M,
-    check_hash: bool = False,
-    **kwargs,
-):
-    if "hash" not in kwargs:
-        kwargs["hash"] = "08c60483"
-    kwargs["version"] = None
-    return _make_dinov3_vit(
+@jaxtyped(typechecker=beartype.beartype)
+class RopePositionEmbedding(nn.Module):
+    # RoPE positional embedding with no mixing of coordinates (axial) and no learnable weights
+    # Supports two parametrizations of the rope parameters: either using `base` or `min_period` and `max_period`.
+    def __init__(
+        self,
+        embed_dim: int,
+        *,
+        num_heads: int,
+        base: float | None,
+        min_period: float | None,
+        max_period: float | None,
+        normalize_coords: tp.Literal["min", "max", "separate"],
+        dtype: torch.dtype | None = None,
+    ):
+        super().__init__()
+
+        assert embed_dim % (4 * num_heads) == 0
+        both_periods = min_period is not None and max_period is not None
+        if (base is None and not both_periods) or (base is not None and both_periods):
+            raise ValueError(
+                "Either `base` or `min_period`+`max_period` must be provided."
+            )
+
+        self.base = base
+        self.min_period = min_period
+        self.max_period = max_period
+        self.d_head = embed_dim // num_heads
+        self.normalize_coords = normalize_coords
+        self.dtype = dtype
+
+        # Needs persistent=True because we do teacher.load_state_dict(student.state_dict()) to initialize the teacher
+        self.register_buffer(
+            "periods", torch.empty(self.d_head // 4, dtype=dtype), persistent=True
+        )
+        dd = {"device": self.periods.device, "dtype": self.dtype}
+        dtype = self.dtype
+        if self.base is not None:
+            periods = self.base ** (
+                2 * torch.arange(self.d_head // 4, **dd) / (self.d_head // 2)
+            )  # [D//4]
+        else:
+            base = self.max_period / self.min_period
+            exponents = torch.linspace(0, 1, self.d_head // 4, **dd)
+            periods = base**exponents  # range [1, max_period / min_period]
+            periods = periods / base  # range [min_period / max_period, 1]
+            periods = periods * self.max_period  # range [min_period, max_period]
+
+        self.periods.data = periods
+
+    def forward(
+        self, *, h: Int[Tensor, " b"], w: Int[Tensor, " b"]
+    ) -> Float[Tensor, "..."]:
+        device = self.periods.device
+        dtype = self.dtype
+        dd = {"device": device, "dtype": dtype}
+
+        breakpoint()
+
+        # Prepare coords in range [-1, +1]
+        if self.normalize_coords == "max":
+            max_hw = max(h, w)
+            coords_h = torch.arange(0.5, h, **dd) / max_hw  # [h]
+            coords_w = torch.arange(0.5, w, **dd) / max_hw  # [w]
+        elif self.normalize_coords == "min":
+            min_hw = min(h, w)
+            coords_h = torch.arange(0.5, h, **dd) / min_hw  # [h]
+            coords_w = torch.arange(0.5, w, **dd) / min_hw  # [w]
+        elif self.normalize_coords == "separate":
+            coords_h = torch.arange(0.5, h, **dd) / h  # [h]
+            coords_w = torch.arange(0.5, w, **dd) / w  # [w]
+        else:
+            raise ValueError(f"Unknown normalize_coords: {self.normalize_coords}")
+        coords = torch.stack(
+            torch.meshgrid(coords_h, coords_w, indexing="ij"), dim=-1
+        )  # [H, W, 2]
+        coords = coords.flatten(0, 1)  # [HW, 2]
+        coords = 2.0 * coords - 1.0  # Shift range [0, 1] to [-1, +1]
+
+        # Prepare angles and sin/cos
+        angles = (
+            2 * math.pi * coords[:, :, None] / self.periods[None, None, :]
+        )  # [HW, 2, D//4]
+        angles = angles.flatten(1, 2)  # [HW, D//2]
+        angles = angles.tile(2)  # [HW, D]
+        cos = torch.cos(angles)  # [HW, D]
+        sin = torch.sin(angles)  # [HW, D]
+
+        return (sin, cos)  # 2 * [HW, D]
+
+
+@jaxtyped(typechecker=beartype.beartype)
+class LayerScale(nn.Module):
+    def __init__(self, dim: int) -> None:
+        super().__init__()
+        self.gamma = nn.Parameter(torch.empty(dim))
+
+    def __call__(self, x: Float[Tensor, "..."]) -> Float[Tensor, "..."]:
+        return x * self.gamma
+
+
+@jaxtyped(typechecker=beartype.beartype)
+class LinearKMaskedBias(nn.Linear):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        o = self.out_features
+        assert o % 3 == 0
+        if self.bias is not None:
+            self.register_buffer("bias_mask", torch.full_like(self.bias, fill_value=0))
+
+    def forward(self, input: Tensor) -> Tensor:
+        masked_bias = (
+            self.bias * self.bias_mask.to(self.bias.dtype)
+            if self.bias is not None
+            else None
+        )
+        return F.linear(input, self.weight, masked_bias)
+
+
+@jaxtyped(typechecker=beartype.beartype)
+def _rotate_half(x: Float[Tensor, "..."]) -> Float[Tensor, "..."]:
+    # x:   [ x0  x1  x2  x3  x4  x5]
+    # out: [-x3 -x4 -x5  x0  x1  x2]
+    x1, x2 = x.chunk(2, dim=-1)
+    return torch.cat([-x2, x1], dim=-1)
+
+
+@jaxtyped(typechecker=beartype.beartype)
+def _rope(
+    x: Float[Tensor, "..."], sin: Float[Tensor, "..."], cos: Float[Tensor, "..."]
+) -> Float[Tensor, "..."]:
+    # x:   [..., D], eg [x0,     x1,   x2,   x3,   x4,   x5]
+    # sin: [..., D], eg [sin0, sin1, sin2, sin0, sin1, sin2]
+    # cos: [..., D], eg [cos0, cos1, cos2, cos0, cos1, cos2]
+    return (x * cos) + (_rotate_half(x) * sin)
+
+
+@jaxtyped(typechecker=beartype.beartype)
+def rope_fn(
+    q_bhnd: Float[Tensor, "batch head n d_head"],
+    k_bhnd: Float[Tensor, "batch head n d_head"],
+    rope: Tensor | tuple[Tensor, Tensor],
+) -> tuple[Float[Tensor, "batch head n d_head"], Float[Tensor, "batch head n d_head"]]:
+    # All operations will use the dtype of rope, the output is cast back to the dtype of q and k
+    q_dtype = q_bhnd.dtype
+    k_dtype = k_bhnd.dtype
+
+    sin_pd, cos_pd = rope
+    rope_dtype = sin_pd.dtype
+
+    q_bhnd = q_bhnd.to(dtype=rope_dtype)
+    k_bhnd = k_bhnd.to(dtype=rope_dtype)
+    _, n_heads, n, d_head = q_bhnd.shape
+    n_pos, d_head = sin_pd.shape
+    prefix = n - n_pos
+    assert prefix >= 0, f"Got {n} residual streams but only {n_pos} patches."
+
+    q_prefix_bhd = q_bhnd[:, :, :prefix, :]
+    q_bhpd = _rope(q_bhnd[:, :, prefix:, :], sin_pd, cos_pd)
+    q_bhnd = torch.cat((q_prefix_bhd, q_bhpd), dim=2)
+    k_prefix_bhd = k_bhnd[:, :, :prefix, :]
+    k_bhpd = _rope(k_bhnd[:, :, prefix:, :], sin_pd, cos_pd)
+    k_bhnd = torch.cat((k_prefix_bhd, k_bhpd), dim=2)
+
+    q_bhnd = q_bhnd.to(dtype=q_dtype)
+    k_bhnd = k_bhnd.to(dtype=k_dtype)
+
+    return q_bhnd, k_bhnd
+
+
+@jaxtyped(typechecker=beartype.beartype)
+class SelfAttention(nn.Module):
+    def __init__(self, cfg: Config):
+        super().__init__()
+        self.cfg = cfg
+        head_dim = cfg.embed_dim // cfg.num_heads
+        self.scale = head_dim**-0.5
+
+        linear_cls = LinearKMaskedBias if cfg.mask_k_bias else nn.Linear
+        self.qkv = linear_cls(cfg.embed_dim, cfg.embed_dim * 3, bias=cfg.qkv_bias)
+        self.proj = nn.Linear(cfg.embed_dim, cfg.embed_dim, bias=cfg.proj_bias)
+
+    def forward(
+        self,
+        x_bnd: Float[Tensor, "batch n d"],
+        rope: Float[Tensor, "2 n_pos d_head"] | None = None,
+    ) -> Float[Tensor, "batch n d"]:
+        b, n_tok, d = x_bnd.shape
+        qkv_b3nd = einops.rearrange(
+            self.qkv(x_bnd),
+            "batch n_tok (parts d) -> batch parts n_tok d",
+            parts=3,  # [q, k, v] = 3 parts
+            d=d,
+        )
+        qkv_b3hnd = einops.rearrange(
+            qkv_b3nd,
+            "batch parts n_tok (n_heads d_head) -> batch parts n_heads n_tok d_head",
+            parts=3,
+            n_heads=self.cfg.num_heads,
+            d_head=d // self.cfg.num_heads,
+        )
+        q_bhnd, k_bhnd, v_bhnd = torch.unbind(qkv_b3hnd, dim=1)
+
+        if rope is not None:
+            q_bhnd, k_bhnd = rope_fn(q_bhnd, k_bhnd, rope)
+        x_bhnd = torch.nn.functional.scaled_dot_product_attention(
+            q_bhnd, k_bhnd, v_bhnd
+        )
+        x_bnd = einops.rearrange(
+            x_bhnd, "batch n_heads n_tok d_head -> batch n_tok (n_heads d_head)"
+        )
+        x_bnd = self.proj(x_bnd)
+        return x_bnd
+
+
+@jaxtyped(typechecker=beartype.beartype)
+class Mlp(nn.Module):
+    def __init__(
+        self,
+        in_features: int,
+        hidden_features: int | None = None,
+        out_features: int | None = None,
+    ) -> None:
+        super().__init__()
+        out_features = out_features or in_features
+        hidden_features = hidden_features or in_features
+        self.fc1 = nn.Linear(in_features, hidden_features, bias=True)
+        self.fc2 = nn.Linear(hidden_features, out_features, bias=True)
+
+    def __call__(self, x: Float[Tensor, "*batch d"]) -> Float[Tensor, "*batch d"]:
+        x = self.fc1(x)
+        x = F.gelu(x, approximate="none")
+        x = self.fc2(x)
+        return x
+
+
+@jaxtyped(typechecker=beartype.beartype)
+class SelfAttentionBlock(nn.Module):
+    def __init__(self, cfg: Config):
+        super().__init__()
+        assert cfg.ffn_layer == "mlp"
+
+        self.norm1 = nn.LayerNorm(cfg.embed_dim, eps=1e-5)
+        self.attn = SelfAttention(cfg)
+        self.ls1 = LayerScale(cfg.embed_dim)
+
+        self.norm2 = nn.LayerNorm(cfg.embed_dim, eps=1e-5)
+        self.mlp = Mlp(cfg.embed_dim, int(cfg.embed_dim * cfg.ffn_ratio), cfg.embed_dim)
+        self.ls2 = LayerScale(cfg.embed_dim)
+
+    def forward(
+        self, x_bnd: Float[Tensor, "batch n dim"], rope=None
+    ) -> Float[Tensor, "batch n dim"]:
+        x_bnd = x_bnd + self.ls1(self.attn(self.norm1(x_bnd), rope=rope))
+        x_bnd = x_bnd + self.ls2(self.mlp(self.norm2(x_bnd)))
+
+        return x_bnd
+
+
+_ffn_layer_lookup = {
+    "mlp": Mlp,
+}
+
+
+_dtype_lookup = {
+    "fp32": torch.float32,
+    "fp16": torch.float16,
+    "bf16": torch.bfloat16,
+}
+
+
+@jaxtyped(typechecker=beartype.beartype)
+class VisionTransformer(nn.Module):
+    def __init__(self, cfg: Config):
+        super().__init__()
+
+        self.cfg = cfg
+
+        assert self.cfg.n_storage_tokens > 0, "Not supported"
+
+        self.cls_token = nn.Parameter(torch.empty(1, 1, cfg.embed_dim))
+        self.storage_tokens = nn.Parameter(
+            torch.empty(1, cfg.n_storage_tokens, cfg.embed_dim)
+        )
+        self.mask_token = nn.Parameter(torch.empty(1, cfg.embed_dim))
+
+        self.patch_embed = PatchEmbed(
+            cfg.img_size, cfg.patch_size, cfg.in_chans, cfg.embed_dim
+        )
+        self.rope_embed = RopePositionEmbedding(
+            cfg.embed_dim,
+            num_heads=cfg.num_heads,
+            base=cfg.pos_embed_rope_base,
+            min_period=cfg.pos_embed_rope_min_period,
+            max_period=cfg.pos_embed_rope_max_period,
+            normalize_coords=cfg.pos_embed_rope_normalize_coords,
+            dtype=_dtype_lookup[cfg.pos_embed_rope_dtype],
+        )
+
+        self.blocks = nn.ModuleList([SelfAttentionBlock(cfg) for i in range(cfg.depth)])
+
+        self.norm = nn.LayerNorm(cfg.embed_dim, eps=1e-5)
+
+    def forward(
+        self, x: Float[Tensor, "b n kernel"], img_size: Int[Tensor, "b 2"]
+    ) -> dict[str, Tensor]:
+        x_bnd = self.patch_embed(x)
+
+        b, n, d = x_bnd.shape
+
+        cls_token = self.cls_token + 0 * self.mask_token
+
+        x_bnd = torch.cat(
+            [cls_token.expand(b, -1, -1), self.storage_tokens.expand(b, -1, -1), x_bnd],
+            dim=1,
+        )
+
+        hs, ws = img_size[:, 0], img_size[:, 1]
+        rope_sincos = self.rope_embed(h=hs, w=ws)
+
+        for blk in self.blocks:
+            x_bnd = blk(x_bnd, rope_sincos)
+
+        x_norm_bnd = self.norm(x_bnd)
+        x_norm_cls_bd = x_norm_bnd[:, :0]
+        x_norm_patch_bnd = x_norm_bnd[:, self.cfg.n_storage_tokens + 1 :]
+
+        output = {"cls": x_norm_cls_bd, "patches": x_norm_patch_bnd}
+        return output
+
+
+_PRETRAINED_CFGS = {
+    "dinov3_vits16": Config(
         img_size=224,
         patch_size=16,
         in_chans=3,
-        pos_embed_rope_base=100,
+        pos_embed_rope_base=100.0,
         pos_embed_rope_normalize_coords="separate",
-        pos_embed_rope_rescale_coords=2,
         pos_embed_rope_dtype="fp32",
         embed_dim=384,
         depth=12,
         num_heads=6,
-        ffn_ratio=4,
+        ffn_ratio=4.0,
         qkv_bias=True,
-        drop_path_rate=0.0,
-        layerscale_init=1.0e-05,
-        norm_layer="layernormbf16",
         ffn_layer="mlp",
         ffn_bias=True,
         proj_bias=True,
         n_storage_tokens=4,
         mask_k_bias=True,
-        pretrained=pretrained,
-        weights=weights,
-        compact_arch_name="vits",
-        check_hash=check_hash,
-        **kwargs,
-    )
-
-
-def dinov3_vits16plus(
-    *,
-    pretrained: bool = True,
-    weights: Weights | str = Weights.LVD1689M,
-    check_hash: bool = False,
-    **kwargs,
-):
-    if "hash" not in kwargs:
-        kwargs["hash"] = "4057cbaa"
-    kwargs["version"] = None
-    return _make_dinov3_vit(
+    ),
+    "dinov3_vits16plus": Config(
         img_size=224,
         patch_size=16,
         in_chans=3,
-        pos_embed_rope_base=100,
+        pos_embed_rope_base=100.0,
         pos_embed_rope_normalize_coords="separate",
-        pos_embed_rope_rescale_coords=2,
         pos_embed_rope_dtype="fp32",
         embed_dim=384,
         depth=12,
         num_heads=6,
-        ffn_ratio=6,
+        ffn_ratio=6.0,
         qkv_bias=True,
-        drop_path_rate=0.0,
-        layerscale_init=1.0e-05,
-        norm_layer="layernormbf16",
         ffn_layer="swiglu",
         ffn_bias=True,
         proj_bias=True,
         n_storage_tokens=4,
         mask_k_bias=True,
-        pretrained=pretrained,
-        weights=weights,
-        compact_arch_name="vitsplus",
-        check_hash=check_hash,
-        **kwargs,
-    )
-
-
-def dinov3_vitb16(
-    *,
-    pretrained: bool = True,
-    weights: Weights | str = Weights.LVD1689M,
-    check_hash: bool = False,
-    **kwargs,
-):
-    if "hash" not in kwargs:
-        kwargs["hash"] = "73cec8be"
-    kwargs["version"] = None
-    return _make_dinov3_vit(
+    ),
+    "dinov3_vitb16": Config(
         img_size=224,
         patch_size=16,
         in_chans=3,
-        pos_embed_rope_base=100,
+        pos_embed_rope_base=100.0,
         pos_embed_rope_normalize_coords="separate",
-        pos_embed_rope_rescale_coords=2,
         pos_embed_rope_dtype="fp32",
         embed_dim=768,
         depth=12,
         num_heads=12,
-        ffn_ratio=4,
+        ffn_ratio=4.0,
         qkv_bias=True,
-        drop_path_rate=0.0,
-        layerscale_init=1.0e-05,
-        norm_layer="layernormbf16",
         ffn_layer="mlp",
         ffn_bias=True,
         proj_bias=True,
         n_storage_tokens=4,
         mask_k_bias=True,
-        pretrained=pretrained,
-        weights=weights,
-        compact_arch_name="vitb",
-        check_hash=check_hash,
-        **kwargs,
-    )
-
-
-def dinov3_vitl16(
-    *,
-    pretrained: bool = True,
-    weights: Weights | str = Weights.LVD1689M,
-    check_hash: bool = False,
-    **kwargs,
-):
-    untie_global_and_local_cls_norm = False
-    if weights == Weights.LVD1689M:
-        if "hash" not in kwargs:
-            kwargs["hash"] = "8aa4cbdd"
-    elif weights == Weights.SAT493M:
-        if "hash" not in kwargs:
-            kwargs["hash"] = "eadcf0ff"
-        untie_global_and_local_cls_norm = True
-    elif type(weights) is str:
-        import re
-
-        pattern = r"-(.{8}).pth"
-        matches = re.findall(pattern, weights)
-        if len(matches) != 1:
-            raise ValueError(
-                f"Unexpected weights specification for the ViT-L backbone: {weights}"
-            )
-        hash = matches[0]
-        if hash == "eadcf0ff":
-            untie_global_and_local_cls_norm = True
-    kwargs["version"] = None
-    return _make_dinov3_vit(
+    ),
+    "dinov3_vitl16": Config(
         img_size=224,
         patch_size=16,
         in_chans=3,
-        pos_embed_rope_base=100,
+        pos_embed_rope_base=100.0,
         pos_embed_rope_normalize_coords="separate",
-        pos_embed_rope_rescale_coords=2,
         pos_embed_rope_dtype="fp32",
         embed_dim=1024,
         depth=24,
         num_heads=16,
-        ffn_ratio=4,
+        ffn_ratio=4.0,
         qkv_bias=True,
-        drop_path_rate=0.0,
-        layerscale_init=1.0e-05,
-        norm_layer="layernormbf16",
         ffn_layer="mlp",
         ffn_bias=True,
         proj_bias=True,
         n_storage_tokens=4,
         mask_k_bias=True,
-        untie_global_and_local_cls_norm=untie_global_and_local_cls_norm,
-        pretrained=pretrained,
-        weights=weights,
-        compact_arch_name="vitl",
-        check_hash=check_hash,
-        **kwargs,
-    )
-
-
-def dinov3_vitl16plus(
-    *,
-    pretrained: bool = True,
-    weights: Weights | str = Weights.LVD1689M,
-    check_hash: bool = False,
-    **kwargs,
-):
-    if "hash" not in kwargs:
-        kwargs["hash"] = "46503df0"
-
-    return _make_dinov3_vit(
+        untie_global_and_local_cls_norm=False,
+    ),
+    "dinov3_vitl16plus": Config(
         img_size=224,
         patch_size=16,
         in_chans=3,
-        pos_embed_rope_base=100,
+        pos_embed_rope_base=100.0,
         pos_embed_rope_normalize_coords="separate",
-        pos_embed_rope_rescale_coords=2,
         pos_embed_rope_dtype="fp32",
         embed_dim=1024,
         depth=24,
         num_heads=16,
         ffn_ratio=6.0,
         qkv_bias=True,
-        drop_path_rate=0.0,
-        layerscale_init=1.0e-05,
-        norm_layer="layernormbf16",
         ffn_layer="swiglu",
         ffn_bias=True,
         proj_bias=True,
         n_storage_tokens=4,
         mask_k_bias=True,
-        pretrained=pretrained,
-        weights=weights,
-        compact_arch_name="vitlplus",
-        check_hash=check_hash,
-        **kwargs,
-    )
-
-
-def dinov3_vith16plus(
-    *,
-    pretrained: bool = True,
-    weights: Weights | str = Weights.LVD1689M,
-    check_hash: bool = False,
-    **kwargs,
-):
-    if "hash" not in kwargs:
-        kwargs["hash"] = "7c1da9a5"
-
-    return _make_dinov3_vit(
+    ),
+    "dinov3_vith16plus": Config(
         img_size=224,
         patch_size=16,
         in_chans=3,
-        pos_embed_rope_base=100,
+        pos_embed_rope_base=100.0,
         pos_embed_rope_normalize_coords="separate",
-        pos_embed_rope_rescale_coords=2,
         pos_embed_rope_dtype="fp32",
         embed_dim=1280,
         depth=32,
         num_heads=20,
         ffn_ratio=6.0,
         qkv_bias=True,
-        drop_path_rate=0.0,
-        layerscale_init=1.0e-05,
-        norm_layer="layernormbf16",
         ffn_layer="swiglu",
         ffn_bias=True,
         proj_bias=True,
         n_storage_tokens=4,
         mask_k_bias=True,
-        pretrained=pretrained,
-        weights=weights,
-        compact_arch_name="vithplus",
-        check_hash=check_hash,
-        **kwargs,
-    )
-
-
-def dinov3_vit7b16(
-    *,
-    pretrained: bool = True,
-    weights: Weights | str = Weights.LVD1689M,
-    check_hash: bool = False,
-    **kwargs,
-):
-    if weights == Weights.LVD1689M:
-        if "hash" not in kwargs:
-            kwargs["hash"] = "a955f4ea"
-    elif weights == Weights.SAT493M:
-        if "hash" not in kwargs:
-            kwargs["hash"] = "a6675841"
-    kwargs["version"] = None
-    untie_global_and_local_cls_norm = True
-    return _make_dinov3_vit(
+    ),
+    "dinov3_vit7b16": Config(
         img_size=224,
         patch_size=16,
         in_chans=3,
-        pos_embed_rope_base=100,
+        pos_embed_rope_base=100.0,
         pos_embed_rope_normalize_coords="separate",
-        pos_embed_rope_rescale_coords=2,
         pos_embed_rope_dtype="fp32",
         embed_dim=4096,
         depth=40,
         num_heads=32,
-        ffn_ratio=3,
+        ffn_ratio=3.0,
         qkv_bias=False,
-        drop_path_rate=0.4,
-        layerscale_init=1.0e-05,
-        norm_layer="layernormbf16",
         ffn_layer="swiglu64",
         ffn_bias=True,
         proj_bias=True,
         n_storage_tokens=4,
         mask_k_bias=True,
-        untie_global_and_local_cls_norm=untie_global_and_local_cls_norm,
-        pretrained=pretrained,
-        weights=weights,
-        compact_arch_name="vit7b",
-        check_hash=check_hash,
-        **kwargs,
-    )
+        untie_global_and_local_cls_norm=True,
+    ),
+}
 
 
-def dinov3_convnext_tiny(
-    *, pretrained: bool = True, weights: Weights | str = Weights.LVD1689M, **kwargs
-):
-    _hash_convnext = "21b726bb"
-    if "hash" not in kwargs:
-        kwargs["hash"] = _hash_convnext
+@beartype.beartype
+def load(name: str, fpath: str | pathlib.Path, device="cpu") -> VisionTransformer:
+    if name not in _PRETRAINED_CFGS:
+        raise ValueError(f"Name '{name}' not in {list(_PRETRAINED_CFGS)}.")
+    cfg = _PRETRAINED_CFGS[name]
+    state_dict = torch.load(fpath, mmap=True, weights_only=True, map_location="cpu")
+    with torch.device("meta"):
+        model = VisionTransformer(cfg)
+    model.load_state_dict(state_dict, assign=True)
 
-    from ..models.convnext import convnext_sizes
-
-    size_dict = convnext_sizes["tiny"]
-
-    model = _make_dinov3_convnext(
-        in_chans=3,
-        depths=size_dict["depths"],
-        dims=size_dict["dims"],
-        compact_arch_name="convnext_tiny",
-        drop_path_rate=0,
-        layer_scale_init_value=1e-6,
-        pretrained=pretrained,
-        weights=weights,
-        **kwargs,
-    )
-    if not pretrained:
-        model.init_weights()
-    return model
-
-
-def dinov3_convnext_small(
-    *, pretrained: bool = True, weights: Weights | str = Weights.LVD1689M, **kwargs
-):
-    _hash_convnext = "296db49d"
-    if "hash" not in kwargs:
-        kwargs["hash"] = _hash_convnext
-
-    from ..models.convnext import convnext_sizes
-
-    size_dict = convnext_sizes["small"]
-
-    model = _make_dinov3_convnext(
-        in_chans=3,
-        depths=size_dict["depths"],
-        dims=size_dict["dims"],
-        compact_arch_name="convnext_small",
-        drop_path_rate=0,
-        layer_scale_init_value=1e-6,
-        pretrained=pretrained,
-        weights=weights,
-        **kwargs,
-    )
-    if not pretrained:
-        model.init_weights()
-    return model
-
-
-def dinov3_convnext_base(
-    *, pretrained: bool = True, weights: Weights | str = Weights.LVD1689M, **kwargs
-):
-    _hash_convnext = "801f2ba9"
-    if "hash" not in kwargs:
-        kwargs["hash"] = _hash_convnext
-
-    from ..models.convnext import convnext_sizes
-
-    size_dict = convnext_sizes["base"]
-
-    model = _make_dinov3_convnext(
-        in_chans=3,
-        depths=size_dict["depths"],
-        dims=size_dict["dims"],
-        compact_arch_name="convnext_base",
-        drop_path_rate=0,
-        layer_scale_init_value=1e-6,
-        pretrained=pretrained,
-        weights=weights,
-        **kwargs,
-    )
-    if not pretrained:
-        model.init_weights()
-    return model
-
-
-def dinov3_convnext_large(
-    *, pretrained: bool = True, weights: Weights | str = Weights.LVD1689M, **kwargs
-):
-    _hash_convnext = "61fa432d"
-    if "hash" not in kwargs:
-        kwargs["hash"] = _hash_convnext
-
-    from ..models.convnext import convnext_sizes
-
-    size_dict = convnext_sizes["large"]
-
-    model = _make_dinov3_convnext(
-        in_chans=3,
-        depths=size_dict["depths"],
-        dims=size_dict["dims"],
-        compact_arch_name="convnext_large",
-        drop_path_rate=0,
-        layer_scale_init_value=1e-6,
-        pretrained=pretrained,
-        weights=weights,
-        **kwargs,
-    )
-    if not pretrained:
-        model.init_weights()
+    model = model.to(device)
     return model
 
 >>>> data/filesystem.md
@@ -1960,7 +1965,8 @@ class Dataset(torch.utils.data.Dataset):
 
 >>>> data/models.py
 import logging
-import typing
+import pathlib
+import typing as tp
 from collections.abc import Callable
 
 import beartype
@@ -1970,24 +1976,67 @@ from torch import Tensor
 
 from saev import helpers
 
+from . import dinov3
+
 logger = logging.getLogger(__name__)
+
+
+@tp.runtime_checkable
+class VisionTransformer(tp.Protocol):
+    """Protocol defining the interface for all Vision Transformer models."""
+
+    name: str
+
+    def get_residuals(self) -> list[torch.nn.Module]:
+        """Return the list of residual blocks/layers for hook registration."""
+
+    def get_patches(self, n_patches_per_img: int) -> slice | torch.Tensor:
+        """Return indices for selecting relevant patches from activations."""
+
+    def forward(
+        self, batch: Float[Tensor, "batch 3 width height"]
+    ) -> Float[Tensor, "batch patches dim"]:
+        """Run forward pass on batch of images."""
 
 
 @jaxtyped(typechecker=beartype.beartype)
 class DinoV3(torch.nn.Module):
     def __init__(self, vit_ckpt: str):
         super().__init__()
+        name = self._parse_name(vit_ckpt)
+        self.name = f"dinov3/{name}"
+        self.model = dinov3.load(name, vit_ckpt)
 
     def get_residuals(self) -> list[torch.nn.Module]:
-        raise NotImplementedError()
+        return self.model.blocks
 
     def get_patches(self, n_patches_per_img: int) -> slice:
-        raise NotImplementedError()
+        n_reg = self.model.cfg.n_storage_tokens
+        patches = torch.cat((
+            torch.tensor([0]),  # CLS token
+            torch.arange(n_reg + 1, n_reg + 1 + n_patches_per_img),  # patches
+        ))
+        return patches
+
+    @staticmethod
+    def _parse_name(dinov3_ckpt: str) -> str:
+        name_ds, sha = pathlib.Path(dinov3_ckpt).stem.split("-")
+        *name, pretrain, ds = name_ds.split("_")
+        assert pretrain == "pretrain"
+        return "_".join(name)
 
     def forward(
-        self, batch: Float[Tensor, "batch 3 width height"]
+        self,
+        batch: Float[Tensor, "batch 3 width height"] | Float[Tensor, "batch n kernel"],
+        **kwargs,
     ) -> Float[Tensor, "batch patches dim"]:
-        raise NotImplementedError()
+        size = kwargs.pop("size")
+        if kwargs:
+            logger.info("Unused kwargs: %s", kwargs)
+        dct = self.model(batch, size)
+
+        features = torch.cat((dct["cls"][:, None, :], dct["patches"]), axis=1)
+        return features
 
 
 @jaxtyped(typechecker=beartype.beartype)
@@ -2010,7 +2059,7 @@ class DinoV2(torch.nn.Module):
         return patches
 
     def forward(
-        self, batch: Float[Tensor, "batch 3 width height"]
+        self, batch: Float[Tensor, "batch 3 width height"], **kwargs
     ) -> Float[Tensor, "batch patches dim"]:
         dct = self.model.forward_features(batch)
 
@@ -2098,7 +2147,7 @@ class Siglip(torch.nn.Module):
 
 
 @beartype.beartype
-def make_vit(vit_family: str, vit_ckpt: str):
+def make_vit(vit_family: str, vit_ckpt: str) -> VisionTransformer:
     if vit_family == "clip":
         return Clip(vit_ckpt)
     if vit_family == "siglip":
@@ -2108,7 +2157,7 @@ def make_vit(vit_family: str, vit_ckpt: str):
     elif vit_family == "dinov3":
         return DinoV3(vit_ckpt)
     else:
-        typing.assert_never(vit_family)
+        tp.assert_never(vit_family)
 
 
 @beartype.beartype
@@ -2138,8 +2187,20 @@ def make_img_transform(vit_family: str, vit_ckpt: str) -> Callable:
             v2.Normalize(mean=[0.4850, 0.4560, 0.4060], std=[0.2290, 0.2240, 0.2250]),
         ])
 
+    elif vit_family == "dinov3":
+        from torchvision.transforms import v2
+
+        from . import transforms
+
+        return v2.Compose([
+            transforms.FlexResize(patch_size=16, n_patches=640),
+            v2.ToImage(),
+            v2.ToDtype(torch.float32, scale=True),
+            v2.Normalize(mean=[0.4850, 0.4560, 0.4060], std=[0.2290, 0.2240, 0.2250]),
+            transforms.Unfold(patch_size=16, n_patches=640),
+        ])
     else:
-        typing.assert_never(vit_family)
+        tp.assert_never(vit_family)
 
 >>>> data/ordered.py
 # src/saev/data/ordered.py
@@ -3199,6 +3260,131 @@ class DataLoader:
         """Returns the number of batches in an epoch."""
         return math.ceil(self.n_samples / self.cfg.batch_size)
 
+>>>> data/transforms.py
+# src/saev/data/transforms.py
+import math
+import typing as tp
+
+import beartype
+import einops
+import torch
+import torch.nn.functional as F
+from jaxtyping import Float, jaxtyped
+from PIL import Image
+from torch import Tensor, nn
+from torchvision.transforms import v2
+
+
+@beartype.beartype
+class FlexResize(v2.Transform):
+    def __init__(self, patch_size: int, n_patches: int):
+        super().__init__()
+        self.patch_size = patch_size
+        self.n_patches = n_patches
+
+    def transform(self, inpt: tp.Any, params: dict[str, tp.Any]):
+        if isinstance(inpt, Image.Image):
+            return _resize_to_patch_grid(inpt, p=self.patch_size, n=self.n_patches)
+        else:
+            raise TypeError(type(inpt))
+
+
+@beartype.beartype
+def _resize_to_patch_grid(
+    img: Image.Image, *, p: int, n: int, resample=Image.LANCZOS
+) -> Image.Image:
+    """
+    Resize image to (w, h) so that:
+      - w % p == 0, h % p == 0
+      - (h/p) * (w/p) == N
+      - Minimizes change in aspect ratio.
+    """
+    if p <= 0 or n <= 0:
+        raise ValueError("p and n must be positive integers")
+
+    w0, h0 = img.size
+    a0 = w0 / h0
+
+    # Find the aspect ratio closest to a0
+    best_c = 0
+    best_dist = float("inf")
+    for i in range(1, int(math.sqrt(n) + 1)):
+        if n % i != 0:
+            continue
+
+        for d in (i, n // i):
+            c, r = d, n // d
+            aspect = c / r
+            dist = abs(aspect - a0)
+
+            if dist < best_dist:
+                best_c = d
+                best_dist = dist
+
+    c = best_c
+    r = n // c
+    w, h = c * p, r * p
+    return img.resize((w, h), resample=resample)
+
+
+@beartype.beartype
+class Unfold(nn.Module):
+    def __init__(self, patch_size: int, n_patches: int):
+        super().__init__()
+        self.patch_size = patch_size
+        self.n_patches = n_patches
+
+    def forward(self, example: dict[str, object]):
+        assert "image" in example
+        img = example["image"]
+        c, h, w = img.shape
+        cols_bpn = F.unfold(
+            img[None, ...], kernel_size=self.patch_size, stride=self.patch_size
+        )
+
+        k = (c * (h // self.patch_size) * (w // self.patch_size),)
+        assert cols_bpn.shape == (1, k, self.n_patches)
+
+        example["image"] = einops.rearrange(cols_bpn, "() k n -> n k")
+        example["size"] = torch.tensor([h, w], dtype=int)
+
+
+@jaxtyped(typechecker=beartype.beartype)
+def unfolded_conv2d(
+    x_bchw: Float[Tensor, "b c h w"], conv: nn.Conv2d
+) -> Float[Tensor, "b n d"]:
+    """
+    Returns tokens shaped (B, L, D), where L = (H/k)*(W/k), D = conv.out_channels.
+    Requires: stride == kernel_size, padding == 0, groups == 1, dilation == 1.
+    """
+    k = conv.kernel_size[0]
+
+    assert conv.kernel_size == (k, k)
+    assert conv.stride == (k, k)
+    assert conv.padding == (0, 0)
+    assert conv.groups == 1
+    assert conv.dilation == (1, 1)
+
+    b, c, h, w = x_bchw.shape
+
+    assert h % k == 0 and w % k == 0
+
+    cols_bpn = F.unfold(x_bchw, kernel_size=k, stride=k)  # (B, C x P x P, D)
+    w_dp = conv.weight.reshape(conv.out_channels, c * k * k)
+    tokens_bnd = einops.rearrange(cols_bpn, "b px n -> b n px") @ w_dp.T
+    if conv.bias is not None:
+        tokens_bnd = tokens_bnd + conv.bias[None, None, :]
+    return tokens_bnd
+
+
+@jaxtyped(typechecker=beartype.beartype)
+def conv2d_to_tokens(
+    x_bchw: Float[Tensor, "b c h w"], conv: nn.Conv2d
+) -> Float[Tensor, "b n d"]:
+    """Conv2d then flatten spatial to L, return (B, L, D)."""
+    y_bdhw = conv(x_bchw)
+    return einops.rearrange(y_bdhw, "b d h w -> b (h w) d")
+
 >>>> data/writers.py
 # src/saev/data/writers.py
 import dataclasses
@@ -3232,7 +3418,7 @@ class Config:
     """Which dataset to use."""
     dump_to: str = os.path.join(".", "shards")
     """Where to write shards."""
-    vit_family: typing.Literal["clip", "siglip", "dinov2"] = "clip"
+    vit_family: typing.Literal["clip", "siglip", "dinov2", "dinov3"] = "clip"
     """Which model family."""
     vit_ckpt: str = "ViT-L-14/openai"
     """Specific model checkpoint."""
@@ -3462,7 +3648,7 @@ def get_acts_dir(cfg: Config) -> str:
 @beartype.beartype
 @dataclasses.dataclass(frozen=True)
 class Metadata:
-    vit_family: typing.Literal["clip", "siglip", "dinov2"]
+    vit_family: typing.Literal["clip", "siglip", "dinov2", "dinov3"]
     vit_ckpt: str
     layers: tuple[int, ...]
     n_patches_per_img: int
@@ -3655,9 +3841,12 @@ def worker_fn(cfg: Config):
     # Calculate and write ViT activations.
     with torch.inference_mode():
         for batch in helpers.progress(dataloader, total=n_batches):
-            imgs = batch.pop("image").to(cfg.device)
+            imgs = batch.get("image").to(cfg.device)
+            size = batch.get("size")
+            if size is not None:
+                size = size.to(cfg.device)
             # cache has shape [batch size, n layers, n patches + 1, d vit]
-            out, cache = vit(imgs)
+            out, cache = vit(imgs, size=size)
             del out
 
             writer[i : i + len(cache)] = cache
@@ -4632,6 +4821,274 @@ You might select the dimensions with maximal values for each patch and see what 
 .. todo::
   Provide documentation for how get maximally activating images.
 
+
+>>>> interactive/convs.py
+import marimo
+
+__generated_with = "0.15.0"
+app = marimo.App(width="full")
+
+
+@app.cell
+def _():
+    import marimo as mo
+    import torch
+    import torch.nn as nn
+    import torch.nn.functional as F
+
+    torch.manual_seed(0)
+    return F, mo, nn, torch
+
+
+@app.cell
+def _(F, nn, torch):
+    def conv2d_tokens(x_bchw: torch.Tensor, conv: nn.Conv2d) -> torch.Tensor:
+        """
+        Conv2d -> (B, D, H/k, W/k) -> flatten to (B, L, D) with L = (H/k)*(W/k).
+        Requires: stride == kernel_size, padding==0, dilation==1, groups==1 for equivalence demo.
+        """
+        y = conv(x_bchw)
+        return y.flatten(2).transpose(1, 2).contiguous()
+
+    def patch_embed_via_unfold(x_bchw: torch.Tensor, conv: nn.Conv2d) -> torch.Tensor:
+        """
+        Unfold columns (B, C*k*k, L), flatten conv weights to (D, C*k*k), then one GEMM to (B, L, D).
+        """
+        k = conv.kernel_size[0]
+        assert conv.kernel_size == (k, k)
+        assert conv.stride == (k, k)
+        assert conv.padding == (0, 0)
+        assert conv.dilation == (1, 1)
+        assert conv.groups == 1
+        B, C, H, W = x_bchw.shape
+        assert H % k == 0 and W % k == 0
+
+        cols = F.unfold(x_bchw, kernel_size=k, stride=k)  # (B, C*k*k, L)
+        W_lin = conv.weight.reshape(conv.out_channels, -1)  # (D, C*k*k)
+        tokens = cols.transpose(1, 2) @ W_lin.t()  # (B, L, D)
+        if conv.bias is not None:
+            tokens = tokens + conv.bias
+        return tokens
+
+    def build_toy_input(H: int = 4, W: int = 6) -> torch.Tensor:
+        """
+        Single-channel toy image with unique values: x[y, x] = 10*y + x
+        Shape: (B=1, C=1, H, W)
+        """
+        x = torch.arange(H * W, dtype=torch.float32).view(1, 1, H, W)
+        x = (x // W) * 10 + (x % W)
+        return x
+
+    def build_index_probe(C: int, k: int, H: int, W: int) -> torch.Tensor:
+        """
+        x[:, c, y, x] is set so that every k×k patch when unfolded yields rows 0..C*k*k-1.
+        Row index inside every column is: row = c*(k*k) + (dy*k + dx)
+        """
+        x = torch.zeros(1, C, H, W, dtype=torch.float32)
+        for c in range(C):
+            for dy in range(k):
+                for dx in range(k):
+                    val = c * (k * k) + (dy * k + dx)
+                    x[:, c, dy::k, dx::k] = val
+        return x
+
+    def column_index(oy: int, ox: int, Wout: int) -> int:
+        """Linear column index from (oy, ox): left-to-right then top-to-bottom."""
+        return oy * Wout + ox
+
+    def cols_for(x_bchw: torch.Tensor, k: int) -> torch.Tensor:
+        """Return F.unfold columns (B, C*k*k, L)."""
+        return F.unfold(x_bchw, kernel_size=k, stride=k)
+
+    def as_pre(t: torch.Tensor) -> str:
+        """Pretty print small tensors as <pre> text."""
+        with torch.no_grad():
+            return "<pre>" + str(t.cpu().numpy()) + "</pre>"
+
+    def check_equal_conv_vs_unfold(x_bchw: torch.Tensor, conv: nn.Conv2d) -> float:
+        """Returns max absolute difference."""
+        y_conv = conv2d_tokens(x_bchw, conv)
+        y_unf = patch_embed_via_unfold(x_bchw, conv)
+        return (y_conv - y_unf).abs().max().item()
+
+    return (
+        as_pre,
+        build_index_probe,
+        build_toy_input,
+        check_equal_conv_vs_unfold,
+        cols_for,
+        column_index,
+        conv2d_tokens,
+        patch_embed_via_unfold,
+    )
+
+
+@app.cell
+def _(mo):
+    mode = mo.ui.dropdown(
+        options=[
+            "Toy (C=1, k=2)",
+            "Index proof",
+            "Random equality",
+            "DINO-scale (C=3, k=16, D=384)",
+        ],
+        value="Toy (C=1, k=2)",
+        label="Mode:",
+    )
+
+    toy_oy = mo.ui.slider(
+        0, 1_000, value=0, label="Toy: oy (row of output grid)"
+    )  # bounds reset in UI
+    toy_ox = mo.ui.slider(0, 1_000, value=0, label="Toy: ox (col of output grid)")
+    show_arrays = mo.ui.switch(value=True, label="Show arrays (Toy/Proof)")
+
+    dino_H = mo.ui.slider(16, 512, step=16, value=64, label="DINO H (multiple of 16)")
+    dino_W = mo.ui.slider(16, 512, step=16, value=48, label="DINO W (multiple of 16)")
+
+    run_btn = mo.ui.run_button(label="Run / Refresh")
+
+    mo.vstack([
+        mo.hstack([mode, run_btn], justify="start"),
+        mo.hstack([toy_oy, toy_ox, show_arrays], justify="start"),
+        mo.hstack([dino_H, dino_W], justify="start"),
+    ])
+    return dino_H, dino_W, mode, run_btn, show_arrays, toy_ox, toy_oy
+
+
+@app.cell
+def _(
+    as_pre,
+    build_index_probe,
+    build_toy_input,
+    check_equal_conv_vs_unfold,
+    cols_for,
+    column_index,
+    conv2d_tokens,
+    dino_H,
+    dino_W,
+    mo,
+    mode,
+    nn,
+    patch_embed_via_unfold,
+    run_btn,
+    show_arrays,
+    torch,
+    toy_ox,
+    toy_oy,
+):
+    _ = run_btn  # react on click
+
+    if mode.value.startswith("Toy"):
+        # Tiny, human-readable case
+        B, C, k = 1, 1, 2
+        x = build_toy_input(H=4, W=6)  # (1,1,4,6)
+        H, W = x.shape[-2:]
+        Hout, Wout = H // k, W // k
+
+        # Clamp sliders to valid range (UI sliders are generic)
+        oy = max(0, min(toy_oy.value, Hout - 1))
+        ox = max(0, min(toy_ox.value, Wout - 1))
+
+        cols = cols_for(x, k)  # (1, C*k*k, L)
+        L = cols.shape[-1]
+        col_idx = column_index(oy, ox, Wout)
+        patch = x[0, 0, oy * k : (oy + 1) * k, ox * k : (ox + 1) * k]
+        col = cols[0, :, col_idx]
+
+        mo.md(
+            f"""
+            ### Toy mode (C=1, k=2)
+            Input shape: **{tuple(x.shape)}** → Output grid: **(H_out={Hout}, W_out={Wout})**, columns **L={L}**  
+            Column for (oy={oy}, ox={ox}) is **{col_idx}**.
+
+            **Patch (2×2) vs. `unfold` column (len 4):**
+            """
+        )
+        if show_arrays.value:
+            mo.Html(as_pre(patch))
+            mo.Html(as_pre(col))
+
+        mo.md(
+            """
+            Ordering inside each column is channel-major, then row-major within the k×k window.
+            i.e., `row = c*(k*k) + (dy*k + dx)`.
+            """
+        )
+
+    elif mode.value == "Index proof":
+        C, k, H, W = 2, 2, 6, 8
+        x = build_index_probe(C, k, H, W)
+        cols = cols_for(x, k)  # (1, C*k*k, L)
+        first_col = cols[0, :, 0].clone()
+        max_err = (
+            (cols[0] - torch.arange(C * k * k, dtype=cols.dtype).view(-1, 1))
+            .abs()
+            .max()
+            .item()
+        )
+
+        mo.md(
+            f"""
+            ### Index proof
+            Constructed **x** so every `unfold` column equals `[0, 1, ..., {C * k * k - 1}]`.
+
+            Max abs diff across **all** columns: **{max_err:.1f}** (should be 0).
+            First column:
+            """
+        )
+        if show_arrays.value:
+            mo.html(as_pre(first_col))
+
+    elif mode.value == "Random equality":
+        # Small random case to show exact numeric equality
+        B, C, H, W, k, D = 2, 3, 12, 10, 2, 5
+        x = torch.randn(B, C, H, W)
+        conv = nn.Conv2d(C, D, kernel_size=k, stride=k, padding=0, bias=True)
+        with torch.no_grad():
+            conv.weight.normal_()
+            conv.bias.normal_()
+        diff = check_equal_conv_vs_unfold(x, conv)
+
+        y_conv = conv2d_tokens(x, conv)
+        y_unf = patch_embed_via_unfold(x, conv)
+
+        mo.md(
+            f"""
+            ### Random equality
+            Shapes: conv → {tuple(y_conv.shape)}, unfold+GEMM → {tuple(y_unf.shape)}  
+            **max |Δ| = {diff:.3e}** (fp32 should be ~1e-6 to 1e-5).
+            """
+        )
+
+    else:
+        # DINO-scale (C=3, k=16, D=384)
+        B, C, k, D = 2, 3, 16, 384
+        H = int(dino_H.value // k * k)
+        W = int(dino_W.value // k * k)
+        H = max(k, H)
+        W = max(k, W)
+
+        x = torch.randn(B, C, H, W)
+        conv = nn.Conv2d(C, D, kernel_size=k, stride=k, padding=0, bias=True)
+        diff = check_equal_conv_vs_unfold(x, conv)
+
+        y_conv = conv2d_tokens(x, conv)
+        y_unf = patch_embed_via_unfold(x, conv)
+
+        mo.md(
+            f"""
+            ### DINO-scale (patch-embed)
+            Input **(B,C,H,W)** = {x.shape}, k={k}, stride={k}, pad=0 → L={(H // k) * (W // k)} tokens
+
+            Outputs: conv → {tuple(y_conv.shape)}, unfold+GEMM → {tuple(y_unf.shape)}  
+            **max |Δ| = {diff:.3e}** (should match exactly in fp32).
+            """
+        )
+    return
+
+
+if __name__ == "__main__":
+    app.run()
 
 >>>> interactive/features.py
 import marimo

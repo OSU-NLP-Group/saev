@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1">
-<meta name="generator" content="pdoc3 0.11.1">
+<meta name="generator" content="pdoc3 0.11.6">
 <title>saev.data.dinov3 API documentation</title>
 <meta name="description" content="">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/13.0.0/sanitize.min.css" integrity="sha512-y1dtMcuvtTMJc1yPgEqF0ZjQbhnc/bFhyvIyVNb9Zk5mIGtqVaAB1Ttl28su8AvFMOY0EwRbAe+HCLqj6W7/KA==" crossorigin>
@@ -35,165 +35,1152 @@ hljs.highlightAll();
 <section>
 <h2 class="section-title" id="header-functions">Functions</h2>
 <dl>
-<dt id="saev.data.dinov3.convert_path_or_url_to_url"><code class="name flex">
-<span>def <span class="ident">convert_path_or_url_to_url</span></span>(<span>path: str) ‑> str</span>
+<dt id="saev.data.dinov3.load"><code class="name flex">
+<span>def <span class="ident">load</span></span>(<span>name: str, fpath: str | pathlib.Path, device='cpu') ‑> <a title="saev.data.dinov3.VisionTransformer" href="#saev.data.dinov3.VisionTransformer">VisionTransformer</a></span>
 </code></dt>
 <dd>
 <div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+def load(name: str, fpath: str | pathlib.Path, device=&#34;cpu&#34;) -&gt; VisionTransformer:
+    if name not in _PRETRAINED_CFGS:
+        raise ValueError(f&#34;Name &#39;{name}&#39; not in {list(_PRETRAINED_CFGS)}.&#34;)
+    cfg = _PRETRAINED_CFGS[name]
+    state_dict = torch.load(fpath, mmap=True, weights_only=True, map_location=&#34;cpu&#34;)
+    with torch.device(&#34;meta&#34;):
+        model = VisionTransformer(cfg)
+    model.load_state_dict(state_dict, assign=True)
+
+    model = model.to(device)
+    return model</code></pre>
+</details>
 </dd>
-<dt id="saev.data.dinov3.dinov3_convnext_base"><code class="name flex">
-<span>def <span class="ident">dinov3_convnext_base</span></span>(<span>*,<br>pretrained: bool = True,<br>weights: <a title="saev.data.dinov3.Weights" href="#saev.data.dinov3.Weights">Weights</a> | str = Weights.LVD1689M,<br>**kwargs)</span>
+<dt id="saev.data.dinov3.make_2tuple"><code class="name flex">
+<span>def <span class="ident">make_2tuple</span></span>(<span>x: int | tuple[int, int]) ‑> tuple[int, int]</span>
 </code></dt>
 <dd>
 <div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+def make_2tuple(x: int | tuple[int, int]) -&gt; tuple[int, int]:
+    if isinstance(x, tuple):
+        assert len(x) == 2
+        return x
+
+    assert isinstance(x, int)
+    return (x, x)</code></pre>
+</details>
 </dd>
-<dt id="saev.data.dinov3.dinov3_convnext_large"><code class="name flex">
-<span>def <span class="ident">dinov3_convnext_large</span></span>(<span>*,<br>pretrained: bool = True,<br>weights: <a title="saev.data.dinov3.Weights" href="#saev.data.dinov3.Weights">Weights</a> | str = Weights.LVD1689M,<br>**kwargs)</span>
+<dt id="saev.data.dinov3.rope_fn"><code class="name flex">
+<span>def <span class="ident">rope_fn</span></span>(<span>q_bhnd: jaxtyping.Float[Tensor, 'batch head n d_head'],<br>k_bhnd: jaxtyping.Float[Tensor, 'batch head n d_head'],<br>rope: torch.Tensor | tuple[torch.Tensor, torch.Tensor]) ‑> tuple[jaxtyping.Float[Tensor, 'batch head n d_head'], jaxtyping.Float[Tensor, 'batch head n d_head']]</span>
 </code></dt>
 <dd>
 <div class="desc"></div>
-</dd>
-<dt id="saev.data.dinov3.dinov3_convnext_small"><code class="name flex">
-<span>def <span class="ident">dinov3_convnext_small</span></span>(<span>*,<br>pretrained: bool = True,<br>weights: <a title="saev.data.dinov3.Weights" href="#saev.data.dinov3.Weights">Weights</a> | str = Weights.LVD1689M,<br>**kwargs)</span>
-</code></dt>
-<dd>
-<div class="desc"></div>
-</dd>
-<dt id="saev.data.dinov3.dinov3_convnext_tiny"><code class="name flex">
-<span>def <span class="ident">dinov3_convnext_tiny</span></span>(<span>*,<br>pretrained: bool = True,<br>weights: <a title="saev.data.dinov3.Weights" href="#saev.data.dinov3.Weights">Weights</a> | str = Weights.LVD1689M,<br>**kwargs)</span>
-</code></dt>
-<dd>
-<div class="desc"></div>
-</dd>
-<dt id="saev.data.dinov3.dinov3_vit7b16"><code class="name flex">
-<span>def <span class="ident">dinov3_vit7b16</span></span>(<span>*,<br>pretrained: bool = True,<br>weights: <a title="saev.data.dinov3.Weights" href="#saev.data.dinov3.Weights">Weights</a> | str = Weights.LVD1689M,<br>check_hash: bool = False,<br>**kwargs)</span>
-</code></dt>
-<dd>
-<div class="desc"></div>
-</dd>
-<dt id="saev.data.dinov3.dinov3_vitb16"><code class="name flex">
-<span>def <span class="ident">dinov3_vitb16</span></span>(<span>*,<br>pretrained: bool = True,<br>weights: <a title="saev.data.dinov3.Weights" href="#saev.data.dinov3.Weights">Weights</a> | str = Weights.LVD1689M,<br>check_hash: bool = False,<br>**kwargs)</span>
-</code></dt>
-<dd>
-<div class="desc"></div>
-</dd>
-<dt id="saev.data.dinov3.dinov3_vith16plus"><code class="name flex">
-<span>def <span class="ident">dinov3_vith16plus</span></span>(<span>*,<br>pretrained: bool = True,<br>weights: <a title="saev.data.dinov3.Weights" href="#saev.data.dinov3.Weights">Weights</a> | str = Weights.LVD1689M,<br>check_hash: bool = False,<br>**kwargs)</span>
-</code></dt>
-<dd>
-<div class="desc"></div>
-</dd>
-<dt id="saev.data.dinov3.dinov3_vitl16"><code class="name flex">
-<span>def <span class="ident">dinov3_vitl16</span></span>(<span>*,<br>pretrained: bool = True,<br>weights: <a title="saev.data.dinov3.Weights" href="#saev.data.dinov3.Weights">Weights</a> | str = Weights.LVD1689M,<br>check_hash: bool = False,<br>**kwargs)</span>
-</code></dt>
-<dd>
-<div class="desc"></div>
-</dd>
-<dt id="saev.data.dinov3.dinov3_vitl16plus"><code class="name flex">
-<span>def <span class="ident">dinov3_vitl16plus</span></span>(<span>*,<br>pretrained: bool = True,<br>weights: <a title="saev.data.dinov3.Weights" href="#saev.data.dinov3.Weights">Weights</a> | str = Weights.LVD1689M,<br>check_hash: bool = False,<br>**kwargs)</span>
-</code></dt>
-<dd>
-<div class="desc"></div>
-</dd>
-<dt id="saev.data.dinov3.dinov3_vits16"><code class="name flex">
-<span>def <span class="ident">dinov3_vits16</span></span>(<span>*,<br>pretrained: bool = True,<br>weights: <a title="saev.data.dinov3.Weights" href="#saev.data.dinov3.Weights">Weights</a> | str = Weights.LVD1689M,<br>check_hash: bool = False,<br>**kwargs)</span>
-</code></dt>
-<dd>
-<div class="desc"></div>
-</dd>
-<dt id="saev.data.dinov3.dinov3_vits16plus"><code class="name flex">
-<span>def <span class="ident">dinov3_vits16plus</span></span>(<span>*,<br>pretrained: bool = True,<br>weights: <a title="saev.data.dinov3.Weights" href="#saev.data.dinov3.Weights">Weights</a> | str = Weights.LVD1689M,<br>check_hash: bool = False,<br>**kwargs)</span>
-</code></dt>
-<dd>
-<div class="desc"></div>
-</dd>
-<dt id="saev.data.dinov3.is_url"><code class="name flex">
-<span>def <span class="ident">is_url</span></span>(<span>path: str) ‑> bool</span>
-</code></dt>
-<dd>
-<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@jaxtyped(typechecker=beartype.beartype)
+def rope_fn(
+    q_bhnd: Float[Tensor, &#34;batch head n d_head&#34;],
+    k_bhnd: Float[Tensor, &#34;batch head n d_head&#34;],
+    rope: Tensor | tuple[Tensor, Tensor],
+) -&gt; tuple[Float[Tensor, &#34;batch head n d_head&#34;], Float[Tensor, &#34;batch head n d_head&#34;]]:
+    # All operations will use the dtype of rope, the output is cast back to the dtype of q and k
+    q_dtype = q_bhnd.dtype
+    k_dtype = k_bhnd.dtype
+
+    sin_pd, cos_pd = rope
+    rope_dtype = sin_pd.dtype
+
+    q_bhnd = q_bhnd.to(dtype=rope_dtype)
+    k_bhnd = k_bhnd.to(dtype=rope_dtype)
+    _, n_heads, n, d_head = q_bhnd.shape
+    n_pos, d_head = sin_pd.shape
+    prefix = n - n_pos
+    assert prefix &gt;= 0, f&#34;Got {n} residual streams but only {n_pos} patches.&#34;
+
+    q_prefix_bhd = q_bhnd[:, :, :prefix, :]
+    q_bhpd = _rope(q_bhnd[:, :, prefix:, :], sin_pd, cos_pd)
+    q_bhnd = torch.cat((q_prefix_bhd, q_bhpd), dim=2)
+    k_prefix_bhd = k_bhnd[:, :, :prefix, :]
+    k_bhpd = _rope(k_bhnd[:, :, prefix:, :], sin_pd, cos_pd)
+    k_bhnd = torch.cat((k_prefix_bhd, k_bhpd), dim=2)
+
+    q_bhnd = q_bhnd.to(dtype=q_dtype)
+    k_bhnd = k_bhnd.to(dtype=k_dtype)
+
+    return q_bhnd, k_bhnd</code></pre>
+</details>
 </dd>
 </dl>
 </section>
 <section>
 <h2 class="section-title" id="header-classes">Classes</h2>
 <dl>
-<dt id="saev.data.dinov3.Weights"><code class="flex name class">
-<span>class <span class="ident">Weights</span></span>
-<span>(</span><span>*args, **kwds)</span>
+<dt id="saev.data.dinov3.Config"><code class="flex name class">
+<span>class <span class="ident">Config</span></span>
+<span>(</span><span>img_size: int = 224,<br>patch_size: int = 16,<br>in_chans: int = 3,<br>pos_embed_rope_base: float = 100.0,<br>pos_embed_rope_min_period: float | None = None,<br>pos_embed_rope_max_period: float | None = None,<br>pos_embed_rope_normalize_coords: Literal['min', 'max', 'separate'] = 'separate',<br>pos_embed_rope_dtype: str = 'bf16',<br>embed_dim: int = 768,<br>depth: int = 12,<br>num_heads: int = 12,<br>ffn_ratio: float = 4.0,<br>qkv_bias: bool = True,<br>ffn_layer: str = 'mlp',<br>ffn_bias: bool = True,<br>proj_bias: bool = True,<br>n_storage_tokens: int = 0,<br>mask_k_bias: bool = False,<br>untie_global_and_local_cls_norm: bool = False,<br>device: typing.Any | None = None)</span>
 </code></dt>
 <dd>
-<div class="desc"><p>Create a collection of name/value pairs.</p>
-<p>Example enumeration:</p>
-<pre><code class="language-python-repl">&gt;&gt;&gt; class Color(Enum):
-...     RED = 1
-...     BLUE = 2
-...     GREEN = 3
-</code></pre>
-<p>Access them by:</p>
-<ul>
-<li>attribute access:</li>
-</ul>
-<blockquote>
-<blockquote>
-<blockquote>
-<p>Color.RED
-<Color.RED: 1></p>
-</blockquote>
-</blockquote>
-</blockquote>
-<ul>
-<li>value lookup:</li>
-</ul>
-<blockquote>
-<blockquote>
-<blockquote>
-<p>Color(1)
-<Color.RED: 1></p>
-</blockquote>
-</blockquote>
-</blockquote>
-<ul>
-<li>name lookup:</li>
-</ul>
-<blockquote>
-<blockquote>
-<blockquote>
-<p>Color['RED']
-<Color.RED: 1></p>
-</blockquote>
-</blockquote>
-</blockquote>
-<p>Enumerations can be iterated over, and know how many members they have:</p>
-<pre><code class="language-python-repl">&gt;&gt;&gt; len(Color)
-3
-</code></pre>
-<pre><code class="language-python-repl">&gt;&gt;&gt; list(Color)
-[&lt;Color.RED: 1&gt;, &lt;Color.BLUE: 2&gt;, &lt;Color.GREEN: 3&gt;]
-</code></pre>
-<p>Methods can be added to enumerations, and members can have their own
-attributes &ndash; see the documentation for details.</p></div>
+<div class="desc"><p>Config(img_size: int = 224, patch_size: int = 16, in_chans: int = 3, pos_embed_rope_base: float = 100.0, pos_embed_rope_min_period: float | None = None, pos_embed_rope_max_period: float | None = None, pos_embed_rope_normalize_coords: Literal['min', 'max', 'separate'] = 'separate', pos_embed_rope_dtype: str = 'bf16', embed_dim: int = 768, depth: int = 12, num_heads: int = 12, ffn_ratio: float = 4.0, qkv_bias: bool = True, ffn_layer: str = 'mlp', ffn_bias: bool = True, proj_bias: bool = True, n_storage_tokens: int = 0, mask_k_bias: bool = False, untie_global_and_local_cls_norm: bool = False, device: typing.Any | None = None)</p></div>
 <details class="source">
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">class Weights(enum.Enum):
-    LVD1689M = &#34;LVD1689M&#34;
-    SAT493M = &#34;SAT493M&#34;</code></pre>
+<pre><code class="python">@beartype.beartype
+@dataclasses.dataclass(frozen=True)
+class Config:
+    img_size: int = 224
+    &#34;&#34;&#34;Image width and height in pixels.&#34;&#34;&#34;
+    patch_size: int = 16
+    &#34;&#34;&#34;Size of each patch in pixels.&#34;&#34;&#34;
+    in_chans: int = 3
+    &#34;&#34;&#34;Number of input image channels.&#34;&#34;&#34;
+    pos_embed_rope_base: float = 100.0
+    &#34;&#34;&#34;Base frequency for RoPE positional encoding.&#34;&#34;&#34;
+    pos_embed_rope_min_period: float | None = None
+    &#34;&#34;&#34;Minimum period for RoPE positional encoding.&#34;&#34;&#34;
+    pos_embed_rope_max_period: float | None = None
+    &#34;&#34;&#34;Maximum period for RoPE positional encoding.&#34;&#34;&#34;
+    pos_embed_rope_normalize_coords: tp.Literal[&#34;min&#34;, &#34;max&#34;, &#34;separate&#34;] = &#34;separate&#34;
+    &#34;&#34;&#34;Coordinate normalization method for RoPE encoding.&#34;&#34;&#34;
+    pos_embed_rope_dtype: str = &#34;bf16&#34;
+    &#34;&#34;&#34;Data type for RoPE positional encoding.&#34;&#34;&#34;
+    embed_dim: int = 768
+    &#34;&#34;&#34;Embedding dimension for transformer.&#34;&#34;&#34;
+    depth: int = 12
+    &#34;&#34;&#34;Number of transformer blocks.&#34;&#34;&#34;
+    num_heads: int = 12
+    &#34;&#34;&#34;Number of attention heads.&#34;&#34;&#34;
+    ffn_ratio: float = 4.0
+    &#34;&#34;&#34;Feed-forward network expansion ratio.&#34;&#34;&#34;
+    qkv_bias: bool = True
+    &#34;&#34;&#34;Whether to use bias in QKV projection.&#34;&#34;&#34;
+    ffn_layer: str = &#34;mlp&#34;
+    &#34;&#34;&#34;Type of feed-forward network layer.&#34;&#34;&#34;
+    ffn_bias: bool = True
+    &#34;&#34;&#34;Whether to use bias in feed-forward network.&#34;&#34;&#34;
+    proj_bias: bool = True
+    &#34;&#34;&#34;Whether to use bias in output projection.&#34;&#34;&#34;
+    n_storage_tokens: int = 0
+    &#34;&#34;&#34;Number of storage/register tokens.&#34;&#34;&#34;
+    mask_k_bias: bool = False
+    &#34;&#34;&#34;Whether to mask K bias in attention.&#34;&#34;&#34;
+    untie_global_and_local_cls_norm: bool = False
+    &#34;&#34;&#34;Whether to use separate norms for global and local CLS tokens.&#34;&#34;&#34;
+    device: tp.Any | None = None
+    &#34;&#34;&#34;Device for tensor operations.&#34;&#34;&#34;</code></pre>
+</details>
+<h3>Instance variables</h3>
+<dl>
+<dt id="saev.data.dinov3.Config.depth"><code class="name">var <span class="ident">depth</span> : int</code></dt>
+<dd>
+<div class="desc"><p>Number of transformer blocks.</p></div>
+</dd>
+<dt id="saev.data.dinov3.Config.device"><code class="name">var <span class="ident">device</span> : typing.Any | None</code></dt>
+<dd>
+<div class="desc"><p>Device for tensor operations.</p></div>
+</dd>
+<dt id="saev.data.dinov3.Config.embed_dim"><code class="name">var <span class="ident">embed_dim</span> : int</code></dt>
+<dd>
+<div class="desc"><p>Embedding dimension for transformer.</p></div>
+</dd>
+<dt id="saev.data.dinov3.Config.ffn_bias"><code class="name">var <span class="ident">ffn_bias</span> : bool</code></dt>
+<dd>
+<div class="desc"><p>Whether to use bias in feed-forward network.</p></div>
+</dd>
+<dt id="saev.data.dinov3.Config.ffn_layer"><code class="name">var <span class="ident">ffn_layer</span> : str</code></dt>
+<dd>
+<div class="desc"><p>Type of feed-forward network layer.</p></div>
+</dd>
+<dt id="saev.data.dinov3.Config.ffn_ratio"><code class="name">var <span class="ident">ffn_ratio</span> : float</code></dt>
+<dd>
+<div class="desc"><p>Feed-forward network expansion ratio.</p></div>
+</dd>
+<dt id="saev.data.dinov3.Config.img_size"><code class="name">var <span class="ident">img_size</span> : int</code></dt>
+<dd>
+<div class="desc"><p>Image width and height in pixels.</p></div>
+</dd>
+<dt id="saev.data.dinov3.Config.in_chans"><code class="name">var <span class="ident">in_chans</span> : int</code></dt>
+<dd>
+<div class="desc"><p>Number of input image channels.</p></div>
+</dd>
+<dt id="saev.data.dinov3.Config.mask_k_bias"><code class="name">var <span class="ident">mask_k_bias</span> : bool</code></dt>
+<dd>
+<div class="desc"><p>Whether to mask K bias in attention.</p></div>
+</dd>
+<dt id="saev.data.dinov3.Config.n_storage_tokens"><code class="name">var <span class="ident">n_storage_tokens</span> : int</code></dt>
+<dd>
+<div class="desc"><p>Number of storage/register tokens.</p></div>
+</dd>
+<dt id="saev.data.dinov3.Config.num_heads"><code class="name">var <span class="ident">num_heads</span> : int</code></dt>
+<dd>
+<div class="desc"><p>Number of attention heads.</p></div>
+</dd>
+<dt id="saev.data.dinov3.Config.patch_size"><code class="name">var <span class="ident">patch_size</span> : int</code></dt>
+<dd>
+<div class="desc"><p>Size of each patch in pixels.</p></div>
+</dd>
+<dt id="saev.data.dinov3.Config.pos_embed_rope_base"><code class="name">var <span class="ident">pos_embed_rope_base</span> : float</code></dt>
+<dd>
+<div class="desc"><p>Base frequency for RoPE positional encoding.</p></div>
+</dd>
+<dt id="saev.data.dinov3.Config.pos_embed_rope_dtype"><code class="name">var <span class="ident">pos_embed_rope_dtype</span> : str</code></dt>
+<dd>
+<div class="desc"><p>Data type for RoPE positional encoding.</p></div>
+</dd>
+<dt id="saev.data.dinov3.Config.pos_embed_rope_max_period"><code class="name">var <span class="ident">pos_embed_rope_max_period</span> : float | None</code></dt>
+<dd>
+<div class="desc"><p>Maximum period for RoPE positional encoding.</p></div>
+</dd>
+<dt id="saev.data.dinov3.Config.pos_embed_rope_min_period"><code class="name">var <span class="ident">pos_embed_rope_min_period</span> : float | None</code></dt>
+<dd>
+<div class="desc"><p>Minimum period for RoPE positional encoding.</p></div>
+</dd>
+<dt id="saev.data.dinov3.Config.pos_embed_rope_normalize_coords"><code class="name">var <span class="ident">pos_embed_rope_normalize_coords</span> : Literal['min', 'max', 'separate']</code></dt>
+<dd>
+<div class="desc"><p>Coordinate normalization method for RoPE encoding.</p></div>
+</dd>
+<dt id="saev.data.dinov3.Config.proj_bias"><code class="name">var <span class="ident">proj_bias</span> : bool</code></dt>
+<dd>
+<div class="desc"><p>Whether to use bias in output projection.</p></div>
+</dd>
+<dt id="saev.data.dinov3.Config.qkv_bias"><code class="name">var <span class="ident">qkv_bias</span> : bool</code></dt>
+<dd>
+<div class="desc"><p>Whether to use bias in QKV projection.</p></div>
+</dd>
+<dt id="saev.data.dinov3.Config.untie_global_and_local_cls_norm"><code class="name">var <span class="ident">untie_global_and_local_cls_norm</span> : bool</code></dt>
+<dd>
+<div class="desc"><p>Whether to use separate norms for global and local CLS tokens.</p></div>
+</dd>
+</dl>
+</dd>
+<dt id="saev.data.dinov3.LayerScale"><code class="flex name class">
+<span>class <span class="ident">LayerScale</span></span>
+<span>(</span><span>dim: int)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Base class for all neural network modules.</p>
+<p>Your models should also subclass this class.</p>
+<p>Modules can also contain other Modules, allowing them to be nested in
+a tree structure. You can assign the submodules as regular attributes::</p>
+<pre><code>import torch.nn as nn
+import torch.nn.functional as F
+
+
+class Model(nn.Module):
+    def __init__(self) -&gt; None:
+        super().__init__()
+        self.conv1 = nn.Conv2d(1, 20, 5)
+        self.conv2 = nn.Conv2d(20, 20, 5)
+
+    def forward(self, x):
+        x = F.relu(self.conv1(x))
+        return F.relu(self.conv2(x))
+</code></pre>
+<p>Submodules assigned in this way will be registered, and will also have their
+parameters converted when you call :meth:<code>to</code>, etc.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>As per the example above, an <code>__init__()</code> call to the parent class
+must be made before assignment on the child.</p>
+</div>
+<p>:ivar training: Boolean represents whether this module is in training or
+evaluation mode.
+:vartype training: bool</p>
+<p>Initialize internal Module state, shared by both nn.Module and ScriptModule.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@jaxtyped(typechecker=beartype.beartype)
+class LayerScale(nn.Module):
+    def __init__(self, dim: int) -&gt; None:
+        super().__init__()
+        self.gamma = nn.Parameter(torch.empty(dim))
+
+    def __call__(self, x: Float[Tensor, &#34;...&#34;]) -&gt; Float[Tensor, &#34;...&#34;]:
+        return x * self.gamma</code></pre>
 </details>
 <h3>Ancestors</h3>
 <ul class="hlist">
-<li>enum.Enum</li>
+<li>torch.nn.modules.module.Module</li>
 </ul>
-<h3>Class variables</h3>
-<dl>
-<dt id="saev.data.dinov3.Weights.LVD1689M"><code class="name">var <span class="ident">LVD1689M</span></code></dt>
-<dd>
-<div class="desc"></div>
 </dd>
-<dt id="saev.data.dinov3.Weights.SAT493M"><code class="name">var <span class="ident">SAT493M</span></code></dt>
+<dt id="saev.data.dinov3.LinearKMaskedBias"><code class="flex name class">
+<span>class <span class="ident">LinearKMaskedBias</span></span>
+<span>(</span><span>*args, **kwargs)</span>
+</code></dt>
 <dd>
-<div class="desc"></div>
+<div class="desc"><p>Applies an affine linear transformation to the incoming data: :math:<code>y = xA^T + b</code>.</p>
+<p>This module supports :ref:<code>TensorFloat32&lt;tf32_on_ampere&gt;</code>.</p>
+<p>On certain ROCm devices, when using float16 inputs this module will use :ref:<code>different precision&lt;fp16_on_mi200&gt;</code> for backward.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>in_features</code></strong></dt>
+<dd>size of each input sample</dd>
+<dt><strong><code>out_features</code></strong></dt>
+<dd>size of each output sample</dd>
+<dt><strong><code>bias</code></strong></dt>
+<dd>If set to <code>False</code>, the layer will not learn an additive bias.
+Default: <code>True</code></dd>
+</dl>
+<h2 id="shape">Shape</h2>
+<ul>
+<li>Input: :math:<code>(*, H_\text{in})</code> where :math:<code>*</code> means any number of
+dimensions including none and :math:<code>H_\text{in} = \text{in\_features}</code>.</li>
+<li>Output: :math:<code>(*, H_\text{out})</code> where all but the last dimension
+are the same shape as the input and :math:<code>H_\text{out} = \text{out\_features}</code>.</li>
+</ul>
+<h2 id="attributes">Attributes</h2>
+<dl>
+<dt><strong><code>weight</code></strong></dt>
+<dd>the learnable weights of the module of shape
+:math:<code>(\text{out\_features}, \text{in\_features})</code>. The values are
+initialized from :math:<code>\mathcal{U}(-\sqrt{k}, \sqrt{k})</code>, where
+:math:<code>k = \frac{1}{\text{in\_features}}</code></dd>
+<dt><strong><code>bias</code></strong></dt>
+<dd>the learnable bias of the module of shape :math:<code>(\text{out\_features})</code>.
+If :attr:<code>bias</code> is <code>True</code>, the values are initialized from
+:math:<code>\mathcal{U}(-\sqrt{k}, \sqrt{k})</code> where
+:math:<code>k = \frac{1}{\text{in\_features}}</code></dd>
+</dl>
+<p>Examples::</p>
+<pre><code>&gt;&gt;&gt; m = nn.Linear(20, 30)
+&gt;&gt;&gt; input = torch.randn(128, 20)
+&gt;&gt;&gt; output = m(input)
+&gt;&gt;&gt; print(output.size())
+torch.Size([128, 30])
+</code></pre>
+<p>Initialize internal Module state, shared by both nn.Module and ScriptModule.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@jaxtyped(typechecker=beartype.beartype)
+class LinearKMaskedBias(nn.Linear):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        o = self.out_features
+        assert o % 3 == 0
+        if self.bias is not None:
+            self.register_buffer(&#34;bias_mask&#34;, torch.full_like(self.bias, fill_value=0))
+
+    def forward(self, input: Tensor) -&gt; Tensor:
+        masked_bias = (
+            self.bias * self.bias_mask.to(self.bias.dtype)
+            if self.bias is not None
+            else None
+        )
+        return F.linear(input, self.weight, masked_bias)</code></pre>
+</details>
+<h3>Ancestors</h3>
+<ul class="hlist">
+<li>torch.nn.modules.linear.Linear</li>
+<li>torch.nn.modules.module.Module</li>
+</ul>
+<h3>Methods</h3>
+<dl>
+<dt id="saev.data.dinov3.LinearKMaskedBias.forward"><code class="name flex">
+<span>def <span class="ident">forward</span></span>(<span>self, input: torch.Tensor) ‑> torch.Tensor</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Define the computation performed at every call.</p>
+<p>Should be overridden by all subclasses.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Although the recipe for forward pass needs to be defined within
+this function, one should call the :class:<code>Module</code> instance afterwards
+instead of this since the former takes care of running the
+registered hooks while the latter silently ignores them.</p>
+</div></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def forward(self, input: Tensor) -&gt; Tensor:
+    masked_bias = (
+        self.bias * self.bias_mask.to(self.bias.dtype)
+        if self.bias is not None
+        else None
+    )
+    return F.linear(input, self.weight, masked_bias)</code></pre>
+</details>
+</dd>
+</dl>
+</dd>
+<dt id="saev.data.dinov3.Mlp"><code class="flex name class">
+<span>class <span class="ident">Mlp</span></span>
+<span>(</span><span>in_features: int,<br>hidden_features: int | None = None,<br>out_features: int | None = None)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Base class for all neural network modules.</p>
+<p>Your models should also subclass this class.</p>
+<p>Modules can also contain other Modules, allowing them to be nested in
+a tree structure. You can assign the submodules as regular attributes::</p>
+<pre><code>import torch.nn as nn
+import torch.nn.functional as F
+
+
+class Model(nn.Module):
+    def __init__(self) -&gt; None:
+        super().__init__()
+        self.conv1 = nn.Conv2d(1, 20, 5)
+        self.conv2 = nn.Conv2d(20, 20, 5)
+
+    def forward(self, x):
+        x = F.relu(self.conv1(x))
+        return F.relu(self.conv2(x))
+</code></pre>
+<p>Submodules assigned in this way will be registered, and will also have their
+parameters converted when you call :meth:<code>to</code>, etc.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>As per the example above, an <code>__init__()</code> call to the parent class
+must be made before assignment on the child.</p>
+</div>
+<p>:ivar training: Boolean represents whether this module is in training or
+evaluation mode.
+:vartype training: bool</p>
+<p>Initialize internal Module state, shared by both nn.Module and ScriptModule.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@jaxtyped(typechecker=beartype.beartype)
+class Mlp(nn.Module):
+    def __init__(
+        self,
+        in_features: int,
+        hidden_features: int | None = None,
+        out_features: int | None = None,
+    ) -&gt; None:
+        super().__init__()
+        out_features = out_features or in_features
+        hidden_features = hidden_features or in_features
+        self.fc1 = nn.Linear(in_features, hidden_features, bias=True)
+        self.fc2 = nn.Linear(hidden_features, out_features, bias=True)
+
+    def __call__(self, x: Float[Tensor, &#34;*batch d&#34;]) -&gt; Float[Tensor, &#34;*batch d&#34;]:
+        x = self.fc1(x)
+        x = F.gelu(x, approximate=&#34;none&#34;)
+        x = self.fc2(x)
+        return x</code></pre>
+</details>
+<h3>Ancestors</h3>
+<ul class="hlist">
+<li>torch.nn.modules.module.Module</li>
+</ul>
+</dd>
+<dt id="saev.data.dinov3.PatchEmbed"><code class="flex name class">
+<span>class <span class="ident">PatchEmbed</span></span>
+<span>(</span><span>img_size: int | tuple[int, int] = 224,<br>patch_size: int | tuple[int, int] = 16,<br>in_chans: int = 3,<br>embed_dim: int = 768,<br>flatten_embedding: bool = True)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>2D image to patch embedding: (B,C,H,W) -&gt; (B,N,D)</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>img_size</code></strong></dt>
+<dd>Image size.</dd>
+<dt><strong><code>patch_size</code></strong></dt>
+<dd>Patch token size.</dd>
+<dt><strong><code>in_chans</code></strong></dt>
+<dd>Number of input image channels.</dd>
+<dt><strong><code>embed_dim</code></strong></dt>
+<dd>Number of linear projection output channels.</dd>
+</dl>
+<p>Initialize internal Module state, shared by both nn.Module and ScriptModule.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@jaxtyped(typechecker=beartype.beartype)
+class PatchEmbed(nn.Module):
+    &#34;&#34;&#34;
+    2D image to patch embedding: (B,C,H,W) -&gt; (B,N,D)
+
+    Args:
+        img_size: Image size.
+        patch_size: Patch token size.
+        in_chans: Number of input image channels.
+        embed_dim: Number of linear projection output channels.
+    &#34;&#34;&#34;
+
+    def __init__(
+        self,
+        img_size: int | tuple[int, int] = 224,
+        patch_size: int | tuple[int, int] = 16,
+        in_chans: int = 3,
+        embed_dim: int = 768,
+        flatten_embedding: bool = True,
+    ) -&gt; None:
+        super().__init__()
+
+        image_hw = make_2tuple(img_size)
+        patch_hw = make_2tuple(patch_size)
+
+        self.img_size = image_hw
+        self.patch_size = patch_hw
+
+        self.in_chans = in_chans
+        self.embed_dim = embed_dim
+
+        self.proj = nn.Conv2d(
+            in_chans, embed_dim, kernel_size=patch_hw, stride=patch_hw
+        )
+        self.k = patch_hw[0]
+        assert self.proj.kernel_size == (self.k, self.k)
+        assert self.proj.stride == (self.k, self.k)
+        assert self.proj.padding == (0, 0)
+        assert self.proj.groups == 1
+        assert self.proj.dilation == (1, 1)
+
+    def forward(
+        self,
+        x: Float[Tensor, &#34;batch 3 width height&#34;] | Float[Tensor, &#34;batch n kernel&#34;],
+    ) -&gt; Float[Tensor, &#34;batch n dim&#34;]:
+        if x.ndim == 4:
+            x_bdhw = self.proj(x)  # B C H W
+            _, _, h, w = x_bdhw.shape
+            x_bnd = einops.rearrange(x_bdhw, &#34;b d h w -&gt; b (h w) d&#34;)
+        elif x.ndim == 3:
+            w_dp = self.conv.weight.reshape(
+                self.embed_dim, self.in_chans * self.patch_hw[0] * self.patch_hw[1]
+            )
+            x_bnd = x @ w_dp.T
+            if self.proj.bias is not None:
+                x_bnd = x_bnd + self.proj.bias[None, None, :]
+        else:
+            raise TypeError(f&#34;Wrong shape for x: {x.shape}&#34;)
+        return x_bnd</code></pre>
+</details>
+<h3>Ancestors</h3>
+<ul class="hlist">
+<li>torch.nn.modules.module.Module</li>
+</ul>
+<h3>Methods</h3>
+<dl>
+<dt id="saev.data.dinov3.PatchEmbed.forward"><code class="name flex">
+<span>def <span class="ident">forward</span></span>(<span>self,<br>x: jaxtyping.Float[Tensor, 'batch 3 width height'] | jaxtyping.Float[Tensor, 'batch n kernel']) ‑> jaxtyping.Float[Tensor, 'batch n dim']</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Define the computation performed at every call.</p>
+<p>Should be overridden by all subclasses.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Although the recipe for forward pass needs to be defined within
+this function, one should call the :class:<code>Module</code> instance afterwards
+instead of this since the former takes care of running the
+registered hooks while the latter silently ignores them.</p>
+</div></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def forward(
+    self,
+    x: Float[Tensor, &#34;batch 3 width height&#34;] | Float[Tensor, &#34;batch n kernel&#34;],
+) -&gt; Float[Tensor, &#34;batch n dim&#34;]:
+    if x.ndim == 4:
+        x_bdhw = self.proj(x)  # B C H W
+        _, _, h, w = x_bdhw.shape
+        x_bnd = einops.rearrange(x_bdhw, &#34;b d h w -&gt; b (h w) d&#34;)
+    elif x.ndim == 3:
+        w_dp = self.conv.weight.reshape(
+            self.embed_dim, self.in_chans * self.patch_hw[0] * self.patch_hw[1]
+        )
+        x_bnd = x @ w_dp.T
+        if self.proj.bias is not None:
+            x_bnd = x_bnd + self.proj.bias[None, None, :]
+    else:
+        raise TypeError(f&#34;Wrong shape for x: {x.shape}&#34;)
+    return x_bnd</code></pre>
+</details>
+</dd>
+</dl>
+</dd>
+<dt id="saev.data.dinov3.RopePositionEmbedding"><code class="flex name class">
+<span>class <span class="ident">RopePositionEmbedding</span></span>
+<span>(</span><span>embed_dim: int,<br>*,<br>num_heads: int,<br>base: float | None,<br>min_period: float | None,<br>max_period: float | None,<br>normalize_coords: Literal['min', 'max', 'separate'],<br>dtype: torch.dtype | None = None)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Base class for all neural network modules.</p>
+<p>Your models should also subclass this class.</p>
+<p>Modules can also contain other Modules, allowing them to be nested in
+a tree structure. You can assign the submodules as regular attributes::</p>
+<pre><code>import torch.nn as nn
+import torch.nn.functional as F
+
+
+class Model(nn.Module):
+    def __init__(self) -&gt; None:
+        super().__init__()
+        self.conv1 = nn.Conv2d(1, 20, 5)
+        self.conv2 = nn.Conv2d(20, 20, 5)
+
+    def forward(self, x):
+        x = F.relu(self.conv1(x))
+        return F.relu(self.conv2(x))
+</code></pre>
+<p>Submodules assigned in this way will be registered, and will also have their
+parameters converted when you call :meth:<code>to</code>, etc.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>As per the example above, an <code>__init__()</code> call to the parent class
+must be made before assignment on the child.</p>
+</div>
+<p>:ivar training: Boolean represents whether this module is in training or
+evaluation mode.
+:vartype training: bool</p>
+<p>Initialize internal Module state, shared by both nn.Module and ScriptModule.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@jaxtyped(typechecker=beartype.beartype)
+class RopePositionEmbedding(nn.Module):
+    # RoPE positional embedding with no mixing of coordinates (axial) and no learnable weights
+    # Supports two parametrizations of the rope parameters: either using `base` or `min_period` and `max_period`.
+    def __init__(
+        self,
+        embed_dim: int,
+        *,
+        num_heads: int,
+        base: float | None,
+        min_period: float | None,
+        max_period: float | None,
+        normalize_coords: tp.Literal[&#34;min&#34;, &#34;max&#34;, &#34;separate&#34;],
+        dtype: torch.dtype | None = None,
+    ):
+        super().__init__()
+
+        assert embed_dim % (4 * num_heads) == 0
+        both_periods = min_period is not None and max_period is not None
+        if (base is None and not both_periods) or (base is not None and both_periods):
+            raise ValueError(
+                &#34;Either `base` or `min_period`+`max_period` must be provided.&#34;
+            )
+
+        self.base = base
+        self.min_period = min_period
+        self.max_period = max_period
+        self.d_head = embed_dim // num_heads
+        self.normalize_coords = normalize_coords
+        self.dtype = dtype
+
+        # Needs persistent=True because we do teacher.load_state_dict(student.state_dict()) to initialize the teacher
+        self.register_buffer(
+            &#34;periods&#34;, torch.empty(self.d_head // 4, dtype=dtype), persistent=True
+        )
+        dd = {&#34;device&#34;: self.periods.device, &#34;dtype&#34;: self.dtype}
+        dtype = self.dtype
+        if self.base is not None:
+            periods = self.base ** (
+                2 * torch.arange(self.d_head // 4, **dd) / (self.d_head // 2)
+            )  # [D//4]
+        else:
+            base = self.max_period / self.min_period
+            exponents = torch.linspace(0, 1, self.d_head // 4, **dd)
+            periods = base**exponents  # range [1, max_period / min_period]
+            periods = periods / base  # range [min_period / max_period, 1]
+            periods = periods * self.max_period  # range [min_period, max_period]
+
+        self.periods.data = periods
+
+    def forward(
+        self, *, h: Int[Tensor, &#34; b&#34;], w: Int[Tensor, &#34; b&#34;]
+    ) -&gt; Float[Tensor, &#34;...&#34;]:
+        device = self.periods.device
+        dtype = self.dtype
+        dd = {&#34;device&#34;: device, &#34;dtype&#34;: dtype}
+
+        breakpoint()
+
+        # Prepare coords in range [-1, +1]
+        if self.normalize_coords == &#34;max&#34;:
+            max_hw = max(h, w)
+            coords_h = torch.arange(0.5, h, **dd) / max_hw  # [h]
+            coords_w = torch.arange(0.5, w, **dd) / max_hw  # [w]
+        elif self.normalize_coords == &#34;min&#34;:
+            min_hw = min(h, w)
+            coords_h = torch.arange(0.5, h, **dd) / min_hw  # [h]
+            coords_w = torch.arange(0.5, w, **dd) / min_hw  # [w]
+        elif self.normalize_coords == &#34;separate&#34;:
+            coords_h = torch.arange(0.5, h, **dd) / h  # [h]
+            coords_w = torch.arange(0.5, w, **dd) / w  # [w]
+        else:
+            raise ValueError(f&#34;Unknown normalize_coords: {self.normalize_coords}&#34;)
+        coords = torch.stack(
+            torch.meshgrid(coords_h, coords_w, indexing=&#34;ij&#34;), dim=-1
+        )  # [H, W, 2]
+        coords = coords.flatten(0, 1)  # [HW, 2]
+        coords = 2.0 * coords - 1.0  # Shift range [0, 1] to [-1, +1]
+
+        # Prepare angles and sin/cos
+        angles = (
+            2 * math.pi * coords[:, :, None] / self.periods[None, None, :]
+        )  # [HW, 2, D//4]
+        angles = angles.flatten(1, 2)  # [HW, D//2]
+        angles = angles.tile(2)  # [HW, D]
+        cos = torch.cos(angles)  # [HW, D]
+        sin = torch.sin(angles)  # [HW, D]
+
+        return (sin, cos)  # 2 * [HW, D]</code></pre>
+</details>
+<h3>Ancestors</h3>
+<ul class="hlist">
+<li>torch.nn.modules.module.Module</li>
+</ul>
+<h3>Methods</h3>
+<dl>
+<dt id="saev.data.dinov3.RopePositionEmbedding.forward"><code class="name flex">
+<span>def <span class="ident">forward</span></span>(<span>self, *, h: jaxtyping.Int[Tensor, 'b'], w: jaxtyping.Int[Tensor, 'b']) ‑> jaxtyping.Float[Tensor, '...']</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Define the computation performed at every call.</p>
+<p>Should be overridden by all subclasses.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Although the recipe for forward pass needs to be defined within
+this function, one should call the :class:<code>Module</code> instance afterwards
+instead of this since the former takes care of running the
+registered hooks while the latter silently ignores them.</p>
+</div></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def forward(
+    self, *, h: Int[Tensor, &#34; b&#34;], w: Int[Tensor, &#34; b&#34;]
+) -&gt; Float[Tensor, &#34;...&#34;]:
+    device = self.periods.device
+    dtype = self.dtype
+    dd = {&#34;device&#34;: device, &#34;dtype&#34;: dtype}
+
+    breakpoint()
+
+    # Prepare coords in range [-1, +1]
+    if self.normalize_coords == &#34;max&#34;:
+        max_hw = max(h, w)
+        coords_h = torch.arange(0.5, h, **dd) / max_hw  # [h]
+        coords_w = torch.arange(0.5, w, **dd) / max_hw  # [w]
+    elif self.normalize_coords == &#34;min&#34;:
+        min_hw = min(h, w)
+        coords_h = torch.arange(0.5, h, **dd) / min_hw  # [h]
+        coords_w = torch.arange(0.5, w, **dd) / min_hw  # [w]
+    elif self.normalize_coords == &#34;separate&#34;:
+        coords_h = torch.arange(0.5, h, **dd) / h  # [h]
+        coords_w = torch.arange(0.5, w, **dd) / w  # [w]
+    else:
+        raise ValueError(f&#34;Unknown normalize_coords: {self.normalize_coords}&#34;)
+    coords = torch.stack(
+        torch.meshgrid(coords_h, coords_w, indexing=&#34;ij&#34;), dim=-1
+    )  # [H, W, 2]
+    coords = coords.flatten(0, 1)  # [HW, 2]
+    coords = 2.0 * coords - 1.0  # Shift range [0, 1] to [-1, +1]
+
+    # Prepare angles and sin/cos
+    angles = (
+        2 * math.pi * coords[:, :, None] / self.periods[None, None, :]
+    )  # [HW, 2, D//4]
+    angles = angles.flatten(1, 2)  # [HW, D//2]
+    angles = angles.tile(2)  # [HW, D]
+    cos = torch.cos(angles)  # [HW, D]
+    sin = torch.sin(angles)  # [HW, D]
+
+    return (sin, cos)  # 2 * [HW, D]</code></pre>
+</details>
+</dd>
+</dl>
+</dd>
+<dt id="saev.data.dinov3.SelfAttention"><code class="flex name class">
+<span>class <span class="ident">SelfAttention</span></span>
+<span>(</span><span>cfg: <a title="saev.data.dinov3.Config" href="#saev.data.dinov3.Config">Config</a>)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Base class for all neural network modules.</p>
+<p>Your models should also subclass this class.</p>
+<p>Modules can also contain other Modules, allowing them to be nested in
+a tree structure. You can assign the submodules as regular attributes::</p>
+<pre><code>import torch.nn as nn
+import torch.nn.functional as F
+
+
+class Model(nn.Module):
+    def __init__(self) -&gt; None:
+        super().__init__()
+        self.conv1 = nn.Conv2d(1, 20, 5)
+        self.conv2 = nn.Conv2d(20, 20, 5)
+
+    def forward(self, x):
+        x = F.relu(self.conv1(x))
+        return F.relu(self.conv2(x))
+</code></pre>
+<p>Submodules assigned in this way will be registered, and will also have their
+parameters converted when you call :meth:<code>to</code>, etc.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>As per the example above, an <code>__init__()</code> call to the parent class
+must be made before assignment on the child.</p>
+</div>
+<p>:ivar training: Boolean represents whether this module is in training or
+evaluation mode.
+:vartype training: bool</p>
+<p>Initialize internal Module state, shared by both nn.Module and ScriptModule.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@jaxtyped(typechecker=beartype.beartype)
+class SelfAttention(nn.Module):
+    def __init__(self, cfg: Config):
+        super().__init__()
+        self.cfg = cfg
+        head_dim = cfg.embed_dim // cfg.num_heads
+        self.scale = head_dim**-0.5
+
+        linear_cls = LinearKMaskedBias if cfg.mask_k_bias else nn.Linear
+        self.qkv = linear_cls(cfg.embed_dim, cfg.embed_dim * 3, bias=cfg.qkv_bias)
+        self.proj = nn.Linear(cfg.embed_dim, cfg.embed_dim, bias=cfg.proj_bias)
+
+    def forward(
+        self,
+        x_bnd: Float[Tensor, &#34;batch n d&#34;],
+        rope: Float[Tensor, &#34;2 n_pos d_head&#34;] | None = None,
+    ) -&gt; Float[Tensor, &#34;batch n d&#34;]:
+        b, n_tok, d = x_bnd.shape
+        qkv_b3nd = einops.rearrange(
+            self.qkv(x_bnd),
+            &#34;batch n_tok (parts d) -&gt; batch parts n_tok d&#34;,
+            parts=3,  # [q, k, v] = 3 parts
+            d=d,
+        )
+        qkv_b3hnd = einops.rearrange(
+            qkv_b3nd,
+            &#34;batch parts n_tok (n_heads d_head) -&gt; batch parts n_heads n_tok d_head&#34;,
+            parts=3,
+            n_heads=self.cfg.num_heads,
+            d_head=d // self.cfg.num_heads,
+        )
+        q_bhnd, k_bhnd, v_bhnd = torch.unbind(qkv_b3hnd, dim=1)
+
+        if rope is not None:
+            q_bhnd, k_bhnd = rope_fn(q_bhnd, k_bhnd, rope)
+        x_bhnd = torch.nn.functional.scaled_dot_product_attention(
+            q_bhnd, k_bhnd, v_bhnd
+        )
+        x_bnd = einops.rearrange(
+            x_bhnd, &#34;batch n_heads n_tok d_head -&gt; batch n_tok (n_heads d_head)&#34;
+        )
+        x_bnd = self.proj(x_bnd)
+        return x_bnd</code></pre>
+</details>
+<h3>Ancestors</h3>
+<ul class="hlist">
+<li>torch.nn.modules.module.Module</li>
+</ul>
+<h3>Methods</h3>
+<dl>
+<dt id="saev.data.dinov3.SelfAttention.forward"><code class="name flex">
+<span>def <span class="ident">forward</span></span>(<span>self,<br>x_bnd: jaxtyping.Float[Tensor, 'batch n d'],<br>rope: jaxtyping.Float[Tensor, '2 n_pos d_head'] | None = None) ‑> jaxtyping.Float[Tensor, 'batch n d']</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Define the computation performed at every call.</p>
+<p>Should be overridden by all subclasses.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Although the recipe for forward pass needs to be defined within
+this function, one should call the :class:<code>Module</code> instance afterwards
+instead of this since the former takes care of running the
+registered hooks while the latter silently ignores them.</p>
+</div></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def forward(
+    self,
+    x_bnd: Float[Tensor, &#34;batch n d&#34;],
+    rope: Float[Tensor, &#34;2 n_pos d_head&#34;] | None = None,
+) -&gt; Float[Tensor, &#34;batch n d&#34;]:
+    b, n_tok, d = x_bnd.shape
+    qkv_b3nd = einops.rearrange(
+        self.qkv(x_bnd),
+        &#34;batch n_tok (parts d) -&gt; batch parts n_tok d&#34;,
+        parts=3,  # [q, k, v] = 3 parts
+        d=d,
+    )
+    qkv_b3hnd = einops.rearrange(
+        qkv_b3nd,
+        &#34;batch parts n_tok (n_heads d_head) -&gt; batch parts n_heads n_tok d_head&#34;,
+        parts=3,
+        n_heads=self.cfg.num_heads,
+        d_head=d // self.cfg.num_heads,
+    )
+    q_bhnd, k_bhnd, v_bhnd = torch.unbind(qkv_b3hnd, dim=1)
+
+    if rope is not None:
+        q_bhnd, k_bhnd = rope_fn(q_bhnd, k_bhnd, rope)
+    x_bhnd = torch.nn.functional.scaled_dot_product_attention(
+        q_bhnd, k_bhnd, v_bhnd
+    )
+    x_bnd = einops.rearrange(
+        x_bhnd, &#34;batch n_heads n_tok d_head -&gt; batch n_tok (n_heads d_head)&#34;
+    )
+    x_bnd = self.proj(x_bnd)
+    return x_bnd</code></pre>
+</details>
+</dd>
+</dl>
+</dd>
+<dt id="saev.data.dinov3.SelfAttentionBlock"><code class="flex name class">
+<span>class <span class="ident">SelfAttentionBlock</span></span>
+<span>(</span><span>cfg: <a title="saev.data.dinov3.Config" href="#saev.data.dinov3.Config">Config</a>)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Base class for all neural network modules.</p>
+<p>Your models should also subclass this class.</p>
+<p>Modules can also contain other Modules, allowing them to be nested in
+a tree structure. You can assign the submodules as regular attributes::</p>
+<pre><code>import torch.nn as nn
+import torch.nn.functional as F
+
+
+class Model(nn.Module):
+    def __init__(self) -&gt; None:
+        super().__init__()
+        self.conv1 = nn.Conv2d(1, 20, 5)
+        self.conv2 = nn.Conv2d(20, 20, 5)
+
+    def forward(self, x):
+        x = F.relu(self.conv1(x))
+        return F.relu(self.conv2(x))
+</code></pre>
+<p>Submodules assigned in this way will be registered, and will also have their
+parameters converted when you call :meth:<code>to</code>, etc.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>As per the example above, an <code>__init__()</code> call to the parent class
+must be made before assignment on the child.</p>
+</div>
+<p>:ivar training: Boolean represents whether this module is in training or
+evaluation mode.
+:vartype training: bool</p>
+<p>Initialize internal Module state, shared by both nn.Module and ScriptModule.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@jaxtyped(typechecker=beartype.beartype)
+class SelfAttentionBlock(nn.Module):
+    def __init__(self, cfg: Config):
+        super().__init__()
+        assert cfg.ffn_layer == &#34;mlp&#34;
+
+        self.norm1 = nn.LayerNorm(cfg.embed_dim, eps=1e-5)
+        self.attn = SelfAttention(cfg)
+        self.ls1 = LayerScale(cfg.embed_dim)
+
+        self.norm2 = nn.LayerNorm(cfg.embed_dim, eps=1e-5)
+        self.mlp = Mlp(cfg.embed_dim, int(cfg.embed_dim * cfg.ffn_ratio), cfg.embed_dim)
+        self.ls2 = LayerScale(cfg.embed_dim)
+
+    def forward(
+        self, x_bnd: Float[Tensor, &#34;batch n dim&#34;], rope=None
+    ) -&gt; Float[Tensor, &#34;batch n dim&#34;]:
+        x_bnd = x_bnd + self.ls1(self.attn(self.norm1(x_bnd), rope=rope))
+        x_bnd = x_bnd + self.ls2(self.mlp(self.norm2(x_bnd)))
+
+        return x_bnd</code></pre>
+</details>
+<h3>Ancestors</h3>
+<ul class="hlist">
+<li>torch.nn.modules.module.Module</li>
+</ul>
+<h3>Methods</h3>
+<dl>
+<dt id="saev.data.dinov3.SelfAttentionBlock.forward"><code class="name flex">
+<span>def <span class="ident">forward</span></span>(<span>self, x_bnd: jaxtyping.Float[Tensor, 'batch n dim'], rope=None) ‑> jaxtyping.Float[Tensor, 'batch n dim']</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Define the computation performed at every call.</p>
+<p>Should be overridden by all subclasses.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Although the recipe for forward pass needs to be defined within
+this function, one should call the :class:<code>Module</code> instance afterwards
+instead of this since the former takes care of running the
+registered hooks while the latter silently ignores them.</p>
+</div></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def forward(
+    self, x_bnd: Float[Tensor, &#34;batch n dim&#34;], rope=None
+) -&gt; Float[Tensor, &#34;batch n dim&#34;]:
+    x_bnd = x_bnd + self.ls1(self.attn(self.norm1(x_bnd), rope=rope))
+    x_bnd = x_bnd + self.ls2(self.mlp(self.norm2(x_bnd)))
+
+    return x_bnd</code></pre>
+</details>
+</dd>
+</dl>
+</dd>
+<dt id="saev.data.dinov3.VisionTransformer"><code class="flex name class">
+<span>class <span class="ident">VisionTransformer</span></span>
+<span>(</span><span>cfg: <a title="saev.data.dinov3.Config" href="#saev.data.dinov3.Config">Config</a>)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Base class for all neural network modules.</p>
+<p>Your models should also subclass this class.</p>
+<p>Modules can also contain other Modules, allowing them to be nested in
+a tree structure. You can assign the submodules as regular attributes::</p>
+<pre><code>import torch.nn as nn
+import torch.nn.functional as F
+
+
+class Model(nn.Module):
+    def __init__(self) -&gt; None:
+        super().__init__()
+        self.conv1 = nn.Conv2d(1, 20, 5)
+        self.conv2 = nn.Conv2d(20, 20, 5)
+
+    def forward(self, x):
+        x = F.relu(self.conv1(x))
+        return F.relu(self.conv2(x))
+</code></pre>
+<p>Submodules assigned in this way will be registered, and will also have their
+parameters converted when you call :meth:<code>to</code>, etc.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>As per the example above, an <code>__init__()</code> call to the parent class
+must be made before assignment on the child.</p>
+</div>
+<p>:ivar training: Boolean represents whether this module is in training or
+evaluation mode.
+:vartype training: bool</p>
+<p>Initialize internal Module state, shared by both nn.Module and ScriptModule.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@jaxtyped(typechecker=beartype.beartype)
+class VisionTransformer(nn.Module):
+    def __init__(self, cfg: Config):
+        super().__init__()
+
+        self.cfg = cfg
+
+        assert self.cfg.n_storage_tokens &gt; 0, &#34;Not supported&#34;
+
+        self.cls_token = nn.Parameter(torch.empty(1, 1, cfg.embed_dim))
+        self.storage_tokens = nn.Parameter(
+            torch.empty(1, cfg.n_storage_tokens, cfg.embed_dim)
+        )
+        self.mask_token = nn.Parameter(torch.empty(1, cfg.embed_dim))
+
+        self.patch_embed = PatchEmbed(
+            cfg.img_size, cfg.patch_size, cfg.in_chans, cfg.embed_dim
+        )
+        self.rope_embed = RopePositionEmbedding(
+            cfg.embed_dim,
+            num_heads=cfg.num_heads,
+            base=cfg.pos_embed_rope_base,
+            min_period=cfg.pos_embed_rope_min_period,
+            max_period=cfg.pos_embed_rope_max_period,
+            normalize_coords=cfg.pos_embed_rope_normalize_coords,
+            dtype=_dtype_lookup[cfg.pos_embed_rope_dtype],
+        )
+
+        self.blocks = nn.ModuleList([SelfAttentionBlock(cfg) for i in range(cfg.depth)])
+
+        self.norm = nn.LayerNorm(cfg.embed_dim, eps=1e-5)
+
+    def forward(
+        self, x: Float[Tensor, &#34;b n kernel&#34;], img_size: Int[Tensor, &#34;b 2&#34;]
+    ) -&gt; dict[str, Tensor]:
+        x_bnd = self.patch_embed(x)
+
+        b, n, d = x_bnd.shape
+
+        cls_token = self.cls_token + 0 * self.mask_token
+
+        x_bnd = torch.cat(
+            [cls_token.expand(b, -1, -1), self.storage_tokens.expand(b, -1, -1), x_bnd],
+            dim=1,
+        )
+
+        hs, ws = img_size[:, 0], img_size[:, 1]
+        rope_sincos = self.rope_embed(h=hs, w=ws)
+
+        for blk in self.blocks:
+            x_bnd = blk(x_bnd, rope_sincos)
+
+        x_norm_bnd = self.norm(x_bnd)
+        x_norm_cls_bd = x_norm_bnd[:, :0]
+        x_norm_patch_bnd = x_norm_bnd[:, self.cfg.n_storage_tokens + 1 :]
+
+        output = {&#34;cls&#34;: x_norm_cls_bd, &#34;patches&#34;: x_norm_patch_bnd}
+        return output</code></pre>
+</details>
+<h3>Ancestors</h3>
+<ul class="hlist">
+<li>torch.nn.modules.module.Module</li>
+</ul>
+<h3>Methods</h3>
+<dl>
+<dt id="saev.data.dinov3.VisionTransformer.forward"><code class="name flex">
+<span>def <span class="ident">forward</span></span>(<span>self,<br>x: jaxtyping.Float[Tensor, 'b n kernel'],<br>img_size: jaxtyping.Int[Tensor, 'b 2']) ‑> dict[str, torch.Tensor]</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Define the computation performed at every call.</p>
+<p>Should be overridden by all subclasses.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Although the recipe for forward pass needs to be defined within
+this function, one should call the :class:<code>Module</code> instance afterwards
+instead of this since the former takes care of running the
+registered hooks while the latter silently ignores them.</p>
+</div></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def forward(
+    self, x: Float[Tensor, &#34;b n kernel&#34;], img_size: Int[Tensor, &#34;b 2&#34;]
+) -&gt; dict[str, Tensor]:
+    x_bnd = self.patch_embed(x)
+
+    b, n, d = x_bnd.shape
+
+    cls_token = self.cls_token + 0 * self.mask_token
+
+    x_bnd = torch.cat(
+        [cls_token.expand(b, -1, -1), self.storage_tokens.expand(b, -1, -1), x_bnd],
+        dim=1,
+    )
+
+    hs, ws = img_size[:, 0], img_size[:, 1]
+    rope_sincos = self.rope_embed(h=hs, w=ws)
+
+    for blk in self.blocks:
+        x_bnd = blk(x_bnd, rope_sincos)
+
+    x_norm_bnd = self.norm(x_bnd)
+    x_norm_cls_bd = x_norm_bnd[:, :0]
+    x_norm_patch_bnd = x_norm_bnd[:, self.cfg.n_storage_tokens + 1 :]
+
+    output = {&#34;cls&#34;: x_norm_cls_bd, &#34;patches&#34;: x_norm_patch_bnd}
+    return output</code></pre>
+</details>
 </dd>
 </dl>
 </dd>
@@ -258,28 +1245,78 @@ setTimeout(() => input.focus(), 100);
 </li>
 <li><h3><a href="#header-functions">Functions</a></h3>
 <ul class="">
-<li><code><a title="saev.data.dinov3.convert_path_or_url_to_url" href="#saev.data.dinov3.convert_path_or_url_to_url">convert_path_or_url_to_url</a></code></li>
-<li><code><a title="saev.data.dinov3.dinov3_convnext_base" href="#saev.data.dinov3.dinov3_convnext_base">dinov3_convnext_base</a></code></li>
-<li><code><a title="saev.data.dinov3.dinov3_convnext_large" href="#saev.data.dinov3.dinov3_convnext_large">dinov3_convnext_large</a></code></li>
-<li><code><a title="saev.data.dinov3.dinov3_convnext_small" href="#saev.data.dinov3.dinov3_convnext_small">dinov3_convnext_small</a></code></li>
-<li><code><a title="saev.data.dinov3.dinov3_convnext_tiny" href="#saev.data.dinov3.dinov3_convnext_tiny">dinov3_convnext_tiny</a></code></li>
-<li><code><a title="saev.data.dinov3.dinov3_vit7b16" href="#saev.data.dinov3.dinov3_vit7b16">dinov3_vit7b16</a></code></li>
-<li><code><a title="saev.data.dinov3.dinov3_vitb16" href="#saev.data.dinov3.dinov3_vitb16">dinov3_vitb16</a></code></li>
-<li><code><a title="saev.data.dinov3.dinov3_vith16plus" href="#saev.data.dinov3.dinov3_vith16plus">dinov3_vith16plus</a></code></li>
-<li><code><a title="saev.data.dinov3.dinov3_vitl16" href="#saev.data.dinov3.dinov3_vitl16">dinov3_vitl16</a></code></li>
-<li><code><a title="saev.data.dinov3.dinov3_vitl16plus" href="#saev.data.dinov3.dinov3_vitl16plus">dinov3_vitl16plus</a></code></li>
-<li><code><a title="saev.data.dinov3.dinov3_vits16" href="#saev.data.dinov3.dinov3_vits16">dinov3_vits16</a></code></li>
-<li><code><a title="saev.data.dinov3.dinov3_vits16plus" href="#saev.data.dinov3.dinov3_vits16plus">dinov3_vits16plus</a></code></li>
-<li><code><a title="saev.data.dinov3.is_url" href="#saev.data.dinov3.is_url">is_url</a></code></li>
+<li><code><a title="saev.data.dinov3.load" href="#saev.data.dinov3.load">load</a></code></li>
+<li><code><a title="saev.data.dinov3.make_2tuple" href="#saev.data.dinov3.make_2tuple">make_2tuple</a></code></li>
+<li><code><a title="saev.data.dinov3.rope_fn" href="#saev.data.dinov3.rope_fn">rope_fn</a></code></li>
 </ul>
 </li>
 <li><h3><a href="#header-classes">Classes</a></h3>
 <ul>
 <li>
-<h4><code><a title="saev.data.dinov3.Weights" href="#saev.data.dinov3.Weights">Weights</a></code></h4>
+<h4><code><a title="saev.data.dinov3.Config" href="#saev.data.dinov3.Config">Config</a></code></h4>
 <ul class="">
-<li><code><a title="saev.data.dinov3.Weights.LVD1689M" href="#saev.data.dinov3.Weights.LVD1689M">LVD1689M</a></code></li>
-<li><code><a title="saev.data.dinov3.Weights.SAT493M" href="#saev.data.dinov3.Weights.SAT493M">SAT493M</a></code></li>
+<li><code><a title="saev.data.dinov3.Config.depth" href="#saev.data.dinov3.Config.depth">depth</a></code></li>
+<li><code><a title="saev.data.dinov3.Config.device" href="#saev.data.dinov3.Config.device">device</a></code></li>
+<li><code><a title="saev.data.dinov3.Config.embed_dim" href="#saev.data.dinov3.Config.embed_dim">embed_dim</a></code></li>
+<li><code><a title="saev.data.dinov3.Config.ffn_bias" href="#saev.data.dinov3.Config.ffn_bias">ffn_bias</a></code></li>
+<li><code><a title="saev.data.dinov3.Config.ffn_layer" href="#saev.data.dinov3.Config.ffn_layer">ffn_layer</a></code></li>
+<li><code><a title="saev.data.dinov3.Config.ffn_ratio" href="#saev.data.dinov3.Config.ffn_ratio">ffn_ratio</a></code></li>
+<li><code><a title="saev.data.dinov3.Config.img_size" href="#saev.data.dinov3.Config.img_size">img_size</a></code></li>
+<li><code><a title="saev.data.dinov3.Config.in_chans" href="#saev.data.dinov3.Config.in_chans">in_chans</a></code></li>
+<li><code><a title="saev.data.dinov3.Config.mask_k_bias" href="#saev.data.dinov3.Config.mask_k_bias">mask_k_bias</a></code></li>
+<li><code><a title="saev.data.dinov3.Config.n_storage_tokens" href="#saev.data.dinov3.Config.n_storage_tokens">n_storage_tokens</a></code></li>
+<li><code><a title="saev.data.dinov3.Config.num_heads" href="#saev.data.dinov3.Config.num_heads">num_heads</a></code></li>
+<li><code><a title="saev.data.dinov3.Config.patch_size" href="#saev.data.dinov3.Config.patch_size">patch_size</a></code></li>
+<li><code><a title="saev.data.dinov3.Config.pos_embed_rope_base" href="#saev.data.dinov3.Config.pos_embed_rope_base">pos_embed_rope_base</a></code></li>
+<li><code><a title="saev.data.dinov3.Config.pos_embed_rope_dtype" href="#saev.data.dinov3.Config.pos_embed_rope_dtype">pos_embed_rope_dtype</a></code></li>
+<li><code><a title="saev.data.dinov3.Config.pos_embed_rope_max_period" href="#saev.data.dinov3.Config.pos_embed_rope_max_period">pos_embed_rope_max_period</a></code></li>
+<li><code><a title="saev.data.dinov3.Config.pos_embed_rope_min_period" href="#saev.data.dinov3.Config.pos_embed_rope_min_period">pos_embed_rope_min_period</a></code></li>
+<li><code><a title="saev.data.dinov3.Config.pos_embed_rope_normalize_coords" href="#saev.data.dinov3.Config.pos_embed_rope_normalize_coords">pos_embed_rope_normalize_coords</a></code></li>
+<li><code><a title="saev.data.dinov3.Config.proj_bias" href="#saev.data.dinov3.Config.proj_bias">proj_bias</a></code></li>
+<li><code><a title="saev.data.dinov3.Config.qkv_bias" href="#saev.data.dinov3.Config.qkv_bias">qkv_bias</a></code></li>
+<li><code><a title="saev.data.dinov3.Config.untie_global_and_local_cls_norm" href="#saev.data.dinov3.Config.untie_global_and_local_cls_norm">untie_global_and_local_cls_norm</a></code></li>
+</ul>
+</li>
+<li>
+<h4><code><a title="saev.data.dinov3.LayerScale" href="#saev.data.dinov3.LayerScale">LayerScale</a></code></h4>
+</li>
+<li>
+<h4><code><a title="saev.data.dinov3.LinearKMaskedBias" href="#saev.data.dinov3.LinearKMaskedBias">LinearKMaskedBias</a></code></h4>
+<ul class="">
+<li><code><a title="saev.data.dinov3.LinearKMaskedBias.forward" href="#saev.data.dinov3.LinearKMaskedBias.forward">forward</a></code></li>
+</ul>
+</li>
+<li>
+<h4><code><a title="saev.data.dinov3.Mlp" href="#saev.data.dinov3.Mlp">Mlp</a></code></h4>
+</li>
+<li>
+<h4><code><a title="saev.data.dinov3.PatchEmbed" href="#saev.data.dinov3.PatchEmbed">PatchEmbed</a></code></h4>
+<ul class="">
+<li><code><a title="saev.data.dinov3.PatchEmbed.forward" href="#saev.data.dinov3.PatchEmbed.forward">forward</a></code></li>
+</ul>
+</li>
+<li>
+<h4><code><a title="saev.data.dinov3.RopePositionEmbedding" href="#saev.data.dinov3.RopePositionEmbedding">RopePositionEmbedding</a></code></h4>
+<ul class="">
+<li><code><a title="saev.data.dinov3.RopePositionEmbedding.forward" href="#saev.data.dinov3.RopePositionEmbedding.forward">forward</a></code></li>
+</ul>
+</li>
+<li>
+<h4><code><a title="saev.data.dinov3.SelfAttention" href="#saev.data.dinov3.SelfAttention">SelfAttention</a></code></h4>
+<ul class="">
+<li><code><a title="saev.data.dinov3.SelfAttention.forward" href="#saev.data.dinov3.SelfAttention.forward">forward</a></code></li>
+</ul>
+</li>
+<li>
+<h4><code><a title="saev.data.dinov3.SelfAttentionBlock" href="#saev.data.dinov3.SelfAttentionBlock">SelfAttentionBlock</a></code></h4>
+<ul class="">
+<li><code><a title="saev.data.dinov3.SelfAttentionBlock.forward" href="#saev.data.dinov3.SelfAttentionBlock.forward">forward</a></code></li>
+</ul>
+</li>
+<li>
+<h4><code><a title="saev.data.dinov3.VisionTransformer" href="#saev.data.dinov3.VisionTransformer">VisionTransformer</a></code></h4>
+<ul class="">
+<li><code><a title="saev.data.dinov3.VisionTransformer.forward" href="#saev.data.dinov3.VisionTransformer.forward">forward</a></code></li>
 </ul>
 </li>
 </ul>
@@ -288,7 +1325,7 @@ setTimeout(() => input.focus(), 100);
 </nav>
 </main>
 <footer id="footer">
-<p>Generated by <a href="https://pdoc3.github.io/pdoc" title="pdoc: Python API documentation generator"><cite>pdoc</cite> 0.11.1</a>.</p>
+<p>Generated by <a href="https://pdoc3.github.io/pdoc" title="pdoc: Python API documentation generator"><cite>pdoc</cite> 0.11.6</a>.</p>
 </footer>
 </body>
 </html>

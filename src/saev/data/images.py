@@ -111,32 +111,48 @@ def setup_ade20k(cfg: Ade20k):
 
 
 @beartype.beartype
-def get_dataset(cfg: Config, *, img_transform):
+def get_dataset(cfg: Config, *, img_transform, sample_transform=None):
     """
     Gets the dataset for the current experiment; delegates construction to dataset-specific functions.
 
     Args:
         cfg: Experiment config.
         img_transform: Image transform to be applied to each image.
+        sample_transform: Transform to be applied to each sample dict.
 
     Returns:
         A dataset that has dictionaries with `'image'`, `'index'`, `'target'`, and `'label'` keys containing examples.
     """
+    # TODO: Can we reduce duplication? Or is it nice to see that there is no magic here?
     if isinstance(cfg, Imagenet):
-        return ImagenetDataset(cfg, img_transform=img_transform)
+        return ImagenetDataset(
+            cfg, img_transform=img_transform, sample_transform=sample_transform
+        )
     elif isinstance(cfg, Ade20k):
-        return Ade20kDataset(cfg, img_transform=img_transform)
+        return Ade20kDataset(
+            cfg, img_transform=img_transform, sample_transform=sample_transform
+        )
     elif isinstance(cfg, ImageFolder):
-        return ImageFolderDataset(cfg.root, transform=img_transform)
+        return ImageFolderDataset(
+            cfg.root, transform=img_transform, sample_transform=sample_transform
+        )
     elif isinstance(cfg, Fake):
-        return FakeDataset(cfg, img_transform=img_transform)
+        return FakeDataset(
+            cfg, img_transform=img_transform, sample_transform=sample_transform
+        )
     else:
         typing.assert_never(cfg)
 
 
 @beartype.beartype
 class ImagenetDataset(torch.utils.data.Dataset):
-    def __init__(self, cfg: Imagenet, *, img_transform=None):
+    def __init__(
+        self,
+        cfg: Imagenet,
+        *,
+        img_transform=None,
+        sample_transform: Callable | None = None,
+    ):
         import datasets
 
         self.hf_dataset = datasets.load_dataset(
@@ -144,19 +160,23 @@ class ImagenetDataset(torch.utils.data.Dataset):
         )
 
         self.img_transform = img_transform
+        self.sample_transform = sample_transform
         self.labels = self.hf_dataset.info.features["label"].names
 
     def __getitem__(self, i):
-        example = self.hf_dataset[i]
-        example["index"] = i
+        sample = self.hf_dataset[i]
+        sample["index"] = i
 
-        example["image"] = example["image"].convert("RGB")
+        sample["image"] = sample["image"].convert("RGB")
         if self.img_transform:
-            example["image"] = self.img_transform(example["image"])
-        example["target"] = example.pop("label")
-        example["label"] = self.labels[example["target"]]
+            sample["image"] = self.img_transform(sample["image"])
+        sample["target"] = sample.pop("label")
+        sample["label"] = self.labels[sample["target"]]
 
-        return example
+        if self.sample_transform is not None:
+            sample = self.sample_transform(sample)
+
+        return sample
 
     def __len__(self) -> int:
         return len(self.hf_dataset)
@@ -164,6 +184,10 @@ class ImagenetDataset(torch.utils.data.Dataset):
 
 @beartype.beartype
 class ImageFolderDataset(torchvision.datasets.ImageFolder):
+    def __init__(self, *args, sample_transform: Callable | None = None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.sample_transform = sample_transform
+
     def __getitem__(self, index: int) -> dict[str, object]:
         """
         Args:
@@ -173,18 +197,23 @@ class ImageFolderDataset(torchvision.datasets.ImageFolder):
             dict with keys 'image', 'index', 'target' and 'label'.
         """
         path, target = self.samples[index]
-        sample = self.loader(path)
+        image = self.loader(path)
         if self.transform is not None:
-            sample = self.transform(sample)
+            image = self.transform(image)
         if self.target_transform is not None:
             target = self.target_transform(target)
 
-        return {
-            "image": sample,
+        sample = {
+            "image": image,
             "target": target,
             "label": self.classes[target],
             "index": index,
         }
+
+        if self.sample_transform is not None:
+            sample = self.sample_transform(sample)
+
+        return sample
 
 
 @beartype.beartype
@@ -205,6 +234,7 @@ class Ade20kDataset(torch.utils.data.Dataset):
         *,
         img_transform: Callable | None = None,
         seg_transform: Callable | None = lambda x: None,
+        sample_transform: Callable | None = None,
     ):
         self.logger = logging.getLogger("ade20k")
         self.cfg = cfg
@@ -212,6 +242,7 @@ class Ade20kDataset(torch.utils.data.Dataset):
         self.seg_dir = os.path.join(cfg.root, "annotations")
         self.img_transform = img_transform
         self.seg_transform = seg_transform
+        self.sample_transform = sample_transform
 
         # Check that we have the right path.
         for subdir in ("images", "annotations"):
@@ -282,6 +313,9 @@ class Ade20kDataset(torch.utils.data.Dataset):
 
         sample["index"] = index
 
+        if self.sample_transform is not None:
+            sample = self.sample_transform(sample)
+
         return sample
 
     def __len__(self) -> int:
@@ -289,18 +323,21 @@ class Ade20kDataset(torch.utils.data.Dataset):
 
 
 class FakeDataset(torch.utils.data.Dataset):
-    def __init__(self, cfg: Fake, *, img_transform=None):
+    def __init__(self, cfg: Fake, *, img_transform=None, sample_transform=None):
         self.n_imgs = cfg.n_imgs
         self.img_transform = img_transform
+        self.sample_transform = sample_transform
 
     def __len__(self):
         return self.n_imgs
 
     def __getitem__(self, i):
         img = Image.new("RGB", (256, 256))
-        return {
-            "image": self.img_transform(img),
-            "index": i,
-            "target": 0,
-            "label": "dummy",
-        }
+        if self.img_transform is not None:
+            img = self.img_transform(img)
+
+        sample = {"image": img, "index": i, "target": 0, "label": "dummy"}
+        if self.sample_transform is not None:
+            sample = self.sample_transform(sample)
+
+        return sample

@@ -133,13 +133,13 @@ class RecordedVisionTransformer(torch.nn.Module):
         return self._storage.cpu()
 
     def forward(
-        self, batch: Float[Tensor, "batch 3 width height"]
+        self, batch: Float[Tensor, "batch 3 width height"], **kwargs
     ) -> tuple[
         Float[Tensor, "batch patches dim"],
         Float[Tensor, "batch n_layers all_patches dim"],
     ]:
         self.reset()
-        result = self.vit(batch)
+        result = self.vit(batch, **kwargs)
         return result, self.activations
 
 
@@ -384,7 +384,10 @@ class ShardInfo:
 
 @beartype.beartype
 def get_dataloader(
-    cfg: Config, *, img_transform: Callable | None = None
+    cfg: Config,
+    *,
+    img_transform: Callable | None = None,
+    sample_transform: Callable | None = None,
 ) -> torch.utils.data.DataLoader:
     """
     Get a dataloader for a default map-style dataset.
@@ -396,7 +399,9 @@ def get_dataloader(
     Returns:
         A PyTorch Dataloader that yields dictionaries with `'image'` keys containing image batches, `'index'` keys containing original dataset indices and `'label'` keys containing label batches.
     """
-    dataset = images.get_dataset(cfg.data, img_transform=img_transform)
+    dataset = images.get_dataset(
+        cfg.data, img_transform=img_transform, sample_transform=sample_transform
+    )
 
     dataloader = torch.utils.data.DataLoader(
         dataset=dataset,
@@ -438,8 +443,8 @@ def worker_fn(cfg: Config):
     vit = RecordedVisionTransformer(
         vit, cfg.n_patches_per_img, cfg.cls_token, cfg.vit_layers
     )
-    img_transform = models.make_img_transform(cfg.vit_family, cfg.vit_ckpt)
-    dataloader = get_dataloader(cfg, img_transform=img_transform)
+    img_tr, sample_tr = models.make_transforms(cfg.vit_family, cfg.vit_ckpt)
+    dataloader = get_dataloader(cfg, img_transform=img_tr, sample_transform=sample_tr)
 
     writer = ShardWriter(cfg)
 
@@ -453,9 +458,12 @@ def worker_fn(cfg: Config):
     # Calculate and write ViT activations.
     with torch.inference_mode():
         for batch in helpers.progress(dataloader, total=n_batches):
-            imgs = batch.pop("image").to(cfg.device)
+            imgs = batch.get("image").to(cfg.device)
+            grid = batch.get("grid")
+            if grid is not None:
+                grid = grid.to(cfg.device)
             # cache has shape [batch size, n layers, n patches + 1, d vit]
-            out, cache = vit(imgs)
+            out, cache = vit(imgs, grid=grid)
             del out
 
             writer[i : i + len(cache)] = cache

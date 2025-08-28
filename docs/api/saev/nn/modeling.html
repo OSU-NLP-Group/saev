@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1">
-<meta name="generator" content="pdoc3 0.11.1">
+<meta name="generator" content="pdoc3 0.11.6">
 <title>saev.nn.modeling API documentation</title>
 <meta name="description" content="Neural network architectures for sparse autoencoders.">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/13.0.0/sanitize.min.css" integrity="sha512-y1dtMcuvtTMJc1yPgEqF0ZjQbhnc/bFhyvIyVNb9Zk5mIGtqVaAB1Ttl28su8AvFMOY0EwRbAe+HCLqj6W7/KA==" crossorigin>
@@ -44,18 +44,134 @@ hljs.highlightAll();
 <h2 id="arguments">Arguments</h2>
 <p>fpath: filepath to save checkpoint to.
 sae: sparse autoencoder checkpoint to save.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+def dump(fpath: str, sae: SparseAutoencoder):
+    &#34;&#34;&#34;
+    Save an SAE checkpoint to disk along with configuration, using the [trick from equinox](https://docs.kidger.site/equinox/examples/serialisation).
+
+    Arguments:
+        fpath: filepath to save checkpoint to.
+        sae: sparse autoencoder checkpoint to save.
+    &#34;&#34;&#34;
+    # Custom serialization to handle activation object
+    cfg_dict = dataclasses.asdict(sae.cfg)
+    # Replace activation dict with custom format
+    activation = sae.cfg.activation
+    cfg_dict[&#34;activation&#34;] = {
+        &#34;cls&#34;: activation.__class__.__name__,
+        &#34;params&#34;: dataclasses.asdict(activation),
+    }
+
+    header = {
+        &#34;schema&#34;: 2,
+        &#34;cfg&#34;: cfg_dict,
+        &#34;commit&#34;: helpers.current_git_commit() or &#34;unknown&#34;,
+        &#34;lib&#34;: __version__,
+    }
+
+    os.makedirs(os.path.dirname(fpath), exist_ok=True)
+    with open(fpath, &#34;wb&#34;) as fd:
+        header_str = json.dumps(header)
+        fd.write((header_str + &#34;\n&#34;).encode(&#34;utf-8&#34;))
+        torch.save(sae.state_dict(), fd)</code></pre>
+</details>
 </dd>
 <dt id="saev.nn.modeling.get_activation"><code class="name flex">
 <span>def <span class="ident">get_activation</span></span>(<span>cfg: <a title="saev.nn.modeling.Relu" href="#saev.nn.modeling.Relu">Relu</a> | <a title="saev.nn.modeling.TopK" href="#saev.nn.modeling.TopK">TopK</a> | <a title="saev.nn.modeling.BatchTopK" href="#saev.nn.modeling.BatchTopK">BatchTopK</a>) ‑> torch.nn.modules.module.Module</span>
 </code></dt>
 <dd>
 <div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+def get_activation(cfg: ActivationConfig) -&gt; torch.nn.Module:
+    if isinstance(cfg, Relu):
+        return torch.nn.ReLU()
+    elif isinstance(cfg, TopK):
+        return TopKActivation(cfg)
+    elif isinstance(cfg, BatchTopK):
+        return BatchTopKActivation(cfg)
+    else:
+        typing.assert_never(cfg)</code></pre>
+</details>
 </dd>
 <dt id="saev.nn.modeling.load"><code class="name flex">
 <span>def <span class="ident">load</span></span>(<span>fpath: str, *, device='cpu') ‑> <a title="saev.nn.modeling.SparseAutoencoder" href="#saev.nn.modeling.SparseAutoencoder">SparseAutoencoder</a></span>
 </code></dt>
 <dd>
 <div class="desc"><p>Loads a sparse autoencoder from disk.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+def load(fpath: str, *, device=&#34;cpu&#34;) -&gt; SparseAutoencoder:
+    &#34;&#34;&#34;
+    Loads a sparse autoencoder from disk.
+    &#34;&#34;&#34;
+    with open(fpath, &#34;rb&#34;) as fd:
+        header = json.loads(fd.readline())
+        buffer = io.BytesIO(fd.read())
+
+    if &#34;schema&#34; not in header:
+        # Original, pre-schema format: just raw config parameters
+        # Remove old parameters that no longer exist
+        for keyword in (&#34;sparsity_coeff&#34;, &#34;ghost_grads&#34;, &#34;l1_coeff&#34;, &#34;use_ghost_grads&#34;):
+            header.pop(keyword, None)
+        # Legacy format - create SparseAutoencoderConfig with Relu activation
+        cfg = SparseAutoencoderConfig(**header, activation=Relu())
+    elif header[&#34;schema&#34;] == 1:
+        # Schema version 1: A cautionary tale of poor version management
+        #
+        # This schema version unfortunately has TWO incompatible formats because we made breaking changes without incrementing the schema version. This is exactly what schema versioning is supposed to prevent!
+        #
+        # Format 1A (original): cls field contains activation type (&#34;Relu&#34;, &#34;TopK&#34;, etc.)
+        # Format 1B (later): cls field is &#34;SparseAutoencoderConfig&#34; and activation is a dict
+        #
+        # The complex logic below exists to handle both formats. This should have been avoided by incrementing to schema version 2 when we changed the format.
+        #
+        # Apologies from Sam for this mess - proper schema versioning discipline would have prevented this confusing situation. Every breaking change should increment the version number!
+
+        cls_name = header.get(&#34;cls&#34;, &#34;SparseAutoencoderConfig&#34;)
+        cfg_dict = header[&#34;cfg&#34;]
+
+        if cls_name in [&#34;Relu&#34;, &#34;TopK&#34;, &#34;BatchTopK&#34;]:
+            # Format 1A: Old format where cls indicates the activation type
+            activation_cls = globals()[cls_name]
+            if cls_name in [&#34;TopK&#34;, &#34;BatchTopK&#34;]:
+                activation = activation_cls(top_k=cfg_dict.get(&#34;top_k&#34;, 32))
+            else:
+                activation = activation_cls()
+            cfg = SparseAutoencoderConfig(**cfg_dict, activation=activation)
+        else:
+            # Format 1B: Newer format with activation as dict
+            if &#34;activation&#34; in cfg_dict:
+                activation_info = cfg_dict[&#34;activation&#34;]
+                activation_cls = globals()[activation_info[&#34;cls&#34;]]
+                activation = activation_cls(**activation_info[&#34;params&#34;])
+                cfg_dict[&#34;activation&#34;] = activation
+            cfg = SparseAutoencoderConfig(**cfg_dict)
+    elif header[&#34;schema&#34;] == 2:
+        # Schema version 2: cleaner format with activation serialization
+        cfg_dict = header[&#34;cfg&#34;]
+        activation_info = cfg_dict[&#34;activation&#34;]
+        activation_cls = globals()[activation_info[&#34;cls&#34;]]
+        activation = activation_cls(**activation_info[&#34;params&#34;])
+        cfg_dict[&#34;activation&#34;] = activation
+        cfg = SparseAutoencoderConfig(**cfg_dict)
+    else:
+        raise ValueError(f&#34;Unknown schema version: {header[&#39;schema&#39;]}&#34;)
+
+    model = SparseAutoencoder(cfg)
+    model.load_state_dict(torch.load(buffer, weights_only=True, map_location=device))
+    return model</code></pre>
+</details>
 </dd>
 </dl>
 </section>
@@ -78,7 +194,7 @@ class BatchTopK:
     top_k: int = 32
     &#34;&#34;&#34;How many values are allowed to be non-zero per sample in the batch.&#34;&#34;&#34;</code></pre>
 </details>
-<h3>Class variables</h3>
+<h3>Instance variables</h3>
 <dl>
 <dt id="saev.nn.modeling.BatchTopK.top_k"><code class="name">var <span class="ident">top_k</span> : int</code></dt>
 <dd>
@@ -139,6 +255,28 @@ class BatchTopKActivation(torch.nn.Module):
 </code></dt>
 <dd>
 <div class="desc"><p>Apply top-k activation to each sample in the batch.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def forward(self, x: Float[Tensor, &#34;batch d_sae&#34;]) -&gt; Float[Tensor, &#34;batch d_sae&#34;]:
+    &#34;&#34;&#34;
+    Apply top-k activation to each sample in the batch.
+    &#34;&#34;&#34;
+    if self.k &lt;= 0:
+        raise ValueError(&#34;k must be a positive integer.&#34;)
+
+    # Handle case where k exceeds number of elements per sample
+    k = min(self.k, x.shape[-1])
+
+    # Apply top-k per sample (along the last dimension)
+    k_vals, k_inds = torch.topk(x, k, dim=-1, sorted=False)
+    mask = torch.zeros_like(x).scatter_(
+        dim=-1, index=k_inds, src=torch.ones_like(x)
+    )
+
+    return torch.mul(mask, x)</code></pre>
+</details>
 </dd>
 </dl>
 </dd>
@@ -280,6 +418,31 @@ class MatryoshkaSparseAutoencoder(SparseAutoencoder):
 <div class="desc"><p>Decodes sparse encoding using only the given interval of indices.</p>
 <h2 id="arguments">Arguments</h2>
 <p>f_x: Sparse encoding</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def block_decode(
+    self, f_x: Float[Tensor, &#34;batch d_sae&#34;], block: tuple[int]
+) -&gt; Float[Tensor, &#34;batch d_model&#34;]:
+    &#34;&#34;&#34;Decodes sparse encoding using only the given interval of indices.
+
+    Arguments:
+        f_x: Sparse encoding&#34;&#34;&#34;
+
+    # Can&#39;t use einsum here because the block lengths can change
+    x_hat = (
+        torch.matmul(f_x[:, block[0] : block[1]], self.W_dec[block[0] : block[1]])
+        + self.b_dec
+    )
+
+    # x_hat = (
+    #    einops.einsum(f_x[block[0]:block[1]], self.W_dec[block[0]:block[1]], &#34;... block, block d_vit -&gt; ... d_vit&#34;)
+    #    + self.b_dec[block[0]:block[1]]
+    # )
+
+    return x_hat</code></pre>
+</details>
 </dd>
 <dt id="saev.nn.modeling.MatryoshkaSparseAutoencoder.matryoshka_forward"><code class="name flex">
 <span>def <span class="ident">matryoshka_forward</span></span>(<span>self, x: jaxtyping.Float[Tensor, 'batch d_model'], n_prefixes: int) ‑> tuple[jaxtyping.Float[Tensor, 'batch d_model'], jaxtyping.Float[Tensor, 'batch d_sae']]</span>
@@ -288,6 +451,43 @@ class MatryoshkaSparseAutoencoder(SparseAutoencoder):
 <div class="desc"><p>Given x, calculates the reconstructed x_hat from the prefixes of encoded intermediate activations f_x.</p>
 <h2 id="arguments">Arguments</h2>
 <p>x: a batch of ViT activations.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def matryoshka_forward(
+    self, x: Float[Tensor, &#34;batch d_model&#34;], n_prefixes: int
+) -&gt; tuple[Float[Tensor, &#34;batch d_model&#34;], Float[Tensor, &#34;batch d_sae&#34;]]:
+    &#34;&#34;&#34;
+    Given x, calculates the reconstructed x_hat from the prefixes of encoded intermediate activations f_x.
+
+    Arguments:
+        x: a batch of ViT activations.
+    &#34;&#34;&#34;
+
+    # Remove encoder bias as per Anthropic
+    h_pre = (
+        einops.einsum(
+            x - self.b_dec, self.W_enc, &#34;... d_vit, d_vit d_sae -&gt; ... d_sae&#34;
+        )
+        + self.b_enc
+    )
+    f_x = self.activation(h_pre)
+
+    prefixes = self.sample_prefixes(len(f_x), n_prefixes).to(self.b_dec.device)
+
+    block_indices = torch.torch.cat((
+        torch.tensor([0]).to(self.b_dec.device),
+        prefixes,
+    ))
+    block_bounds = list(zip(block_indices[:-1], block_indices[1:]))
+
+    block_preds = [self.block_decode(f_x, block) for block in block_bounds]
+
+    prefix_preds = torch.cumsum(torch.stack(block_preds), dim=0)
+
+    return prefix_preds, f_x</code></pre>
+</details>
 </dd>
 <dt id="saev.nn.modeling.MatryoshkaSparseAutoencoder.sample_prefixes"><code class="name flex">
 <span>def <span class="ident">sample_prefixes</span></span>(<span>self,<br>sae_dim: int,<br>n_prefixes: int,<br>min_prefix_length: int = 1,<br>pareto_power: float = 0.5,<br>replacement: bool = False) ‑> torch.Tensor</span>
@@ -311,6 +511,53 @@ Matryoshka Sparse Autoencoders" (<a href="https://doi.org/10.48550/arXiv.2503.17
 <dt><code>torch.Tensor</code></dt>
 <dd>Sorted prefix lengths</dd>
 </dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@torch.no_grad()
+def sample_prefixes(
+    self,
+    sae_dim: int,
+    n_prefixes: int,
+    min_prefix_length: int = 1,
+    pareto_power: float = 0.5,
+    replacement: bool = False,
+) -&gt; torch.Tensor:
+    &#34;&#34;&#34;
+    Samples prefix lengths using a Pareto distribution. Derived from &#34;Learning Multi-Level Features with
+    Matryoshka Sparse Autoencoders&#34; (https://doi.org/10.48550/arXiv.2503.17547)
+
+    Args:
+        sae_dim: Total number of latent dimensions
+        n_prefixes: Number of prefixes to sample
+        min_prefix_length: Minimum length of any prefix
+        pareto_power: Power parameter for Pareto distribution (lower = more uniform)
+
+    Returns:
+        torch.Tensor: Sorted prefix lengths
+    &#34;&#34;&#34;
+    if n_prefixes &lt;= 1:
+        return torch.tensor([sae_dim])
+
+    # Calculate probability distribution favoring shorter prefixes
+    lengths = torch.arange(1, sae_dim)
+    pareto_cdf = 1 - ((min_prefix_length / lengths.float()) ** pareto_power)
+    pareto_pdf = torch.cat([pareto_cdf[:1], pareto_cdf[1:] - pareto_cdf[:-1]])
+    probability_dist = pareto_pdf / pareto_pdf.sum()
+
+    # Sample and sort prefix lengths
+    prefixes = torch.multinomial(
+        probability_dist, num_samples=n_prefixes - 1, replacement=replacement
+    )
+
+    # Add n_latents as the final prefix
+    prefixes = torch.cat((prefixes.detach().clone(), torch.tensor([sae_dim])))
+
+    prefixes, _ = torch.sort(prefixes, descending=False)
+
+    return prefixes</code></pre>
+</details>
 </dd>
 </dl>
 <h3>Inherited members</h3>
@@ -453,12 +700,37 @@ class SparseAutoencoder(torch.nn.Module):
 </code></dt>
 <dd>
 <div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def decode(
+    self, f_x: Float[Tensor, &#34;batch d_sae&#34;]
+) -&gt; Float[Tensor, &#34;batch d_model&#34;]:
+    x_hat = (
+        einops.einsum(f_x, self.W_dec, &#34;... d_sae, d_sae d_vit -&gt; ... d_vit&#34;)
+        + self.b_dec
+    )
+    return x_hat</code></pre>
+</details>
 </dd>
 <dt id="saev.nn.modeling.SparseAutoencoder.encode"><code class="name flex">
 <span>def <span class="ident">encode</span></span>(<span>self, x: jaxtyping.Float[Tensor, 'batch d_model']) ‑> jaxtyping.Float[Tensor, 'batch d_sae']</span>
 </code></dt>
 <dd>
 <div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def encode(self, x: Float[Tensor, &#34;batch d_model&#34;]) -&gt; Float[Tensor, &#34;batch d_sae&#34;]:
+    h_pre = (
+        einops.einsum(x, self.W_enc, &#34;... d_vit, d_vit d_sae -&gt; ... d_sae&#34;)
+        + self.b_enc
+    )
+    f_x = self.activation(h_pre)
+    return f_x</code></pre>
+</details>
 </dd>
 <dt id="saev.nn.modeling.SparseAutoencoder.forward"><code class="name flex">
 <span>def <span class="ident">forward</span></span>(<span>self, x: jaxtyping.Float[Tensor, 'batch d_model']) ‑> tuple[jaxtyping.Float[Tensor, 'batch d_model'], jaxtyping.Float[Tensor, 'batch d_sae']]</span>
@@ -467,12 +739,42 @@ class SparseAutoencoder(torch.nn.Module):
 <div class="desc"><p>Given x, calculates the reconstructed x_hat and the intermediate activations f_x.</p>
 <h2 id="arguments">Arguments</h2>
 <p>x: a batch of ViT activations.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def forward(
+    self, x: Float[Tensor, &#34;batch d_model&#34;]
+) -&gt; tuple[Float[Tensor, &#34;batch d_model&#34;], Float[Tensor, &#34;batch d_sae&#34;]]:
+    &#34;&#34;&#34;
+    Given x, calculates the reconstructed x_hat and the intermediate activations f_x.
+
+    Arguments:
+        x: a batch of ViT activations.
+    &#34;&#34;&#34;
+    f_x = self.encode(x)
+    x_hat = self.decode(f_x)
+
+    return x_hat, f_x</code></pre>
+</details>
 </dd>
 <dt id="saev.nn.modeling.SparseAutoencoder.normalize_w_dec"><code class="name flex">
 <span>def <span class="ident">normalize_w_dec</span></span>(<span>self)</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Set W_dec to unit-norm columns.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@torch.no_grad()
+def normalize_w_dec(self):
+    &#34;&#34;&#34;
+    Set W_dec to unit-norm columns.
+    &#34;&#34;&#34;
+    if self.cfg.normalize_w_dec:
+        self.W_dec.data /= torch.norm(self.W_dec.data, dim=1, keepdim=True)</code></pre>
+</details>
 </dd>
 <dt id="saev.nn.modeling.SparseAutoencoder.remove_parallel_grads"><code class="name flex">
 <span>def <span class="ident">remove_parallel_grads</span></span>(<span>self)</span>
@@ -480,6 +782,31 @@ class SparseAutoencoder(torch.nn.Module):
 <dd>
 <div class="desc"><p>Update grads so that they remove the parallel component
 (d_sae, d_vit) shape</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@torch.no_grad()
+def remove_parallel_grads(self):
+    &#34;&#34;&#34;
+    Update grads so that they remove the parallel component
+        (d_sae, d_vit) shape
+    &#34;&#34;&#34;
+    if not self.cfg.remove_parallel_grads:
+        return
+
+    parallel_component = einops.einsum(
+        self.W_dec.grad,
+        self.W_dec.data,
+        &#34;d_sae d_vit, d_sae d_vit -&gt; d_sae&#34;,
+    )
+
+    self.W_dec.grad -= einops.einsum(
+        parallel_component,
+        self.W_dec.data,
+        &#34;d_sae, d_sae d_vit -&gt; d_sae d_vit&#34;,
+    )</code></pre>
+</details>
 </dd>
 </dl>
 </dd>
@@ -513,11 +840,23 @@ class SparseAutoencoderConfig:
     def d_sae(self) -&gt; int:
         return self.d_vit * self.exp_factor</code></pre>
 </details>
-<h3>Class variables</h3>
+<h3>Instance variables</h3>
 <dl>
 <dt id="saev.nn.modeling.SparseAutoencoderConfig.activation"><code class="name">var <span class="ident">activation</span> : <a title="saev.nn.modeling.Relu" href="#saev.nn.modeling.Relu">Relu</a> | <a title="saev.nn.modeling.TopK" href="#saev.nn.modeling.TopK">TopK</a> | <a title="saev.nn.modeling.BatchTopK" href="#saev.nn.modeling.BatchTopK">BatchTopK</a></code></dt>
 <dd>
 <div class="desc"></div>
+</dd>
+<dt id="saev.nn.modeling.SparseAutoencoderConfig.d_sae"><code class="name">prop <span class="ident">d_sae</span> : int</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def d_sae(self) -&gt; int:
+    return self.d_vit * self.exp_factor</code></pre>
+</details>
 </dd>
 <dt id="saev.nn.modeling.SparseAutoencoderConfig.d_vit"><code class="name">var <span class="ident">d_vit</span> : int</code></dt>
 <dd>
@@ -544,21 +883,6 @@ class SparseAutoencoderConfig:
 <div class="desc"><p>Random seed.</p></div>
 </dd>
 </dl>
-<h3>Instance variables</h3>
-<dl>
-<dt id="saev.nn.modeling.SparseAutoencoderConfig.d_sae"><code class="name">prop <span class="ident">d_sae</span> : int</code></dt>
-<dd>
-<div class="desc"></div>
-<details class="source">
-<summary>
-<span>Expand source code</span>
-</summary>
-<pre><code class="python">@property
-def d_sae(self) -&gt; int:
-    return self.d_vit * self.exp_factor</code></pre>
-</details>
-</dd>
-</dl>
 </dd>
 <dt id="saev.nn.modeling.TopK"><code class="flex name class">
 <span>class <span class="ident">TopK</span></span>
@@ -576,7 +900,7 @@ class TopK:
     top_k: int = 32
     &#34;&#34;&#34;How many values are allowed to be non-zero.&#34;&#34;&#34;</code></pre>
 </details>
-<h3>Class variables</h3>
+<h3>Instance variables</h3>
 <dl>
 <dt id="saev.nn.modeling.TopK.top_k"><code class="name">var <span class="ident">top_k</span> : int</code></dt>
 <dd>
@@ -631,6 +955,24 @@ class TopKActivation(torch.nn.Module):
 </code></dt>
 <dd>
 <div class="desc"><p>Apply top-k activation to the input tensor.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def forward(self, x: Float[Tensor, &#34;batch d_sae&#34;]) -&gt; Float[Tensor, &#34;batch d_sae&#34;]:
+    &#34;&#34;&#34;
+    Apply top-k activation to the input tensor.
+    &#34;&#34;&#34;
+    if self.k &lt;= 0:
+        raise ValueError(&#34;k must be a positive integer.&#34;)
+
+    k_vals, k_inds = torch.topk(x, self.k, dim=-1, sorted=False)
+    mask = torch.zeros_like(x).scatter_(
+        dim=-1, index=k_inds, src=torch.ones_like(x)
+    )
+
+    return torch.mul(mask, x)</code></pre>
+</details>
 </dd>
 </dl>
 </dd>
@@ -766,7 +1108,7 @@ setTimeout(() => input.focus(), 100);
 </nav>
 </main>
 <footer id="footer">
-<p>Generated by <a href="https://pdoc3.github.io/pdoc" title="pdoc: Python API documentation generator"><cite>pdoc</cite> 0.11.1</a>.</p>
+<p>Generated by <a href="https://pdoc3.github.io/pdoc" title="pdoc: Python API documentation generator"><cite>pdoc</cite> 0.11.6</a>.</p>
 </footer>
 </body>
 </html>

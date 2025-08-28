@@ -1,3 +1,4 @@
+import dataclasses
 import logging
 import pathlib
 import typing as tp
@@ -10,6 +11,7 @@ from torch import Tensor
 
 from saev import helpers
 
+from . import dinov3
 
 logger = logging.getLogger(__name__)
 
@@ -26,9 +28,6 @@ class VisionTransformer(tp.Protocol):
     def get_patches(self, n_patches_per_img: int) -> slice | torch.Tensor:
         """Return indices for selecting relevant patches from activations."""
 
-    def get_features(self, output: object) -> Float[Tensor, "batch seq dim"]:
-        """Extract feature tensor from model output (handles model-specific formats)."""
-
     def forward(
         self, batch: Float[Tensor, "batch 3 width height"]
     ) -> Float[Tensor, "batch patches dim"]:
@@ -41,22 +40,13 @@ class DinoV3(torch.nn.Module):
         super().__init__()
         name = self._parse_name(vit_ckpt)
         self.name = f"dinov3/{name}"
-        self.model = torch.hub.load(
-            "facebookresearch/dinov3", name, source="github", weights=vit_ckpt
-        )
-
-    def get_features(self, output: object) -> Float[Tensor, "batch seq dim"]:
-        """Extract features from DINOv3's list output format."""
-        if isinstance(output, list):
-            # DINOv3 returns a list, we want the first element
-            return output[0]
-        return output
+        self.model = dinov3.load(name, vit_ckpt)
 
     def get_residuals(self) -> list[torch.nn.Module]:
         return self.model.blocks
 
     def get_patches(self, n_patches_per_img: int) -> slice:
-        n_reg = self.model.n_storage_tokens
+        n_reg = self.model.cfg.n_storage_tokens
         patches = torch.cat((
             torch.tensor([0]),  # CLS token
             torch.arange(n_reg + 1, n_reg + 1 + n_patches_per_img),  # patches
@@ -71,13 +61,14 @@ class DinoV3(torch.nn.Module):
         return "_".join(name)
 
     def forward(
-        self, batch: Float[Tensor, "batch 3 width height"]
+        self, batch: Float[Tensor, "batch n kernel"], **kwargs
     ) -> Float[Tensor, "batch patches dim"]:
-        dct = self.model.forward_features(batch)
+        grid = kwargs.pop("grid")
+        if kwargs:
+            logger.info("Unused kwargs: %s", kwargs)
+        dct = self.model(batch, grid=grid)
 
-        features = torch.cat(
-            (dct["x_norm_clstoken"][:, None, :], dct["x_norm_patchtokens"]), axis=1
-        )
+        features = torch.cat((dct["cls"][:, None, :], dct["patches"]), axis=1)
         return features
 
 
@@ -88,10 +79,6 @@ class DinoV2(torch.nn.Module):
 
         self.model = torch.hub.load("facebookresearch/dinov2", vit_ckpt)
         self.name = f"dinov2/{vit_ckpt}"
-
-    def get_features(self, output: object) -> Float[Tensor, "batch seq dim"]:
-        """Extract features from DINOv2's output format."""
-        return output
 
     def get_residuals(self) -> list[torch.nn.Module]:
         return self.model.blocks
@@ -105,7 +92,7 @@ class DinoV2(torch.nn.Module):
         return patches
 
     def forward(
-        self, batch: Float[Tensor, "batch 3 width height"]
+        self, batch: Float[Tensor, "batch 3 width height"], **kwargs
     ) -> Float[Tensor, "batch patches dim"]:
         dct = self.model.forward_features(batch)
 
@@ -140,10 +127,6 @@ class Clip(torch.nn.Module):
         assert not isinstance(self.model, open_clip.timm_model.TimmModel)
 
         self.name = f"clip/{vit_ckpt}"
-
-    def get_features(self, output: object) -> Float[Tensor, "batch seq dim"]:
-        """Extract features from CLIP's output format."""
-        return output
 
     def get_residuals(self) -> list[torch.nn.Module]:
         return self.model.transformer.resblocks
@@ -183,10 +166,6 @@ class Siglip(torch.nn.Module):
 
         self.name = f"siglip/{vit_ckpt}"
 
-    def get_features(self, output: object) -> Float[Tensor, "batch seq dim"]:
-        """Extract features from SigLIP's output format."""
-        return output
-
     def get_residuals(self) -> list[torch.nn.Module]:
         return self.model.trunk.blocks
 
@@ -215,7 +194,7 @@ def make_vit(vit_family: str, vit_ckpt: str) -> VisionTransformer:
 
 
 @beartype.beartype
-def make_img_transform(vit_family: str, vit_ckpt: str) -> Callable:
+def make_transforms(vit_family: str, vit_ckpt: str) -> tuple[Callable, Callable | None]:
     if vit_family == "clip" or vit_family == "siglip":
         import open_clip
 
@@ -228,29 +207,32 @@ def make_img_transform(vit_family: str, vit_ckpt: str) -> Callable:
             _, img_transform = open_clip.create_model_from_pretrained(
                 arch, pretrained=ckpt, cache_dir=helpers.get_cache_dir()
             )
-        return img_transform
+        return img_transform, None
 
     elif vit_family == "dinov2":
         from torchvision.transforms import v2
 
-        return v2.Compose([
+        img_transform = v2.Compose([
             v2.Resize(size=(256, 256)),
             v2.CenterCrop(size=(224, 224)),
             v2.ToImage(),
             v2.ToDtype(torch.float32, scale=True),
             v2.Normalize(mean=[0.4850, 0.4560, 0.4060], std=[0.2290, 0.2240, 0.2250]),
         ])
+        return img_transform, None
 
     elif vit_family == "dinov3":
         from torchvision.transforms import v2
 
         from . import transforms
 
-        return v2.Compose([
+        img_transform = v2.Compose([
             transforms.FlexResize(patch_size=16, n_patches=640),
             v2.ToImage(),
             v2.ToDtype(torch.float32, scale=True),
             v2.Normalize(mean=[0.4850, 0.4560, 0.4060], std=[0.2290, 0.2240, 0.2250]),
         ])
+        sample_transform = transforms.Unfold(patch_size=16, n_patches=640)
+        return img_transform, sample_transform
     else:
         tp.assert_never(vit_family)

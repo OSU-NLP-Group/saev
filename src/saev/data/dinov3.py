@@ -8,7 +8,7 @@ import einops
 import torch
 import torch.nn.functional as F
 import torch.nn.init
-from jaxtyping import Float, jaxtyped
+from jaxtyping import Float, Int, jaxtyped
 from torch import Tensor, nn
 
 
@@ -92,8 +92,8 @@ class PatchEmbed(nn.Module):
         image_hw = make_2tuple(img_size)
         patch_hw = make_2tuple(patch_size)
 
-        self.img_size = image_hw
-        self.patch_size = patch_hw
+        self.image_hw = image_hw
+        self.patch_hw = patch_hw
 
         self.in_chans = in_chans
         self.embed_dim = embed_dim
@@ -101,14 +101,24 @@ class PatchEmbed(nn.Module):
         self.proj = nn.Conv2d(
             in_chans, embed_dim, kernel_size=patch_hw, stride=patch_hw
         )
+        self.k = patch_hw[0]
+        assert self.proj.kernel_size == (self.k, self.k)
+        assert self.proj.stride == (self.k, self.k)
+        assert self.proj.padding == (0, 0)
+        assert self.proj.groups == 1
+        assert self.proj.dilation == (1, 1)
 
     def forward(
-        self, x_bchw: Float[Tensor, "batch channnels height width"]
-    ) -> Float[Tensor, "batch height_p width_p dim"]:
-        x_bdhw = self.proj(x_bchw)  # B C H W
-        _, _, h, w = x_bdhw.shape
-        x_bhwd = einops.rearrange(x_bdhw, "b d h w -> b h w d")
-        return x_bhwd
+        self,
+        x: Float[Tensor, "batch n kernel"],
+    ) -> Float[Tensor, "batch n dim"]:
+        w_dp = self.proj.weight.reshape(
+            self.embed_dim, self.in_chans * self.patch_hw[0] * self.patch_hw[1]
+        )
+        x_bnd = x @ w_dp.T
+        if self.proj.bias is not None:
+            x_bnd = x_bnd + self.proj.bias[None, None, :]
+        return x_bnd
 
 
 @jaxtyped(typechecker=beartype.beartype)
@@ -161,7 +171,9 @@ class RopePositionEmbedding(nn.Module):
 
         self.periods.data = periods
 
-    def forward(self, *, h: int, w: int) -> tuple[Tensor, Tensor]:
+    def forward(
+        self, *, h: Int[Tensor, " b"], w: Int[Tensor, " b"]
+    ) -> Float[Tensor, "..."]:
         device = self.periods.device
         dtype = self.dtype
         dd = {"device": device, "dtype": dtype}
@@ -236,39 +248,41 @@ def _rotate_half(x: Float[Tensor, "..."]) -> Float[Tensor, "..."]:
 
 @jaxtyped(typechecker=beartype.beartype)
 def _rope(
-    x: Float[Tensor, "..."], sin: Float[Tensor, "..."], cos: Float[Tensor, "..."]
-) -> Float[Tensor, "..."]:
+    x: Float[Tensor, "b h n d"],
+    sin: Float[Tensor, "b n d"],
+    cos: Float[Tensor, "b n d"],
+) -> Float[Tensor, "b h n d"]:
     # x:   [..., D], eg [x0,     x1,   x2,   x3,   x4,   x5]
     # sin: [..., D], eg [sin0, sin1, sin2, sin0, sin1, sin2]
     # cos: [..., D], eg [cos0, cos1, cos2, cos0, cos1, cos2]
-    return (x * cos) + (_rotate_half(x) * sin)
+    return (x * cos[:, None]) + (_rotate_half(x) * sin[:, None])
 
 
 @jaxtyped(typechecker=beartype.beartype)
 def rope_fn(
     q_bhnd: Float[Tensor, "batch head n d_head"],
     k_bhnd: Float[Tensor, "batch head n d_head"],
-    rope: Tensor | tuple[Tensor, Tensor],
+    rope: Float[Tensor, "batch 2 n_pos d_head"],
 ) -> tuple[Float[Tensor, "batch head n d_head"], Float[Tensor, "batch head n d_head"]]:
     # All operations will use the dtype of rope, the output is cast back to the dtype of q and k
     q_dtype = q_bhnd.dtype
     k_dtype = k_bhnd.dtype
 
-    sin_pd, cos_pd = rope
-    rope_dtype = sin_pd.dtype
+    sin_bpd, cos_bpd = rope.unbind(1)
+    rope_dtype = sin_bpd.dtype
 
     q_bhnd = q_bhnd.to(dtype=rope_dtype)
     k_bhnd = k_bhnd.to(dtype=rope_dtype)
     _, n_heads, n, d_head = q_bhnd.shape
-    n_pos, d_head = sin_pd.shape
+    _, n_pos, d_head = sin_bpd.shape
     prefix = n - n_pos
     assert prefix >= 0, f"Got {n} residual streams but only {n_pos} patches."
 
     q_prefix_bhd = q_bhnd[:, :, :prefix, :]
-    q_bhpd = _rope(q_bhnd[:, :, prefix:, :], sin_pd, cos_pd)
+    q_bhpd = _rope(q_bhnd[:, :, prefix:, :], sin_bpd, cos_bpd)
     q_bhnd = torch.cat((q_prefix_bhd, q_bhpd), dim=2)
     k_prefix_bhd = k_bhnd[:, :, :prefix, :]
-    k_bhpd = _rope(k_bhnd[:, :, prefix:, :], sin_pd, cos_pd)
+    k_bhpd = _rope(k_bhnd[:, :, prefix:, :], sin_bpd, cos_bpd)
     k_bhnd = torch.cat((k_prefix_bhd, k_bhpd), dim=2)
 
     q_bhnd = q_bhnd.to(dtype=q_dtype)
@@ -292,7 +306,7 @@ class SelfAttention(nn.Module):
     def forward(
         self,
         x_bnd: Float[Tensor, "batch n d"],
-        rope: Float[Tensor, "2 n_pos d_head"] | None = None,
+        rope: Float[Tensor, "batch 2 n_pos d_head"] | None = None,
     ) -> Float[Tensor, "batch n d"]:
         b, n_tok, d = x_bnd.shape
         qkv_b3nd = einops.rearrange(
@@ -410,24 +424,32 @@ class VisionTransformer(nn.Module):
 
         self.norm = nn.LayerNorm(cfg.embed_dim, eps=1e-5)
 
-    def forward(self, x: Float[Tensor, "b c h w"]) -> dict[str, Tensor]:
-        x_bhwd = self.patch_embed(x)
-        b, h, w, d = x_bhwd.shape
-        x_bnd = einops.rearrange(x_bhwd, "b h w dim -> b (h w) dim")
+    def forward(
+        self, x: Float[Tensor, "b n kernel"], *, grid: Int[Tensor, "b 2"]
+    ) -> dict[str, Tensor]:
+        x_bnd = self.patch_embed(x)
 
-        cls_token = self.cls_token + 0 * self.mask_token
+        b, n, d = x_bnd.shape
 
         x_bnd = torch.cat(
-            [cls_token.expand(b, -1, -1), self.storage_tokens.expand(b, -1, -1), x_bnd],
+            [
+                self.cls_token.expand(b, 1, d),
+                self.storage_tokens.expand(b, self.cfg.n_storage_tokens, d),
+                x_bnd,
+            ],
             dim=1,
         )
 
-        rope_sincos = self.rope_embed(h=h, w=w)
+        hs, ws = grid[:, 0], grid[:, 1]
+        rope_b2nd = torch.stack([
+            torch.stack(self.rope_embed(h=h, w=w)) for h, w in zip(hs, ws)
+        ])
+
         for blk in self.blocks:
-            x_bnd = blk(x_bnd, rope_sincos)
+            x_bnd = blk(x_bnd, rope_b2nd)
 
         x_norm_bnd = self.norm(x_bnd)
-        x_norm_cls_bd = x_norm_bnd[:, :0]
+        x_norm_cls_bd = x_norm_bnd[:, 0]
         x_norm_patch_bnd = x_norm_bnd[:, self.cfg.n_storage_tokens + 1 :]
 
         output = {"cls": x_norm_cls_bd, "patches": x_norm_patch_bnd}

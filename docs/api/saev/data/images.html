@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1">
-<meta name="generator" content="pdoc3 0.11.1">
+<meta name="generator" content="pdoc3 0.11.6">
 <title>saev.data.images API documentation</title>
 <meta name="description" content="">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/13.0.0/sanitize.min.css" integrity="sha512-y1dtMcuvtTMJc1yPgEqF0ZjQbhnc/bFhyvIyVNb9Zk5mIGtqVaAB1Ttl28su8AvFMOY0EwRbAe+HCLqj6W7/KA==" crossorigin>
@@ -49,30 +49,102 @@ hljs.highlightAll();
 </dl>
 <h2 id="returns">Returns</h2>
 <p>A dataset that has dictionaries with <code>'image'</code>, <code>'index'</code>, <code>'target'</code>, and <code>'label'</code> keys containing examples.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+def get_dataset(cfg: Config, *, img_transform):
+    &#34;&#34;&#34;
+    Gets the dataset for the current experiment; delegates construction to dataset-specific functions.
+
+    Args:
+        cfg: Experiment config.
+        img_transform: Image transform to be applied to each image.
+
+    Returns:
+        A dataset that has dictionaries with `&#39;image&#39;`, `&#39;index&#39;`, `&#39;target&#39;`, and `&#39;label&#39;` keys containing examples.
+    &#34;&#34;&#34;
+    if isinstance(cfg, Imagenet):
+        return ImagenetDataset(cfg, img_transform=img_transform)
+    elif isinstance(cfg, Ade20k):
+        return Ade20kDataset(cfg, img_transform=img_transform)
+    elif isinstance(cfg, ImageFolder):
+        return ImageFolderDataset(cfg.root, transform=img_transform)
+    elif isinstance(cfg, Fake):
+        return FakeDataset(cfg, img_transform=img_transform)
+    else:
+        typing.assert_never(cfg)</code></pre>
+</details>
 </dd>
 <dt id="saev.data.images.setup"><code class="name flex">
 <span>def <span class="ident">setup</span></span>(<span>cfg: <a title="saev.data.images.Imagenet" href="#saev.data.images.Imagenet">Imagenet</a> | <a title="saev.data.images.ImageFolder" href="#saev.data.images.ImageFolder">ImageFolder</a> | <a title="saev.data.images.Ade20k" href="#saev.data.images.Ade20k">Ade20k</a> | <a title="saev.data.images.Fake" href="#saev.data.images.Fake">Fake</a>)</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Run dataset-specific setup. These setup functions can assume they are the only job running, but they should be idempotent; they should be safe (and ideally cheap) to run multiple times in a row.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+def setup(cfg: Config):
+    &#34;&#34;&#34;
+    Run dataset-specific setup. These setup functions can assume they are the only job running, but they should be idempotent; they should be safe (and ideally cheap) to run multiple times in a row.
+    &#34;&#34;&#34;
+    if isinstance(cfg, Imagenet):
+        setup_imagenet(cfg)
+    elif isinstance(cfg, ImageFolder):
+        setup_imagefolder(cfg)
+    elif isinstance(cfg, Ade20k):
+        setup_ade20k(cfg)
+    elif isinstance(cfg, Fake):
+        pass
+    else:
+        typing.assert_never(cfg.data)</code></pre>
+</details>
 </dd>
 <dt id="saev.data.images.setup_ade20k"><code class="name flex">
 <span>def <span class="ident">setup_ade20k</span></span>(<span>cfg: <a title="saev.data.images.Ade20k" href="#saev.data.images.Ade20k">Ade20k</a>)</span>
 </code></dt>
 <dd>
 <div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+def setup_ade20k(cfg: Ade20k):
+    # url = &#34;http://data.csail.mit.edu/places/ADEchallenge/ADEChallengeData2016.zip&#34;
+    pass</code></pre>
+</details>
 </dd>
 <dt id="saev.data.images.setup_imagefolder"><code class="name flex">
 <span>def <span class="ident">setup_imagefolder</span></span>(<span>cfg: <a title="saev.data.images.ImageFolder" href="#saev.data.images.ImageFolder">ImageFolder</a>)</span>
 </code></dt>
 <dd>
 <div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+def setup_imagefolder(cfg: ImageFolder):
+    logger.info(&#34;No dataset-specific setup for ImageFolder.&#34;)</code></pre>
+</details>
 </dd>
 <dt id="saev.data.images.setup_imagenet"><code class="name flex">
 <span>def <span class="ident">setup_imagenet</span></span>(<span>cfg: <a title="saev.data.images.Imagenet" href="#saev.data.images.Imagenet">Imagenet</a>)</span>
 </code></dt>
 <dd>
 <div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+def setup_imagenet(cfg: Imagenet):
+    pass</code></pre>
+</details>
 </dd>
 </dl>
 </section>
@@ -106,17 +178,6 @@ class Ade20k:
         else:
             return 20210</code></pre>
 </details>
-<h3>Class variables</h3>
-<dl>
-<dt id="saev.data.images.Ade20k.root"><code class="name">var <span class="ident">root</span> : str</code></dt>
-<dd>
-<div class="desc"><p>Where the class folders with images are stored.</p></div>
-</dd>
-<dt id="saev.data.images.Ade20k.split"><code class="name">var <span class="ident">split</span> : Literal['training', 'validation']</code></dt>
-<dd>
-<div class="desc"><p>Data split.</p></div>
-</dd>
-</dl>
 <h3>Instance variables</h3>
 <dl>
 <dt id="saev.data.images.Ade20k.n_imgs"><code class="name">prop <span class="ident">n_imgs</span> : int</code></dt>
@@ -133,6 +194,14 @@ def n_imgs(self) -&gt; int:
     else:
         return 20210</code></pre>
 </details>
+</dd>
+<dt id="saev.data.images.Ade20k.root"><code class="name">var <span class="ident">root</span> : str</code></dt>
+<dd>
+<div class="desc"><p>Where the class folders with images are stored.</p></div>
+</dd>
+<dt id="saev.data.images.Ade20k.split"><code class="name">var <span class="ident">split</span> : Literal['training', 'validation']</code></dt>
+<dd>
+<div class="desc"><p>Data split.</p></div>
 </dd>
 </dl>
 </dd>
@@ -294,7 +363,7 @@ class Ade20kDataset(torch.utils.data.Dataset):
 class Fake:
     n_imgs: int = 10</code></pre>
 </details>
-<h3>Class variables</h3>
+<h3>Instance variables</h3>
 <dl>
 <dt id="saev.data.images.Fake.n_imgs"><code class="name">var <span class="ident">n_imgs</span> : int</code></dt>
 <dd>
@@ -377,13 +446,6 @@ class ImageFolder:
             n += len(files)
         return n</code></pre>
 </details>
-<h3>Class variables</h3>
-<dl>
-<dt id="saev.data.images.ImageFolder.root"><code class="name">var <span class="ident">root</span> : str</code></dt>
-<dd>
-<div class="desc"><p>Where the class folders with images are stored.</p></div>
-</dd>
-</dl>
 <h3>Instance variables</h3>
 <dl>
 <dt id="saev.data.images.ImageFolder.n_imgs"><code class="name">prop <span class="ident">n_imgs</span> : int</code></dt>
@@ -402,11 +464,15 @@ def n_imgs(self) -&gt; int:
     return n</code></pre>
 </details>
 </dd>
+<dt id="saev.data.images.ImageFolder.root"><code class="name">var <span class="ident">root</span> : str</code></dt>
+<dd>
+<div class="desc"><p>Where the class folders with images are stored.</p></div>
+</dd>
 </dl>
 </dd>
 <dt id="saev.data.images.ImageFolderDataset"><code class="flex name class">
 <span>class <span class="ident">ImageFolderDataset</span></span>
-<span>(</span><span>root: Union[str, pathlib.Path],<br>transform: Optional[Callable] = None,<br>target_transform: Optional[Callable] = None,<br>loader: Callable[[str], Any] = &lt;function default_loader&gt;,<br>is_valid_file: Optional[Callable[[str], bool]] = None,<br>allow_empty: bool = False)</span>
+<span>(</span><span>root: str | pathlib.Path,<br>transform: Callable | None = None,<br>target_transform: Callable | None = None,<br>loader: Callable[[str], Any] = &lt;function default_loader&gt;,<br>is_valid_file: Callable[[str], bool] | None = None,<br>allow_empty: bool = False)</span>
 </code></dt>
 <dd>
 <div class="desc"><p>A generic data loader where the images are arranged in this way by default: ::</p>
@@ -424,7 +490,7 @@ the same methods can be overridden to customize the dataset.</p>
 <dl>
 <dt>root (str or <code>pathlib.Path</code>): Root directory path.</dt>
 <dt><strong><code>transform</code></strong> :&ensp;<code>callable</code>, optional</dt>
-<dd>A function/transform that takes in a PIL image
+<dd>A function/transform that takes in a PIL image or torch.Tensor, depends on the given loader,
 and returns a transformed version. E.g, <code>transforms.RandomCrop</code></dd>
 <dt><strong><code>target_transform</code></strong> :&ensp;<code>callable</code>, optional</dt>
 <dd>A function/transform that takes in the
@@ -508,17 +574,6 @@ class Imagenet:
         )
         return len(dataset)</code></pre>
 </details>
-<h3>Class variables</h3>
-<dl>
-<dt id="saev.data.images.Imagenet.name"><code class="name">var <span class="ident">name</span> : str</code></dt>
-<dd>
-<div class="desc"><p>Dataset name on HuggingFace. Don't need to change this..</p></div>
-</dd>
-<dt id="saev.data.images.Imagenet.split"><code class="name">var <span class="ident">split</span> : str</code></dt>
-<dd>
-<div class="desc"><p>Dataset split. For the default ImageNet-1K dataset, can either be 'train', 'validation' or 'test'.</p></div>
-</dd>
-</dl>
 <h3>Instance variables</h3>
 <dl>
 <dt id="saev.data.images.Imagenet.n_imgs"><code class="name">prop <span class="ident">n_imgs</span> : int</code></dt>
@@ -538,6 +593,14 @@ def n_imgs(self) -&gt; int:
     )
     return len(dataset)</code></pre>
 </details>
+</dd>
+<dt id="saev.data.images.Imagenet.name"><code class="name">var <span class="ident">name</span> : str</code></dt>
+<dd>
+<div class="desc"><p>Dataset name on HuggingFace. Don't need to change this..</p></div>
+</dd>
+<dt id="saev.data.images.Imagenet.split"><code class="name">var <span class="ident">split</span> : str</code></dt>
+<dd>
+<div class="desc"><p>Dataset split. For the default ImageNet-1K dataset, can either be 'train', 'validation' or 'test'.</p></div>
 </dd>
 </dl>
 </dd>
@@ -721,7 +784,7 @@ setTimeout(() => input.focus(), 100);
 </nav>
 </main>
 <footer id="footer">
-<p>Generated by <a href="https://pdoc3.github.io/pdoc" title="pdoc: Python API documentation generator"><cite>pdoc</cite> 0.11.1</a>.</p>
+<p>Generated by <a href="https://pdoc3.github.io/pdoc" title="pdoc: Python API documentation generator"><cite>pdoc</cite> 0.11.6</a>.</p>
 </footer>
 </body>
 </html>

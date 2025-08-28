@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1">
-<meta name="generator" content="pdoc3 0.11.1">
+<meta name="generator" content="pdoc3 0.11.6">
 <title>saev.scripts.visuals API documentation</title>
 <meta name="description" content="There is some important notation used only in this file to dramatically shorten variable names …">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/13.0.0/sanitize.min.css" integrity="sha512-y1dtMcuvtTMJc1yPgEqF0ZjQbhnc/bFhyvIyVNb9Zk5mIGtqVaAB1Ttl28su8AvFMOY0EwRbAe+HCLqj6W7/KA==" crossorigin>
@@ -38,7 +38,7 @@ hljs.highlightAll();
 <h2 class="section-title" id="header-functions">Functions</h2>
 <dl>
 <dt id="saev.scripts.visuals.batched_idx"><code class="name flex">
-<span>def <span class="ident">batched_idx</span></span>(<span>total_size: int, batch_size: int) ‑> collections.abc.Iterator[tuple[int, int]]</span>
+<span>def <span class="ident">batched_idx</span></span>(<span>total_size: int, batch_size: int) ‑> Iterator[tuple[int, int]]</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Iterate over (start, end) indices for total_size examples, where end - start is at most batch_size.</p>
@@ -51,6 +51,28 @@ hljs.highlightAll();
 </dl>
 <h2 id="returns">Returns</h2>
 <p>A generator of (int, int) tuples that can slice up a list or a tensor.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+def batched_idx(
+    total_size: int, batch_size: int
+) -&gt; collections.abc.Iterator[tuple[int, int]]:
+    &#34;&#34;&#34;
+    Iterate over (start, end) indices for total_size examples, where end - start is at most batch_size.
+
+    Args:
+        total_size: total number of examples
+        batch_size: maximum distance between the generated indices.
+
+    Returns:
+        A generator of (int, int) tuples that can slice up a list or a tensor.
+    &#34;&#34;&#34;
+    for start in range(0, total_size, batch_size):
+        stop = min(start + batch_size, total_size)
+        yield start, stop</code></pre>
+</details>
 </dd>
 <dt id="saev.scripts.visuals.dump_activations"><code class="name flex">
 <span>def <span class="ident">dump_activations</span></span>(<span>cfg: <a title="saev.scripts.visuals.Config" href="#saev.scripts.visuals.Config">Config</a>)</span>
@@ -66,6 +88,39 @@ Various tensors summarising these activations are then written to <code>cfg.root
 </dl>
 <h2 id="returns">Returns</h2>
 <p>None. All data is saved to disk.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+@torch.inference_mode()
+def dump_activations(cfg: Config):
+    &#34;&#34;&#34;Dump ViT activation statistics for later use.
+
+    The dataset described by ``cfg`` is processed to find the images or patches that maximally activate each SAE latent.  Various tensors summarising these activations are then written to ``cfg.root`` so they can be loaded by other tools.
+
+    Args:
+        cfg: options controlling which activations are processed and where the resulting files are saved.
+
+    Returns:
+        None. All data is saved to disk.
+    &#34;&#34;&#34;
+    if cfg.sort_by == &#34;img&#34;:
+        raise helpers.RemovedFeatureError(&#34;Feature removed.&#34;)
+    elif cfg.sort_by == &#34;patch&#34;:
+        topk = get_topk_patch(cfg)
+    else:
+        typing.assert_never(cfg.sort_by)
+
+    os.makedirs(cfg.root, exist_ok=True)
+
+    torch.save(topk.top_values, cfg.top_values_fpath)
+    torch.save(topk.top_i, cfg.top_img_i_fpath)
+    torch.save(topk.mean_values, cfg.mean_values_fpath)
+    torch.save(topk.sparsity, cfg.sparsity_fpath)
+    torch.save(topk.distributions, cfg.distributions_fpath)
+    torch.save(topk.percentiles, cfg.percentiles_fpath)</code></pre>
+</details>
 </dd>
 <dt id="saev.scripts.visuals.dump_imgs"><code class="name flex">
 <span>def <span class="ident">dump_imgs</span></span>(<span>cfg: <a title="saev.scripts.visuals.Config" href="#saev.scripts.visuals.Config">Config</a>)</span>
@@ -81,12 +136,137 @@ Various tensors summarising these activations are then written to <code>cfg.root
 <dt><strong><code>cfg</code></strong></dt>
 <dd>Configuration object.</dd>
 </dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+@torch.inference_mode()
+def dump_imgs(cfg: Config):
+    &#34;&#34;&#34;
+    .. todo:: document this function.
+
+    Dump top-k images to a directory.
+
+    Args:
+        cfg: Configuration object.
+    &#34;&#34;&#34;
+
+    try:
+        top_values = safe_load(cfg.top_values_fpath)
+        sparsity = safe_load(cfg.sparsity_fpath)
+        mean_values = safe_load(cfg.mean_values_fpath)
+        top_i = safe_load(cfg.top_img_i_fpath)
+        distributions = safe_load(cfg.distributions_fpath)
+        _ = safe_load(cfg.percentiles_fpath)
+    except FileNotFoundError as err:
+        logger.warning(&#34;Need to dump files: %s&#34;, err)
+        dump_activations(cfg)
+        return dump_imgs(cfg)
+
+    d_sae, cached_topk, *rest = top_values.shape
+    # Check that the data is at least shaped correctly.
+    assert cfg.top_k == cached_topk
+    if cfg.sort_by == &#34;img&#34;:
+        assert len(rest) == 0
+    elif cfg.sort_by == &#34;patch&#34;:
+        assert len(rest) == 1
+        n_patches = rest[0]
+        assert n_patches &gt; 0
+    else:
+        typing.assert_never(cfg.sort_by)
+
+    logger.info(&#34;Loaded sorted data.&#34;)
+
+    os.makedirs(cfg.root, exist_ok=True)
+    fig_fpath = os.path.join(
+        cfg.root, f&#34;{cfg.n_distributions}_activation_distributions.png&#34;
+    )
+    plot_activation_distributions(cfg, distributions).savefig(fig_fpath, dpi=300)
+    logger.info(
+        &#34;Saved %d activation distributions to &#39;%s&#39;.&#34;, cfg.n_distributions, fig_fpath
+    )
+
+    dataset = saev.data.images.get_dataset(cfg.images, img_transform=None)
+
+    min_log_freq, max_log_freq = cfg.log_freq_range
+    min_log_value, max_log_value = cfg.log_value_range
+
+    mask = (
+        (min_log_freq &lt; torch.log10(sparsity))
+        &amp; (torch.log10(sparsity) &lt; max_log_freq)
+        &amp; (min_log_value &lt; torch.log10(mean_values))
+        &amp; (torch.log10(mean_values) &lt; max_log_value)
+    )
+
+    neurons = cfg.include_latents
+    random_neurons = torch.arange(d_sae)[mask.cpu()].tolist()
+    random.seed(cfg.seed)
+    random.shuffle(random_neurons)
+    neurons += random_neurons[: cfg.n_latents]
+
+    for i in helpers.progress(neurons, desc=&#34;saving visuals&#34;):
+        neuron_dir = os.path.join(cfg.root, &#34;neurons&#34;, str(i))
+        os.makedirs(neuron_dir, exist_ok=True)
+
+        # Image grid
+        elems = []
+        seen_i_im = set()
+        for i_im, values_p in zip(top_i[i].tolist(), top_values[i]):
+            if i_im in seen_i_im:
+                continue
+
+            example = dataset[i_im]
+            if cfg.sort_by == &#34;img&#34;:
+                elem = GridElement(example[&#34;image&#34;], example[&#34;label&#34;], torch.tensor([]))
+            elif cfg.sort_by == &#34;patch&#34;:
+                elem = GridElement(example[&#34;image&#34;], example[&#34;label&#34;], values_p)
+            else:
+                typing.assert_never(cfg.sort_by)
+            elems.append(elem)
+
+            seen_i_im.add(i_im)
+
+        # How to scale values.
+        upper = None
+        if top_values[i].numel() &gt; 0:
+            upper = top_values[i].max().item()
+
+        for j, elem in enumerate(elems):
+            img = make_img(elem, upper=upper)
+            img.save(os.path.join(neuron_dir, f&#34;{j}.png&#34;))
+            with open(os.path.join(neuron_dir, f&#34;{j}.txt&#34;), &#34;w&#34;) as fd:
+                fd.write(elem.label + &#34;\n&#34;)
+
+        # Metadata
+        metadata = {
+            &#34;neuron&#34;: i,
+            &#34;log10_freq&#34;: torch.log10(sparsity[i]).item(),
+            &#34;log10_value&#34;: torch.log10(mean_values[i]).item(),
+        }
+        with open(os.path.join(neuron_dir, &#34;metadata.json&#34;), &#34;w&#34;) as fd:
+            json.dump(metadata, fd)</code></pre>
+</details>
 </dd>
 <dt id="saev.scripts.visuals.gather_batched"><code class="name flex">
 <span>def <span class="ident">gather_batched</span></span>(<span>value: jaxtyping.Float[Tensor, 'batch n dim'],<br>i: jaxtyping.Int[Tensor, 'batch k']) ‑> jaxtyping.Float[Tensor, 'batch k dim']</span>
 </code></dt>
 <dd>
 <div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@jaxtyped(typechecker=beartype.beartype)
+def gather_batched(
+    value: Float[Tensor, &#34;batch n dim&#34;], i: Int[Tensor, &#34;batch k&#34;]
+) -&gt; Float[Tensor, &#34;batch k dim&#34;]:
+    batch_size, n, dim = value.shape  # noqa: F841
+    _, k = i.shape
+
+    batch_i = torch.arange(batch_size, device=value.device)[:, None].expand(-1, k)
+    return value[batch_i, i]</code></pre>
+</details>
 </dd>
 <dt id="saev.scripts.visuals.get_new_topk"><code class="name flex">
 <span>def <span class="ident">get_new_topk</span></span>(<span>val1: jaxtyping.Float[Tensor, 'd_sae k'],<br>i1: jaxtyping.Int[Tensor, 'd_sae k'],<br>val2: jaxtyping.Float[Tensor, 'd_sae k'],<br>i2: jaxtyping.Int[Tensor, 'd_sae k'],<br>k: int) ‑> tuple[jaxtyping.Float[Tensor, 'd_sae k'], jaxtyping.Int[Tensor, 'd_sae k']]</span>
@@ -108,6 +288,38 @@ Various tensors summarising these activations are then written to <code>cfg.root
 </dl>
 <h2 id="returns">Returns</h2>
 <p>The new top k values and their patch indices.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@jaxtyped(typechecker=beartype.beartype)
+def get_new_topk(
+    val1: Float[Tensor, &#34;d_sae k&#34;],
+    i1: Int[Tensor, &#34;d_sae k&#34;],
+    val2: Float[Tensor, &#34;d_sae k&#34;],
+    i2: Int[Tensor, &#34;d_sae k&#34;],
+    k: int,
+) -&gt; tuple[Float[Tensor, &#34;d_sae k&#34;], Int[Tensor, &#34;d_sae k&#34;]]:
+    &#34;&#34;&#34;
+    Picks out the new top k values among val1 and val2. Also keeps track of i1 and i2, then indices of the values in the original dataset.
+
+    Args:
+        val1: top k original SAE values.
+        i1: the patch indices of those original top k values.
+        val2: top k incoming SAE values.
+        i2: the patch indices of those incoming top k values.
+        k: k.
+
+    Returns:
+        The new top k values and their patch indices.
+    &#34;&#34;&#34;
+    all_val = torch.cat([val1, val2], dim=1)
+    new_values, top_i = torch.topk(all_val, k=k, dim=1)
+
+    all_i = torch.cat([i1, i2], dim=1)
+    new_indices = torch.gather(all_i, 1, top_i)
+    return new_values, new_indices</code></pre>
+</details>
 </dd>
 <dt id="saev.scripts.visuals.get_sae_acts"><code class="name flex">
 <span>def <span class="ident">get_sae_acts</span></span>(<span>vit_acts: jaxtyping.Float[Tensor, 'n d_vit'],<br>sae: <a title="saev.nn.modeling.SparseAutoencoder" href="../nn/modeling.html#saev.nn.modeling.SparseAutoencoder">SparseAutoencoder</a>,<br>cfg: <a title="saev.scripts.visuals.Config" href="#saev.scripts.visuals.Config">Config</a>) ‑> jaxtyping.Float[Tensor, 'n d_sae']</span>
@@ -123,6 +335,31 @@ Various tensors summarising these activations are then written to <code>cfg.root
 <dt><strong><code>cfg</code></strong></dt>
 <dd>Experimental config.</dd>
 </dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@jaxtyped(typechecker=beartype.beartype)
+def get_sae_acts(
+    vit_acts: Float[Tensor, &#34;n d_vit&#34;], sae: nn.SparseAutoencoder, cfg: Config
+) -&gt; Float[Tensor, &#34;n d_sae&#34;]:
+    &#34;&#34;&#34;
+    Get SAE hidden layer activations for a batch of ViT activations.
+
+    Args:
+        vit_acts: Batch of ViT activations
+        sae: Sparse autoencder.
+        cfg: Experimental config.
+    &#34;&#34;&#34;
+    sae_acts = []
+    for start, end in batched_idx(len(vit_acts), cfg.sae_batch_size):
+        _, f_x, *_ = sae(vit_acts[start:end].to(cfg.device))
+        sae_acts.append(f_x)
+
+    sae_acts = torch.cat(sae_acts, dim=0)
+    sae_acts = sae_acts.to(cfg.device)
+    return sae_acts</code></pre>
+</details>
 </dd>
 <dt id="saev.scripts.visuals.get_topk_patch"><code class="name flex">
 <span>def <span class="ident">get_topk_patch</span></span>(<span>cfg: <a title="saev.scripts.visuals.Config" href="#saev.scripts.visuals.Config">Config</a>) ‑> <a title="saev.scripts.visuals.TopKPatch" href="#saev.scripts.visuals.TopKPatch">TopKPatch</a></span>
@@ -140,24 +377,216 @@ The top k images are for latent i are sorted by</p>
 </dl>
 <h2 id="returns">Returns</h2>
 <p>A tuple of TopKPatch and m randomly sampled activation distributions.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+@torch.inference_mode()
+def get_topk_patch(cfg: Config) -&gt; TopKPatch:
+    &#34;&#34;&#34;
+    Gets the top k images for each latent in the SAE.
+    The top k images are for latent i are sorted by
+
+        max over all patches: f_x(patch)[i]
+
+    Thus, we could end up with duplicate images in the top k, if an image has more than one patch that maximally activates an SAE latent.
+
+    Args:
+        cfg: Config.
+
+    Returns:
+        A tuple of TopKPatch and m randomly sampled activation distributions.
+    &#34;&#34;&#34;
+    assert cfg.sort_by == &#34;patch&#34;
+    assert cfg.data.patches == &#34;image&#34;
+
+    sae = nn.load(cfg.ckpt).to(cfg.device)
+    metadata = saev.data.Metadata.load(cfg.data.shard_root)
+
+    top_values_p = torch.full(
+        (sae.cfg.d_sae, cfg.top_k, metadata.n_patches_per_img), -1.0, device=cfg.device
+    )
+    top_i_im = torch.zeros(
+        (sae.cfg.d_sae, cfg.top_k), dtype=torch.int, device=cfg.device
+    )
+
+    sparsity_S = torch.zeros((sae.cfg.d_sae,), device=cfg.device)
+    mean_values_S = torch.zeros((sae.cfg.d_sae,), device=cfg.device)
+
+    batch_size = (
+        cfg.topk_batch_size // metadata.n_patches_per_img * metadata.n_patches_per_img
+    )
+    n_imgs_per_batch = batch_size // metadata.n_patches_per_img
+    dataloader = saev.data.OrderedDataLoader(
+        dataclasses.replace(cfg.data, batch_size=batch_size),
+    )
+
+    distributions_MN = torch.zeros(
+        (cfg.n_distributions, dataloader.n_samples), device=&#34;cpu&#34;
+    )
+    estimator = PercentileEstimator(
+        cfg.percentile, dataloader.n_samples, shape=(sae.cfg.d_sae,)
+    )
+
+    logger.info(&#34;Loaded SAE and data.&#34;)
+
+    for batch in helpers.progress(dataloader, desc=&#34;picking top-k&#34;, every=50):
+        vit_acts_BD = batch[&#34;act&#34;]
+        sae_acts_BS = get_sae_acts(vit_acts_BD, sae, cfg)
+
+        for sae_act_S in sae_acts_BS:
+            estimator.update(sae_act_S)
+
+        sae_acts_SB = einops.rearrange(sae_acts_BS, &#34;batch d_sae -&gt; d_sae batch&#34;)
+        distributions_MN[:, batch[&#34;image_i&#34;]] = sae_acts_SB[: cfg.n_distributions].to(
+            &#34;cpu&#34;
+        )
+
+        mean_values_S += einops.reduce(sae_acts_SB, &#34;d_sae batch -&gt; d_sae&#34;, &#34;sum&#34;)
+        sparsity_S += einops.reduce((sae_acts_SB &gt; 0), &#34;d_sae batch -&gt; d_sae&#34;, &#34;sum&#34;)
+
+        i_im = torch.sort(torch.unique(batch[&#34;image_i&#34;])).values
+        values_p = sae_acts_SB.view(
+            sae.cfg.d_sae, len(i_im), metadata.n_patches_per_img
+        )
+
+        # Checks that I did my reshaping correctly.
+        assert values_p.shape[1] == i_im.shape[0]
+        if not len(i_im) == n_imgs_per_batch:
+            logger.warning(
+                &#34;Got %d images; expected %d images per batch.&#34;,
+                len(i_im),
+                n_imgs_per_batch,
+            )
+
+        _, k = torch.topk(sae_acts_SB, k=cfg.top_k, dim=1)
+        k_im = k // metadata.n_patches_per_img
+
+        values_p = gather_batched(values_p, k_im)
+        i_im = i_im.to(cfg.device)[k_im]
+
+        all_values_p = torch.cat((top_values_p, values_p), axis=1)
+        _, k = torch.topk(all_values_p.max(axis=-1).values, k=cfg.top_k, axis=1)
+
+        top_values_p = gather_batched(all_values_p, k)
+        top_i_im = torch.gather(torch.cat((top_i_im, i_im), axis=1), 1, k)
+
+    mean_values_S /= sparsity_S
+    sparsity_S /= dataloader.n_samples
+
+    return TopKPatch(
+        top_values_p,
+        top_i_im,
+        mean_values_S,
+        sparsity_S,
+        distributions_MN,
+        estimator.estimate.cpu(),
+    )</code></pre>
+</details>
 </dd>
 <dt id="saev.scripts.visuals.make_img"><code class="name flex">
 <span>def <span class="ident">make_img</span></span>(<span>elem: <a title="saev.scripts.visuals.GridElement" href="#saev.scripts.visuals.GridElement">GridElement</a>,<br>*,<br>upper: float | None = None) ‑> PIL.Image.Image</span>
 </code></dt>
 <dd>
 <div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+def make_img(elem: GridElement, *, upper: float | None = None) -&gt; Image.Image:
+    # Resize to 256x256 and crop to 224x224
+    resize_size_px = (512, 512)
+    resize_w_px, resize_h_px = resize_size_px
+    crop_size_px = (448, 448)
+    crop_w_px, crop_h_px = crop_size_px
+    crop_coords_px = (
+        (resize_w_px - crop_w_px) // 2,
+        (resize_h_px - crop_h_px) // 2,
+        (resize_w_px + crop_w_px) // 2,
+        (resize_h_px + crop_h_px) // 2,
+    )
+
+    img = elem.img.resize(resize_size_px).crop(crop_coords_px)
+    img = imaging.add_highlights(img, elem.patches.numpy(), upper=upper)
+    return img</code></pre>
+</details>
 </dd>
 <dt id="saev.scripts.visuals.plot_activation_distributions"><code class="name flex">
 <span>def <span class="ident">plot_activation_distributions</span></span>(<span>cfg: <a title="saev.scripts.visuals.Config" href="#saev.scripts.visuals.Config">Config</a>,<br>distributions: jaxtyping.Float[Tensor, 'm n'])</span>
 </code></dt>
 <dd>
 <div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@jaxtyped(typechecker=beartype.beartype)
+def plot_activation_distributions(cfg: Config, distributions: Float[Tensor, &#34;m n&#34;]):
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    m, _ = distributions.shape
+
+    n_rows = int(math.sqrt(m))
+    n_cols = n_rows
+    fig, axes = plt.subplots(
+        figsize=(4 * n_cols, 4 * n_rows),
+        nrows=n_rows,
+        ncols=n_cols,
+        sharex=True,
+        sharey=True,
+    )
+
+    _, bins = np.histogram(np.log10(distributions[distributions &gt; 0].numpy()), bins=100)
+
+    percentiles = [90, 95, 99, 100]
+    colors = (&#34;red&#34;, &#34;darkorange&#34;, &#34;gold&#34;, &#34;lime&#34;)
+
+    for dist, ax in zip(distributions, axes.reshape(-1)):
+        vals = np.log10(dist[dist &gt; 0].numpy())
+
+        ax.hist(vals, bins=bins)
+
+        if vals.size == 0:
+            continue
+
+        for i, (percentile, color) in enumerate(
+            zip(np.percentile(vals, percentiles), colors)
+        ):
+            ax.axvline(percentile, color=color, label=f&#34;{percentiles[i]}th %-ile&#34;)
+
+        for i, (percentile, color) in enumerate(zip(percentiles, colors)):
+            estimator = PercentileEstimator(percentile, len(vals))
+            for v in vals:
+                estimator.update(v)
+            ax.axvline(
+                estimator.estimate,
+                color=color,
+                linestyle=&#34;--&#34;,
+                label=f&#34;Est. {percentiles[i]}th %-ile&#34;,
+            )
+
+    ax.legend()
+
+    fig.tight_layout()
+    return fig</code></pre>
+</details>
 </dd>
 <dt id="saev.scripts.visuals.safe_load"><code class="name flex">
 <span>def <span class="ident">safe_load</span></span>(<span>path: str) ‑> object</span>
 </code></dt>
 <dd>
 <div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+def safe_load(path: str) -&gt; object:
+    return torch.load(path, map_location=&#34;cpu&#34;, weights_only=True)</code></pre>
+</details>
 </dd>
 </dl>
 </section>
@@ -267,14 +696,290 @@ class Config:
 <dt id="saev.scripts.visuals.Config.ckpt"><code class="name">var <span class="ident">ckpt</span> : str</code></dt>
 <dd>
 <div class="desc"><p>Path to the sae.pt file.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+@dataclasses.dataclass(frozen=True, slots=True)
+class Config:
+    &#34;&#34;&#34;Configuration for generating visuals from trained SAEs.&#34;&#34;&#34;
+
+    # Disk
+    ckpt: str = os.path.join(&#34;.&#34;, &#34;checkpoints&#34;, &#34;sae.pt&#34;)
+    &#34;&#34;&#34;Path to the sae.pt file.&#34;&#34;&#34;
+    data: saev.data.OrderedConfig = dataclasses.field(
+        default_factory=saev.data.OrderedConfig
+    )
+    &#34;&#34;&#34;Data configuration&#34;&#34;&#34;
+    images: saev.data.images.Config = dataclasses.field(
+        default_factory=saev.data.images.Imagenet
+    )
+    &#34;&#34;&#34;Which images to use.&#34;&#34;&#34;
+    dump_to: str = os.path.join(&#34;.&#34;, &#34;data&#34;)
+    &#34;&#34;&#34;Where to save data.&#34;&#34;&#34;
+
+    # Algorithm
+    top_k: int = 128
+    &#34;&#34;&#34;How many images per SAE feature to store.&#34;&#34;&#34;
+    epsilon: float = 1e-9
+    &#34;&#34;&#34;Value to add to avoid log(0).&#34;&#34;&#34;
+    sort_by: typing.Literal[&#34;cls&#34;, &#34;img&#34;, &#34;patch&#34;] = &#34;patch&#34;
+    &#34;&#34;&#34;How to find the top k images. &#39;cls&#39; picks images where the SAE latents of the ViT&#39;s [CLS] token are maximized without any patch highligting. &#39;img&#39; picks images that maximize the sum of an SAE latent over all patches in the image, highlighting the patches. &#39;patch&#39; pickes images that maximize an SAE latent over all patches (not summed), highlighting the patches and only showing unique images.&#34;&#34;&#34;
+    log_freq_range: tuple[float, float] = (-6.0, -2.0)
+    &#34;&#34;&#34;Log10 frequency range for which to save images.&#34;&#34;&#34;
+    log_value_range: tuple[float, float] = (-1.0, 1.0)
+    &#34;&#34;&#34;Log10 frequency range for which to save images.&#34;&#34;&#34;
+    include_latents: list[int] = dataclasses.field(default_factory=list)
+    &#34;&#34;&#34;Latents to always include, no matter what.&#34;&#34;&#34;
+    n_distributions: int = 25
+    &#34;&#34;&#34;Number of features to save distributions for.&#34;&#34;&#34;
+    percentile: int = 99
+    &#34;&#34;&#34;Percentile to estimate for outlier detection.&#34;&#34;&#34;
+    n_latents: int = 400
+    &#34;&#34;&#34;Maximum number of latents to save images for.&#34;&#34;&#34;
+    sae_batch_size: int = 1024 * 16
+    &#34;&#34;&#34;Batch size for SAE inference.&#34;&#34;&#34;
+    topk_batch_size: int = 1024 * 16
+
+    # Hardware
+    device: str = &#34;cuda&#34;
+    &#34;&#34;&#34;Which accelerator to use.&#34;&#34;&#34;
+    seed: int = 42
+    &#34;&#34;&#34;Random seed.&#34;&#34;&#34;
+    slurm_acct: str = &#34;&#34;
+    &#34;&#34;&#34;Slurm account string. Empty means to not use Slurm.&#34;&#34;&#34;
+    slurm_partition: str = &#34;&#34;
+    &#34;&#34;&#34;Slurm partition.&#34;&#34;&#34;
+    n_hours: float = 4.0
+    &#34;&#34;&#34;Slurm job length in hours.&#34;&#34;&#34;
+    log_to: str = os.path.join(&#34;.&#34;, &#34;logs&#34;)
+    &#34;&#34;&#34;Where to log Slurm job stdout/stderr.&#34;&#34;&#34;
+
+    @property
+    def root(self) -&gt; str:
+        return os.path.join(self.dump_to, f&#34;sort_by_{self.sort_by}&#34;)
+
+    @property
+    def top_values_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;top_values.pt&#34;)
+
+    @property
+    def top_img_i_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;top_img_i.pt&#34;)
+
+    @property
+    def top_patch_i_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;top_patch_i.pt&#34;)
+
+    @property
+    def mean_values_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;mean_values.pt&#34;)
+
+    @property
+    def sparsity_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;sparsity.pt&#34;)
+
+    @property
+    def distributions_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;distributions.pt&#34;)
+
+    @property
+    def percentiles_fpath(self) -&gt; str:
+        return os.path.join(self.root, f&#34;percentiles_p{self.percentile}.pt&#34;)</code></pre>
+</details>
 </dd>
 <dt id="saev.scripts.visuals.Config.data"><code class="name">var <span class="ident">data</span> : <a title="saev.data.ordered.Config" href="../data/ordered.html#saev.data.ordered.Config">Config</a></code></dt>
 <dd>
 <div class="desc"><p>Data configuration</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+@dataclasses.dataclass(frozen=True, slots=True)
+class Config:
+    &#34;&#34;&#34;Configuration for generating visuals from trained SAEs.&#34;&#34;&#34;
+
+    # Disk
+    ckpt: str = os.path.join(&#34;.&#34;, &#34;checkpoints&#34;, &#34;sae.pt&#34;)
+    &#34;&#34;&#34;Path to the sae.pt file.&#34;&#34;&#34;
+    data: saev.data.OrderedConfig = dataclasses.field(
+        default_factory=saev.data.OrderedConfig
+    )
+    &#34;&#34;&#34;Data configuration&#34;&#34;&#34;
+    images: saev.data.images.Config = dataclasses.field(
+        default_factory=saev.data.images.Imagenet
+    )
+    &#34;&#34;&#34;Which images to use.&#34;&#34;&#34;
+    dump_to: str = os.path.join(&#34;.&#34;, &#34;data&#34;)
+    &#34;&#34;&#34;Where to save data.&#34;&#34;&#34;
+
+    # Algorithm
+    top_k: int = 128
+    &#34;&#34;&#34;How many images per SAE feature to store.&#34;&#34;&#34;
+    epsilon: float = 1e-9
+    &#34;&#34;&#34;Value to add to avoid log(0).&#34;&#34;&#34;
+    sort_by: typing.Literal[&#34;cls&#34;, &#34;img&#34;, &#34;patch&#34;] = &#34;patch&#34;
+    &#34;&#34;&#34;How to find the top k images. &#39;cls&#39; picks images where the SAE latents of the ViT&#39;s [CLS] token are maximized without any patch highligting. &#39;img&#39; picks images that maximize the sum of an SAE latent over all patches in the image, highlighting the patches. &#39;patch&#39; pickes images that maximize an SAE latent over all patches (not summed), highlighting the patches and only showing unique images.&#34;&#34;&#34;
+    log_freq_range: tuple[float, float] = (-6.0, -2.0)
+    &#34;&#34;&#34;Log10 frequency range for which to save images.&#34;&#34;&#34;
+    log_value_range: tuple[float, float] = (-1.0, 1.0)
+    &#34;&#34;&#34;Log10 frequency range for which to save images.&#34;&#34;&#34;
+    include_latents: list[int] = dataclasses.field(default_factory=list)
+    &#34;&#34;&#34;Latents to always include, no matter what.&#34;&#34;&#34;
+    n_distributions: int = 25
+    &#34;&#34;&#34;Number of features to save distributions for.&#34;&#34;&#34;
+    percentile: int = 99
+    &#34;&#34;&#34;Percentile to estimate for outlier detection.&#34;&#34;&#34;
+    n_latents: int = 400
+    &#34;&#34;&#34;Maximum number of latents to save images for.&#34;&#34;&#34;
+    sae_batch_size: int = 1024 * 16
+    &#34;&#34;&#34;Batch size for SAE inference.&#34;&#34;&#34;
+    topk_batch_size: int = 1024 * 16
+
+    # Hardware
+    device: str = &#34;cuda&#34;
+    &#34;&#34;&#34;Which accelerator to use.&#34;&#34;&#34;
+    seed: int = 42
+    &#34;&#34;&#34;Random seed.&#34;&#34;&#34;
+    slurm_acct: str = &#34;&#34;
+    &#34;&#34;&#34;Slurm account string. Empty means to not use Slurm.&#34;&#34;&#34;
+    slurm_partition: str = &#34;&#34;
+    &#34;&#34;&#34;Slurm partition.&#34;&#34;&#34;
+    n_hours: float = 4.0
+    &#34;&#34;&#34;Slurm job length in hours.&#34;&#34;&#34;
+    log_to: str = os.path.join(&#34;.&#34;, &#34;logs&#34;)
+    &#34;&#34;&#34;Where to log Slurm job stdout/stderr.&#34;&#34;&#34;
+
+    @property
+    def root(self) -&gt; str:
+        return os.path.join(self.dump_to, f&#34;sort_by_{self.sort_by}&#34;)
+
+    @property
+    def top_values_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;top_values.pt&#34;)
+
+    @property
+    def top_img_i_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;top_img_i.pt&#34;)
+
+    @property
+    def top_patch_i_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;top_patch_i.pt&#34;)
+
+    @property
+    def mean_values_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;mean_values.pt&#34;)
+
+    @property
+    def sparsity_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;sparsity.pt&#34;)
+
+    @property
+    def distributions_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;distributions.pt&#34;)
+
+    @property
+    def percentiles_fpath(self) -&gt; str:
+        return os.path.join(self.root, f&#34;percentiles_p{self.percentile}.pt&#34;)</code></pre>
+</details>
 </dd>
 <dt id="saev.scripts.visuals.Config.device"><code class="name">var <span class="ident">device</span> : str</code></dt>
 <dd>
 <div class="desc"><p>Which accelerator to use.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+@dataclasses.dataclass(frozen=True, slots=True)
+class Config:
+    &#34;&#34;&#34;Configuration for generating visuals from trained SAEs.&#34;&#34;&#34;
+
+    # Disk
+    ckpt: str = os.path.join(&#34;.&#34;, &#34;checkpoints&#34;, &#34;sae.pt&#34;)
+    &#34;&#34;&#34;Path to the sae.pt file.&#34;&#34;&#34;
+    data: saev.data.OrderedConfig = dataclasses.field(
+        default_factory=saev.data.OrderedConfig
+    )
+    &#34;&#34;&#34;Data configuration&#34;&#34;&#34;
+    images: saev.data.images.Config = dataclasses.field(
+        default_factory=saev.data.images.Imagenet
+    )
+    &#34;&#34;&#34;Which images to use.&#34;&#34;&#34;
+    dump_to: str = os.path.join(&#34;.&#34;, &#34;data&#34;)
+    &#34;&#34;&#34;Where to save data.&#34;&#34;&#34;
+
+    # Algorithm
+    top_k: int = 128
+    &#34;&#34;&#34;How many images per SAE feature to store.&#34;&#34;&#34;
+    epsilon: float = 1e-9
+    &#34;&#34;&#34;Value to add to avoid log(0).&#34;&#34;&#34;
+    sort_by: typing.Literal[&#34;cls&#34;, &#34;img&#34;, &#34;patch&#34;] = &#34;patch&#34;
+    &#34;&#34;&#34;How to find the top k images. &#39;cls&#39; picks images where the SAE latents of the ViT&#39;s [CLS] token are maximized without any patch highligting. &#39;img&#39; picks images that maximize the sum of an SAE latent over all patches in the image, highlighting the patches. &#39;patch&#39; pickes images that maximize an SAE latent over all patches (not summed), highlighting the patches and only showing unique images.&#34;&#34;&#34;
+    log_freq_range: tuple[float, float] = (-6.0, -2.0)
+    &#34;&#34;&#34;Log10 frequency range for which to save images.&#34;&#34;&#34;
+    log_value_range: tuple[float, float] = (-1.0, 1.0)
+    &#34;&#34;&#34;Log10 frequency range for which to save images.&#34;&#34;&#34;
+    include_latents: list[int] = dataclasses.field(default_factory=list)
+    &#34;&#34;&#34;Latents to always include, no matter what.&#34;&#34;&#34;
+    n_distributions: int = 25
+    &#34;&#34;&#34;Number of features to save distributions for.&#34;&#34;&#34;
+    percentile: int = 99
+    &#34;&#34;&#34;Percentile to estimate for outlier detection.&#34;&#34;&#34;
+    n_latents: int = 400
+    &#34;&#34;&#34;Maximum number of latents to save images for.&#34;&#34;&#34;
+    sae_batch_size: int = 1024 * 16
+    &#34;&#34;&#34;Batch size for SAE inference.&#34;&#34;&#34;
+    topk_batch_size: int = 1024 * 16
+
+    # Hardware
+    device: str = &#34;cuda&#34;
+    &#34;&#34;&#34;Which accelerator to use.&#34;&#34;&#34;
+    seed: int = 42
+    &#34;&#34;&#34;Random seed.&#34;&#34;&#34;
+    slurm_acct: str = &#34;&#34;
+    &#34;&#34;&#34;Slurm account string. Empty means to not use Slurm.&#34;&#34;&#34;
+    slurm_partition: str = &#34;&#34;
+    &#34;&#34;&#34;Slurm partition.&#34;&#34;&#34;
+    n_hours: float = 4.0
+    &#34;&#34;&#34;Slurm job length in hours.&#34;&#34;&#34;
+    log_to: str = os.path.join(&#34;.&#34;, &#34;logs&#34;)
+    &#34;&#34;&#34;Where to log Slurm job stdout/stderr.&#34;&#34;&#34;
+
+    @property
+    def root(self) -&gt; str:
+        return os.path.join(self.dump_to, f&#34;sort_by_{self.sort_by}&#34;)
+
+    @property
+    def top_values_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;top_values.pt&#34;)
+
+    @property
+    def top_img_i_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;top_img_i.pt&#34;)
+
+    @property
+    def top_patch_i_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;top_patch_i.pt&#34;)
+
+    @property
+    def mean_values_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;mean_values.pt&#34;)
+
+    @property
+    def sparsity_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;sparsity.pt&#34;)
+
+    @property
+    def distributions_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;distributions.pt&#34;)
+
+    @property
+    def percentiles_fpath(self) -&gt; str:
+        return os.path.join(self.root, f&#34;percentiles_p{self.percentile}.pt&#34;)</code></pre>
+</details>
 </dd>
 <dt id="saev.scripts.visuals.Config.distributions_fpath"><code class="name">prop <span class="ident">distributions_fpath</span> : str</code></dt>
 <dd>
@@ -291,30 +996,674 @@ def distributions_fpath(self) -&gt; str:
 <dt id="saev.scripts.visuals.Config.dump_to"><code class="name">var <span class="ident">dump_to</span> : str</code></dt>
 <dd>
 <div class="desc"><p>Where to save data.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+@dataclasses.dataclass(frozen=True, slots=True)
+class Config:
+    &#34;&#34;&#34;Configuration for generating visuals from trained SAEs.&#34;&#34;&#34;
+
+    # Disk
+    ckpt: str = os.path.join(&#34;.&#34;, &#34;checkpoints&#34;, &#34;sae.pt&#34;)
+    &#34;&#34;&#34;Path to the sae.pt file.&#34;&#34;&#34;
+    data: saev.data.OrderedConfig = dataclasses.field(
+        default_factory=saev.data.OrderedConfig
+    )
+    &#34;&#34;&#34;Data configuration&#34;&#34;&#34;
+    images: saev.data.images.Config = dataclasses.field(
+        default_factory=saev.data.images.Imagenet
+    )
+    &#34;&#34;&#34;Which images to use.&#34;&#34;&#34;
+    dump_to: str = os.path.join(&#34;.&#34;, &#34;data&#34;)
+    &#34;&#34;&#34;Where to save data.&#34;&#34;&#34;
+
+    # Algorithm
+    top_k: int = 128
+    &#34;&#34;&#34;How many images per SAE feature to store.&#34;&#34;&#34;
+    epsilon: float = 1e-9
+    &#34;&#34;&#34;Value to add to avoid log(0).&#34;&#34;&#34;
+    sort_by: typing.Literal[&#34;cls&#34;, &#34;img&#34;, &#34;patch&#34;] = &#34;patch&#34;
+    &#34;&#34;&#34;How to find the top k images. &#39;cls&#39; picks images where the SAE latents of the ViT&#39;s [CLS] token are maximized without any patch highligting. &#39;img&#39; picks images that maximize the sum of an SAE latent over all patches in the image, highlighting the patches. &#39;patch&#39; pickes images that maximize an SAE latent over all patches (not summed), highlighting the patches and only showing unique images.&#34;&#34;&#34;
+    log_freq_range: tuple[float, float] = (-6.0, -2.0)
+    &#34;&#34;&#34;Log10 frequency range for which to save images.&#34;&#34;&#34;
+    log_value_range: tuple[float, float] = (-1.0, 1.0)
+    &#34;&#34;&#34;Log10 frequency range for which to save images.&#34;&#34;&#34;
+    include_latents: list[int] = dataclasses.field(default_factory=list)
+    &#34;&#34;&#34;Latents to always include, no matter what.&#34;&#34;&#34;
+    n_distributions: int = 25
+    &#34;&#34;&#34;Number of features to save distributions for.&#34;&#34;&#34;
+    percentile: int = 99
+    &#34;&#34;&#34;Percentile to estimate for outlier detection.&#34;&#34;&#34;
+    n_latents: int = 400
+    &#34;&#34;&#34;Maximum number of latents to save images for.&#34;&#34;&#34;
+    sae_batch_size: int = 1024 * 16
+    &#34;&#34;&#34;Batch size for SAE inference.&#34;&#34;&#34;
+    topk_batch_size: int = 1024 * 16
+
+    # Hardware
+    device: str = &#34;cuda&#34;
+    &#34;&#34;&#34;Which accelerator to use.&#34;&#34;&#34;
+    seed: int = 42
+    &#34;&#34;&#34;Random seed.&#34;&#34;&#34;
+    slurm_acct: str = &#34;&#34;
+    &#34;&#34;&#34;Slurm account string. Empty means to not use Slurm.&#34;&#34;&#34;
+    slurm_partition: str = &#34;&#34;
+    &#34;&#34;&#34;Slurm partition.&#34;&#34;&#34;
+    n_hours: float = 4.0
+    &#34;&#34;&#34;Slurm job length in hours.&#34;&#34;&#34;
+    log_to: str = os.path.join(&#34;.&#34;, &#34;logs&#34;)
+    &#34;&#34;&#34;Where to log Slurm job stdout/stderr.&#34;&#34;&#34;
+
+    @property
+    def root(self) -&gt; str:
+        return os.path.join(self.dump_to, f&#34;sort_by_{self.sort_by}&#34;)
+
+    @property
+    def top_values_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;top_values.pt&#34;)
+
+    @property
+    def top_img_i_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;top_img_i.pt&#34;)
+
+    @property
+    def top_patch_i_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;top_patch_i.pt&#34;)
+
+    @property
+    def mean_values_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;mean_values.pt&#34;)
+
+    @property
+    def sparsity_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;sparsity.pt&#34;)
+
+    @property
+    def distributions_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;distributions.pt&#34;)
+
+    @property
+    def percentiles_fpath(self) -&gt; str:
+        return os.path.join(self.root, f&#34;percentiles_p{self.percentile}.pt&#34;)</code></pre>
+</details>
 </dd>
 <dt id="saev.scripts.visuals.Config.epsilon"><code class="name">var <span class="ident">epsilon</span> : float</code></dt>
 <dd>
 <div class="desc"><p>Value to add to avoid log(0).</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+@dataclasses.dataclass(frozen=True, slots=True)
+class Config:
+    &#34;&#34;&#34;Configuration for generating visuals from trained SAEs.&#34;&#34;&#34;
+
+    # Disk
+    ckpt: str = os.path.join(&#34;.&#34;, &#34;checkpoints&#34;, &#34;sae.pt&#34;)
+    &#34;&#34;&#34;Path to the sae.pt file.&#34;&#34;&#34;
+    data: saev.data.OrderedConfig = dataclasses.field(
+        default_factory=saev.data.OrderedConfig
+    )
+    &#34;&#34;&#34;Data configuration&#34;&#34;&#34;
+    images: saev.data.images.Config = dataclasses.field(
+        default_factory=saev.data.images.Imagenet
+    )
+    &#34;&#34;&#34;Which images to use.&#34;&#34;&#34;
+    dump_to: str = os.path.join(&#34;.&#34;, &#34;data&#34;)
+    &#34;&#34;&#34;Where to save data.&#34;&#34;&#34;
+
+    # Algorithm
+    top_k: int = 128
+    &#34;&#34;&#34;How many images per SAE feature to store.&#34;&#34;&#34;
+    epsilon: float = 1e-9
+    &#34;&#34;&#34;Value to add to avoid log(0).&#34;&#34;&#34;
+    sort_by: typing.Literal[&#34;cls&#34;, &#34;img&#34;, &#34;patch&#34;] = &#34;patch&#34;
+    &#34;&#34;&#34;How to find the top k images. &#39;cls&#39; picks images where the SAE latents of the ViT&#39;s [CLS] token are maximized without any patch highligting. &#39;img&#39; picks images that maximize the sum of an SAE latent over all patches in the image, highlighting the patches. &#39;patch&#39; pickes images that maximize an SAE latent over all patches (not summed), highlighting the patches and only showing unique images.&#34;&#34;&#34;
+    log_freq_range: tuple[float, float] = (-6.0, -2.0)
+    &#34;&#34;&#34;Log10 frequency range for which to save images.&#34;&#34;&#34;
+    log_value_range: tuple[float, float] = (-1.0, 1.0)
+    &#34;&#34;&#34;Log10 frequency range for which to save images.&#34;&#34;&#34;
+    include_latents: list[int] = dataclasses.field(default_factory=list)
+    &#34;&#34;&#34;Latents to always include, no matter what.&#34;&#34;&#34;
+    n_distributions: int = 25
+    &#34;&#34;&#34;Number of features to save distributions for.&#34;&#34;&#34;
+    percentile: int = 99
+    &#34;&#34;&#34;Percentile to estimate for outlier detection.&#34;&#34;&#34;
+    n_latents: int = 400
+    &#34;&#34;&#34;Maximum number of latents to save images for.&#34;&#34;&#34;
+    sae_batch_size: int = 1024 * 16
+    &#34;&#34;&#34;Batch size for SAE inference.&#34;&#34;&#34;
+    topk_batch_size: int = 1024 * 16
+
+    # Hardware
+    device: str = &#34;cuda&#34;
+    &#34;&#34;&#34;Which accelerator to use.&#34;&#34;&#34;
+    seed: int = 42
+    &#34;&#34;&#34;Random seed.&#34;&#34;&#34;
+    slurm_acct: str = &#34;&#34;
+    &#34;&#34;&#34;Slurm account string. Empty means to not use Slurm.&#34;&#34;&#34;
+    slurm_partition: str = &#34;&#34;
+    &#34;&#34;&#34;Slurm partition.&#34;&#34;&#34;
+    n_hours: float = 4.0
+    &#34;&#34;&#34;Slurm job length in hours.&#34;&#34;&#34;
+    log_to: str = os.path.join(&#34;.&#34;, &#34;logs&#34;)
+    &#34;&#34;&#34;Where to log Slurm job stdout/stderr.&#34;&#34;&#34;
+
+    @property
+    def root(self) -&gt; str:
+        return os.path.join(self.dump_to, f&#34;sort_by_{self.sort_by}&#34;)
+
+    @property
+    def top_values_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;top_values.pt&#34;)
+
+    @property
+    def top_img_i_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;top_img_i.pt&#34;)
+
+    @property
+    def top_patch_i_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;top_patch_i.pt&#34;)
+
+    @property
+    def mean_values_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;mean_values.pt&#34;)
+
+    @property
+    def sparsity_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;sparsity.pt&#34;)
+
+    @property
+    def distributions_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;distributions.pt&#34;)
+
+    @property
+    def percentiles_fpath(self) -&gt; str:
+        return os.path.join(self.root, f&#34;percentiles_p{self.percentile}.pt&#34;)</code></pre>
+</details>
 </dd>
 <dt id="saev.scripts.visuals.Config.images"><code class="name">var <span class="ident">images</span> : <a title="saev.data.images.Imagenet" href="../data/images.html#saev.data.images.Imagenet">Imagenet</a> | <a title="saev.data.images.ImageFolder" href="../data/images.html#saev.data.images.ImageFolder">ImageFolder</a> | <a title="saev.data.images.Ade20k" href="../data/images.html#saev.data.images.Ade20k">Ade20k</a> | <a title="saev.data.images.Fake" href="../data/images.html#saev.data.images.Fake">Fake</a></code></dt>
 <dd>
 <div class="desc"><p>Which images to use.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+@dataclasses.dataclass(frozen=True, slots=True)
+class Config:
+    &#34;&#34;&#34;Configuration for generating visuals from trained SAEs.&#34;&#34;&#34;
+
+    # Disk
+    ckpt: str = os.path.join(&#34;.&#34;, &#34;checkpoints&#34;, &#34;sae.pt&#34;)
+    &#34;&#34;&#34;Path to the sae.pt file.&#34;&#34;&#34;
+    data: saev.data.OrderedConfig = dataclasses.field(
+        default_factory=saev.data.OrderedConfig
+    )
+    &#34;&#34;&#34;Data configuration&#34;&#34;&#34;
+    images: saev.data.images.Config = dataclasses.field(
+        default_factory=saev.data.images.Imagenet
+    )
+    &#34;&#34;&#34;Which images to use.&#34;&#34;&#34;
+    dump_to: str = os.path.join(&#34;.&#34;, &#34;data&#34;)
+    &#34;&#34;&#34;Where to save data.&#34;&#34;&#34;
+
+    # Algorithm
+    top_k: int = 128
+    &#34;&#34;&#34;How many images per SAE feature to store.&#34;&#34;&#34;
+    epsilon: float = 1e-9
+    &#34;&#34;&#34;Value to add to avoid log(0).&#34;&#34;&#34;
+    sort_by: typing.Literal[&#34;cls&#34;, &#34;img&#34;, &#34;patch&#34;] = &#34;patch&#34;
+    &#34;&#34;&#34;How to find the top k images. &#39;cls&#39; picks images where the SAE latents of the ViT&#39;s [CLS] token are maximized without any patch highligting. &#39;img&#39; picks images that maximize the sum of an SAE latent over all patches in the image, highlighting the patches. &#39;patch&#39; pickes images that maximize an SAE latent over all patches (not summed), highlighting the patches and only showing unique images.&#34;&#34;&#34;
+    log_freq_range: tuple[float, float] = (-6.0, -2.0)
+    &#34;&#34;&#34;Log10 frequency range for which to save images.&#34;&#34;&#34;
+    log_value_range: tuple[float, float] = (-1.0, 1.0)
+    &#34;&#34;&#34;Log10 frequency range for which to save images.&#34;&#34;&#34;
+    include_latents: list[int] = dataclasses.field(default_factory=list)
+    &#34;&#34;&#34;Latents to always include, no matter what.&#34;&#34;&#34;
+    n_distributions: int = 25
+    &#34;&#34;&#34;Number of features to save distributions for.&#34;&#34;&#34;
+    percentile: int = 99
+    &#34;&#34;&#34;Percentile to estimate for outlier detection.&#34;&#34;&#34;
+    n_latents: int = 400
+    &#34;&#34;&#34;Maximum number of latents to save images for.&#34;&#34;&#34;
+    sae_batch_size: int = 1024 * 16
+    &#34;&#34;&#34;Batch size for SAE inference.&#34;&#34;&#34;
+    topk_batch_size: int = 1024 * 16
+
+    # Hardware
+    device: str = &#34;cuda&#34;
+    &#34;&#34;&#34;Which accelerator to use.&#34;&#34;&#34;
+    seed: int = 42
+    &#34;&#34;&#34;Random seed.&#34;&#34;&#34;
+    slurm_acct: str = &#34;&#34;
+    &#34;&#34;&#34;Slurm account string. Empty means to not use Slurm.&#34;&#34;&#34;
+    slurm_partition: str = &#34;&#34;
+    &#34;&#34;&#34;Slurm partition.&#34;&#34;&#34;
+    n_hours: float = 4.0
+    &#34;&#34;&#34;Slurm job length in hours.&#34;&#34;&#34;
+    log_to: str = os.path.join(&#34;.&#34;, &#34;logs&#34;)
+    &#34;&#34;&#34;Where to log Slurm job stdout/stderr.&#34;&#34;&#34;
+
+    @property
+    def root(self) -&gt; str:
+        return os.path.join(self.dump_to, f&#34;sort_by_{self.sort_by}&#34;)
+
+    @property
+    def top_values_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;top_values.pt&#34;)
+
+    @property
+    def top_img_i_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;top_img_i.pt&#34;)
+
+    @property
+    def top_patch_i_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;top_patch_i.pt&#34;)
+
+    @property
+    def mean_values_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;mean_values.pt&#34;)
+
+    @property
+    def sparsity_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;sparsity.pt&#34;)
+
+    @property
+    def distributions_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;distributions.pt&#34;)
+
+    @property
+    def percentiles_fpath(self) -&gt; str:
+        return os.path.join(self.root, f&#34;percentiles_p{self.percentile}.pt&#34;)</code></pre>
+</details>
 </dd>
 <dt id="saev.scripts.visuals.Config.include_latents"><code class="name">var <span class="ident">include_latents</span> : list[int]</code></dt>
 <dd>
 <div class="desc"><p>Latents to always include, no matter what.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+@dataclasses.dataclass(frozen=True, slots=True)
+class Config:
+    &#34;&#34;&#34;Configuration for generating visuals from trained SAEs.&#34;&#34;&#34;
+
+    # Disk
+    ckpt: str = os.path.join(&#34;.&#34;, &#34;checkpoints&#34;, &#34;sae.pt&#34;)
+    &#34;&#34;&#34;Path to the sae.pt file.&#34;&#34;&#34;
+    data: saev.data.OrderedConfig = dataclasses.field(
+        default_factory=saev.data.OrderedConfig
+    )
+    &#34;&#34;&#34;Data configuration&#34;&#34;&#34;
+    images: saev.data.images.Config = dataclasses.field(
+        default_factory=saev.data.images.Imagenet
+    )
+    &#34;&#34;&#34;Which images to use.&#34;&#34;&#34;
+    dump_to: str = os.path.join(&#34;.&#34;, &#34;data&#34;)
+    &#34;&#34;&#34;Where to save data.&#34;&#34;&#34;
+
+    # Algorithm
+    top_k: int = 128
+    &#34;&#34;&#34;How many images per SAE feature to store.&#34;&#34;&#34;
+    epsilon: float = 1e-9
+    &#34;&#34;&#34;Value to add to avoid log(0).&#34;&#34;&#34;
+    sort_by: typing.Literal[&#34;cls&#34;, &#34;img&#34;, &#34;patch&#34;] = &#34;patch&#34;
+    &#34;&#34;&#34;How to find the top k images. &#39;cls&#39; picks images where the SAE latents of the ViT&#39;s [CLS] token are maximized without any patch highligting. &#39;img&#39; picks images that maximize the sum of an SAE latent over all patches in the image, highlighting the patches. &#39;patch&#39; pickes images that maximize an SAE latent over all patches (not summed), highlighting the patches and only showing unique images.&#34;&#34;&#34;
+    log_freq_range: tuple[float, float] = (-6.0, -2.0)
+    &#34;&#34;&#34;Log10 frequency range for which to save images.&#34;&#34;&#34;
+    log_value_range: tuple[float, float] = (-1.0, 1.0)
+    &#34;&#34;&#34;Log10 frequency range for which to save images.&#34;&#34;&#34;
+    include_latents: list[int] = dataclasses.field(default_factory=list)
+    &#34;&#34;&#34;Latents to always include, no matter what.&#34;&#34;&#34;
+    n_distributions: int = 25
+    &#34;&#34;&#34;Number of features to save distributions for.&#34;&#34;&#34;
+    percentile: int = 99
+    &#34;&#34;&#34;Percentile to estimate for outlier detection.&#34;&#34;&#34;
+    n_latents: int = 400
+    &#34;&#34;&#34;Maximum number of latents to save images for.&#34;&#34;&#34;
+    sae_batch_size: int = 1024 * 16
+    &#34;&#34;&#34;Batch size for SAE inference.&#34;&#34;&#34;
+    topk_batch_size: int = 1024 * 16
+
+    # Hardware
+    device: str = &#34;cuda&#34;
+    &#34;&#34;&#34;Which accelerator to use.&#34;&#34;&#34;
+    seed: int = 42
+    &#34;&#34;&#34;Random seed.&#34;&#34;&#34;
+    slurm_acct: str = &#34;&#34;
+    &#34;&#34;&#34;Slurm account string. Empty means to not use Slurm.&#34;&#34;&#34;
+    slurm_partition: str = &#34;&#34;
+    &#34;&#34;&#34;Slurm partition.&#34;&#34;&#34;
+    n_hours: float = 4.0
+    &#34;&#34;&#34;Slurm job length in hours.&#34;&#34;&#34;
+    log_to: str = os.path.join(&#34;.&#34;, &#34;logs&#34;)
+    &#34;&#34;&#34;Where to log Slurm job stdout/stderr.&#34;&#34;&#34;
+
+    @property
+    def root(self) -&gt; str:
+        return os.path.join(self.dump_to, f&#34;sort_by_{self.sort_by}&#34;)
+
+    @property
+    def top_values_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;top_values.pt&#34;)
+
+    @property
+    def top_img_i_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;top_img_i.pt&#34;)
+
+    @property
+    def top_patch_i_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;top_patch_i.pt&#34;)
+
+    @property
+    def mean_values_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;mean_values.pt&#34;)
+
+    @property
+    def sparsity_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;sparsity.pt&#34;)
+
+    @property
+    def distributions_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;distributions.pt&#34;)
+
+    @property
+    def percentiles_fpath(self) -&gt; str:
+        return os.path.join(self.root, f&#34;percentiles_p{self.percentile}.pt&#34;)</code></pre>
+</details>
 </dd>
 <dt id="saev.scripts.visuals.Config.log_freq_range"><code class="name">var <span class="ident">log_freq_range</span> : tuple[float, float]</code></dt>
 <dd>
 <div class="desc"><p>Log10 frequency range for which to save images.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+@dataclasses.dataclass(frozen=True, slots=True)
+class Config:
+    &#34;&#34;&#34;Configuration for generating visuals from trained SAEs.&#34;&#34;&#34;
+
+    # Disk
+    ckpt: str = os.path.join(&#34;.&#34;, &#34;checkpoints&#34;, &#34;sae.pt&#34;)
+    &#34;&#34;&#34;Path to the sae.pt file.&#34;&#34;&#34;
+    data: saev.data.OrderedConfig = dataclasses.field(
+        default_factory=saev.data.OrderedConfig
+    )
+    &#34;&#34;&#34;Data configuration&#34;&#34;&#34;
+    images: saev.data.images.Config = dataclasses.field(
+        default_factory=saev.data.images.Imagenet
+    )
+    &#34;&#34;&#34;Which images to use.&#34;&#34;&#34;
+    dump_to: str = os.path.join(&#34;.&#34;, &#34;data&#34;)
+    &#34;&#34;&#34;Where to save data.&#34;&#34;&#34;
+
+    # Algorithm
+    top_k: int = 128
+    &#34;&#34;&#34;How many images per SAE feature to store.&#34;&#34;&#34;
+    epsilon: float = 1e-9
+    &#34;&#34;&#34;Value to add to avoid log(0).&#34;&#34;&#34;
+    sort_by: typing.Literal[&#34;cls&#34;, &#34;img&#34;, &#34;patch&#34;] = &#34;patch&#34;
+    &#34;&#34;&#34;How to find the top k images. &#39;cls&#39; picks images where the SAE latents of the ViT&#39;s [CLS] token are maximized without any patch highligting. &#39;img&#39; picks images that maximize the sum of an SAE latent over all patches in the image, highlighting the patches. &#39;patch&#39; pickes images that maximize an SAE latent over all patches (not summed), highlighting the patches and only showing unique images.&#34;&#34;&#34;
+    log_freq_range: tuple[float, float] = (-6.0, -2.0)
+    &#34;&#34;&#34;Log10 frequency range for which to save images.&#34;&#34;&#34;
+    log_value_range: tuple[float, float] = (-1.0, 1.0)
+    &#34;&#34;&#34;Log10 frequency range for which to save images.&#34;&#34;&#34;
+    include_latents: list[int] = dataclasses.field(default_factory=list)
+    &#34;&#34;&#34;Latents to always include, no matter what.&#34;&#34;&#34;
+    n_distributions: int = 25
+    &#34;&#34;&#34;Number of features to save distributions for.&#34;&#34;&#34;
+    percentile: int = 99
+    &#34;&#34;&#34;Percentile to estimate for outlier detection.&#34;&#34;&#34;
+    n_latents: int = 400
+    &#34;&#34;&#34;Maximum number of latents to save images for.&#34;&#34;&#34;
+    sae_batch_size: int = 1024 * 16
+    &#34;&#34;&#34;Batch size for SAE inference.&#34;&#34;&#34;
+    topk_batch_size: int = 1024 * 16
+
+    # Hardware
+    device: str = &#34;cuda&#34;
+    &#34;&#34;&#34;Which accelerator to use.&#34;&#34;&#34;
+    seed: int = 42
+    &#34;&#34;&#34;Random seed.&#34;&#34;&#34;
+    slurm_acct: str = &#34;&#34;
+    &#34;&#34;&#34;Slurm account string. Empty means to not use Slurm.&#34;&#34;&#34;
+    slurm_partition: str = &#34;&#34;
+    &#34;&#34;&#34;Slurm partition.&#34;&#34;&#34;
+    n_hours: float = 4.0
+    &#34;&#34;&#34;Slurm job length in hours.&#34;&#34;&#34;
+    log_to: str = os.path.join(&#34;.&#34;, &#34;logs&#34;)
+    &#34;&#34;&#34;Where to log Slurm job stdout/stderr.&#34;&#34;&#34;
+
+    @property
+    def root(self) -&gt; str:
+        return os.path.join(self.dump_to, f&#34;sort_by_{self.sort_by}&#34;)
+
+    @property
+    def top_values_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;top_values.pt&#34;)
+
+    @property
+    def top_img_i_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;top_img_i.pt&#34;)
+
+    @property
+    def top_patch_i_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;top_patch_i.pt&#34;)
+
+    @property
+    def mean_values_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;mean_values.pt&#34;)
+
+    @property
+    def sparsity_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;sparsity.pt&#34;)
+
+    @property
+    def distributions_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;distributions.pt&#34;)
+
+    @property
+    def percentiles_fpath(self) -&gt; str:
+        return os.path.join(self.root, f&#34;percentiles_p{self.percentile}.pt&#34;)</code></pre>
+</details>
 </dd>
 <dt id="saev.scripts.visuals.Config.log_to"><code class="name">var <span class="ident">log_to</span> : str</code></dt>
 <dd>
 <div class="desc"><p>Where to log Slurm job stdout/stderr.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+@dataclasses.dataclass(frozen=True, slots=True)
+class Config:
+    &#34;&#34;&#34;Configuration for generating visuals from trained SAEs.&#34;&#34;&#34;
+
+    # Disk
+    ckpt: str = os.path.join(&#34;.&#34;, &#34;checkpoints&#34;, &#34;sae.pt&#34;)
+    &#34;&#34;&#34;Path to the sae.pt file.&#34;&#34;&#34;
+    data: saev.data.OrderedConfig = dataclasses.field(
+        default_factory=saev.data.OrderedConfig
+    )
+    &#34;&#34;&#34;Data configuration&#34;&#34;&#34;
+    images: saev.data.images.Config = dataclasses.field(
+        default_factory=saev.data.images.Imagenet
+    )
+    &#34;&#34;&#34;Which images to use.&#34;&#34;&#34;
+    dump_to: str = os.path.join(&#34;.&#34;, &#34;data&#34;)
+    &#34;&#34;&#34;Where to save data.&#34;&#34;&#34;
+
+    # Algorithm
+    top_k: int = 128
+    &#34;&#34;&#34;How many images per SAE feature to store.&#34;&#34;&#34;
+    epsilon: float = 1e-9
+    &#34;&#34;&#34;Value to add to avoid log(0).&#34;&#34;&#34;
+    sort_by: typing.Literal[&#34;cls&#34;, &#34;img&#34;, &#34;patch&#34;] = &#34;patch&#34;
+    &#34;&#34;&#34;How to find the top k images. &#39;cls&#39; picks images where the SAE latents of the ViT&#39;s [CLS] token are maximized without any patch highligting. &#39;img&#39; picks images that maximize the sum of an SAE latent over all patches in the image, highlighting the patches. &#39;patch&#39; pickes images that maximize an SAE latent over all patches (not summed), highlighting the patches and only showing unique images.&#34;&#34;&#34;
+    log_freq_range: tuple[float, float] = (-6.0, -2.0)
+    &#34;&#34;&#34;Log10 frequency range for which to save images.&#34;&#34;&#34;
+    log_value_range: tuple[float, float] = (-1.0, 1.0)
+    &#34;&#34;&#34;Log10 frequency range for which to save images.&#34;&#34;&#34;
+    include_latents: list[int] = dataclasses.field(default_factory=list)
+    &#34;&#34;&#34;Latents to always include, no matter what.&#34;&#34;&#34;
+    n_distributions: int = 25
+    &#34;&#34;&#34;Number of features to save distributions for.&#34;&#34;&#34;
+    percentile: int = 99
+    &#34;&#34;&#34;Percentile to estimate for outlier detection.&#34;&#34;&#34;
+    n_latents: int = 400
+    &#34;&#34;&#34;Maximum number of latents to save images for.&#34;&#34;&#34;
+    sae_batch_size: int = 1024 * 16
+    &#34;&#34;&#34;Batch size for SAE inference.&#34;&#34;&#34;
+    topk_batch_size: int = 1024 * 16
+
+    # Hardware
+    device: str = &#34;cuda&#34;
+    &#34;&#34;&#34;Which accelerator to use.&#34;&#34;&#34;
+    seed: int = 42
+    &#34;&#34;&#34;Random seed.&#34;&#34;&#34;
+    slurm_acct: str = &#34;&#34;
+    &#34;&#34;&#34;Slurm account string. Empty means to not use Slurm.&#34;&#34;&#34;
+    slurm_partition: str = &#34;&#34;
+    &#34;&#34;&#34;Slurm partition.&#34;&#34;&#34;
+    n_hours: float = 4.0
+    &#34;&#34;&#34;Slurm job length in hours.&#34;&#34;&#34;
+    log_to: str = os.path.join(&#34;.&#34;, &#34;logs&#34;)
+    &#34;&#34;&#34;Where to log Slurm job stdout/stderr.&#34;&#34;&#34;
+
+    @property
+    def root(self) -&gt; str:
+        return os.path.join(self.dump_to, f&#34;sort_by_{self.sort_by}&#34;)
+
+    @property
+    def top_values_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;top_values.pt&#34;)
+
+    @property
+    def top_img_i_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;top_img_i.pt&#34;)
+
+    @property
+    def top_patch_i_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;top_patch_i.pt&#34;)
+
+    @property
+    def mean_values_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;mean_values.pt&#34;)
+
+    @property
+    def sparsity_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;sparsity.pt&#34;)
+
+    @property
+    def distributions_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;distributions.pt&#34;)
+
+    @property
+    def percentiles_fpath(self) -&gt; str:
+        return os.path.join(self.root, f&#34;percentiles_p{self.percentile}.pt&#34;)</code></pre>
+</details>
 </dd>
 <dt id="saev.scripts.visuals.Config.log_value_range"><code class="name">var <span class="ident">log_value_range</span> : tuple[float, float]</code></dt>
 <dd>
 <div class="desc"><p>Log10 frequency range for which to save images.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+@dataclasses.dataclass(frozen=True, slots=True)
+class Config:
+    &#34;&#34;&#34;Configuration for generating visuals from trained SAEs.&#34;&#34;&#34;
+
+    # Disk
+    ckpt: str = os.path.join(&#34;.&#34;, &#34;checkpoints&#34;, &#34;sae.pt&#34;)
+    &#34;&#34;&#34;Path to the sae.pt file.&#34;&#34;&#34;
+    data: saev.data.OrderedConfig = dataclasses.field(
+        default_factory=saev.data.OrderedConfig
+    )
+    &#34;&#34;&#34;Data configuration&#34;&#34;&#34;
+    images: saev.data.images.Config = dataclasses.field(
+        default_factory=saev.data.images.Imagenet
+    )
+    &#34;&#34;&#34;Which images to use.&#34;&#34;&#34;
+    dump_to: str = os.path.join(&#34;.&#34;, &#34;data&#34;)
+    &#34;&#34;&#34;Where to save data.&#34;&#34;&#34;
+
+    # Algorithm
+    top_k: int = 128
+    &#34;&#34;&#34;How many images per SAE feature to store.&#34;&#34;&#34;
+    epsilon: float = 1e-9
+    &#34;&#34;&#34;Value to add to avoid log(0).&#34;&#34;&#34;
+    sort_by: typing.Literal[&#34;cls&#34;, &#34;img&#34;, &#34;patch&#34;] = &#34;patch&#34;
+    &#34;&#34;&#34;How to find the top k images. &#39;cls&#39; picks images where the SAE latents of the ViT&#39;s [CLS] token are maximized without any patch highligting. &#39;img&#39; picks images that maximize the sum of an SAE latent over all patches in the image, highlighting the patches. &#39;patch&#39; pickes images that maximize an SAE latent over all patches (not summed), highlighting the patches and only showing unique images.&#34;&#34;&#34;
+    log_freq_range: tuple[float, float] = (-6.0, -2.0)
+    &#34;&#34;&#34;Log10 frequency range for which to save images.&#34;&#34;&#34;
+    log_value_range: tuple[float, float] = (-1.0, 1.0)
+    &#34;&#34;&#34;Log10 frequency range for which to save images.&#34;&#34;&#34;
+    include_latents: list[int] = dataclasses.field(default_factory=list)
+    &#34;&#34;&#34;Latents to always include, no matter what.&#34;&#34;&#34;
+    n_distributions: int = 25
+    &#34;&#34;&#34;Number of features to save distributions for.&#34;&#34;&#34;
+    percentile: int = 99
+    &#34;&#34;&#34;Percentile to estimate for outlier detection.&#34;&#34;&#34;
+    n_latents: int = 400
+    &#34;&#34;&#34;Maximum number of latents to save images for.&#34;&#34;&#34;
+    sae_batch_size: int = 1024 * 16
+    &#34;&#34;&#34;Batch size for SAE inference.&#34;&#34;&#34;
+    topk_batch_size: int = 1024 * 16
+
+    # Hardware
+    device: str = &#34;cuda&#34;
+    &#34;&#34;&#34;Which accelerator to use.&#34;&#34;&#34;
+    seed: int = 42
+    &#34;&#34;&#34;Random seed.&#34;&#34;&#34;
+    slurm_acct: str = &#34;&#34;
+    &#34;&#34;&#34;Slurm account string. Empty means to not use Slurm.&#34;&#34;&#34;
+    slurm_partition: str = &#34;&#34;
+    &#34;&#34;&#34;Slurm partition.&#34;&#34;&#34;
+    n_hours: float = 4.0
+    &#34;&#34;&#34;Slurm job length in hours.&#34;&#34;&#34;
+    log_to: str = os.path.join(&#34;.&#34;, &#34;logs&#34;)
+    &#34;&#34;&#34;Where to log Slurm job stdout/stderr.&#34;&#34;&#34;
+
+    @property
+    def root(self) -&gt; str:
+        return os.path.join(self.dump_to, f&#34;sort_by_{self.sort_by}&#34;)
+
+    @property
+    def top_values_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;top_values.pt&#34;)
+
+    @property
+    def top_img_i_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;top_img_i.pt&#34;)
+
+    @property
+    def top_patch_i_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;top_patch_i.pt&#34;)
+
+    @property
+    def mean_values_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;mean_values.pt&#34;)
+
+    @property
+    def sparsity_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;sparsity.pt&#34;)
+
+    @property
+    def distributions_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;distributions.pt&#34;)
+
+    @property
+    def percentiles_fpath(self) -&gt; str:
+        return os.path.join(self.root, f&#34;percentiles_p{self.percentile}.pt&#34;)</code></pre>
+</details>
 </dd>
 <dt id="saev.scripts.visuals.Config.mean_values_fpath"><code class="name">prop <span class="ident">mean_values_fpath</span> : str</code></dt>
 <dd>
@@ -331,18 +1680,386 @@ def mean_values_fpath(self) -&gt; str:
 <dt id="saev.scripts.visuals.Config.n_distributions"><code class="name">var <span class="ident">n_distributions</span> : int</code></dt>
 <dd>
 <div class="desc"><p>Number of features to save distributions for.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+@dataclasses.dataclass(frozen=True, slots=True)
+class Config:
+    &#34;&#34;&#34;Configuration for generating visuals from trained SAEs.&#34;&#34;&#34;
+
+    # Disk
+    ckpt: str = os.path.join(&#34;.&#34;, &#34;checkpoints&#34;, &#34;sae.pt&#34;)
+    &#34;&#34;&#34;Path to the sae.pt file.&#34;&#34;&#34;
+    data: saev.data.OrderedConfig = dataclasses.field(
+        default_factory=saev.data.OrderedConfig
+    )
+    &#34;&#34;&#34;Data configuration&#34;&#34;&#34;
+    images: saev.data.images.Config = dataclasses.field(
+        default_factory=saev.data.images.Imagenet
+    )
+    &#34;&#34;&#34;Which images to use.&#34;&#34;&#34;
+    dump_to: str = os.path.join(&#34;.&#34;, &#34;data&#34;)
+    &#34;&#34;&#34;Where to save data.&#34;&#34;&#34;
+
+    # Algorithm
+    top_k: int = 128
+    &#34;&#34;&#34;How many images per SAE feature to store.&#34;&#34;&#34;
+    epsilon: float = 1e-9
+    &#34;&#34;&#34;Value to add to avoid log(0).&#34;&#34;&#34;
+    sort_by: typing.Literal[&#34;cls&#34;, &#34;img&#34;, &#34;patch&#34;] = &#34;patch&#34;
+    &#34;&#34;&#34;How to find the top k images. &#39;cls&#39; picks images where the SAE latents of the ViT&#39;s [CLS] token are maximized without any patch highligting. &#39;img&#39; picks images that maximize the sum of an SAE latent over all patches in the image, highlighting the patches. &#39;patch&#39; pickes images that maximize an SAE latent over all patches (not summed), highlighting the patches and only showing unique images.&#34;&#34;&#34;
+    log_freq_range: tuple[float, float] = (-6.0, -2.0)
+    &#34;&#34;&#34;Log10 frequency range for which to save images.&#34;&#34;&#34;
+    log_value_range: tuple[float, float] = (-1.0, 1.0)
+    &#34;&#34;&#34;Log10 frequency range for which to save images.&#34;&#34;&#34;
+    include_latents: list[int] = dataclasses.field(default_factory=list)
+    &#34;&#34;&#34;Latents to always include, no matter what.&#34;&#34;&#34;
+    n_distributions: int = 25
+    &#34;&#34;&#34;Number of features to save distributions for.&#34;&#34;&#34;
+    percentile: int = 99
+    &#34;&#34;&#34;Percentile to estimate for outlier detection.&#34;&#34;&#34;
+    n_latents: int = 400
+    &#34;&#34;&#34;Maximum number of latents to save images for.&#34;&#34;&#34;
+    sae_batch_size: int = 1024 * 16
+    &#34;&#34;&#34;Batch size for SAE inference.&#34;&#34;&#34;
+    topk_batch_size: int = 1024 * 16
+
+    # Hardware
+    device: str = &#34;cuda&#34;
+    &#34;&#34;&#34;Which accelerator to use.&#34;&#34;&#34;
+    seed: int = 42
+    &#34;&#34;&#34;Random seed.&#34;&#34;&#34;
+    slurm_acct: str = &#34;&#34;
+    &#34;&#34;&#34;Slurm account string. Empty means to not use Slurm.&#34;&#34;&#34;
+    slurm_partition: str = &#34;&#34;
+    &#34;&#34;&#34;Slurm partition.&#34;&#34;&#34;
+    n_hours: float = 4.0
+    &#34;&#34;&#34;Slurm job length in hours.&#34;&#34;&#34;
+    log_to: str = os.path.join(&#34;.&#34;, &#34;logs&#34;)
+    &#34;&#34;&#34;Where to log Slurm job stdout/stderr.&#34;&#34;&#34;
+
+    @property
+    def root(self) -&gt; str:
+        return os.path.join(self.dump_to, f&#34;sort_by_{self.sort_by}&#34;)
+
+    @property
+    def top_values_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;top_values.pt&#34;)
+
+    @property
+    def top_img_i_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;top_img_i.pt&#34;)
+
+    @property
+    def top_patch_i_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;top_patch_i.pt&#34;)
+
+    @property
+    def mean_values_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;mean_values.pt&#34;)
+
+    @property
+    def sparsity_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;sparsity.pt&#34;)
+
+    @property
+    def distributions_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;distributions.pt&#34;)
+
+    @property
+    def percentiles_fpath(self) -&gt; str:
+        return os.path.join(self.root, f&#34;percentiles_p{self.percentile}.pt&#34;)</code></pre>
+</details>
 </dd>
 <dt id="saev.scripts.visuals.Config.n_hours"><code class="name">var <span class="ident">n_hours</span> : float</code></dt>
 <dd>
 <div class="desc"><p>Slurm job length in hours.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+@dataclasses.dataclass(frozen=True, slots=True)
+class Config:
+    &#34;&#34;&#34;Configuration for generating visuals from trained SAEs.&#34;&#34;&#34;
+
+    # Disk
+    ckpt: str = os.path.join(&#34;.&#34;, &#34;checkpoints&#34;, &#34;sae.pt&#34;)
+    &#34;&#34;&#34;Path to the sae.pt file.&#34;&#34;&#34;
+    data: saev.data.OrderedConfig = dataclasses.field(
+        default_factory=saev.data.OrderedConfig
+    )
+    &#34;&#34;&#34;Data configuration&#34;&#34;&#34;
+    images: saev.data.images.Config = dataclasses.field(
+        default_factory=saev.data.images.Imagenet
+    )
+    &#34;&#34;&#34;Which images to use.&#34;&#34;&#34;
+    dump_to: str = os.path.join(&#34;.&#34;, &#34;data&#34;)
+    &#34;&#34;&#34;Where to save data.&#34;&#34;&#34;
+
+    # Algorithm
+    top_k: int = 128
+    &#34;&#34;&#34;How many images per SAE feature to store.&#34;&#34;&#34;
+    epsilon: float = 1e-9
+    &#34;&#34;&#34;Value to add to avoid log(0).&#34;&#34;&#34;
+    sort_by: typing.Literal[&#34;cls&#34;, &#34;img&#34;, &#34;patch&#34;] = &#34;patch&#34;
+    &#34;&#34;&#34;How to find the top k images. &#39;cls&#39; picks images where the SAE latents of the ViT&#39;s [CLS] token are maximized without any patch highligting. &#39;img&#39; picks images that maximize the sum of an SAE latent over all patches in the image, highlighting the patches. &#39;patch&#39; pickes images that maximize an SAE latent over all patches (not summed), highlighting the patches and only showing unique images.&#34;&#34;&#34;
+    log_freq_range: tuple[float, float] = (-6.0, -2.0)
+    &#34;&#34;&#34;Log10 frequency range for which to save images.&#34;&#34;&#34;
+    log_value_range: tuple[float, float] = (-1.0, 1.0)
+    &#34;&#34;&#34;Log10 frequency range for which to save images.&#34;&#34;&#34;
+    include_latents: list[int] = dataclasses.field(default_factory=list)
+    &#34;&#34;&#34;Latents to always include, no matter what.&#34;&#34;&#34;
+    n_distributions: int = 25
+    &#34;&#34;&#34;Number of features to save distributions for.&#34;&#34;&#34;
+    percentile: int = 99
+    &#34;&#34;&#34;Percentile to estimate for outlier detection.&#34;&#34;&#34;
+    n_latents: int = 400
+    &#34;&#34;&#34;Maximum number of latents to save images for.&#34;&#34;&#34;
+    sae_batch_size: int = 1024 * 16
+    &#34;&#34;&#34;Batch size for SAE inference.&#34;&#34;&#34;
+    topk_batch_size: int = 1024 * 16
+
+    # Hardware
+    device: str = &#34;cuda&#34;
+    &#34;&#34;&#34;Which accelerator to use.&#34;&#34;&#34;
+    seed: int = 42
+    &#34;&#34;&#34;Random seed.&#34;&#34;&#34;
+    slurm_acct: str = &#34;&#34;
+    &#34;&#34;&#34;Slurm account string. Empty means to not use Slurm.&#34;&#34;&#34;
+    slurm_partition: str = &#34;&#34;
+    &#34;&#34;&#34;Slurm partition.&#34;&#34;&#34;
+    n_hours: float = 4.0
+    &#34;&#34;&#34;Slurm job length in hours.&#34;&#34;&#34;
+    log_to: str = os.path.join(&#34;.&#34;, &#34;logs&#34;)
+    &#34;&#34;&#34;Where to log Slurm job stdout/stderr.&#34;&#34;&#34;
+
+    @property
+    def root(self) -&gt; str:
+        return os.path.join(self.dump_to, f&#34;sort_by_{self.sort_by}&#34;)
+
+    @property
+    def top_values_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;top_values.pt&#34;)
+
+    @property
+    def top_img_i_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;top_img_i.pt&#34;)
+
+    @property
+    def top_patch_i_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;top_patch_i.pt&#34;)
+
+    @property
+    def mean_values_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;mean_values.pt&#34;)
+
+    @property
+    def sparsity_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;sparsity.pt&#34;)
+
+    @property
+    def distributions_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;distributions.pt&#34;)
+
+    @property
+    def percentiles_fpath(self) -&gt; str:
+        return os.path.join(self.root, f&#34;percentiles_p{self.percentile}.pt&#34;)</code></pre>
+</details>
 </dd>
 <dt id="saev.scripts.visuals.Config.n_latents"><code class="name">var <span class="ident">n_latents</span> : int</code></dt>
 <dd>
 <div class="desc"><p>Maximum number of latents to save images for.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+@dataclasses.dataclass(frozen=True, slots=True)
+class Config:
+    &#34;&#34;&#34;Configuration for generating visuals from trained SAEs.&#34;&#34;&#34;
+
+    # Disk
+    ckpt: str = os.path.join(&#34;.&#34;, &#34;checkpoints&#34;, &#34;sae.pt&#34;)
+    &#34;&#34;&#34;Path to the sae.pt file.&#34;&#34;&#34;
+    data: saev.data.OrderedConfig = dataclasses.field(
+        default_factory=saev.data.OrderedConfig
+    )
+    &#34;&#34;&#34;Data configuration&#34;&#34;&#34;
+    images: saev.data.images.Config = dataclasses.field(
+        default_factory=saev.data.images.Imagenet
+    )
+    &#34;&#34;&#34;Which images to use.&#34;&#34;&#34;
+    dump_to: str = os.path.join(&#34;.&#34;, &#34;data&#34;)
+    &#34;&#34;&#34;Where to save data.&#34;&#34;&#34;
+
+    # Algorithm
+    top_k: int = 128
+    &#34;&#34;&#34;How many images per SAE feature to store.&#34;&#34;&#34;
+    epsilon: float = 1e-9
+    &#34;&#34;&#34;Value to add to avoid log(0).&#34;&#34;&#34;
+    sort_by: typing.Literal[&#34;cls&#34;, &#34;img&#34;, &#34;patch&#34;] = &#34;patch&#34;
+    &#34;&#34;&#34;How to find the top k images. &#39;cls&#39; picks images where the SAE latents of the ViT&#39;s [CLS] token are maximized without any patch highligting. &#39;img&#39; picks images that maximize the sum of an SAE latent over all patches in the image, highlighting the patches. &#39;patch&#39; pickes images that maximize an SAE latent over all patches (not summed), highlighting the patches and only showing unique images.&#34;&#34;&#34;
+    log_freq_range: tuple[float, float] = (-6.0, -2.0)
+    &#34;&#34;&#34;Log10 frequency range for which to save images.&#34;&#34;&#34;
+    log_value_range: tuple[float, float] = (-1.0, 1.0)
+    &#34;&#34;&#34;Log10 frequency range for which to save images.&#34;&#34;&#34;
+    include_latents: list[int] = dataclasses.field(default_factory=list)
+    &#34;&#34;&#34;Latents to always include, no matter what.&#34;&#34;&#34;
+    n_distributions: int = 25
+    &#34;&#34;&#34;Number of features to save distributions for.&#34;&#34;&#34;
+    percentile: int = 99
+    &#34;&#34;&#34;Percentile to estimate for outlier detection.&#34;&#34;&#34;
+    n_latents: int = 400
+    &#34;&#34;&#34;Maximum number of latents to save images for.&#34;&#34;&#34;
+    sae_batch_size: int = 1024 * 16
+    &#34;&#34;&#34;Batch size for SAE inference.&#34;&#34;&#34;
+    topk_batch_size: int = 1024 * 16
+
+    # Hardware
+    device: str = &#34;cuda&#34;
+    &#34;&#34;&#34;Which accelerator to use.&#34;&#34;&#34;
+    seed: int = 42
+    &#34;&#34;&#34;Random seed.&#34;&#34;&#34;
+    slurm_acct: str = &#34;&#34;
+    &#34;&#34;&#34;Slurm account string. Empty means to not use Slurm.&#34;&#34;&#34;
+    slurm_partition: str = &#34;&#34;
+    &#34;&#34;&#34;Slurm partition.&#34;&#34;&#34;
+    n_hours: float = 4.0
+    &#34;&#34;&#34;Slurm job length in hours.&#34;&#34;&#34;
+    log_to: str = os.path.join(&#34;.&#34;, &#34;logs&#34;)
+    &#34;&#34;&#34;Where to log Slurm job stdout/stderr.&#34;&#34;&#34;
+
+    @property
+    def root(self) -&gt; str:
+        return os.path.join(self.dump_to, f&#34;sort_by_{self.sort_by}&#34;)
+
+    @property
+    def top_values_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;top_values.pt&#34;)
+
+    @property
+    def top_img_i_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;top_img_i.pt&#34;)
+
+    @property
+    def top_patch_i_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;top_patch_i.pt&#34;)
+
+    @property
+    def mean_values_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;mean_values.pt&#34;)
+
+    @property
+    def sparsity_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;sparsity.pt&#34;)
+
+    @property
+    def distributions_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;distributions.pt&#34;)
+
+    @property
+    def percentiles_fpath(self) -&gt; str:
+        return os.path.join(self.root, f&#34;percentiles_p{self.percentile}.pt&#34;)</code></pre>
+</details>
 </dd>
 <dt id="saev.scripts.visuals.Config.percentile"><code class="name">var <span class="ident">percentile</span> : int</code></dt>
 <dd>
 <div class="desc"><p>Percentile to estimate for outlier detection.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+@dataclasses.dataclass(frozen=True, slots=True)
+class Config:
+    &#34;&#34;&#34;Configuration for generating visuals from trained SAEs.&#34;&#34;&#34;
+
+    # Disk
+    ckpt: str = os.path.join(&#34;.&#34;, &#34;checkpoints&#34;, &#34;sae.pt&#34;)
+    &#34;&#34;&#34;Path to the sae.pt file.&#34;&#34;&#34;
+    data: saev.data.OrderedConfig = dataclasses.field(
+        default_factory=saev.data.OrderedConfig
+    )
+    &#34;&#34;&#34;Data configuration&#34;&#34;&#34;
+    images: saev.data.images.Config = dataclasses.field(
+        default_factory=saev.data.images.Imagenet
+    )
+    &#34;&#34;&#34;Which images to use.&#34;&#34;&#34;
+    dump_to: str = os.path.join(&#34;.&#34;, &#34;data&#34;)
+    &#34;&#34;&#34;Where to save data.&#34;&#34;&#34;
+
+    # Algorithm
+    top_k: int = 128
+    &#34;&#34;&#34;How many images per SAE feature to store.&#34;&#34;&#34;
+    epsilon: float = 1e-9
+    &#34;&#34;&#34;Value to add to avoid log(0).&#34;&#34;&#34;
+    sort_by: typing.Literal[&#34;cls&#34;, &#34;img&#34;, &#34;patch&#34;] = &#34;patch&#34;
+    &#34;&#34;&#34;How to find the top k images. &#39;cls&#39; picks images where the SAE latents of the ViT&#39;s [CLS] token are maximized without any patch highligting. &#39;img&#39; picks images that maximize the sum of an SAE latent over all patches in the image, highlighting the patches. &#39;patch&#39; pickes images that maximize an SAE latent over all patches (not summed), highlighting the patches and only showing unique images.&#34;&#34;&#34;
+    log_freq_range: tuple[float, float] = (-6.0, -2.0)
+    &#34;&#34;&#34;Log10 frequency range for which to save images.&#34;&#34;&#34;
+    log_value_range: tuple[float, float] = (-1.0, 1.0)
+    &#34;&#34;&#34;Log10 frequency range for which to save images.&#34;&#34;&#34;
+    include_latents: list[int] = dataclasses.field(default_factory=list)
+    &#34;&#34;&#34;Latents to always include, no matter what.&#34;&#34;&#34;
+    n_distributions: int = 25
+    &#34;&#34;&#34;Number of features to save distributions for.&#34;&#34;&#34;
+    percentile: int = 99
+    &#34;&#34;&#34;Percentile to estimate for outlier detection.&#34;&#34;&#34;
+    n_latents: int = 400
+    &#34;&#34;&#34;Maximum number of latents to save images for.&#34;&#34;&#34;
+    sae_batch_size: int = 1024 * 16
+    &#34;&#34;&#34;Batch size for SAE inference.&#34;&#34;&#34;
+    topk_batch_size: int = 1024 * 16
+
+    # Hardware
+    device: str = &#34;cuda&#34;
+    &#34;&#34;&#34;Which accelerator to use.&#34;&#34;&#34;
+    seed: int = 42
+    &#34;&#34;&#34;Random seed.&#34;&#34;&#34;
+    slurm_acct: str = &#34;&#34;
+    &#34;&#34;&#34;Slurm account string. Empty means to not use Slurm.&#34;&#34;&#34;
+    slurm_partition: str = &#34;&#34;
+    &#34;&#34;&#34;Slurm partition.&#34;&#34;&#34;
+    n_hours: float = 4.0
+    &#34;&#34;&#34;Slurm job length in hours.&#34;&#34;&#34;
+    log_to: str = os.path.join(&#34;.&#34;, &#34;logs&#34;)
+    &#34;&#34;&#34;Where to log Slurm job stdout/stderr.&#34;&#34;&#34;
+
+    @property
+    def root(self) -&gt; str:
+        return os.path.join(self.dump_to, f&#34;sort_by_{self.sort_by}&#34;)
+
+    @property
+    def top_values_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;top_values.pt&#34;)
+
+    @property
+    def top_img_i_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;top_img_i.pt&#34;)
+
+    @property
+    def top_patch_i_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;top_patch_i.pt&#34;)
+
+    @property
+    def mean_values_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;mean_values.pt&#34;)
+
+    @property
+    def sparsity_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;sparsity.pt&#34;)
+
+    @property
+    def distributions_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;distributions.pt&#34;)
+
+    @property
+    def percentiles_fpath(self) -&gt; str:
+        return os.path.join(self.root, f&#34;percentiles_p{self.percentile}.pt&#34;)</code></pre>
+</details>
 </dd>
 <dt id="saev.scripts.visuals.Config.percentiles_fpath"><code class="name">prop <span class="ident">percentiles_fpath</span> : str</code></dt>
 <dd>
@@ -371,22 +2088,482 @@ def root(self) -&gt; str:
 <dt id="saev.scripts.visuals.Config.sae_batch_size"><code class="name">var <span class="ident">sae_batch_size</span> : int</code></dt>
 <dd>
 <div class="desc"><p>Batch size for SAE inference.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+@dataclasses.dataclass(frozen=True, slots=True)
+class Config:
+    &#34;&#34;&#34;Configuration for generating visuals from trained SAEs.&#34;&#34;&#34;
+
+    # Disk
+    ckpt: str = os.path.join(&#34;.&#34;, &#34;checkpoints&#34;, &#34;sae.pt&#34;)
+    &#34;&#34;&#34;Path to the sae.pt file.&#34;&#34;&#34;
+    data: saev.data.OrderedConfig = dataclasses.field(
+        default_factory=saev.data.OrderedConfig
+    )
+    &#34;&#34;&#34;Data configuration&#34;&#34;&#34;
+    images: saev.data.images.Config = dataclasses.field(
+        default_factory=saev.data.images.Imagenet
+    )
+    &#34;&#34;&#34;Which images to use.&#34;&#34;&#34;
+    dump_to: str = os.path.join(&#34;.&#34;, &#34;data&#34;)
+    &#34;&#34;&#34;Where to save data.&#34;&#34;&#34;
+
+    # Algorithm
+    top_k: int = 128
+    &#34;&#34;&#34;How many images per SAE feature to store.&#34;&#34;&#34;
+    epsilon: float = 1e-9
+    &#34;&#34;&#34;Value to add to avoid log(0).&#34;&#34;&#34;
+    sort_by: typing.Literal[&#34;cls&#34;, &#34;img&#34;, &#34;patch&#34;] = &#34;patch&#34;
+    &#34;&#34;&#34;How to find the top k images. &#39;cls&#39; picks images where the SAE latents of the ViT&#39;s [CLS] token are maximized without any patch highligting. &#39;img&#39; picks images that maximize the sum of an SAE latent over all patches in the image, highlighting the patches. &#39;patch&#39; pickes images that maximize an SAE latent over all patches (not summed), highlighting the patches and only showing unique images.&#34;&#34;&#34;
+    log_freq_range: tuple[float, float] = (-6.0, -2.0)
+    &#34;&#34;&#34;Log10 frequency range for which to save images.&#34;&#34;&#34;
+    log_value_range: tuple[float, float] = (-1.0, 1.0)
+    &#34;&#34;&#34;Log10 frequency range for which to save images.&#34;&#34;&#34;
+    include_latents: list[int] = dataclasses.field(default_factory=list)
+    &#34;&#34;&#34;Latents to always include, no matter what.&#34;&#34;&#34;
+    n_distributions: int = 25
+    &#34;&#34;&#34;Number of features to save distributions for.&#34;&#34;&#34;
+    percentile: int = 99
+    &#34;&#34;&#34;Percentile to estimate for outlier detection.&#34;&#34;&#34;
+    n_latents: int = 400
+    &#34;&#34;&#34;Maximum number of latents to save images for.&#34;&#34;&#34;
+    sae_batch_size: int = 1024 * 16
+    &#34;&#34;&#34;Batch size for SAE inference.&#34;&#34;&#34;
+    topk_batch_size: int = 1024 * 16
+
+    # Hardware
+    device: str = &#34;cuda&#34;
+    &#34;&#34;&#34;Which accelerator to use.&#34;&#34;&#34;
+    seed: int = 42
+    &#34;&#34;&#34;Random seed.&#34;&#34;&#34;
+    slurm_acct: str = &#34;&#34;
+    &#34;&#34;&#34;Slurm account string. Empty means to not use Slurm.&#34;&#34;&#34;
+    slurm_partition: str = &#34;&#34;
+    &#34;&#34;&#34;Slurm partition.&#34;&#34;&#34;
+    n_hours: float = 4.0
+    &#34;&#34;&#34;Slurm job length in hours.&#34;&#34;&#34;
+    log_to: str = os.path.join(&#34;.&#34;, &#34;logs&#34;)
+    &#34;&#34;&#34;Where to log Slurm job stdout/stderr.&#34;&#34;&#34;
+
+    @property
+    def root(self) -&gt; str:
+        return os.path.join(self.dump_to, f&#34;sort_by_{self.sort_by}&#34;)
+
+    @property
+    def top_values_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;top_values.pt&#34;)
+
+    @property
+    def top_img_i_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;top_img_i.pt&#34;)
+
+    @property
+    def top_patch_i_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;top_patch_i.pt&#34;)
+
+    @property
+    def mean_values_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;mean_values.pt&#34;)
+
+    @property
+    def sparsity_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;sparsity.pt&#34;)
+
+    @property
+    def distributions_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;distributions.pt&#34;)
+
+    @property
+    def percentiles_fpath(self) -&gt; str:
+        return os.path.join(self.root, f&#34;percentiles_p{self.percentile}.pt&#34;)</code></pre>
+</details>
 </dd>
 <dt id="saev.scripts.visuals.Config.seed"><code class="name">var <span class="ident">seed</span> : int</code></dt>
 <dd>
 <div class="desc"><p>Random seed.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+@dataclasses.dataclass(frozen=True, slots=True)
+class Config:
+    &#34;&#34;&#34;Configuration for generating visuals from trained SAEs.&#34;&#34;&#34;
+
+    # Disk
+    ckpt: str = os.path.join(&#34;.&#34;, &#34;checkpoints&#34;, &#34;sae.pt&#34;)
+    &#34;&#34;&#34;Path to the sae.pt file.&#34;&#34;&#34;
+    data: saev.data.OrderedConfig = dataclasses.field(
+        default_factory=saev.data.OrderedConfig
+    )
+    &#34;&#34;&#34;Data configuration&#34;&#34;&#34;
+    images: saev.data.images.Config = dataclasses.field(
+        default_factory=saev.data.images.Imagenet
+    )
+    &#34;&#34;&#34;Which images to use.&#34;&#34;&#34;
+    dump_to: str = os.path.join(&#34;.&#34;, &#34;data&#34;)
+    &#34;&#34;&#34;Where to save data.&#34;&#34;&#34;
+
+    # Algorithm
+    top_k: int = 128
+    &#34;&#34;&#34;How many images per SAE feature to store.&#34;&#34;&#34;
+    epsilon: float = 1e-9
+    &#34;&#34;&#34;Value to add to avoid log(0).&#34;&#34;&#34;
+    sort_by: typing.Literal[&#34;cls&#34;, &#34;img&#34;, &#34;patch&#34;] = &#34;patch&#34;
+    &#34;&#34;&#34;How to find the top k images. &#39;cls&#39; picks images where the SAE latents of the ViT&#39;s [CLS] token are maximized without any patch highligting. &#39;img&#39; picks images that maximize the sum of an SAE latent over all patches in the image, highlighting the patches. &#39;patch&#39; pickes images that maximize an SAE latent over all patches (not summed), highlighting the patches and only showing unique images.&#34;&#34;&#34;
+    log_freq_range: tuple[float, float] = (-6.0, -2.0)
+    &#34;&#34;&#34;Log10 frequency range for which to save images.&#34;&#34;&#34;
+    log_value_range: tuple[float, float] = (-1.0, 1.0)
+    &#34;&#34;&#34;Log10 frequency range for which to save images.&#34;&#34;&#34;
+    include_latents: list[int] = dataclasses.field(default_factory=list)
+    &#34;&#34;&#34;Latents to always include, no matter what.&#34;&#34;&#34;
+    n_distributions: int = 25
+    &#34;&#34;&#34;Number of features to save distributions for.&#34;&#34;&#34;
+    percentile: int = 99
+    &#34;&#34;&#34;Percentile to estimate for outlier detection.&#34;&#34;&#34;
+    n_latents: int = 400
+    &#34;&#34;&#34;Maximum number of latents to save images for.&#34;&#34;&#34;
+    sae_batch_size: int = 1024 * 16
+    &#34;&#34;&#34;Batch size for SAE inference.&#34;&#34;&#34;
+    topk_batch_size: int = 1024 * 16
+
+    # Hardware
+    device: str = &#34;cuda&#34;
+    &#34;&#34;&#34;Which accelerator to use.&#34;&#34;&#34;
+    seed: int = 42
+    &#34;&#34;&#34;Random seed.&#34;&#34;&#34;
+    slurm_acct: str = &#34;&#34;
+    &#34;&#34;&#34;Slurm account string. Empty means to not use Slurm.&#34;&#34;&#34;
+    slurm_partition: str = &#34;&#34;
+    &#34;&#34;&#34;Slurm partition.&#34;&#34;&#34;
+    n_hours: float = 4.0
+    &#34;&#34;&#34;Slurm job length in hours.&#34;&#34;&#34;
+    log_to: str = os.path.join(&#34;.&#34;, &#34;logs&#34;)
+    &#34;&#34;&#34;Where to log Slurm job stdout/stderr.&#34;&#34;&#34;
+
+    @property
+    def root(self) -&gt; str:
+        return os.path.join(self.dump_to, f&#34;sort_by_{self.sort_by}&#34;)
+
+    @property
+    def top_values_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;top_values.pt&#34;)
+
+    @property
+    def top_img_i_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;top_img_i.pt&#34;)
+
+    @property
+    def top_patch_i_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;top_patch_i.pt&#34;)
+
+    @property
+    def mean_values_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;mean_values.pt&#34;)
+
+    @property
+    def sparsity_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;sparsity.pt&#34;)
+
+    @property
+    def distributions_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;distributions.pt&#34;)
+
+    @property
+    def percentiles_fpath(self) -&gt; str:
+        return os.path.join(self.root, f&#34;percentiles_p{self.percentile}.pt&#34;)</code></pre>
+</details>
 </dd>
 <dt id="saev.scripts.visuals.Config.slurm_acct"><code class="name">var <span class="ident">slurm_acct</span> : str</code></dt>
 <dd>
 <div class="desc"><p>Slurm account string. Empty means to not use Slurm.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+@dataclasses.dataclass(frozen=True, slots=True)
+class Config:
+    &#34;&#34;&#34;Configuration for generating visuals from trained SAEs.&#34;&#34;&#34;
+
+    # Disk
+    ckpt: str = os.path.join(&#34;.&#34;, &#34;checkpoints&#34;, &#34;sae.pt&#34;)
+    &#34;&#34;&#34;Path to the sae.pt file.&#34;&#34;&#34;
+    data: saev.data.OrderedConfig = dataclasses.field(
+        default_factory=saev.data.OrderedConfig
+    )
+    &#34;&#34;&#34;Data configuration&#34;&#34;&#34;
+    images: saev.data.images.Config = dataclasses.field(
+        default_factory=saev.data.images.Imagenet
+    )
+    &#34;&#34;&#34;Which images to use.&#34;&#34;&#34;
+    dump_to: str = os.path.join(&#34;.&#34;, &#34;data&#34;)
+    &#34;&#34;&#34;Where to save data.&#34;&#34;&#34;
+
+    # Algorithm
+    top_k: int = 128
+    &#34;&#34;&#34;How many images per SAE feature to store.&#34;&#34;&#34;
+    epsilon: float = 1e-9
+    &#34;&#34;&#34;Value to add to avoid log(0).&#34;&#34;&#34;
+    sort_by: typing.Literal[&#34;cls&#34;, &#34;img&#34;, &#34;patch&#34;] = &#34;patch&#34;
+    &#34;&#34;&#34;How to find the top k images. &#39;cls&#39; picks images where the SAE latents of the ViT&#39;s [CLS] token are maximized without any patch highligting. &#39;img&#39; picks images that maximize the sum of an SAE latent over all patches in the image, highlighting the patches. &#39;patch&#39; pickes images that maximize an SAE latent over all patches (not summed), highlighting the patches and only showing unique images.&#34;&#34;&#34;
+    log_freq_range: tuple[float, float] = (-6.0, -2.0)
+    &#34;&#34;&#34;Log10 frequency range for which to save images.&#34;&#34;&#34;
+    log_value_range: tuple[float, float] = (-1.0, 1.0)
+    &#34;&#34;&#34;Log10 frequency range for which to save images.&#34;&#34;&#34;
+    include_latents: list[int] = dataclasses.field(default_factory=list)
+    &#34;&#34;&#34;Latents to always include, no matter what.&#34;&#34;&#34;
+    n_distributions: int = 25
+    &#34;&#34;&#34;Number of features to save distributions for.&#34;&#34;&#34;
+    percentile: int = 99
+    &#34;&#34;&#34;Percentile to estimate for outlier detection.&#34;&#34;&#34;
+    n_latents: int = 400
+    &#34;&#34;&#34;Maximum number of latents to save images for.&#34;&#34;&#34;
+    sae_batch_size: int = 1024 * 16
+    &#34;&#34;&#34;Batch size for SAE inference.&#34;&#34;&#34;
+    topk_batch_size: int = 1024 * 16
+
+    # Hardware
+    device: str = &#34;cuda&#34;
+    &#34;&#34;&#34;Which accelerator to use.&#34;&#34;&#34;
+    seed: int = 42
+    &#34;&#34;&#34;Random seed.&#34;&#34;&#34;
+    slurm_acct: str = &#34;&#34;
+    &#34;&#34;&#34;Slurm account string. Empty means to not use Slurm.&#34;&#34;&#34;
+    slurm_partition: str = &#34;&#34;
+    &#34;&#34;&#34;Slurm partition.&#34;&#34;&#34;
+    n_hours: float = 4.0
+    &#34;&#34;&#34;Slurm job length in hours.&#34;&#34;&#34;
+    log_to: str = os.path.join(&#34;.&#34;, &#34;logs&#34;)
+    &#34;&#34;&#34;Where to log Slurm job stdout/stderr.&#34;&#34;&#34;
+
+    @property
+    def root(self) -&gt; str:
+        return os.path.join(self.dump_to, f&#34;sort_by_{self.sort_by}&#34;)
+
+    @property
+    def top_values_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;top_values.pt&#34;)
+
+    @property
+    def top_img_i_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;top_img_i.pt&#34;)
+
+    @property
+    def top_patch_i_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;top_patch_i.pt&#34;)
+
+    @property
+    def mean_values_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;mean_values.pt&#34;)
+
+    @property
+    def sparsity_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;sparsity.pt&#34;)
+
+    @property
+    def distributions_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;distributions.pt&#34;)
+
+    @property
+    def percentiles_fpath(self) -&gt; str:
+        return os.path.join(self.root, f&#34;percentiles_p{self.percentile}.pt&#34;)</code></pre>
+</details>
 </dd>
 <dt id="saev.scripts.visuals.Config.slurm_partition"><code class="name">var <span class="ident">slurm_partition</span> : str</code></dt>
 <dd>
 <div class="desc"><p>Slurm partition.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+@dataclasses.dataclass(frozen=True, slots=True)
+class Config:
+    &#34;&#34;&#34;Configuration for generating visuals from trained SAEs.&#34;&#34;&#34;
+
+    # Disk
+    ckpt: str = os.path.join(&#34;.&#34;, &#34;checkpoints&#34;, &#34;sae.pt&#34;)
+    &#34;&#34;&#34;Path to the sae.pt file.&#34;&#34;&#34;
+    data: saev.data.OrderedConfig = dataclasses.field(
+        default_factory=saev.data.OrderedConfig
+    )
+    &#34;&#34;&#34;Data configuration&#34;&#34;&#34;
+    images: saev.data.images.Config = dataclasses.field(
+        default_factory=saev.data.images.Imagenet
+    )
+    &#34;&#34;&#34;Which images to use.&#34;&#34;&#34;
+    dump_to: str = os.path.join(&#34;.&#34;, &#34;data&#34;)
+    &#34;&#34;&#34;Where to save data.&#34;&#34;&#34;
+
+    # Algorithm
+    top_k: int = 128
+    &#34;&#34;&#34;How many images per SAE feature to store.&#34;&#34;&#34;
+    epsilon: float = 1e-9
+    &#34;&#34;&#34;Value to add to avoid log(0).&#34;&#34;&#34;
+    sort_by: typing.Literal[&#34;cls&#34;, &#34;img&#34;, &#34;patch&#34;] = &#34;patch&#34;
+    &#34;&#34;&#34;How to find the top k images. &#39;cls&#39; picks images where the SAE latents of the ViT&#39;s [CLS] token are maximized without any patch highligting. &#39;img&#39; picks images that maximize the sum of an SAE latent over all patches in the image, highlighting the patches. &#39;patch&#39; pickes images that maximize an SAE latent over all patches (not summed), highlighting the patches and only showing unique images.&#34;&#34;&#34;
+    log_freq_range: tuple[float, float] = (-6.0, -2.0)
+    &#34;&#34;&#34;Log10 frequency range for which to save images.&#34;&#34;&#34;
+    log_value_range: tuple[float, float] = (-1.0, 1.0)
+    &#34;&#34;&#34;Log10 frequency range for which to save images.&#34;&#34;&#34;
+    include_latents: list[int] = dataclasses.field(default_factory=list)
+    &#34;&#34;&#34;Latents to always include, no matter what.&#34;&#34;&#34;
+    n_distributions: int = 25
+    &#34;&#34;&#34;Number of features to save distributions for.&#34;&#34;&#34;
+    percentile: int = 99
+    &#34;&#34;&#34;Percentile to estimate for outlier detection.&#34;&#34;&#34;
+    n_latents: int = 400
+    &#34;&#34;&#34;Maximum number of latents to save images for.&#34;&#34;&#34;
+    sae_batch_size: int = 1024 * 16
+    &#34;&#34;&#34;Batch size for SAE inference.&#34;&#34;&#34;
+    topk_batch_size: int = 1024 * 16
+
+    # Hardware
+    device: str = &#34;cuda&#34;
+    &#34;&#34;&#34;Which accelerator to use.&#34;&#34;&#34;
+    seed: int = 42
+    &#34;&#34;&#34;Random seed.&#34;&#34;&#34;
+    slurm_acct: str = &#34;&#34;
+    &#34;&#34;&#34;Slurm account string. Empty means to not use Slurm.&#34;&#34;&#34;
+    slurm_partition: str = &#34;&#34;
+    &#34;&#34;&#34;Slurm partition.&#34;&#34;&#34;
+    n_hours: float = 4.0
+    &#34;&#34;&#34;Slurm job length in hours.&#34;&#34;&#34;
+    log_to: str = os.path.join(&#34;.&#34;, &#34;logs&#34;)
+    &#34;&#34;&#34;Where to log Slurm job stdout/stderr.&#34;&#34;&#34;
+
+    @property
+    def root(self) -&gt; str:
+        return os.path.join(self.dump_to, f&#34;sort_by_{self.sort_by}&#34;)
+
+    @property
+    def top_values_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;top_values.pt&#34;)
+
+    @property
+    def top_img_i_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;top_img_i.pt&#34;)
+
+    @property
+    def top_patch_i_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;top_patch_i.pt&#34;)
+
+    @property
+    def mean_values_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;mean_values.pt&#34;)
+
+    @property
+    def sparsity_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;sparsity.pt&#34;)
+
+    @property
+    def distributions_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;distributions.pt&#34;)
+
+    @property
+    def percentiles_fpath(self) -&gt; str:
+        return os.path.join(self.root, f&#34;percentiles_p{self.percentile}.pt&#34;)</code></pre>
+</details>
 </dd>
 <dt id="saev.scripts.visuals.Config.sort_by"><code class="name">var <span class="ident">sort_by</span> : Literal['cls', 'img', 'patch']</code></dt>
 <dd>
 <div class="desc"><p>How to find the top k images. 'cls' picks images where the SAE latents of the ViT's [CLS] token are maximized without any patch highligting. 'img' picks images that maximize the sum of an SAE latent over all patches in the image, highlighting the patches. 'patch' pickes images that maximize an SAE latent over all patches (not summed), highlighting the patches and only showing unique images.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+@dataclasses.dataclass(frozen=True, slots=True)
+class Config:
+    &#34;&#34;&#34;Configuration for generating visuals from trained SAEs.&#34;&#34;&#34;
+
+    # Disk
+    ckpt: str = os.path.join(&#34;.&#34;, &#34;checkpoints&#34;, &#34;sae.pt&#34;)
+    &#34;&#34;&#34;Path to the sae.pt file.&#34;&#34;&#34;
+    data: saev.data.OrderedConfig = dataclasses.field(
+        default_factory=saev.data.OrderedConfig
+    )
+    &#34;&#34;&#34;Data configuration&#34;&#34;&#34;
+    images: saev.data.images.Config = dataclasses.field(
+        default_factory=saev.data.images.Imagenet
+    )
+    &#34;&#34;&#34;Which images to use.&#34;&#34;&#34;
+    dump_to: str = os.path.join(&#34;.&#34;, &#34;data&#34;)
+    &#34;&#34;&#34;Where to save data.&#34;&#34;&#34;
+
+    # Algorithm
+    top_k: int = 128
+    &#34;&#34;&#34;How many images per SAE feature to store.&#34;&#34;&#34;
+    epsilon: float = 1e-9
+    &#34;&#34;&#34;Value to add to avoid log(0).&#34;&#34;&#34;
+    sort_by: typing.Literal[&#34;cls&#34;, &#34;img&#34;, &#34;patch&#34;] = &#34;patch&#34;
+    &#34;&#34;&#34;How to find the top k images. &#39;cls&#39; picks images where the SAE latents of the ViT&#39;s [CLS] token are maximized without any patch highligting. &#39;img&#39; picks images that maximize the sum of an SAE latent over all patches in the image, highlighting the patches. &#39;patch&#39; pickes images that maximize an SAE latent over all patches (not summed), highlighting the patches and only showing unique images.&#34;&#34;&#34;
+    log_freq_range: tuple[float, float] = (-6.0, -2.0)
+    &#34;&#34;&#34;Log10 frequency range for which to save images.&#34;&#34;&#34;
+    log_value_range: tuple[float, float] = (-1.0, 1.0)
+    &#34;&#34;&#34;Log10 frequency range for which to save images.&#34;&#34;&#34;
+    include_latents: list[int] = dataclasses.field(default_factory=list)
+    &#34;&#34;&#34;Latents to always include, no matter what.&#34;&#34;&#34;
+    n_distributions: int = 25
+    &#34;&#34;&#34;Number of features to save distributions for.&#34;&#34;&#34;
+    percentile: int = 99
+    &#34;&#34;&#34;Percentile to estimate for outlier detection.&#34;&#34;&#34;
+    n_latents: int = 400
+    &#34;&#34;&#34;Maximum number of latents to save images for.&#34;&#34;&#34;
+    sae_batch_size: int = 1024 * 16
+    &#34;&#34;&#34;Batch size for SAE inference.&#34;&#34;&#34;
+    topk_batch_size: int = 1024 * 16
+
+    # Hardware
+    device: str = &#34;cuda&#34;
+    &#34;&#34;&#34;Which accelerator to use.&#34;&#34;&#34;
+    seed: int = 42
+    &#34;&#34;&#34;Random seed.&#34;&#34;&#34;
+    slurm_acct: str = &#34;&#34;
+    &#34;&#34;&#34;Slurm account string. Empty means to not use Slurm.&#34;&#34;&#34;
+    slurm_partition: str = &#34;&#34;
+    &#34;&#34;&#34;Slurm partition.&#34;&#34;&#34;
+    n_hours: float = 4.0
+    &#34;&#34;&#34;Slurm job length in hours.&#34;&#34;&#34;
+    log_to: str = os.path.join(&#34;.&#34;, &#34;logs&#34;)
+    &#34;&#34;&#34;Where to log Slurm job stdout/stderr.&#34;&#34;&#34;
+
+    @property
+    def root(self) -&gt; str:
+        return os.path.join(self.dump_to, f&#34;sort_by_{self.sort_by}&#34;)
+
+    @property
+    def top_values_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;top_values.pt&#34;)
+
+    @property
+    def top_img_i_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;top_img_i.pt&#34;)
+
+    @property
+    def top_patch_i_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;top_patch_i.pt&#34;)
+
+    @property
+    def mean_values_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;mean_values.pt&#34;)
+
+    @property
+    def sparsity_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;sparsity.pt&#34;)
+
+    @property
+    def distributions_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;distributions.pt&#34;)
+
+    @property
+    def percentiles_fpath(self) -&gt; str:
+        return os.path.join(self.root, f&#34;percentiles_p{self.percentile}.pt&#34;)</code></pre>
+</details>
 </dd>
 <dt id="saev.scripts.visuals.Config.sparsity_fpath"><code class="name">prop <span class="ident">sparsity_fpath</span> : str</code></dt>
 <dd>
@@ -415,6 +2592,98 @@ def top_img_i_fpath(self) -&gt; str:
 <dt id="saev.scripts.visuals.Config.top_k"><code class="name">var <span class="ident">top_k</span> : int</code></dt>
 <dd>
 <div class="desc"><p>How many images per SAE feature to store.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+@dataclasses.dataclass(frozen=True, slots=True)
+class Config:
+    &#34;&#34;&#34;Configuration for generating visuals from trained SAEs.&#34;&#34;&#34;
+
+    # Disk
+    ckpt: str = os.path.join(&#34;.&#34;, &#34;checkpoints&#34;, &#34;sae.pt&#34;)
+    &#34;&#34;&#34;Path to the sae.pt file.&#34;&#34;&#34;
+    data: saev.data.OrderedConfig = dataclasses.field(
+        default_factory=saev.data.OrderedConfig
+    )
+    &#34;&#34;&#34;Data configuration&#34;&#34;&#34;
+    images: saev.data.images.Config = dataclasses.field(
+        default_factory=saev.data.images.Imagenet
+    )
+    &#34;&#34;&#34;Which images to use.&#34;&#34;&#34;
+    dump_to: str = os.path.join(&#34;.&#34;, &#34;data&#34;)
+    &#34;&#34;&#34;Where to save data.&#34;&#34;&#34;
+
+    # Algorithm
+    top_k: int = 128
+    &#34;&#34;&#34;How many images per SAE feature to store.&#34;&#34;&#34;
+    epsilon: float = 1e-9
+    &#34;&#34;&#34;Value to add to avoid log(0).&#34;&#34;&#34;
+    sort_by: typing.Literal[&#34;cls&#34;, &#34;img&#34;, &#34;patch&#34;] = &#34;patch&#34;
+    &#34;&#34;&#34;How to find the top k images. &#39;cls&#39; picks images where the SAE latents of the ViT&#39;s [CLS] token are maximized without any patch highligting. &#39;img&#39; picks images that maximize the sum of an SAE latent over all patches in the image, highlighting the patches. &#39;patch&#39; pickes images that maximize an SAE latent over all patches (not summed), highlighting the patches and only showing unique images.&#34;&#34;&#34;
+    log_freq_range: tuple[float, float] = (-6.0, -2.0)
+    &#34;&#34;&#34;Log10 frequency range for which to save images.&#34;&#34;&#34;
+    log_value_range: tuple[float, float] = (-1.0, 1.0)
+    &#34;&#34;&#34;Log10 frequency range for which to save images.&#34;&#34;&#34;
+    include_latents: list[int] = dataclasses.field(default_factory=list)
+    &#34;&#34;&#34;Latents to always include, no matter what.&#34;&#34;&#34;
+    n_distributions: int = 25
+    &#34;&#34;&#34;Number of features to save distributions for.&#34;&#34;&#34;
+    percentile: int = 99
+    &#34;&#34;&#34;Percentile to estimate for outlier detection.&#34;&#34;&#34;
+    n_latents: int = 400
+    &#34;&#34;&#34;Maximum number of latents to save images for.&#34;&#34;&#34;
+    sae_batch_size: int = 1024 * 16
+    &#34;&#34;&#34;Batch size for SAE inference.&#34;&#34;&#34;
+    topk_batch_size: int = 1024 * 16
+
+    # Hardware
+    device: str = &#34;cuda&#34;
+    &#34;&#34;&#34;Which accelerator to use.&#34;&#34;&#34;
+    seed: int = 42
+    &#34;&#34;&#34;Random seed.&#34;&#34;&#34;
+    slurm_acct: str = &#34;&#34;
+    &#34;&#34;&#34;Slurm account string. Empty means to not use Slurm.&#34;&#34;&#34;
+    slurm_partition: str = &#34;&#34;
+    &#34;&#34;&#34;Slurm partition.&#34;&#34;&#34;
+    n_hours: float = 4.0
+    &#34;&#34;&#34;Slurm job length in hours.&#34;&#34;&#34;
+    log_to: str = os.path.join(&#34;.&#34;, &#34;logs&#34;)
+    &#34;&#34;&#34;Where to log Slurm job stdout/stderr.&#34;&#34;&#34;
+
+    @property
+    def root(self) -&gt; str:
+        return os.path.join(self.dump_to, f&#34;sort_by_{self.sort_by}&#34;)
+
+    @property
+    def top_values_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;top_values.pt&#34;)
+
+    @property
+    def top_img_i_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;top_img_i.pt&#34;)
+
+    @property
+    def top_patch_i_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;top_patch_i.pt&#34;)
+
+    @property
+    def mean_values_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;mean_values.pt&#34;)
+
+    @property
+    def sparsity_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;sparsity.pt&#34;)
+
+    @property
+    def distributions_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;distributions.pt&#34;)
+
+    @property
+    def percentiles_fpath(self) -&gt; str:
+        return os.path.join(self.root, f&#34;percentiles_p{self.percentile}.pt&#34;)</code></pre>
+</details>
 </dd>
 <dt id="saev.scripts.visuals.Config.top_patch_i_fpath"><code class="name">prop <span class="ident">top_patch_i_fpath</span> : str</code></dt>
 <dd>
@@ -443,6 +2712,98 @@ def top_values_fpath(self) -&gt; str:
 <dt id="saev.scripts.visuals.Config.topk_batch_size"><code class="name">var <span class="ident">topk_batch_size</span> : int</code></dt>
 <dd>
 <div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+@dataclasses.dataclass(frozen=True, slots=True)
+class Config:
+    &#34;&#34;&#34;Configuration for generating visuals from trained SAEs.&#34;&#34;&#34;
+
+    # Disk
+    ckpt: str = os.path.join(&#34;.&#34;, &#34;checkpoints&#34;, &#34;sae.pt&#34;)
+    &#34;&#34;&#34;Path to the sae.pt file.&#34;&#34;&#34;
+    data: saev.data.OrderedConfig = dataclasses.field(
+        default_factory=saev.data.OrderedConfig
+    )
+    &#34;&#34;&#34;Data configuration&#34;&#34;&#34;
+    images: saev.data.images.Config = dataclasses.field(
+        default_factory=saev.data.images.Imagenet
+    )
+    &#34;&#34;&#34;Which images to use.&#34;&#34;&#34;
+    dump_to: str = os.path.join(&#34;.&#34;, &#34;data&#34;)
+    &#34;&#34;&#34;Where to save data.&#34;&#34;&#34;
+
+    # Algorithm
+    top_k: int = 128
+    &#34;&#34;&#34;How many images per SAE feature to store.&#34;&#34;&#34;
+    epsilon: float = 1e-9
+    &#34;&#34;&#34;Value to add to avoid log(0).&#34;&#34;&#34;
+    sort_by: typing.Literal[&#34;cls&#34;, &#34;img&#34;, &#34;patch&#34;] = &#34;patch&#34;
+    &#34;&#34;&#34;How to find the top k images. &#39;cls&#39; picks images where the SAE latents of the ViT&#39;s [CLS] token are maximized without any patch highligting. &#39;img&#39; picks images that maximize the sum of an SAE latent over all patches in the image, highlighting the patches. &#39;patch&#39; pickes images that maximize an SAE latent over all patches (not summed), highlighting the patches and only showing unique images.&#34;&#34;&#34;
+    log_freq_range: tuple[float, float] = (-6.0, -2.0)
+    &#34;&#34;&#34;Log10 frequency range for which to save images.&#34;&#34;&#34;
+    log_value_range: tuple[float, float] = (-1.0, 1.0)
+    &#34;&#34;&#34;Log10 frequency range for which to save images.&#34;&#34;&#34;
+    include_latents: list[int] = dataclasses.field(default_factory=list)
+    &#34;&#34;&#34;Latents to always include, no matter what.&#34;&#34;&#34;
+    n_distributions: int = 25
+    &#34;&#34;&#34;Number of features to save distributions for.&#34;&#34;&#34;
+    percentile: int = 99
+    &#34;&#34;&#34;Percentile to estimate for outlier detection.&#34;&#34;&#34;
+    n_latents: int = 400
+    &#34;&#34;&#34;Maximum number of latents to save images for.&#34;&#34;&#34;
+    sae_batch_size: int = 1024 * 16
+    &#34;&#34;&#34;Batch size for SAE inference.&#34;&#34;&#34;
+    topk_batch_size: int = 1024 * 16
+
+    # Hardware
+    device: str = &#34;cuda&#34;
+    &#34;&#34;&#34;Which accelerator to use.&#34;&#34;&#34;
+    seed: int = 42
+    &#34;&#34;&#34;Random seed.&#34;&#34;&#34;
+    slurm_acct: str = &#34;&#34;
+    &#34;&#34;&#34;Slurm account string. Empty means to not use Slurm.&#34;&#34;&#34;
+    slurm_partition: str = &#34;&#34;
+    &#34;&#34;&#34;Slurm partition.&#34;&#34;&#34;
+    n_hours: float = 4.0
+    &#34;&#34;&#34;Slurm job length in hours.&#34;&#34;&#34;
+    log_to: str = os.path.join(&#34;.&#34;, &#34;logs&#34;)
+    &#34;&#34;&#34;Where to log Slurm job stdout/stderr.&#34;&#34;&#34;
+
+    @property
+    def root(self) -&gt; str:
+        return os.path.join(self.dump_to, f&#34;sort_by_{self.sort_by}&#34;)
+
+    @property
+    def top_values_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;top_values.pt&#34;)
+
+    @property
+    def top_img_i_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;top_img_i.pt&#34;)
+
+    @property
+    def top_patch_i_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;top_patch_i.pt&#34;)
+
+    @property
+    def mean_values_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;mean_values.pt&#34;)
+
+    @property
+    def sparsity_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;sparsity.pt&#34;)
+
+    @property
+    def distributions_fpath(self) -&gt; str:
+        return os.path.join(self.root, &#34;distributions.pt&#34;)
+
+    @property
+    def percentiles_fpath(self) -&gt; str:
+        return os.path.join(self.root, f&#34;percentiles_p{self.percentile}.pt&#34;)</code></pre>
+</details>
 </dd>
 </dl>
 </dd>
@@ -463,7 +2824,7 @@ class GridElement:
     label: str
     patches: Float[Tensor, &#34; n_patches&#34;]</code></pre>
 </details>
-<h3>Class variables</h3>
+<h3>Instance variables</h3>
 <dl>
 <dt id="saev.scripts.visuals.GridElement.img"><code class="name">var <span class="ident">img</span> : PIL.Image.Image</code></dt>
 <dd>
@@ -557,6 +2918,32 @@ def estimate(self):
 When a new value arrives, it's placed in the appropriate position relative to existing markers, and marker positions are adjusted to maintain their desired percentile positions.</p>
 <h2 id="arguments">Arguments</h2>
 <p>x: The new value to incorporate into the estimation</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def update(self, x):
+    &#34;&#34;&#34;
+    Update the estimator with a new value.
+
+    This method maintains the marker positions using the P2 algorithm rules.
+    When a new value arrives, it&#39;s placed in the appropriate position relative to existing markers, and marker positions are adjusted to maintain their desired percentile positions.
+
+    Arguments:
+        x: The new value to incorporate into the estimation
+    &#34;&#34;&#34;
+    self._step += 1
+
+    step_size = self.lr * (self.total - self._step) / self.total
+
+    # Is a no-op if it&#39;s already on the same device.
+    if isinstance(x, Tensor):
+        self._estimate = self._estimate.to(x.device)
+
+    self._estimate += step_size * (
+        torch.sign(x - self._estimate) + 2 * self.percentile / 100 - 1.0
+    )</code></pre>
+</details>
 </dd>
 </dl>
 </dd>
@@ -585,7 +2972,7 @@ class TopKPatch:
     distributions: Float[Tensor, &#34;m n&#34;]
     percentiles: Float[Tensor, &#34; d_sae&#34;]</code></pre>
 </details>
-<h3>Class variables</h3>
+<h3>Instance variables</h3>
 <dl>
 <dt id="saev.scripts.visuals.TopKPatch.distributions"><code class="name">var <span class="ident">distributions</span> : jaxtyping.Float[Tensor, 'm n']</code></dt>
 <dd>
@@ -754,7 +3141,7 @@ setTimeout(() => input.focus(), 100);
 </nav>
 </main>
 <footer id="footer">
-<p>Generated by <a href="https://pdoc3.github.io/pdoc" title="pdoc: Python API documentation generator"><cite>pdoc</cite> 0.11.1</a>.</p>
+<p>Generated by <a href="https://pdoc3.github.io/pdoc" title="pdoc: Python API documentation generator"><cite>pdoc</cite> 0.11.6</a>.</p>
 </footer>
 </body>
 </html>
