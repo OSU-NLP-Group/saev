@@ -44,9 +44,12 @@ class ImageFolder:
     @property
     def n_imgs(self) -> int:
         """Number of images in the dataset. Calculated on the fly, but is non-trivial to calculate because it requires walking the directory structure. If you need to reference this number very often, cache it in a local variable."""
+        # Use the same image extensions as torchvision's ImageFolder
+        img_extensions = tuple(torchvision.datasets.folder.IMG_EXTENSIONS)
         n = 0
         for _, _, files in os.walk(self.root):
-            n += len(files)
+            # Only count files with valid image extensions
+            n += sum(1 for f in files if f.lower().endswith(img_extensions))
         return n
 
 
@@ -59,13 +62,25 @@ class SegFolder:
     """Where the class folders with images are stored."""
     split: typing.Literal["training", "validation"] = "training"
     """Data split."""
+    img_label_fname: str = "sceneCategories.txt"
+    """Image labels filename."""
 
     @property
     def n_imgs(self) -> int:
-        if self.split == "validation":
-            return 2000
-        else:
-            return 20210
+        """Number of images in the dataset. Calculated on the fly by counting image files in root/images/split."""
+        # Use the same image extensions as torchvision's ImageFolder
+        img_extensions = tuple(torchvision.datasets.folder.IMG_EXTENSIONS)
+
+        # Look for images in root/images/split
+        img_dir = os.path.join(self.root, "images", self.split)
+        if not os.path.isdir(img_dir):
+            return 0
+
+        n = 0
+        for _, _, files in os.walk(img_dir):
+            # Only count files with valid image extensions
+            n += sum(1 for f in files if f.lower().endswith(img_extensions))
+        return n
 
 
 @beartype.beartype
@@ -240,7 +255,9 @@ class SegFolderDataset(torch.utils.data.Dataset):
         base2seg: dict[str, str] = {
             _stem(seg_path): seg_path
             for seg_path, split in torchvision.datasets.folder.make_dataset(
-                self.seg_dir, split_mapping, extensions=...
+                self.seg_dir,
+                split_mapping,
+                extensions=torchvision.datasets.folder.IMG_EXTENSIONS,
             )
             if split_lookup[split] == cfg.split
         }
@@ -257,9 +274,9 @@ class SegFolderDataset(torch.utils.data.Dataset):
 
         # Load all the targets, classes and mappings
         img_labels: dict[str, str] = {}
-        with open(os.path.join(cfg.root, cfg.img_label_fpath)) as fd:
+        with open(os.path.join(cfg.root, cfg.img_label_fname)) as fd:
             for line in fd.readlines():
-                stem, label = line.split()
+                stem, _, label = line.rpartition(" ")
                 img_labels[stem] = label
 
         label_set = sorted(set(img_labels.values()))
