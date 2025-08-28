@@ -193,19 +193,21 @@ class Unfold(nn.Module):
         self.patch_size = patch_size
         self.n_patches = n_patches
 
-    def forward(self, example: dict[str, object]):
-        assert &#34;image&#34; in example
-        img = example[&#34;image&#34;]
+    def forward(self, sample: dict[str, object]) -&gt; dict[str, object]:
+        assert &#34;image&#34; in sample
+        img = sample[&#34;image&#34;]
         c, h, w = img.shape
-        cols_bpn = F.unfold(
-            img[None, ...], kernel_size=self.patch_size, stride=self.patch_size
-        )
+        p = self.patch_size
+        assert (h % p == 0) and (w % p == 0), f&#34;Got {h}x{w}, patch={p}&#34;
 
-        k = (c * (h // self.patch_size) * (w // self.patch_size),)
-        assert cols_bpn.shape == (1, k, self.n_patches)
+        cols_bpn = F.unfold(img[None, ...], kernel_size=p, stride=p)
+        _, k, n = cols_bpn.shape
+        assert n == self.n_patches, f&#34;Expected n={self.n_patches}, got {n}&#34;
+        assert k == c * p * p, f&#34;k mismatch: {k} != {c}*{p}*{p}&#34;
 
-        example[&#34;image&#34;] = einops.rearrange(cols_bpn, &#34;() k n -&gt; n k&#34;)
-        example[&#34;size&#34;] = torch.tensor([h, w], dtype=int)</code></pre>
+        sample[&#34;image&#34;] = einops.rearrange(cols_bpn, &#34;() k n -&gt; n k&#34;).contiguous()
+        sample[&#34;grid&#34;] = torch.tensor([h // p, w // p], dtype=torch.int16)
+        return sample</code></pre>
 </details>
 <h3>Ancestors</h3>
 <ul class="hlist">
@@ -214,7 +216,7 @@ class Unfold(nn.Module):
 <h3>Methods</h3>
 <dl>
 <dt id="saev.data.transforms.Unfold.forward"><code class="name flex">
-<span>def <span class="ident">forward</span></span>(<span>self, example: dict[str, object]) ‑> Callable[..., Any]</span>
+<span>def <span class="ident">forward</span></span>(<span>self, sample: dict[str, object]) ‑> dict[str, object]</span>
 </code></dt>
 <dd>
 <div class="desc"></div>
@@ -222,19 +224,21 @@ class Unfold(nn.Module):
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def forward(self, example: dict[str, object]):
-    assert &#34;image&#34; in example
-    img = example[&#34;image&#34;]
+<pre><code class="python">def forward(self, sample: dict[str, object]) -&gt; dict[str, object]:
+    assert &#34;image&#34; in sample
+    img = sample[&#34;image&#34;]
     c, h, w = img.shape
-    cols_bpn = F.unfold(
-        img[None, ...], kernel_size=self.patch_size, stride=self.patch_size
-    )
+    p = self.patch_size
+    assert (h % p == 0) and (w % p == 0), f&#34;Got {h}x{w}, patch={p}&#34;
 
-    k = (c * (h // self.patch_size) * (w // self.patch_size),)
-    assert cols_bpn.shape == (1, k, self.n_patches)
+    cols_bpn = F.unfold(img[None, ...], kernel_size=p, stride=p)
+    _, k, n = cols_bpn.shape
+    assert n == self.n_patches, f&#34;Expected n={self.n_patches}, got {n}&#34;
+    assert k == c * p * p, f&#34;k mismatch: {k} != {c}*{p}*{p}&#34;
 
-    example[&#34;image&#34;] = einops.rearrange(cols_bpn, &#34;() k n -&gt; n k&#34;)
-    example[&#34;size&#34;] = torch.tensor([h, w], dtype=int)</code></pre>
+    sample[&#34;image&#34;] = einops.rearrange(cols_bpn, &#34;() k n -&gt; n k&#34;).contiguous()
+    sample[&#34;grid&#34;] = torch.tensor([h // p, w // p], dtype=torch.int16)
+    return sample</code></pre>
 </details>
 </dd>
 </dl>

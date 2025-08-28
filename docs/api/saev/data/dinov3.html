@@ -78,7 +78,7 @@ def make_2tuple(x: int | tuple[int, int]) -&gt; tuple[int, int]:
 </details>
 </dd>
 <dt id="saev.data.dinov3.rope_fn"><code class="name flex">
-<span>def <span class="ident">rope_fn</span></span>(<span>q_bhnd: jaxtyping.Float[Tensor, 'batch head n d_head'],<br>k_bhnd: jaxtyping.Float[Tensor, 'batch head n d_head'],<br>rope: torch.Tensor | tuple[torch.Tensor, torch.Tensor]) ‑> tuple[jaxtyping.Float[Tensor, 'batch head n d_head'], jaxtyping.Float[Tensor, 'batch head n d_head']]</span>
+<span>def <span class="ident">rope_fn</span></span>(<span>q_bhnd: jaxtyping.Float[Tensor, 'batch head n d_head'],<br>k_bhnd: jaxtyping.Float[Tensor, 'batch head n d_head'],<br>rope: jaxtyping.Float[Tensor, 'batch 2 n_pos d_head']) ‑> tuple[jaxtyping.Float[Tensor, 'batch head n d_head'], jaxtyping.Float[Tensor, 'batch head n d_head']]</span>
 </code></dt>
 <dd>
 <div class="desc"></div>
@@ -90,27 +90,27 @@ def make_2tuple(x: int | tuple[int, int]) -&gt; tuple[int, int]:
 def rope_fn(
     q_bhnd: Float[Tensor, &#34;batch head n d_head&#34;],
     k_bhnd: Float[Tensor, &#34;batch head n d_head&#34;],
-    rope: Tensor | tuple[Tensor, Tensor],
+    rope: Float[Tensor, &#34;batch 2 n_pos d_head&#34;],
 ) -&gt; tuple[Float[Tensor, &#34;batch head n d_head&#34;], Float[Tensor, &#34;batch head n d_head&#34;]]:
     # All operations will use the dtype of rope, the output is cast back to the dtype of q and k
     q_dtype = q_bhnd.dtype
     k_dtype = k_bhnd.dtype
 
-    sin_pd, cos_pd = rope
-    rope_dtype = sin_pd.dtype
+    sin_bpd, cos_bpd = rope.unbind(1)
+    rope_dtype = sin_bpd.dtype
 
     q_bhnd = q_bhnd.to(dtype=rope_dtype)
     k_bhnd = k_bhnd.to(dtype=rope_dtype)
     _, n_heads, n, d_head = q_bhnd.shape
-    n_pos, d_head = sin_pd.shape
+    _, n_pos, d_head = sin_bpd.shape
     prefix = n - n_pos
     assert prefix &gt;= 0, f&#34;Got {n} residual streams but only {n_pos} patches.&#34;
 
     q_prefix_bhd = q_bhnd[:, :, :prefix, :]
-    q_bhpd = _rope(q_bhnd[:, :, prefix:, :], sin_pd, cos_pd)
+    q_bhpd = _rope(q_bhnd[:, :, prefix:, :], sin_bpd, cos_bpd)
     q_bhnd = torch.cat((q_prefix_bhd, q_bhpd), dim=2)
     k_prefix_bhd = k_bhnd[:, :, :prefix, :]
-    k_bhpd = _rope(k_bhnd[:, :, prefix:, :], sin_pd, cos_pd)
+    k_bhpd = _rope(k_bhnd[:, :, prefix:, :], sin_bpd, cos_bpd)
     k_bhnd = torch.cat((k_prefix_bhd, k_bhpd), dim=2)
 
     q_bhnd = q_bhnd.to(dtype=q_dtype)
@@ -526,8 +526,8 @@ class PatchEmbed(nn.Module):
         image_hw = make_2tuple(img_size)
         patch_hw = make_2tuple(patch_size)
 
-        self.img_size = image_hw
-        self.patch_size = patch_hw
+        self.image_hw = image_hw
+        self.patch_hw = patch_hw
 
         self.in_chans = in_chans
         self.embed_dim = embed_dim
@@ -544,21 +544,14 @@ class PatchEmbed(nn.Module):
 
     def forward(
         self,
-        x: Float[Tensor, &#34;batch 3 width height&#34;] | Float[Tensor, &#34;batch n kernel&#34;],
+        x: Float[Tensor, &#34;batch n kernel&#34;],
     ) -&gt; Float[Tensor, &#34;batch n dim&#34;]:
-        if x.ndim == 4:
-            x_bdhw = self.proj(x)  # B C H W
-            _, _, h, w = x_bdhw.shape
-            x_bnd = einops.rearrange(x_bdhw, &#34;b d h w -&gt; b (h w) d&#34;)
-        elif x.ndim == 3:
-            w_dp = self.conv.weight.reshape(
-                self.embed_dim, self.in_chans * self.patch_hw[0] * self.patch_hw[1]
-            )
-            x_bnd = x @ w_dp.T
-            if self.proj.bias is not None:
-                x_bnd = x_bnd + self.proj.bias[None, None, :]
-        else:
-            raise TypeError(f&#34;Wrong shape for x: {x.shape}&#34;)
+        w_dp = self.proj.weight.reshape(
+            self.embed_dim, self.in_chans * self.patch_hw[0] * self.patch_hw[1]
+        )
+        x_bnd = x @ w_dp.T
+        if self.proj.bias is not None:
+            x_bnd = x_bnd + self.proj.bias[None, None, :]
         return x_bnd</code></pre>
 </details>
 <h3>Ancestors</h3>
@@ -568,7 +561,7 @@ class PatchEmbed(nn.Module):
 <h3>Methods</h3>
 <dl>
 <dt id="saev.data.dinov3.PatchEmbed.forward"><code class="name flex">
-<span>def <span class="ident">forward</span></span>(<span>self,<br>x: jaxtyping.Float[Tensor, 'batch 3 width height'] | jaxtyping.Float[Tensor, 'batch n kernel']) ‑> jaxtyping.Float[Tensor, 'batch n dim']</span>
+<span>def <span class="ident">forward</span></span>(<span>self, x: jaxtyping.Float[Tensor, 'batch n kernel']) ‑> jaxtyping.Float[Tensor, 'batch n dim']</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Define the computation performed at every call.</p>
@@ -586,21 +579,14 @@ registered hooks while the latter silently ignores them.</p>
 </summary>
 <pre><code class="python">def forward(
     self,
-    x: Float[Tensor, &#34;batch 3 width height&#34;] | Float[Tensor, &#34;batch n kernel&#34;],
+    x: Float[Tensor, &#34;batch n kernel&#34;],
 ) -&gt; Float[Tensor, &#34;batch n dim&#34;]:
-    if x.ndim == 4:
-        x_bdhw = self.proj(x)  # B C H W
-        _, _, h, w = x_bdhw.shape
-        x_bnd = einops.rearrange(x_bdhw, &#34;b d h w -&gt; b (h w) d&#34;)
-    elif x.ndim == 3:
-        w_dp = self.conv.weight.reshape(
-            self.embed_dim, self.in_chans * self.patch_hw[0] * self.patch_hw[1]
-        )
-        x_bnd = x @ w_dp.T
-        if self.proj.bias is not None:
-            x_bnd = x_bnd + self.proj.bias[None, None, :]
-    else:
-        raise TypeError(f&#34;Wrong shape for x: {x.shape}&#34;)
+    w_dp = self.proj.weight.reshape(
+        self.embed_dim, self.in_chans * self.patch_hw[0] * self.patch_hw[1]
+    )
+    x_bnd = x @ w_dp.T
+    if self.proj.bias is not None:
+        x_bnd = x_bnd + self.proj.bias[None, None, :]
     return x_bnd</code></pre>
 </details>
 </dd>
@@ -701,8 +687,6 @@ class RopePositionEmbedding(nn.Module):
         dtype = self.dtype
         dd = {&#34;device&#34;: device, &#34;dtype&#34;: dtype}
 
-        breakpoint()
-
         # Prepare coords in range [-1, +1]
         if self.normalize_coords == &#34;max&#34;:
             max_hw = max(h, w)
@@ -763,8 +747,6 @@ registered hooks while the latter silently ignores them.</p>
     device = self.periods.device
     dtype = self.dtype
     dd = {&#34;device&#34;: device, &#34;dtype&#34;: dtype}
-
-    breakpoint()
 
     # Prepare coords in range [-1, +1]
     if self.normalize_coords == &#34;max&#34;:
@@ -853,7 +835,7 @@ class SelfAttention(nn.Module):
     def forward(
         self,
         x_bnd: Float[Tensor, &#34;batch n d&#34;],
-        rope: Float[Tensor, &#34;2 n_pos d_head&#34;] | None = None,
+        rope: Float[Tensor, &#34;batch 2 n_pos d_head&#34;] | None = None,
     ) -&gt; Float[Tensor, &#34;batch n d&#34;]:
         b, n_tok, d = x_bnd.shape
         qkv_b3nd = einops.rearrange(
@@ -889,7 +871,7 @@ class SelfAttention(nn.Module):
 <h3>Methods</h3>
 <dl>
 <dt id="saev.data.dinov3.SelfAttention.forward"><code class="name flex">
-<span>def <span class="ident">forward</span></span>(<span>self,<br>x_bnd: jaxtyping.Float[Tensor, 'batch n d'],<br>rope: jaxtyping.Float[Tensor, '2 n_pos d_head'] | None = None) ‑> jaxtyping.Float[Tensor, 'batch n d']</span>
+<span>def <span class="ident">forward</span></span>(<span>self,<br>x_bnd: jaxtyping.Float[Tensor, 'batch n d'],<br>rope: jaxtyping.Float[Tensor, 'batch 2 n_pos d_head'] | None = None) ‑> jaxtyping.Float[Tensor, 'batch n d']</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Define the computation performed at every call.</p>
@@ -908,7 +890,7 @@ registered hooks while the latter silently ignores them.</p>
 <pre><code class="python">def forward(
     self,
     x_bnd: Float[Tensor, &#34;batch n d&#34;],
-    rope: Float[Tensor, &#34;2 n_pos d_head&#34;] | None = None,
+    rope: Float[Tensor, &#34;batch 2 n_pos d_head&#34;] | None = None,
 ) -&gt; Float[Tensor, &#34;batch n d&#34;]:
     b, n_tok, d = x_bnd.shape
     qkv_b3nd = einops.rearrange(
@@ -1105,27 +1087,31 @@ class VisionTransformer(nn.Module):
         self.norm = nn.LayerNorm(cfg.embed_dim, eps=1e-5)
 
     def forward(
-        self, x: Float[Tensor, &#34;b n kernel&#34;], img_size: Int[Tensor, &#34;b 2&#34;]
+        self, x: Float[Tensor, &#34;b n kernel&#34;], *, grid: Int[Tensor, &#34;b 2&#34;]
     ) -&gt; dict[str, Tensor]:
         x_bnd = self.patch_embed(x)
 
         b, n, d = x_bnd.shape
 
-        cls_token = self.cls_token + 0 * self.mask_token
-
         x_bnd = torch.cat(
-            [cls_token.expand(b, -1, -1), self.storage_tokens.expand(b, -1, -1), x_bnd],
+            [
+                self.cls_token.expand(b, 1, d),
+                self.storage_tokens.expand(b, self.cfg.n_storage_tokens, d),
+                x_bnd,
+            ],
             dim=1,
         )
 
-        hs, ws = img_size[:, 0], img_size[:, 1]
-        rope_sincos = self.rope_embed(h=hs, w=ws)
+        hs, ws = grid[:, 0], grid[:, 1]
+        rope_b2nd = torch.stack([
+            torch.stack(self.rope_embed(h=h, w=w)) for h, w in zip(hs, ws)
+        ])
 
         for blk in self.blocks:
-            x_bnd = blk(x_bnd, rope_sincos)
+            x_bnd = blk(x_bnd, rope_b2nd)
 
         x_norm_bnd = self.norm(x_bnd)
-        x_norm_cls_bd = x_norm_bnd[:, :0]
+        x_norm_cls_bd = x_norm_bnd[:, 0]
         x_norm_patch_bnd = x_norm_bnd[:, self.cfg.n_storage_tokens + 1 :]
 
         output = {&#34;cls&#34;: x_norm_cls_bd, &#34;patches&#34;: x_norm_patch_bnd}
@@ -1138,7 +1124,7 @@ class VisionTransformer(nn.Module):
 <h3>Methods</h3>
 <dl>
 <dt id="saev.data.dinov3.VisionTransformer.forward"><code class="name flex">
-<span>def <span class="ident">forward</span></span>(<span>self,<br>x: jaxtyping.Float[Tensor, 'b n kernel'],<br>img_size: jaxtyping.Int[Tensor, 'b 2']) ‑> dict[str, torch.Tensor]</span>
+<span>def <span class="ident">forward</span></span>(<span>self,<br>x: jaxtyping.Float[Tensor, 'b n kernel'],<br>*,<br>grid: jaxtyping.Int[Tensor, 'b 2']) ‑> dict[str, torch.Tensor]</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Define the computation performed at every call.</p>
@@ -1155,27 +1141,31 @@ registered hooks while the latter silently ignores them.</p>
 <span>Expand source code</span>
 </summary>
 <pre><code class="python">def forward(
-    self, x: Float[Tensor, &#34;b n kernel&#34;], img_size: Int[Tensor, &#34;b 2&#34;]
+    self, x: Float[Tensor, &#34;b n kernel&#34;], *, grid: Int[Tensor, &#34;b 2&#34;]
 ) -&gt; dict[str, Tensor]:
     x_bnd = self.patch_embed(x)
 
     b, n, d = x_bnd.shape
 
-    cls_token = self.cls_token + 0 * self.mask_token
-
     x_bnd = torch.cat(
-        [cls_token.expand(b, -1, -1), self.storage_tokens.expand(b, -1, -1), x_bnd],
+        [
+            self.cls_token.expand(b, 1, d),
+            self.storage_tokens.expand(b, self.cfg.n_storage_tokens, d),
+            x_bnd,
+        ],
         dim=1,
     )
 
-    hs, ws = img_size[:, 0], img_size[:, 1]
-    rope_sincos = self.rope_embed(h=hs, w=ws)
+    hs, ws = grid[:, 0], grid[:, 1]
+    rope_b2nd = torch.stack([
+        torch.stack(self.rope_embed(h=h, w=w)) for h, w in zip(hs, ws)
+    ])
 
     for blk in self.blocks:
-        x_bnd = blk(x_bnd, rope_sincos)
+        x_bnd = blk(x_bnd, rope_b2nd)
 
     x_norm_bnd = self.norm(x_bnd)
-    x_norm_cls_bd = x_norm_bnd[:, :0]
+    x_norm_cls_bd = x_norm_bnd[:, 0]
     x_norm_patch_bnd = x_norm_bnd[:, self.cfg.n_storage_tokens + 1 :]
 
     output = {&#34;cls&#34;: x_norm_cls_bd, &#34;patches&#34;: x_norm_patch_bnd}

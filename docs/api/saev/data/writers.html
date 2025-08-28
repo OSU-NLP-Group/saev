@@ -75,7 +75,7 @@ def get_acts_dir(cfg: Config) -&gt; str:
 </details>
 </dd>
 <dt id="saev.data.writers.get_dataloader"><code class="name flex">
-<span>def <span class="ident">get_dataloader</span></span>(<span>cfg: <a title="saev.data.writers.Config" href="#saev.data.writers.Config">Config</a>,<br>*,<br>img_transform: collections.abc.Callable | None = None) ‑> torch.utils.data.dataloader.DataLoader</span>
+<span>def <span class="ident">get_dataloader</span></span>(<span>cfg: <a title="saev.data.writers.Config" href="#saev.data.writers.Config">Config</a>,<br>*,<br>img_transform: collections.abc.Callable | None = None,<br>sample_transform: collections.abc.Callable | None = None) ‑> torch.utils.data.dataloader.DataLoader</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Get a dataloader for a default map-style dataset.</p>
@@ -94,7 +94,10 @@ def get_acts_dir(cfg: Config) -&gt; str:
 </summary>
 <pre><code class="python">@beartype.beartype
 def get_dataloader(
-    cfg: Config, *, img_transform: Callable | None = None
+    cfg: Config,
+    *,
+    img_transform: Callable | None = None,
+    sample_transform: Callable | None = None,
 ) -&gt; torch.utils.data.DataLoader:
     &#34;&#34;&#34;
     Get a dataloader for a default map-style dataset.
@@ -106,7 +109,9 @@ def get_dataloader(
     Returns:
         A PyTorch Dataloader that yields dictionaries with `&#39;image&#39;` keys containing image batches, `&#39;index&#39;` keys containing original dataset indices and `&#39;label&#39;` keys containing label batches.
     &#34;&#34;&#34;
-    dataset = images.get_dataset(cfg.data, img_transform=img_transform)
+    dataset = images.get_dataset(
+        cfg.data, img_transform=img_transform, sample_transform=sample_transform
+    )
 
     dataloader = torch.utils.data.DataLoader(
         dataset=dataset,
@@ -161,8 +166,8 @@ def worker_fn(cfg: Config):
     vit = RecordedVisionTransformer(
         vit, cfg.n_patches_per_img, cfg.cls_token, cfg.vit_layers
     )
-    img_transform = models.make_img_transform(cfg.vit_family, cfg.vit_ckpt)
-    dataloader = get_dataloader(cfg, img_transform=img_transform)
+    img_tr, sample_tr = models.make_transforms(cfg.vit_family, cfg.vit_ckpt)
+    dataloader = get_dataloader(cfg, img_transform=img_tr, sample_transform=sample_tr)
 
     writer = ShardWriter(cfg)
 
@@ -177,11 +182,11 @@ def worker_fn(cfg: Config):
     with torch.inference_mode():
         for batch in helpers.progress(dataloader, total=n_batches):
             imgs = batch.get(&#34;image&#34;).to(cfg.device)
-            size = batch.get(&#34;size&#34;)
-            if size is not None:
-                size = size.to(cfg.device)
+            grid = batch.get(&#34;grid&#34;)
+            if grid is not None:
+                grid = grid.to(cfg.device)
             # cache has shape [batch size, n layers, n patches + 1, d vit]
-            out, cache = vit(imgs, size=size)
+            out, cache = vit(imgs, grid=grid)
             del out
 
             writer[i : i + len(cache)] = cache
@@ -197,7 +202,7 @@ def worker_fn(cfg: Config):
 <dl>
 <dt id="saev.data.writers.Config"><code class="flex name class">
 <span>class <span class="ident">Config</span></span>
-<span>(</span><span>data: <a title="saev.data.images.Imagenet" href="images.html#saev.data.images.Imagenet">Imagenet</a> | <a title="saev.data.images.ImageFolder" href="images.html#saev.data.images.ImageFolder">ImageFolder</a> | <a title="saev.data.images.Ade20k" href="images.html#saev.data.images.Ade20k">Ade20k</a> | <a title="saev.data.images.Fake" href="images.html#saev.data.images.Fake">Fake</a> = &lt;factory&gt;,<br>dump_to: str = './shards',<br>vit_family: Literal['clip', 'siglip', 'dinov2', 'dinov3'] = 'clip',<br>vit_ckpt: str = 'ViT-L-14/openai',<br>vit_batch_size: int = 1024,<br>n_workers: int = 8,<br>d_vit: int = 1024,<br>vit_layers: list[int] = &lt;factory&gt;,<br>n_patches_per_img: int = 256,<br>cls_token: bool = True,<br>max_patches_per_shard: int = 2400000,<br>ssl: bool = True,<br>device: str = 'cuda',<br>n_hours: float = 24.0,<br>slurm_acct: str = '',<br>slurm_partition: str = '',<br>log_to: str = './logs')</span>
+<span>(</span><span>data: <a title="saev.data.images.Imagenet" href="images.html#saev.data.images.Imagenet">Imagenet</a> | <a title="saev.data.images.ImageFolder" href="images.html#saev.data.images.ImageFolder">ImageFolder</a> | <a title="saev.data.images.SegFolder" href="images.html#saev.data.images.SegFolder">SegFolder</a> | <a title="saev.data.images.Fake" href="images.html#saev.data.images.Fake">Fake</a> = &lt;factory&gt;,<br>dump_to: str = './shards',<br>vit_family: Literal['clip', 'siglip', 'dinov2', 'dinov3'] = 'clip',<br>vit_ckpt: str = 'ViT-L-14/openai',<br>vit_batch_size: int = 1024,<br>n_workers: int = 8,<br>d_vit: int = 1024,<br>vit_layers: list[int] = &lt;factory&gt;,<br>n_patches_per_img: int = 256,<br>cls_token: bool = True,<br>max_patches_per_shard: int = 2400000,<br>ssl: bool = True,<br>device: str = 'cuda',<br>n_hours: float = 24.0,<br>slurm_acct: str = '',<br>slurm_partition: str = '',<br>log_to: str = './logs')</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Configuration for calculating and saving ViT activations.</p></div>
@@ -258,7 +263,7 @@ class Config:
 <dd>
 <div class="desc"><p>Dimension of the ViT activations (depends on model).</p></div>
 </dd>
-<dt id="saev.data.writers.Config.data"><code class="name">var <span class="ident">data</span> : <a title="saev.data.images.Imagenet" href="images.html#saev.data.images.Imagenet">Imagenet</a> | <a title="saev.data.images.ImageFolder" href="images.html#saev.data.images.ImageFolder">ImageFolder</a> | <a title="saev.data.images.Ade20k" href="images.html#saev.data.images.Ade20k">Ade20k</a> | <a title="saev.data.images.Fake" href="images.html#saev.data.images.Fake">Fake</a></code></dt>
+<dt id="saev.data.writers.Config.data"><code class="name">var <span class="ident">data</span> : <a title="saev.data.images.Imagenet" href="images.html#saev.data.images.Imagenet">Imagenet</a> | <a title="saev.data.images.ImageFolder" href="images.html#saev.data.images.ImageFolder">ImageFolder</a> | <a title="saev.data.images.SegFolder" href="images.html#saev.data.images.SegFolder">SegFolder</a> | <a title="saev.data.images.Fake" href="images.html#saev.data.images.Fake">Fake</a></code></dt>
 <dd>
 <div class="desc"><p>Which dataset to use.</p></div>
 </dd>
@@ -1018,13 +1023,13 @@ class RecordedVisionTransformer(torch.nn.Module):
         return self._storage.cpu()
 
     def forward(
-        self, batch: Float[Tensor, &#34;batch 3 width height&#34;]
+        self, batch: Float[Tensor, &#34;batch 3 width height&#34;], **kwargs
     ) -&gt; tuple[
         Float[Tensor, &#34;batch patches dim&#34;],
         Float[Tensor, &#34;batch n_layers all_patches dim&#34;],
     ]:
         self.reset()
-        result = self.vit(batch)
+        result = self.vit(batch, **kwargs)
         return result, self.activations</code></pre>
 </details>
 <h3>Ancestors</h3>
@@ -1051,7 +1056,7 @@ def activations(self) -&gt; Float[Tensor, &#34;batch n_layers all_patches dim&#3
 <h3>Methods</h3>
 <dl>
 <dt id="saev.data.writers.RecordedVisionTransformer.forward"><code class="name flex">
-<span>def <span class="ident">forward</span></span>(<span>self, batch: jaxtyping.Float[Tensor, 'batch 3 width height']) ‑> tuple[jaxtyping.Float[Tensor, 'batch patches dim'], jaxtyping.Float[Tensor, 'batch n_layers all_patches dim']]</span>
+<span>def <span class="ident">forward</span></span>(<span>self, batch: jaxtyping.Float[Tensor, 'batch 3 width height'], **kwargs) ‑> tuple[jaxtyping.Float[Tensor, 'batch patches dim'], jaxtyping.Float[Tensor, 'batch n_layers all_patches dim']]</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Define the computation performed at every call.</p>
@@ -1068,13 +1073,13 @@ registered hooks while the latter silently ignores them.</p>
 <span>Expand source code</span>
 </summary>
 <pre><code class="python">def forward(
-    self, batch: Float[Tensor, &#34;batch 3 width height&#34;]
+    self, batch: Float[Tensor, &#34;batch 3 width height&#34;], **kwargs
 ) -&gt; tuple[
     Float[Tensor, &#34;batch patches dim&#34;],
     Float[Tensor, &#34;batch n_layers all_patches dim&#34;],
 ]:
     self.reset()
-    result = self.vit(batch)
+    result = self.vit(batch, **kwargs)
     return result, self.activations</code></pre>
 </details>
 </dd>

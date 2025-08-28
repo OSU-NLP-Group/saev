@@ -52,10 +52,10 @@ class ImageFolder:
 
 @beartype.beartype
 @dataclasses.dataclass(frozen=True)
-class Ade20k:
+class SegFolder:
     """ """
 
-    root: str = os.path.join(".", "data", "ade20k")
+    root: str = os.path.join(".", "data", "segdataset")
     """Where the class folders with images are stored."""
     split: typing.Literal["training", "validation"] = "training"
     """Data split."""
@@ -74,40 +74,7 @@ class Fake:
     n_imgs: int = 10
 
 
-Config = Imagenet | ImageFolder | Ade20k | Fake
-
-
-@beartype.beartype
-def setup(cfg: Config):
-    """
-    Run dataset-specific setup. These setup functions can assume they are the only job running, but they should be idempotent; they should be safe (and ideally cheap) to run multiple times in a row.
-    """
-    if isinstance(cfg, Imagenet):
-        setup_imagenet(cfg)
-    elif isinstance(cfg, ImageFolder):
-        setup_imagefolder(cfg)
-    elif isinstance(cfg, Ade20k):
-        setup_ade20k(cfg)
-    elif isinstance(cfg, Fake):
-        pass
-    else:
-        typing.assert_never(cfg.data)
-
-
-@beartype.beartype
-def setup_imagenet(cfg: Imagenet):
-    pass
-
-
-@beartype.beartype
-def setup_imagefolder(cfg: ImageFolder):
-    logger.info("No dataset-specific setup for ImageFolder.")
-
-
-@beartype.beartype
-def setup_ade20k(cfg: Ade20k):
-    # url = "http://data.csail.mit.edu/places/ADEchallenge/ADEChallengeData2016.zip"
-    pass
+Config = Imagenet | ImageFolder | SegFolder | Fake
 
 
 @beartype.beartype
@@ -128,8 +95,8 @@ def get_dataset(cfg: Config, *, img_transform, sample_transform=None):
         return ImagenetDataset(
             cfg, img_transform=img_transform, sample_transform=sample_transform
         )
-    elif isinstance(cfg, Ade20k):
-        return Ade20kDataset(
+    elif isinstance(cfg, SegFolder):
+        return SegFolderDataset(
             cfg, img_transform=img_transform, sample_transform=sample_transform
         )
     elif isinstance(cfg, ImageFolder):
@@ -216,8 +183,14 @@ class ImageFolderDataset(torchvision.datasets.ImageFolder):
         return sample
 
 
+def _stem(fpath: str) -> str:
+    fname = os.path.basename(fpath)
+    stem, ext = os.path.splitext(fname)
+    return stem
+
+
 @beartype.beartype
-class Ade20kDataset(torch.utils.data.Dataset):
+class SegFolderDataset(torch.utils.data.Dataset):
     @beartype.beartype
     @dataclasses.dataclass(frozen=True)
     class Sample:
@@ -230,16 +203,17 @@ class Ade20kDataset(torch.utils.data.Dataset):
 
     def __init__(
         self,
-        cfg: Ade20k,
+        cfg: SegFolder,
         *,
         img_transform: Callable | None = None,
         seg_transform: Callable | None = lambda x: None,
         sample_transform: Callable | None = None,
     ):
-        self.logger = logging.getLogger("ade20k")
+        self.logger = logging.getLogger("segfolder")
         self.cfg = cfg
         self.img_dir = os.path.join(cfg.root, "images")
         self.seg_dir = os.path.join(cfg.root, "annotations")
+
         self.img_transform = img_transform
         self.seg_transform = seg_transform
         self.sample_transform = sample_transform
@@ -250,7 +224,7 @@ class Ade20kDataset(torch.utils.data.Dataset):
                 # Something is missing.
                 if os.path.realpath(cfg.root).endswith(subdir):
                     self.logger.warning(
-                        "The ADE20K root should contain 'images/' and 'annotations/' directories."
+                        "The SegFolder root should contain 'images/' and 'annotations/' directories."
                     )
                 raise ValueError(f"Can't find path '{os.path.join(cfg.root, subdir)}'.")
 
@@ -263,6 +237,14 @@ class Ade20kDataset(torch.utils.data.Dataset):
         assert cfg.split in set(split_lookup.values())
 
         # Load all the image paths.
+        base2seg: dict[str, str] = {
+            _stem(seg_path): seg_path
+            for seg_path, split in torchvision.datasets.folder.make_dataset(
+                self.seg_dir, split_mapping, extensions=...
+            )
+            if split_lookup[split] == cfg.split
+        }
+
         imgs: list[str] = [
             path
             for path, s in torchvision.datasets.folder.make_dataset(
@@ -273,26 +255,24 @@ class Ade20kDataset(torch.utils.data.Dataset):
             if split_lookup[s] == cfg.split
         ]
 
-        segs: list[str] = [
-            path
-            for path, s in torchvision.datasets.folder.make_dataset(
-                self.seg_dir,
-                split_mapping,
-                extensions=torchvision.datasets.folder.IMG_EXTENSIONS,
-            )
-            if split_lookup[s] == cfg.split
-        ]
-
         # Load all the targets, classes and mappings
-        with open(os.path.join(cfg.root, "sceneCategories.txt")) as fd:
-            img_labels: list[str] = [line.split()[1] for line in fd.readlines()]
+        img_labels: dict[str, str] = {}
+        with open(os.path.join(cfg.root, cfg.img_label_fpath)) as fd:
+            for line in fd.readlines():
+                stem, label = line.split()
+                img_labels[stem] = label
 
-        label_set = sorted(set(img_labels))
+        label_set = sorted(set(img_labels.values()))
         label_to_idx = {label: i for i, label in enumerate(label_set)}
 
         self.samples = [
-            self.Sample(img_path, seg_path, label, label_to_idx[label])
-            for img_path, seg_path, label in zip(imgs, segs, img_labels)
+            self.Sample(
+                img_path,
+                base2seg[_stem(img_path)],
+                img_labels[_stem(img_path)],
+                label_to_idx[label],
+            )
+            for img_path in (imgs)
         ]
 
     def __getitem__(self, index: int) -> dict[str, object]:

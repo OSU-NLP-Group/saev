@@ -220,14 +220,6 @@ ALL_RGB01 = [
     RED_RGB01,
 ]
 
->>>> data/DINOv3.md
-# Using DINOv3
-
-1. Clone the DINOv3 repo.
-2. Download the checkpoints from Meta.
-3. Put your checkpoints in $REPO/CHECKPOINTS/.
-4. Pass a path to the specific checkpoint you want to load.
-
 >>>> data/README.md
 # Data Loading Architecture
 
@@ -486,7 +478,7 @@ import typing
 import beartype
 import tyro
 
-from . import images, writers
+from . import writers
 
 log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
 logging.basicConfig(level=logging.INFO, format=log_format)
@@ -511,9 +503,6 @@ def main(cfg: typing.Annotated[writers.Config, tyro.conf.arg(name="")]):
         import ssl
 
         ssl._create_default_https_context = ssl._create_unverified_context
-
-    # Run any setup steps.
-    images.setup(cfg.data)
 
     # Actually record activations.
     if cfg.slurm_acct:
@@ -890,8 +879,8 @@ class PatchEmbed(nn.Module):
         image_hw = make_2tuple(img_size)
         patch_hw = make_2tuple(patch_size)
 
-        self.img_size = image_hw
-        self.patch_size = patch_hw
+        self.image_hw = image_hw
+        self.patch_hw = patch_hw
 
         self.in_chans = in_chans
         self.embed_dim = embed_dim
@@ -908,21 +897,14 @@ class PatchEmbed(nn.Module):
 
     def forward(
         self,
-        x: Float[Tensor, "batch 3 width height"] | Float[Tensor, "batch n kernel"],
+        x: Float[Tensor, "batch n kernel"],
     ) -> Float[Tensor, "batch n dim"]:
-        if x.ndim == 4:
-            x_bdhw = self.proj(x)  # B C H W
-            _, _, h, w = x_bdhw.shape
-            x_bnd = einops.rearrange(x_bdhw, "b d h w -> b (h w) d")
-        elif x.ndim == 3:
-            w_dp = self.conv.weight.reshape(
-                self.embed_dim, self.in_chans * self.patch_hw[0] * self.patch_hw[1]
-            )
-            x_bnd = x @ w_dp.T
-            if self.proj.bias is not None:
-                x_bnd = x_bnd + self.proj.bias[None, None, :]
-        else:
-            raise TypeError(f"Wrong shape for x: {x.shape}")
+        w_dp = self.proj.weight.reshape(
+            self.embed_dim, self.in_chans * self.patch_hw[0] * self.patch_hw[1]
+        )
+        x_bnd = x @ w_dp.T
+        if self.proj.bias is not None:
+            x_bnd = x_bnd + self.proj.bias[None, None, :]
         return x_bnd
 
 
@@ -982,8 +964,6 @@ class RopePositionEmbedding(nn.Module):
         device = self.periods.device
         dtype = self.dtype
         dd = {"device": device, "dtype": dtype}
-
-        breakpoint()
 
         # Prepare coords in range [-1, +1]
         if self.normalize_coords == "max":
@@ -1055,39 +1035,41 @@ def _rotate_half(x: Float[Tensor, "..."]) -> Float[Tensor, "..."]:
 
 @jaxtyped(typechecker=beartype.beartype)
 def _rope(
-    x: Float[Tensor, "..."], sin: Float[Tensor, "..."], cos: Float[Tensor, "..."]
-) -> Float[Tensor, "..."]:
+    x: Float[Tensor, "b h n d"],
+    sin: Float[Tensor, "b n d"],
+    cos: Float[Tensor, "b n d"],
+) -> Float[Tensor, "b h n d"]:
     # x:   [..., D], eg [x0,     x1,   x2,   x3,   x4,   x5]
     # sin: [..., D], eg [sin0, sin1, sin2, sin0, sin1, sin2]
     # cos: [..., D], eg [cos0, cos1, cos2, cos0, cos1, cos2]
-    return (x * cos) + (_rotate_half(x) * sin)
+    return (x * cos[:, None]) + (_rotate_half(x) * sin[:, None])
 
 
 @jaxtyped(typechecker=beartype.beartype)
 def rope_fn(
     q_bhnd: Float[Tensor, "batch head n d_head"],
     k_bhnd: Float[Tensor, "batch head n d_head"],
-    rope: Tensor | tuple[Tensor, Tensor],
+    rope: Float[Tensor, "batch 2 n_pos d_head"],
 ) -> tuple[Float[Tensor, "batch head n d_head"], Float[Tensor, "batch head n d_head"]]:
     # All operations will use the dtype of rope, the output is cast back to the dtype of q and k
     q_dtype = q_bhnd.dtype
     k_dtype = k_bhnd.dtype
 
-    sin_pd, cos_pd = rope
-    rope_dtype = sin_pd.dtype
+    sin_bpd, cos_bpd = rope.unbind(1)
+    rope_dtype = sin_bpd.dtype
 
     q_bhnd = q_bhnd.to(dtype=rope_dtype)
     k_bhnd = k_bhnd.to(dtype=rope_dtype)
     _, n_heads, n, d_head = q_bhnd.shape
-    n_pos, d_head = sin_pd.shape
+    _, n_pos, d_head = sin_bpd.shape
     prefix = n - n_pos
     assert prefix >= 0, f"Got {n} residual streams but only {n_pos} patches."
 
     q_prefix_bhd = q_bhnd[:, :, :prefix, :]
-    q_bhpd = _rope(q_bhnd[:, :, prefix:, :], sin_pd, cos_pd)
+    q_bhpd = _rope(q_bhnd[:, :, prefix:, :], sin_bpd, cos_bpd)
     q_bhnd = torch.cat((q_prefix_bhd, q_bhpd), dim=2)
     k_prefix_bhd = k_bhnd[:, :, :prefix, :]
-    k_bhpd = _rope(k_bhnd[:, :, prefix:, :], sin_pd, cos_pd)
+    k_bhpd = _rope(k_bhnd[:, :, prefix:, :], sin_bpd, cos_bpd)
     k_bhnd = torch.cat((k_prefix_bhd, k_bhpd), dim=2)
 
     q_bhnd = q_bhnd.to(dtype=q_dtype)
@@ -1111,7 +1093,7 @@ class SelfAttention(nn.Module):
     def forward(
         self,
         x_bnd: Float[Tensor, "batch n d"],
-        rope: Float[Tensor, "2 n_pos d_head"] | None = None,
+        rope: Float[Tensor, "batch 2 n_pos d_head"] | None = None,
     ) -> Float[Tensor, "batch n d"]:
         b, n_tok, d = x_bnd.shape
         qkv_b3nd = einops.rearrange(
@@ -1230,27 +1212,31 @@ class VisionTransformer(nn.Module):
         self.norm = nn.LayerNorm(cfg.embed_dim, eps=1e-5)
 
     def forward(
-        self, x: Float[Tensor, "b n kernel"], img_size: Int[Tensor, "b 2"]
+        self, x: Float[Tensor, "b n kernel"], *, grid: Int[Tensor, "b 2"]
     ) -> dict[str, Tensor]:
         x_bnd = self.patch_embed(x)
 
         b, n, d = x_bnd.shape
 
-        cls_token = self.cls_token + 0 * self.mask_token
-
         x_bnd = torch.cat(
-            [cls_token.expand(b, -1, -1), self.storage_tokens.expand(b, -1, -1), x_bnd],
+            [
+                self.cls_token.expand(b, 1, d),
+                self.storage_tokens.expand(b, self.cfg.n_storage_tokens, d),
+                x_bnd,
+            ],
             dim=1,
         )
 
-        hs, ws = img_size[:, 0], img_size[:, 1]
-        rope_sincos = self.rope_embed(h=hs, w=ws)
+        hs, ws = grid[:, 0], grid[:, 1]
+        rope_b2nd = torch.stack([
+            torch.stack(self.rope_embed(h=h, w=w)) for h, w in zip(hs, ws)
+        ])
 
         for blk in self.blocks:
-            x_bnd = blk(x_bnd, rope_sincos)
+            x_bnd = blk(x_bnd, rope_b2nd)
 
         x_norm_bnd = self.norm(x_bnd)
-        x_norm_cls_bd = x_norm_bnd[:, :0]
+        x_norm_cls_bd = x_norm_bnd[:, 0]
         x_norm_patch_bnd = x_norm_bnd[:, self.cfg.n_storage_tokens + 1 :]
 
         output = {"cls": x_norm_cls_bd, "patches": x_norm_patch_bnd}
@@ -1536,10 +1522,10 @@ class ImageFolder:
 
 @beartype.beartype
 @dataclasses.dataclass(frozen=True)
-class Ade20k:
+class SegFolder:
     """ """
 
-    root: str = os.path.join(".", "data", "ade20k")
+    root: str = os.path.join(".", "data", "segdataset")
     """Where the class folders with images are stored."""
     split: typing.Literal["training", "validation"] = "training"
     """Data split."""
@@ -1558,69 +1544,52 @@ class Fake:
     n_imgs: int = 10
 
 
-Config = Imagenet | ImageFolder | Ade20k | Fake
+Config = Imagenet | ImageFolder | SegFolder | Fake
 
 
 @beartype.beartype
-def setup(cfg: Config):
-    """
-    Run dataset-specific setup. These setup functions can assume they are the only job running, but they should be idempotent; they should be safe (and ideally cheap) to run multiple times in a row.
-    """
-    if isinstance(cfg, Imagenet):
-        setup_imagenet(cfg)
-    elif isinstance(cfg, ImageFolder):
-        setup_imagefolder(cfg)
-    elif isinstance(cfg, Ade20k):
-        setup_ade20k(cfg)
-    elif isinstance(cfg, Fake):
-        pass
-    else:
-        typing.assert_never(cfg.data)
-
-
-@beartype.beartype
-def setup_imagenet(cfg: Imagenet):
-    pass
-
-
-@beartype.beartype
-def setup_imagefolder(cfg: ImageFolder):
-    logger.info("No dataset-specific setup for ImageFolder.")
-
-
-@beartype.beartype
-def setup_ade20k(cfg: Ade20k):
-    # url = "http://data.csail.mit.edu/places/ADEchallenge/ADEChallengeData2016.zip"
-    pass
-
-
-@beartype.beartype
-def get_dataset(cfg: Config, *, img_transform):
+def get_dataset(cfg: Config, *, img_transform, sample_transform=None):
     """
     Gets the dataset for the current experiment; delegates construction to dataset-specific functions.
 
     Args:
         cfg: Experiment config.
         img_transform: Image transform to be applied to each image.
+        sample_transform: Transform to be applied to each sample dict.
 
     Returns:
         A dataset that has dictionaries with `'image'`, `'index'`, `'target'`, and `'label'` keys containing examples.
     """
+    # TODO: Can we reduce duplication? Or is it nice to see that there is no magic here?
     if isinstance(cfg, Imagenet):
-        return ImagenetDataset(cfg, img_transform=img_transform)
-    elif isinstance(cfg, Ade20k):
-        return Ade20kDataset(cfg, img_transform=img_transform)
+        return ImagenetDataset(
+            cfg, img_transform=img_transform, sample_transform=sample_transform
+        )
+    elif isinstance(cfg, SegFolder):
+        return SegFolderDataset(
+            cfg, img_transform=img_transform, sample_transform=sample_transform
+        )
     elif isinstance(cfg, ImageFolder):
-        return ImageFolderDataset(cfg.root, transform=img_transform)
+        return ImageFolderDataset(
+            cfg.root, transform=img_transform, sample_transform=sample_transform
+        )
     elif isinstance(cfg, Fake):
-        return FakeDataset(cfg, img_transform=img_transform)
+        return FakeDataset(
+            cfg, img_transform=img_transform, sample_transform=sample_transform
+        )
     else:
         typing.assert_never(cfg)
 
 
 @beartype.beartype
 class ImagenetDataset(torch.utils.data.Dataset):
-    def __init__(self, cfg: Imagenet, *, img_transform=None):
+    def __init__(
+        self,
+        cfg: Imagenet,
+        *,
+        img_transform=None,
+        sample_transform: Callable | None = None,
+    ):
         import datasets
 
         self.hf_dataset = datasets.load_dataset(
@@ -1628,19 +1597,23 @@ class ImagenetDataset(torch.utils.data.Dataset):
         )
 
         self.img_transform = img_transform
+        self.sample_transform = sample_transform
         self.labels = self.hf_dataset.info.features["label"].names
 
     def __getitem__(self, i):
-        example = self.hf_dataset[i]
-        example["index"] = i
+        sample = self.hf_dataset[i]
+        sample["index"] = i
 
-        example["image"] = example["image"].convert("RGB")
+        sample["image"] = sample["image"].convert("RGB")
         if self.img_transform:
-            example["image"] = self.img_transform(example["image"])
-        example["target"] = example.pop("label")
-        example["label"] = self.labels[example["target"]]
+            sample["image"] = self.img_transform(sample["image"])
+        sample["target"] = sample.pop("label")
+        sample["label"] = self.labels[sample["target"]]
 
-        return example
+        if self.sample_transform is not None:
+            sample = self.sample_transform(sample)
+
+        return sample
 
     def __len__(self) -> int:
         return len(self.hf_dataset)
@@ -1648,6 +1621,10 @@ class ImagenetDataset(torch.utils.data.Dataset):
 
 @beartype.beartype
 class ImageFolderDataset(torchvision.datasets.ImageFolder):
+    def __init__(self, *args, sample_transform: Callable | None = None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.sample_transform = sample_transform
+
     def __getitem__(self, index: int) -> dict[str, object]:
         """
         Args:
@@ -1657,22 +1634,33 @@ class ImageFolderDataset(torchvision.datasets.ImageFolder):
             dict with keys 'image', 'index', 'target' and 'label'.
         """
         path, target = self.samples[index]
-        sample = self.loader(path)
+        image = self.loader(path)
         if self.transform is not None:
-            sample = self.transform(sample)
+            image = self.transform(image)
         if self.target_transform is not None:
             target = self.target_transform(target)
 
-        return {
-            "image": sample,
+        sample = {
+            "image": image,
             "target": target,
             "label": self.classes[target],
             "index": index,
         }
 
+        if self.sample_transform is not None:
+            sample = self.sample_transform(sample)
+
+        return sample
+
+
+def _stem(fpath: str) -> str:
+    fname = os.path.basename(fpath)
+    stem, ext = os.path.splitext(fname)
+    return stem
+
 
 @beartype.beartype
-class Ade20kDataset(torch.utils.data.Dataset):
+class SegFolderDataset(torch.utils.data.Dataset):
     @beartype.beartype
     @dataclasses.dataclass(frozen=True)
     class Sample:
@@ -1685,17 +1673,20 @@ class Ade20kDataset(torch.utils.data.Dataset):
 
     def __init__(
         self,
-        cfg: Ade20k,
+        cfg: SegFolder,
         *,
         img_transform: Callable | None = None,
         seg_transform: Callable | None = lambda x: None,
+        sample_transform: Callable | None = None,
     ):
-        self.logger = logging.getLogger("ade20k")
+        self.logger = logging.getLogger("segfolder")
         self.cfg = cfg
         self.img_dir = os.path.join(cfg.root, "images")
         self.seg_dir = os.path.join(cfg.root, "annotations")
+
         self.img_transform = img_transform
         self.seg_transform = seg_transform
+        self.sample_transform = sample_transform
 
         # Check that we have the right path.
         for subdir in ("images", "annotations"):
@@ -1703,7 +1694,7 @@ class Ade20kDataset(torch.utils.data.Dataset):
                 # Something is missing.
                 if os.path.realpath(cfg.root).endswith(subdir):
                     self.logger.warning(
-                        "The ADE20K root should contain 'images/' and 'annotations/' directories."
+                        "The SegFolder root should contain 'images/' and 'annotations/' directories."
                     )
                 raise ValueError(f"Can't find path '{os.path.join(cfg.root, subdir)}'.")
 
@@ -1716,6 +1707,14 @@ class Ade20kDataset(torch.utils.data.Dataset):
         assert cfg.split in set(split_lookup.values())
 
         # Load all the image paths.
+        base2seg: dict[str, str] = {
+            _stem(seg_path): seg_path
+            for seg_path, split in torchvision.datasets.folder.make_dataset(
+                self.seg_dir, split_mapping, extensions=...
+            )
+            if split_lookup[split] == cfg.split
+        }
+
         imgs: list[str] = [
             path
             for path, s in torchvision.datasets.folder.make_dataset(
@@ -1726,26 +1725,24 @@ class Ade20kDataset(torch.utils.data.Dataset):
             if split_lookup[s] == cfg.split
         ]
 
-        segs: list[str] = [
-            path
-            for path, s in torchvision.datasets.folder.make_dataset(
-                self.seg_dir,
-                split_mapping,
-                extensions=torchvision.datasets.folder.IMG_EXTENSIONS,
-            )
-            if split_lookup[s] == cfg.split
-        ]
-
         # Load all the targets, classes and mappings
-        with open(os.path.join(cfg.root, "sceneCategories.txt")) as fd:
-            img_labels: list[str] = [line.split()[1] for line in fd.readlines()]
+        img_labels: dict[str, str] = {}
+        with open(os.path.join(cfg.root, cfg.img_label_fpath)) as fd:
+            for line in fd.readlines():
+                stem, label = line.split()
+                img_labels[stem] = label
 
-        label_set = sorted(set(img_labels))
+        label_set = sorted(set(img_labels.values()))
         label_to_idx = {label: i for i, label in enumerate(label_set)}
 
         self.samples = [
-            self.Sample(img_path, seg_path, label, label_to_idx[label])
-            for img_path, seg_path, label in zip(imgs, segs, img_labels)
+            self.Sample(
+                img_path,
+                base2seg[_stem(img_path)],
+                img_labels[_stem(img_path)],
+                label_to_idx[label],
+            )
+            for img_path in (imgs)
         ]
 
     def __getitem__(self, index: int) -> dict[str, object]:
@@ -1766,6 +1763,9 @@ class Ade20kDataset(torch.utils.data.Dataset):
 
         sample["index"] = index
 
+        if self.sample_transform is not None:
+            sample = self.sample_transform(sample)
+
         return sample
 
     def __len__(self) -> int:
@@ -1773,21 +1773,24 @@ class Ade20kDataset(torch.utils.data.Dataset):
 
 
 class FakeDataset(torch.utils.data.Dataset):
-    def __init__(self, cfg: Fake, *, img_transform=None):
+    def __init__(self, cfg: Fake, *, img_transform=None, sample_transform=None):
         self.n_imgs = cfg.n_imgs
         self.img_transform = img_transform
+        self.sample_transform = sample_transform
 
     def __len__(self):
         return self.n_imgs
 
     def __getitem__(self, i):
         img = Image.new("RGB", (256, 256))
-        return {
-            "image": self.img_transform(img),
-            "index": i,
-            "target": 0,
-            "label": "dummy",
-        }
+        if self.img_transform is not None:
+            img = self.img_transform(img)
+
+        sample = {"image": img, "index": i, "target": 0, "label": "dummy"}
+        if self.sample_transform is not None:
+            sample = self.sample_transform(sample)
+
+        return sample
 
 >>>> data/indexed.py
 import dataclasses
@@ -2026,14 +2029,12 @@ class DinoV3(torch.nn.Module):
         return "_".join(name)
 
     def forward(
-        self,
-        batch: Float[Tensor, "batch 3 width height"] | Float[Tensor, "batch n kernel"],
-        **kwargs,
+        self, batch: Float[Tensor, "batch n kernel"], **kwargs
     ) -> Float[Tensor, "batch patches dim"]:
-        size = kwargs.pop("size")
+        grid = kwargs.pop("grid")
         if kwargs:
             logger.info("Unused kwargs: %s", kwargs)
-        dct = self.model(batch, size)
+        dct = self.model(batch, grid=grid)
 
         features = torch.cat((dct["cls"][:, None, :], dct["patches"]), axis=1)
         return features
@@ -2161,7 +2162,7 @@ def make_vit(vit_family: str, vit_ckpt: str) -> VisionTransformer:
 
 
 @beartype.beartype
-def make_img_transform(vit_family: str, vit_ckpt: str) -> Callable:
+def make_transforms(vit_family: str, vit_ckpt: str) -> tuple[Callable, Callable | None]:
     if vit_family == "clip" or vit_family == "siglip":
         import open_clip
 
@@ -2174,31 +2175,33 @@ def make_img_transform(vit_family: str, vit_ckpt: str) -> Callable:
             _, img_transform = open_clip.create_model_from_pretrained(
                 arch, pretrained=ckpt, cache_dir=helpers.get_cache_dir()
             )
-        return img_transform
+        return img_transform, None
 
     elif vit_family == "dinov2":
         from torchvision.transforms import v2
 
-        return v2.Compose([
+        img_transform = v2.Compose([
             v2.Resize(size=(256, 256)),
             v2.CenterCrop(size=(224, 224)),
             v2.ToImage(),
             v2.ToDtype(torch.float32, scale=True),
             v2.Normalize(mean=[0.4850, 0.4560, 0.4060], std=[0.2290, 0.2240, 0.2250]),
         ])
+        return img_transform, None
 
     elif vit_family == "dinov3":
         from torchvision.transforms import v2
 
         from . import transforms
 
-        return v2.Compose([
+        img_transform = v2.Compose([
             transforms.FlexResize(patch_size=16, n_patches=640),
             v2.ToImage(),
             v2.ToDtype(torch.float32, scale=True),
             v2.Normalize(mean=[0.4850, 0.4560, 0.4060], std=[0.2290, 0.2240, 0.2250]),
-            transforms.Unfold(patch_size=16, n_patches=640),
         ])
+        sample_transform = transforms.Unfold(patch_size=16, n_patches=640)
+        return img_transform, sample_transform
     else:
         tp.assert_never(vit_family)
 
@@ -3334,19 +3337,21 @@ class Unfold(nn.Module):
         self.patch_size = patch_size
         self.n_patches = n_patches
 
-    def forward(self, example: dict[str, object]):
-        assert "image" in example
-        img = example["image"]
+    def forward(self, sample: dict[str, object]) -> dict[str, object]:
+        assert "image" in sample
+        img = sample["image"]
         c, h, w = img.shape
-        cols_bpn = F.unfold(
-            img[None, ...], kernel_size=self.patch_size, stride=self.patch_size
-        )
+        p = self.patch_size
+        assert (h % p == 0) and (w % p == 0), f"Got {h}x{w}, patch={p}"
 
-        k = (c * (h // self.patch_size) * (w // self.patch_size),)
-        assert cols_bpn.shape == (1, k, self.n_patches)
+        cols_bpn = F.unfold(img[None, ...], kernel_size=p, stride=p)
+        _, k, n = cols_bpn.shape
+        assert n == self.n_patches, f"Expected n={self.n_patches}, got {n}"
+        assert k == c * p * p, f"k mismatch: {k} != {c}*{p}*{p}"
 
-        example["image"] = einops.rearrange(cols_bpn, "() k n -> n k")
-        example["size"] = torch.tensor([h, w], dtype=int)
+        sample["image"] = einops.rearrange(cols_bpn, "() k n -> n k").contiguous()
+        sample["grid"] = torch.tensor([h // p, w // p], dtype=torch.int16)
+        return sample
 
 
 @jaxtyped(typechecker=beartype.beartype)
@@ -3521,13 +3526,13 @@ class RecordedVisionTransformer(torch.nn.Module):
         return self._storage.cpu()
 
     def forward(
-        self, batch: Float[Tensor, "batch 3 width height"]
+        self, batch: Float[Tensor, "batch 3 width height"], **kwargs
     ) -> tuple[
         Float[Tensor, "batch patches dim"],
         Float[Tensor, "batch n_layers all_patches dim"],
     ]:
         self.reset()
-        result = self.vit(batch)
+        result = self.vit(batch, **kwargs)
         return result, self.activations
 
 
@@ -3772,7 +3777,10 @@ class ShardInfo:
 
 @beartype.beartype
 def get_dataloader(
-    cfg: Config, *, img_transform: Callable | None = None
+    cfg: Config,
+    *,
+    img_transform: Callable | None = None,
+    sample_transform: Callable | None = None,
 ) -> torch.utils.data.DataLoader:
     """
     Get a dataloader for a default map-style dataset.
@@ -3784,7 +3792,9 @@ def get_dataloader(
     Returns:
         A PyTorch Dataloader that yields dictionaries with `'image'` keys containing image batches, `'index'` keys containing original dataset indices and `'label'` keys containing label batches.
     """
-    dataset = images.get_dataset(cfg.data, img_transform=img_transform)
+    dataset = images.get_dataset(
+        cfg.data, img_transform=img_transform, sample_transform=sample_transform
+    )
 
     dataloader = torch.utils.data.DataLoader(
         dataset=dataset,
@@ -3826,8 +3836,8 @@ def worker_fn(cfg: Config):
     vit = RecordedVisionTransformer(
         vit, cfg.n_patches_per_img, cfg.cls_token, cfg.vit_layers
     )
-    img_transform = models.make_img_transform(cfg.vit_family, cfg.vit_ckpt)
-    dataloader = get_dataloader(cfg, img_transform=img_transform)
+    img_tr, sample_tr = models.make_transforms(cfg.vit_family, cfg.vit_ckpt)
+    dataloader = get_dataloader(cfg, img_transform=img_tr, sample_transform=sample_tr)
 
     writer = ShardWriter(cfg)
 
@@ -3842,11 +3852,11 @@ def worker_fn(cfg: Config):
     with torch.inference_mode():
         for batch in helpers.progress(dataloader, total=n_batches):
             imgs = batch.get("image").to(cfg.device)
-            size = batch.get("size")
-            if size is not None:
-                size = size.to(cfg.device)
+            grid = batch.get("grid")
+            if grid is not None:
+                grid = grid.to(cfg.device)
             # cache has shape [batch size, n layers, n patches + 1, d vit]
-            out, cache = vit(imgs, size=size)
+            out, cache = vit(imgs, grid=grid)
             del out
 
             writer[i : i + len(cache)] = cache

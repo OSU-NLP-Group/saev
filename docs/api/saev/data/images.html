@@ -36,7 +36,7 @@ hljs.highlightAll();
 <h2 class="section-title" id="header-functions">Functions</h2>
 <dl>
 <dt id="saev.data.images.get_dataset"><code class="name flex">
-<span>def <span class="ident">get_dataset</span></span>(<span>cfg: <a title="saev.data.images.Imagenet" href="#saev.data.images.Imagenet">Imagenet</a> | <a title="saev.data.images.ImageFolder" href="#saev.data.images.ImageFolder">ImageFolder</a> | <a title="saev.data.images.Ade20k" href="#saev.data.images.Ade20k">Ade20k</a> | <a title="saev.data.images.Fake" href="#saev.data.images.Fake">Fake</a>,<br>*,<br>img_transform)</span>
+<span>def <span class="ident">get_dataset</span></span>(<span>cfg: <a title="saev.data.images.Imagenet" href="#saev.data.images.Imagenet">Imagenet</a> | <a title="saev.data.images.ImageFolder" href="#saev.data.images.ImageFolder">ImageFolder</a> | <a title="saev.data.images.SegFolder" href="#saev.data.images.SegFolder">SegFolder</a> | <a title="saev.data.images.Fake" href="#saev.data.images.Fake">Fake</a>,<br>*,<br>img_transform,<br>sample_transform=None)</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Gets the dataset for the current experiment; delegates construction to dataset-specific functions.</p>
@@ -46,6 +46,8 @@ hljs.highlightAll();
 <dd>Experiment config.</dd>
 <dt><strong><code>img_transform</code></strong></dt>
 <dd>Image transform to be applied to each image.</dd>
+<dt><strong><code>sample_transform</code></strong></dt>
+<dd>Transform to be applied to each sample dict.</dd>
 </dl>
 <h2 id="returns">Returns</h2>
 <p>A dataset that has dictionaries with <code>'image'</code>, <code>'index'</code>, <code>'target'</code>, and <code>'label'</code> keys containing examples.</p></div>
@@ -54,96 +56,37 @@ hljs.highlightAll();
 <span>Expand source code</span>
 </summary>
 <pre><code class="python">@beartype.beartype
-def get_dataset(cfg: Config, *, img_transform):
+def get_dataset(cfg: Config, *, img_transform, sample_transform=None):
     &#34;&#34;&#34;
     Gets the dataset for the current experiment; delegates construction to dataset-specific functions.
 
     Args:
         cfg: Experiment config.
         img_transform: Image transform to be applied to each image.
+        sample_transform: Transform to be applied to each sample dict.
 
     Returns:
         A dataset that has dictionaries with `&#39;image&#39;`, `&#39;index&#39;`, `&#39;target&#39;`, and `&#39;label&#39;` keys containing examples.
     &#34;&#34;&#34;
+    # TODO: Can we reduce duplication? Or is it nice to see that there is no magic here?
     if isinstance(cfg, Imagenet):
-        return ImagenetDataset(cfg, img_transform=img_transform)
-    elif isinstance(cfg, Ade20k):
-        return Ade20kDataset(cfg, img_transform=img_transform)
+        return ImagenetDataset(
+            cfg, img_transform=img_transform, sample_transform=sample_transform
+        )
+    elif isinstance(cfg, SegFolder):
+        return SegFolderDataset(
+            cfg, img_transform=img_transform, sample_transform=sample_transform
+        )
     elif isinstance(cfg, ImageFolder):
-        return ImageFolderDataset(cfg.root, transform=img_transform)
+        return ImageFolderDataset(
+            cfg.root, transform=img_transform, sample_transform=sample_transform
+        )
     elif isinstance(cfg, Fake):
-        return FakeDataset(cfg, img_transform=img_transform)
+        return FakeDataset(
+            cfg, img_transform=img_transform, sample_transform=sample_transform
+        )
     else:
         typing.assert_never(cfg)</code></pre>
-</details>
-</dd>
-<dt id="saev.data.images.setup"><code class="name flex">
-<span>def <span class="ident">setup</span></span>(<span>cfg: <a title="saev.data.images.Imagenet" href="#saev.data.images.Imagenet">Imagenet</a> | <a title="saev.data.images.ImageFolder" href="#saev.data.images.ImageFolder">ImageFolder</a> | <a title="saev.data.images.Ade20k" href="#saev.data.images.Ade20k">Ade20k</a> | <a title="saev.data.images.Fake" href="#saev.data.images.Fake">Fake</a>)</span>
-</code></dt>
-<dd>
-<div class="desc"><p>Run dataset-specific setup. These setup functions can assume they are the only job running, but they should be idempotent; they should be safe (and ideally cheap) to run multiple times in a row.</p></div>
-<details class="source">
-<summary>
-<span>Expand source code</span>
-</summary>
-<pre><code class="python">@beartype.beartype
-def setup(cfg: Config):
-    &#34;&#34;&#34;
-    Run dataset-specific setup. These setup functions can assume they are the only job running, but they should be idempotent; they should be safe (and ideally cheap) to run multiple times in a row.
-    &#34;&#34;&#34;
-    if isinstance(cfg, Imagenet):
-        setup_imagenet(cfg)
-    elif isinstance(cfg, ImageFolder):
-        setup_imagefolder(cfg)
-    elif isinstance(cfg, Ade20k):
-        setup_ade20k(cfg)
-    elif isinstance(cfg, Fake):
-        pass
-    else:
-        typing.assert_never(cfg.data)</code></pre>
-</details>
-</dd>
-<dt id="saev.data.images.setup_ade20k"><code class="name flex">
-<span>def <span class="ident">setup_ade20k</span></span>(<span>cfg: <a title="saev.data.images.Ade20k" href="#saev.data.images.Ade20k">Ade20k</a>)</span>
-</code></dt>
-<dd>
-<div class="desc"></div>
-<details class="source">
-<summary>
-<span>Expand source code</span>
-</summary>
-<pre><code class="python">@beartype.beartype
-def setup_ade20k(cfg: Ade20k):
-    # url = &#34;http://data.csail.mit.edu/places/ADEchallenge/ADEChallengeData2016.zip&#34;
-    pass</code></pre>
-</details>
-</dd>
-<dt id="saev.data.images.setup_imagefolder"><code class="name flex">
-<span>def <span class="ident">setup_imagefolder</span></span>(<span>cfg: <a title="saev.data.images.ImageFolder" href="#saev.data.images.ImageFolder">ImageFolder</a>)</span>
-</code></dt>
-<dd>
-<div class="desc"></div>
-<details class="source">
-<summary>
-<span>Expand source code</span>
-</summary>
-<pre><code class="python">@beartype.beartype
-def setup_imagefolder(cfg: ImageFolder):
-    logger.info(&#34;No dataset-specific setup for ImageFolder.&#34;)</code></pre>
-</details>
-</dd>
-<dt id="saev.data.images.setup_imagenet"><code class="name flex">
-<span>def <span class="ident">setup_imagenet</span></span>(<span>cfg: <a title="saev.data.images.Imagenet" href="#saev.data.images.Imagenet">Imagenet</a>)</span>
-</code></dt>
-<dd>
-<div class="desc"></div>
-<details class="source">
-<summary>
-<span>Expand source code</span>
-</summary>
-<pre><code class="python">@beartype.beartype
-def setup_imagenet(cfg: Imagenet):
-    pass</code></pre>
 </details>
 </dd>
 </dl>
@@ -151,203 +94,6 @@ def setup_imagenet(cfg: Imagenet):
 <section>
 <h2 class="section-title" id="header-classes">Classes</h2>
 <dl>
-<dt id="saev.data.images.Ade20k"><code class="flex name class">
-<span>class <span class="ident">Ade20k</span></span>
-<span>(</span><span>root: str = './data/ade20k',<br>split: Literal['training', 'validation'] = 'training')</span>
-</code></dt>
-<dd>
-<div class="desc"></div>
-<details class="source">
-<summary>
-<span>Expand source code</span>
-</summary>
-<pre><code class="python">@beartype.beartype
-@dataclasses.dataclass(frozen=True)
-class Ade20k:
-    &#34;&#34;&#34; &#34;&#34;&#34;
-
-    root: str = os.path.join(&#34;.&#34;, &#34;data&#34;, &#34;ade20k&#34;)
-    &#34;&#34;&#34;Where the class folders with images are stored.&#34;&#34;&#34;
-    split: typing.Literal[&#34;training&#34;, &#34;validation&#34;] = &#34;training&#34;
-    &#34;&#34;&#34;Data split.&#34;&#34;&#34;
-
-    @property
-    def n_imgs(self) -&gt; int:
-        if self.split == &#34;validation&#34;:
-            return 2000
-        else:
-            return 20210</code></pre>
-</details>
-<h3>Instance variables</h3>
-<dl>
-<dt id="saev.data.images.Ade20k.n_imgs"><code class="name">prop <span class="ident">n_imgs</span> : int</code></dt>
-<dd>
-<div class="desc"></div>
-<details class="source">
-<summary>
-<span>Expand source code</span>
-</summary>
-<pre><code class="python">@property
-def n_imgs(self) -&gt; int:
-    if self.split == &#34;validation&#34;:
-        return 2000
-    else:
-        return 20210</code></pre>
-</details>
-</dd>
-<dt id="saev.data.images.Ade20k.root"><code class="name">var <span class="ident">root</span> : str</code></dt>
-<dd>
-<div class="desc"><p>Where the class folders with images are stored.</p></div>
-</dd>
-<dt id="saev.data.images.Ade20k.split"><code class="name">var <span class="ident">split</span> : Literal['training', 'validation']</code></dt>
-<dd>
-<div class="desc"><p>Data split.</p></div>
-</dd>
-</dl>
-</dd>
-<dt id="saev.data.images.Ade20kDataset"><code class="flex name class">
-<span>class <span class="ident">Ade20kDataset</span></span>
-<span>(</span><span>cfg: <a title="saev.data.images.Ade20k" href="#saev.data.images.Ade20k">Ade20k</a>,<br>*,<br>img_transform: collections.abc.Callable | None = None,<br>seg_transform: collections.abc.Callable | None = &lt;function Ade20kDataset.&lt;lambda&gt;&gt;)</span>
-</code></dt>
-<dd>
-<div class="desc"><p>An abstract class representing a :class:<code>Dataset</code>.</p>
-<p>All datasets that represent a map from keys to data samples should subclass
-it. All subclasses should overwrite :meth:<code>__getitem__</code>, supporting fetching a
-data sample for a given key. Subclasses could also optionally overwrite
-:meth:<code>__len__</code>, which is expected to return the size of the dataset by many
-:class:<code>~torch.utils.data.Sampler</code> implementations and the default options
-of :class:<code>~torch.utils.data.DataLoader</code>. Subclasses could also
-optionally implement :meth:<code>__getitems__</code>, for speedup batched samples
-loading. This method accepts list of indices of samples of batch and returns
-list of samples.</p>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>:class:<code>~torch.utils.data.DataLoader</code> by default constructs an index
-sampler that yields integral indices.
-To make it work with a map-style
-dataset with non-integral indices/keys, a custom sampler must be provided.</p>
-</div></div>
-<details class="source">
-<summary>
-<span>Expand source code</span>
-</summary>
-<pre><code class="python">@beartype.beartype
-class Ade20kDataset(torch.utils.data.Dataset):
-    @beartype.beartype
-    @dataclasses.dataclass(frozen=True)
-    class Sample:
-        img_path: str
-        seg_path: str
-        label: str
-        target: int
-
-    samples: list[Sample]
-
-    def __init__(
-        self,
-        cfg: Ade20k,
-        *,
-        img_transform: Callable | None = None,
-        seg_transform: Callable | None = lambda x: None,
-    ):
-        self.logger = logging.getLogger(&#34;ade20k&#34;)
-        self.cfg = cfg
-        self.img_dir = os.path.join(cfg.root, &#34;images&#34;)
-        self.seg_dir = os.path.join(cfg.root, &#34;annotations&#34;)
-        self.img_transform = img_transform
-        self.seg_transform = seg_transform
-
-        # Check that we have the right path.
-        for subdir in (&#34;images&#34;, &#34;annotations&#34;):
-            if not os.path.isdir(os.path.join(cfg.root, subdir)):
-                # Something is missing.
-                if os.path.realpath(cfg.root).endswith(subdir):
-                    self.logger.warning(
-                        &#34;The ADE20K root should contain &#39;images/&#39; and &#39;annotations/&#39; directories.&#34;
-                    )
-                raise ValueError(f&#34;Can&#39;t find path &#39;{os.path.join(cfg.root, subdir)}&#39;.&#34;)
-
-        _, split_mapping = torchvision.datasets.folder.find_classes(self.img_dir)
-        split_lookup: dict[int, str] = {
-            value: key for key, value in split_mapping.items()
-        }
-        self.loader = torchvision.datasets.folder.default_loader
-
-        assert cfg.split in set(split_lookup.values())
-
-        # Load all the image paths.
-        imgs: list[str] = [
-            path
-            for path, s in torchvision.datasets.folder.make_dataset(
-                self.img_dir,
-                split_mapping,
-                extensions=torchvision.datasets.folder.IMG_EXTENSIONS,
-            )
-            if split_lookup[s] == cfg.split
-        ]
-
-        segs: list[str] = [
-            path
-            for path, s in torchvision.datasets.folder.make_dataset(
-                self.seg_dir,
-                split_mapping,
-                extensions=torchvision.datasets.folder.IMG_EXTENSIONS,
-            )
-            if split_lookup[s] == cfg.split
-        ]
-
-        # Load all the targets, classes and mappings
-        with open(os.path.join(cfg.root, &#34;sceneCategories.txt&#34;)) as fd:
-            img_labels: list[str] = [line.split()[1] for line in fd.readlines()]
-
-        label_set = sorted(set(img_labels))
-        label_to_idx = {label: i for i, label in enumerate(label_set)}
-
-        self.samples = [
-            self.Sample(img_path, seg_path, label, label_to_idx[label])
-            for img_path, seg_path, label in zip(imgs, segs, img_labels)
-        ]
-
-    def __getitem__(self, index: int) -&gt; dict[str, object]:
-        # Convert to dict.
-        sample = dataclasses.asdict(self.samples[index])
-
-        sample[&#34;image&#34;] = self.loader(sample.pop(&#34;img_path&#34;))
-        if self.img_transform is not None:
-            image = self.img_transform(sample.pop(&#34;image&#34;))
-            if image is not None:
-                sample[&#34;image&#34;] = image
-
-        sample[&#34;segmentation&#34;] = Image.open(sample.pop(&#34;seg_path&#34;)).convert(&#34;L&#34;)
-        if self.seg_transform is not None:
-            segmentation = self.seg_transform(sample.pop(&#34;segmentation&#34;))
-            if segmentation is not None:
-                sample[&#34;segmentation&#34;] = segmentation
-
-        sample[&#34;index&#34;] = index
-
-        return sample
-
-    def __len__(self) -&gt; int:
-        return len(self.samples)</code></pre>
-</details>
-<h3>Ancestors</h3>
-<ul class="hlist">
-<li>torch.utils.data.dataset.Dataset</li>
-<li>typing.Generic</li>
-</ul>
-<h3>Class variables</h3>
-<dl>
-<dt id="saev.data.images.Ade20kDataset.Sample"><code class="name">var <span class="ident">Sample</span></code></dt>
-<dd>
-<div class="desc"></div>
-</dd>
-<dt id="saev.data.images.Ade20kDataset.samples"><code class="name">var <span class="ident">samples</span> : list[<a title="saev.data.images.Ade20kDataset.Sample" href="#saev.data.images.Ade20kDataset.Sample">Ade20kDataset.Sample</a>]</code></dt>
-<dd>
-<div class="desc"></div>
-</dd>
-</dl>
-</dd>
 <dt id="saev.data.images.Fake"><code class="flex name class">
 <span>class <span class="ident">Fake</span></span>
 <span>(</span><span>n_imgs: int = 10)</span>
@@ -373,7 +119,7 @@ class Fake:
 </dd>
 <dt id="saev.data.images.FakeDataset"><code class="flex name class">
 <span>class <span class="ident">FakeDataset</span></span>
-<span>(</span><span>cfg: <a title="saev.data.images.Fake" href="#saev.data.images.Fake">Fake</a>,<br>*,<br>img_transform=None)</span>
+<span>(</span><span>cfg: <a title="saev.data.images.Fake" href="#saev.data.images.Fake">Fake</a>,<br>*,<br>img_transform=None,<br>sample_transform=None)</span>
 </code></dt>
 <dd>
 <div class="desc"><p>An abstract class representing a :class:<code>Dataset</code>.</p>
@@ -398,21 +144,24 @@ dataset with non-integral indices/keys, a custom sampler must be provided.</p>
 <span>Expand source code</span>
 </summary>
 <pre><code class="python">class FakeDataset(torch.utils.data.Dataset):
-    def __init__(self, cfg: Fake, *, img_transform=None):
+    def __init__(self, cfg: Fake, *, img_transform=None, sample_transform=None):
         self.n_imgs = cfg.n_imgs
         self.img_transform = img_transform
+        self.sample_transform = sample_transform
 
     def __len__(self):
         return self.n_imgs
 
     def __getitem__(self, i):
         img = Image.new(&#34;RGB&#34;, (256, 256))
-        return {
-            &#34;image&#34;: self.img_transform(img),
-            &#34;index&#34;: i,
-            &#34;target&#34;: 0,
-            &#34;label&#34;: &#34;dummy&#34;,
-        }</code></pre>
+        if self.img_transform is not None:
+            img = self.img_transform(img)
+
+        sample = {&#34;image&#34;: img, &#34;index&#34;: i, &#34;target&#34;: 0, &#34;label&#34;: &#34;dummy&#34;}
+        if self.sample_transform is not None:
+            sample = self.sample_transform(sample)
+
+        return sample</code></pre>
 </details>
 <h3>Ancestors</h3>
 <ul class="hlist">
@@ -472,7 +221,7 @@ def n_imgs(self) -&gt; int:
 </dd>
 <dt id="saev.data.images.ImageFolderDataset"><code class="flex name class">
 <span>class <span class="ident">ImageFolderDataset</span></span>
-<span>(</span><span>root: str | pathlib.Path,<br>transform: Callable | None = None,<br>target_transform: Callable | None = None,<br>loader: Callable[[str], Any] = &lt;function default_loader&gt;,<br>is_valid_file: Callable[[str], bool] | None = None,<br>allow_empty: bool = False)</span>
+<span>(</span><span>*args, sample_transform: collections.abc.Callable | None = None, **kwargs)</span>
 </code></dt>
 <dd>
 <div class="desc"><p>A generic data loader where the images are arranged in this way by default: ::</p>
@@ -513,6 +262,10 @@ imgs (list): List of (image path, class_index) tuples</p></div>
 </summary>
 <pre><code class="python">@beartype.beartype
 class ImageFolderDataset(torchvision.datasets.ImageFolder):
+    def __init__(self, *args, sample_transform: Callable | None = None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.sample_transform = sample_transform
+
     def __getitem__(self, index: int) -&gt; dict[str, object]:
         &#34;&#34;&#34;
         Args:
@@ -522,18 +275,23 @@ class ImageFolderDataset(torchvision.datasets.ImageFolder):
             dict with keys &#39;image&#39;, &#39;index&#39;, &#39;target&#39; and &#39;label&#39;.
         &#34;&#34;&#34;
         path, target = self.samples[index]
-        sample = self.loader(path)
+        image = self.loader(path)
         if self.transform is not None:
-            sample = self.transform(sample)
+            image = self.transform(image)
         if self.target_transform is not None:
             target = self.target_transform(target)
 
-        return {
-            &#34;image&#34;: sample,
+        sample = {
+            &#34;image&#34;: image,
             &#34;target&#34;: target,
             &#34;label&#34;: self.classes[target],
             &#34;index&#34;: index,
-        }</code></pre>
+        }
+
+        if self.sample_transform is not None:
+            sample = self.sample_transform(sample)
+
+        return sample</code></pre>
 </details>
 <h3>Ancestors</h3>
 <ul class="hlist">
@@ -606,7 +364,7 @@ def n_imgs(self) -&gt; int:
 </dd>
 <dt id="saev.data.images.ImagenetDataset"><code class="flex name class">
 <span>class <span class="ident">ImagenetDataset</span></span>
-<span>(</span><span>cfg: <a title="saev.data.images.Imagenet" href="#saev.data.images.Imagenet">Imagenet</a>,<br>*,<br>img_transform=None)</span>
+<span>(</span><span>cfg: <a title="saev.data.images.Imagenet" href="#saev.data.images.Imagenet">Imagenet</a>,<br>*,<br>img_transform=None,<br>sample_transform: collections.abc.Callable | None = None)</span>
 </code></dt>
 <dd>
 <div class="desc"><p>An abstract class representing a :class:<code>Dataset</code>.</p>
@@ -632,7 +390,13 @@ dataset with non-integral indices/keys, a custom sampler must be provided.</p>
 </summary>
 <pre><code class="python">@beartype.beartype
 class ImagenetDataset(torch.utils.data.Dataset):
-    def __init__(self, cfg: Imagenet, *, img_transform=None):
+    def __init__(
+        self,
+        cfg: Imagenet,
+        *,
+        img_transform=None,
+        sample_transform: Callable | None = None,
+    ):
         import datasets
 
         self.hf_dataset = datasets.load_dataset(
@@ -640,19 +404,23 @@ class ImagenetDataset(torch.utils.data.Dataset):
         )
 
         self.img_transform = img_transform
+        self.sample_transform = sample_transform
         self.labels = self.hf_dataset.info.features[&#34;label&#34;].names
 
     def __getitem__(self, i):
-        example = self.hf_dataset[i]
-        example[&#34;index&#34;] = i
+        sample = self.hf_dataset[i]
+        sample[&#34;index&#34;] = i
 
-        example[&#34;image&#34;] = example[&#34;image&#34;].convert(&#34;RGB&#34;)
+        sample[&#34;image&#34;] = sample[&#34;image&#34;].convert(&#34;RGB&#34;)
         if self.img_transform:
-            example[&#34;image&#34;] = self.img_transform(example[&#34;image&#34;])
-        example[&#34;target&#34;] = example.pop(&#34;label&#34;)
-        example[&#34;label&#34;] = self.labels[example[&#34;target&#34;]]
+            sample[&#34;image&#34;] = self.img_transform(sample[&#34;image&#34;])
+        sample[&#34;target&#34;] = sample.pop(&#34;label&#34;)
+        sample[&#34;label&#34;] = self.labels[sample[&#34;target&#34;]]
 
-        return example
+        if self.sample_transform is not None:
+            sample = self.sample_transform(sample)
+
+        return sample
 
     def __len__(self) -&gt; int:
         return len(self.hf_dataset)</code></pre>
@@ -662,6 +430,215 @@ class ImagenetDataset(torch.utils.data.Dataset):
 <li>torch.utils.data.dataset.Dataset</li>
 <li>typing.Generic</li>
 </ul>
+</dd>
+<dt id="saev.data.images.SegFolder"><code class="flex name class">
+<span>class <span class="ident">SegFolder</span></span>
+<span>(</span><span>root: str = './data/segdataset',<br>split: Literal['training', 'validation'] = 'training')</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+@dataclasses.dataclass(frozen=True)
+class SegFolder:
+    &#34;&#34;&#34; &#34;&#34;&#34;
+
+    root: str = os.path.join(&#34;.&#34;, &#34;data&#34;, &#34;segdataset&#34;)
+    &#34;&#34;&#34;Where the class folders with images are stored.&#34;&#34;&#34;
+    split: typing.Literal[&#34;training&#34;, &#34;validation&#34;] = &#34;training&#34;
+    &#34;&#34;&#34;Data split.&#34;&#34;&#34;
+
+    @property
+    def n_imgs(self) -&gt; int:
+        if self.split == &#34;validation&#34;:
+            return 2000
+        else:
+            return 20210</code></pre>
+</details>
+<h3>Instance variables</h3>
+<dl>
+<dt id="saev.data.images.SegFolder.n_imgs"><code class="name">prop <span class="ident">n_imgs</span> : int</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def n_imgs(self) -&gt; int:
+    if self.split == &#34;validation&#34;:
+        return 2000
+    else:
+        return 20210</code></pre>
+</details>
+</dd>
+<dt id="saev.data.images.SegFolder.root"><code class="name">var <span class="ident">root</span> : str</code></dt>
+<dd>
+<div class="desc"><p>Where the class folders with images are stored.</p></div>
+</dd>
+<dt id="saev.data.images.SegFolder.split"><code class="name">var <span class="ident">split</span> : Literal['training', 'validation']</code></dt>
+<dd>
+<div class="desc"><p>Data split.</p></div>
+</dd>
+</dl>
+</dd>
+<dt id="saev.data.images.SegFolderDataset"><code class="flex name class">
+<span>class <span class="ident">SegFolderDataset</span></span>
+<span>(</span><span>cfg: <a title="saev.data.images.SegFolder" href="#saev.data.images.SegFolder">SegFolder</a>,<br>*,<br>img_transform: collections.abc.Callable | None = None,<br>seg_transform: collections.abc.Callable | None = &lt;function SegFolderDataset.&lt;lambda&gt;&gt;,<br>sample_transform: collections.abc.Callable | None = None)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>An abstract class representing a :class:<code>Dataset</code>.</p>
+<p>All datasets that represent a map from keys to data samples should subclass
+it. All subclasses should overwrite :meth:<code>__getitem__</code>, supporting fetching a
+data sample for a given key. Subclasses could also optionally overwrite
+:meth:<code>__len__</code>, which is expected to return the size of the dataset by many
+:class:<code>~torch.utils.data.Sampler</code> implementations and the default options
+of :class:<code>~torch.utils.data.DataLoader</code>. Subclasses could also
+optionally implement :meth:<code>__getitems__</code>, for speedup batched samples
+loading. This method accepts list of indices of samples of batch and returns
+list of samples.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>:class:<code>~torch.utils.data.DataLoader</code> by default constructs an index
+sampler that yields integral indices.
+To make it work with a map-style
+dataset with non-integral indices/keys, a custom sampler must be provided.</p>
+</div></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+class SegFolderDataset(torch.utils.data.Dataset):
+    @beartype.beartype
+    @dataclasses.dataclass(frozen=True)
+    class Sample:
+        img_path: str
+        seg_path: str
+        label: str
+        target: int
+
+    samples: list[Sample]
+
+    def __init__(
+        self,
+        cfg: SegFolder,
+        *,
+        img_transform: Callable | None = None,
+        seg_transform: Callable | None = lambda x: None,
+        sample_transform: Callable | None = None,
+    ):
+        self.logger = logging.getLogger(&#34;segfolder&#34;)
+        self.cfg = cfg
+        self.img_dir = os.path.join(cfg.root, &#34;images&#34;)
+        self.seg_dir = os.path.join(cfg.root, &#34;annotations&#34;)
+
+        self.img_transform = img_transform
+        self.seg_transform = seg_transform
+        self.sample_transform = sample_transform
+
+        # Check that we have the right path.
+        for subdir in (&#34;images&#34;, &#34;annotations&#34;):
+            if not os.path.isdir(os.path.join(cfg.root, subdir)):
+                # Something is missing.
+                if os.path.realpath(cfg.root).endswith(subdir):
+                    self.logger.warning(
+                        &#34;The SegFolder root should contain &#39;images/&#39; and &#39;annotations/&#39; directories.&#34;
+                    )
+                raise ValueError(f&#34;Can&#39;t find path &#39;{os.path.join(cfg.root, subdir)}&#39;.&#34;)
+
+        _, split_mapping = torchvision.datasets.folder.find_classes(self.img_dir)
+        split_lookup: dict[int, str] = {
+            value: key for key, value in split_mapping.items()
+        }
+        self.loader = torchvision.datasets.folder.default_loader
+
+        assert cfg.split in set(split_lookup.values())
+
+        # Load all the image paths.
+        base2seg: dict[str, str] = {
+            _stem(seg_path): seg_path
+            for seg_path, split in torchvision.datasets.folder.make_dataset(
+                self.seg_dir, split_mapping, extensions=...
+            )
+            if split_lookup[split] == cfg.split
+        }
+
+        imgs: list[str] = [
+            path
+            for path, s in torchvision.datasets.folder.make_dataset(
+                self.img_dir,
+                split_mapping,
+                extensions=torchvision.datasets.folder.IMG_EXTENSIONS,
+            )
+            if split_lookup[s] == cfg.split
+        ]
+
+        # Load all the targets, classes and mappings
+        img_labels: dict[str, str] = {}
+        with open(os.path.join(cfg.root, cfg.img_label_fpath)) as fd:
+            for line in fd.readlines():
+                stem, label = line.split()
+                img_labels[stem] = label
+
+        label_set = sorted(set(img_labels.values()))
+        label_to_idx = {label: i for i, label in enumerate(label_set)}
+
+        self.samples = [
+            self.Sample(
+                img_path,
+                base2seg[_stem(img_path)],
+                img_labels[_stem(img_path)],
+                label_to_idx[label],
+            )
+            for img_path in (imgs)
+        ]
+
+    def __getitem__(self, index: int) -&gt; dict[str, object]:
+        # Convert to dict.
+        sample = dataclasses.asdict(self.samples[index])
+
+        sample[&#34;image&#34;] = self.loader(sample.pop(&#34;img_path&#34;))
+        if self.img_transform is not None:
+            image = self.img_transform(sample.pop(&#34;image&#34;))
+            if image is not None:
+                sample[&#34;image&#34;] = image
+
+        sample[&#34;segmentation&#34;] = Image.open(sample.pop(&#34;seg_path&#34;)).convert(&#34;L&#34;)
+        if self.seg_transform is not None:
+            segmentation = self.seg_transform(sample.pop(&#34;segmentation&#34;))
+            if segmentation is not None:
+                sample[&#34;segmentation&#34;] = segmentation
+
+        sample[&#34;index&#34;] = index
+
+        if self.sample_transform is not None:
+            sample = self.sample_transform(sample)
+
+        return sample
+
+    def __len__(self) -&gt; int:
+        return len(self.samples)</code></pre>
+</details>
+<h3>Ancestors</h3>
+<ul class="hlist">
+<li>torch.utils.data.dataset.Dataset</li>
+<li>typing.Generic</li>
+</ul>
+<h3>Class variables</h3>
+<dl>
+<dt id="saev.data.images.SegFolderDataset.Sample"><code class="name">var <span class="ident">Sample</span></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="saev.data.images.SegFolderDataset.samples"><code class="name">var <span class="ident">samples</span> : list[<a title="saev.data.images.SegFolderDataset.Sample" href="#saev.data.images.SegFolderDataset.Sample">SegFolderDataset.Sample</a>]</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+</dl>
 </dd>
 </dl>
 </section>
@@ -725,29 +702,10 @@ setTimeout(() => input.focus(), 100);
 <li><h3><a href="#header-functions">Functions</a></h3>
 <ul class="">
 <li><code><a title="saev.data.images.get_dataset" href="#saev.data.images.get_dataset">get_dataset</a></code></li>
-<li><code><a title="saev.data.images.setup" href="#saev.data.images.setup">setup</a></code></li>
-<li><code><a title="saev.data.images.setup_ade20k" href="#saev.data.images.setup_ade20k">setup_ade20k</a></code></li>
-<li><code><a title="saev.data.images.setup_imagefolder" href="#saev.data.images.setup_imagefolder">setup_imagefolder</a></code></li>
-<li><code><a title="saev.data.images.setup_imagenet" href="#saev.data.images.setup_imagenet">setup_imagenet</a></code></li>
 </ul>
 </li>
 <li><h3><a href="#header-classes">Classes</a></h3>
 <ul>
-<li>
-<h4><code><a title="saev.data.images.Ade20k" href="#saev.data.images.Ade20k">Ade20k</a></code></h4>
-<ul class="">
-<li><code><a title="saev.data.images.Ade20k.n_imgs" href="#saev.data.images.Ade20k.n_imgs">n_imgs</a></code></li>
-<li><code><a title="saev.data.images.Ade20k.root" href="#saev.data.images.Ade20k.root">root</a></code></li>
-<li><code><a title="saev.data.images.Ade20k.split" href="#saev.data.images.Ade20k.split">split</a></code></li>
-</ul>
-</li>
-<li>
-<h4><code><a title="saev.data.images.Ade20kDataset" href="#saev.data.images.Ade20kDataset">Ade20kDataset</a></code></h4>
-<ul class="">
-<li><code><a title="saev.data.images.Ade20kDataset.Sample" href="#saev.data.images.Ade20kDataset.Sample">Sample</a></code></li>
-<li><code><a title="saev.data.images.Ade20kDataset.samples" href="#saev.data.images.Ade20kDataset.samples">samples</a></code></li>
-</ul>
-</li>
 <li>
 <h4><code><a title="saev.data.images.Fake" href="#saev.data.images.Fake">Fake</a></code></h4>
 <ul class="">
@@ -777,6 +735,21 @@ setTimeout(() => input.focus(), 100);
 </li>
 <li>
 <h4><code><a title="saev.data.images.ImagenetDataset" href="#saev.data.images.ImagenetDataset">ImagenetDataset</a></code></h4>
+</li>
+<li>
+<h4><code><a title="saev.data.images.SegFolder" href="#saev.data.images.SegFolder">SegFolder</a></code></h4>
+<ul class="">
+<li><code><a title="saev.data.images.SegFolder.n_imgs" href="#saev.data.images.SegFolder.n_imgs">n_imgs</a></code></li>
+<li><code><a title="saev.data.images.SegFolder.root" href="#saev.data.images.SegFolder.root">root</a></code></li>
+<li><code><a title="saev.data.images.SegFolder.split" href="#saev.data.images.SegFolder.split">split</a></code></li>
+</ul>
+</li>
+<li>
+<h4><code><a title="saev.data.images.SegFolderDataset" href="#saev.data.images.SegFolderDataset">SegFolderDataset</a></code></h4>
+<ul class="">
+<li><code><a title="saev.data.images.SegFolderDataset.Sample" href="#saev.data.images.SegFolderDataset.Sample">Sample</a></code></li>
+<li><code><a title="saev.data.images.SegFolderDataset.samples" href="#saev.data.images.SegFolderDataset.samples">samples</a></code></li>
+</ul>
 </li>
 </ul>
 </li>

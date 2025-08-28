@@ -15,7 +15,7 @@ import typing
 import beartype
 import tyro
 
-from . import images, writers
+from . import writers
 
 log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
 logging.basicConfig(level=logging.INFO, format=log_format)
@@ -40,9 +40,6 @@ def main(cfg: typing.Annotated[writers.Config, tyro.conf.arg(name="")]):
         import ssl
 
         ssl._create_default_https_context = ssl._create_unverified_context
-
-    # Run any setup steps.
-    images.setup(cfg.data)
 
     # Actually record activations.
     if cfg.slurm_acct:
