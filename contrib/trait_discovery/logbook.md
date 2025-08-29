@@ -729,3 +729,6 @@ And we have to visualize the trait labels in a notebook to make sure they're not
 # 08/29/2025
 
 I did visualize the trait labels in a notebook.
+You can see these results in contrib/trait_discovery/notebooks/fishvista-patches.ipynb.
+
+So now we just have to keep going and train a linear model to get the upper bound.

@@ -546,6 +546,7 @@ def main(
     if sweep is not None:
         with open(sweep, "rb") as fd:
             cfgs, errs = helpers.grid(cfg, tomllib.load(fd))
+            # TODO: Note that since we update data.seed for each cfg, they cannot be parallelized.
 
         if errs:
             for err in errs:
