@@ -302,7 +302,7 @@ class SegFolderDataset(torch.utils.data.Dataset):
             if image is not None:
                 sample["image"] = image
 
-        sample["segmentation"] = Image.open(sample.pop("seg_path")).convert("L")
+        sample["segmentation"] = Image.open(sample.pop("seg_path"))
         if self.seg_transform is not None:
             segmentation = self.seg_transform(sample.pop("segmentation"))
             if segmentation is not None:

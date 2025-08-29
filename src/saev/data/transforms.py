@@ -97,7 +97,7 @@ class Patchify(nn.Module):
         assert n == self.n_patches, f"Expected n={self.n_patches}, got {n}"
         assert d == c * p * p, f"d mismatch: {d} != {c}*{p}*{p}"
 
-        sample["image"] = patches_nd.contiguous()
+        sample[self.key] = patches_nd.contiguous()
         sample["grid"] = torch.tensor([h // p, w // p], dtype=torch.int16)
         return sample
 

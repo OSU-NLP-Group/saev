@@ -690,3 +690,42 @@ uv run eval_cub200.py --sweep sweeps/cub200-baselines.toml --cub-root /fs/ess/PA
 - I will train a linear classifier for each of the traits.
 - I will actually compare the SAEs to random vectors.
 - Ask Rayeed about kmeans/pca; if those don't improve then we're in real trouble.
+
+# 08/26/2025
+
+- DINOv3
+- scientific discovery test sets
+- Writing
+- CLS token for linear probing on CUB 200
+- FishVista
+
+I have sort of figured out a native resolution trick where we convert every image into 640 (or N, for any N) tokens.
+This preserves the aspect ratio as much as possible.
+
+Now we need to feed these patches into DINov3.
+This involves updating the dataloader.
+It's PyTorch, so the resize is dynamic and depends on the image.
+We can write that custom transform ourselves.
+
+The other trick is to make sure it's clear which position the activations have when they're saved to shards.
+Pretty tricky.
+
+# 08/28/2024
+
+```sh
+uv run contrib/trait_discovery/scripts/format_fishvista.py --fv-root /fs/scratch/PAS2136/samuelstevens/datasets/fish-vista/ --dump-to /fs/scratch/PAS2136/samuelstevens/datasets/fish-vista-segfolder
+```
+
+```sh
+uv run python -m saev.data --dump-to /fs/scratch/PAS2136/samuelstevens/cache/saev --vit-layers 13 15 17 19 21 23 --vit-family dinov3 --vit-ckpt /fs/ess/PAS2136/samuelstevens/models/dinov3/dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth --slurm-acct PAS2136 --slurm-partition nextgen --n-patches-per-img 640 --d-vit 1024 --vit-batch-size 256 data:seg-folder --data.root /fs/scratch/PAS2136/samuelstevens/datasets/fish-vista-segfolder/ --data.img-label-fname image_labels.txt
+```
+
+I need to evaluate a linear classifier on DINOv3 traits.
+This is kind of hard because of the way the aspect-aware resizing works with segmentation masks.
+So it goes.
+But I just have to keep trucking, with the intent of measuring classifier accuracy on traits at a very coarse level.
+And we have to visualize the trait labels in a notebook to make sure they're not shit.
+
+# 08/29/2025
+
+I did visualize the trait labels in a notebook.
