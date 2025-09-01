@@ -1514,9 +1514,12 @@ class ImageFolder:
     @property
     def n_imgs(self) -> int:
         """Number of images in the dataset. Calculated on the fly, but is non-trivial to calculate because it requires walking the directory structure. If you need to reference this number very often, cache it in a local variable."""
+        # Use the same image extensions as torchvision's ImageFolder
+        img_extensions = tuple(torchvision.datasets.folder.IMG_EXTENSIONS)
         n = 0
         for _, _, files in os.walk(self.root):
-            n += len(files)
+            # Only count files with valid image extensions
+            n += sum(1 for f in files if f.lower().endswith(img_extensions))
         return n
 
 
@@ -1529,13 +1532,25 @@ class SegFolder:
     """Where the class folders with images are stored."""
     split: typing.Literal["training", "validation"] = "training"
     """Data split."""
+    img_label_fname: str = "sceneCategories.txt"
+    """Image labels filename."""
 
     @property
     def n_imgs(self) -> int:
-        if self.split == "validation":
-            return 2000
-        else:
-            return 20210
+        """Number of images in the dataset. Calculated on the fly by counting image files in root/images/split."""
+        # Use the same image extensions as torchvision's ImageFolder
+        img_extensions = tuple(torchvision.datasets.folder.IMG_EXTENSIONS)
+
+        # Look for images in root/images/split
+        img_dir = os.path.join(self.root, "images", self.split)
+        if not os.path.isdir(img_dir):
+            return 0
+
+        n = 0
+        for _, _, files in os.walk(img_dir):
+            # Only count files with valid image extensions
+            n += sum(1 for f in files if f.lower().endswith(img_extensions))
+        return n
 
 
 @beartype.beartype
@@ -1710,7 +1725,9 @@ class SegFolderDataset(torch.utils.data.Dataset):
         base2seg: dict[str, str] = {
             _stem(seg_path): seg_path
             for seg_path, split in torchvision.datasets.folder.make_dataset(
-                self.seg_dir, split_mapping, extensions=...
+                self.seg_dir,
+                split_mapping,
+                extensions=torchvision.datasets.folder.IMG_EXTENSIONS,
             )
             if split_lookup[split] == cfg.split
         }
@@ -1727,9 +1744,9 @@ class SegFolderDataset(torch.utils.data.Dataset):
 
         # Load all the targets, classes and mappings
         img_labels: dict[str, str] = {}
-        with open(os.path.join(cfg.root, cfg.img_label_fpath)) as fd:
+        with open(os.path.join(cfg.root, cfg.img_label_fname)) as fd:
             for line in fd.readlines():
-                stem, label = line.split()
+                stem, _, label = line.rpartition(" ")
                 img_labels[stem] = label
 
         label_set = sorted(set(img_labels.values()))
@@ -1755,7 +1772,7 @@ class SegFolderDataset(torch.utils.data.Dataset):
             if image is not None:
                 sample["image"] = image
 
-        sample["segmentation"] = Image.open(sample.pop("seg_path")).convert("L")
+        sample["segmentation"] = Image.open(sample.pop("seg_path"))
         if self.seg_transform is not None:
             segmentation = self.seg_transform(sample.pop("segmentation"))
             if segmentation is not None:
@@ -2200,7 +2217,7 @@ def make_transforms(vit_family: str, vit_ckpt: str) -> tuple[Callable, Callable 
             v2.ToDtype(torch.float32, scale=True),
             v2.Normalize(mean=[0.4850, 0.4560, 0.4060], std=[0.2290, 0.2240, 0.2250]),
         ])
-        sample_transform = transforms.Unfold(patch_size=16, n_patches=640)
+        sample_transform = transforms.Patchify(patch_size=16, n_patches=640)
         return img_transform, sample_transform
     else:
         tp.assert_never(vit_family)
@@ -3271,7 +3288,6 @@ import typing as tp
 import beartype
 import einops
 import torch
-import torch.nn.functional as F
 from jaxtyping import Float, jaxtyped
 from PIL import Image
 from torch import Tensor, nn
@@ -3280,21 +3296,33 @@ from torchvision.transforms import v2
 
 @beartype.beartype
 class FlexResize(v2.Transform):
-    def __init__(self, patch_size: int, n_patches: int):
+    def __init__(
+        self,
+        patch_size: int,
+        n_patches: int,
+        resample: Image.Resampling | int = Image.LANCZOS,
+    ):
         super().__init__()
         self.patch_size = patch_size
         self.n_patches = n_patches
+        self.resample = resample
 
     def transform(self, inpt: tp.Any, params: dict[str, tp.Any]):
         if isinstance(inpt, Image.Image):
-            return _resize_to_patch_grid(inpt, p=self.patch_size, n=self.n_patches)
+            return _resize_to_patch_grid(
+                inpt, p=self.patch_size, n=self.n_patches, resample=self.resample
+            )
         else:
             raise TypeError(type(inpt))
 
 
 @beartype.beartype
 def _resize_to_patch_grid(
-    img: Image.Image, *, p: int, n: int, resample=Image.LANCZOS
+    img: Image.Image,
+    *,
+    p: int,
+    n: int,
+    resample: Image.Resampling | int = Image.LANCZOS,
 ) -> Image.Image:
     """
     Resize image to (w, h) so that:
@@ -3331,25 +3359,28 @@ def _resize_to_patch_grid(
 
 
 @beartype.beartype
-class Unfold(nn.Module):
-    def __init__(self, patch_size: int, n_patches: int):
+class Patchify(nn.Module):
+    def __init__(self, patch_size: int, n_patches: int, key: str = "image"):
         super().__init__()
         self.patch_size = patch_size
         self.n_patches = n_patches
+        self.key = key
 
     def forward(self, sample: dict[str, object]) -> dict[str, object]:
-        assert "image" in sample
-        img = sample["image"]
+        assert self.key in sample
+        img = sample[self.key]
         c, h, w = img.shape
         p = self.patch_size
         assert (h % p == 0) and (w % p == 0), f"Got {h}x{w}, patch={p}"
 
-        cols_bpn = F.unfold(img[None, ...], kernel_size=p, stride=p)
-        _, k, n = cols_bpn.shape
+        patches_nd = einops.rearrange(
+            img, "c (hp p1) (wp p2) -> (hp wp) (c p1 p2)", p1=p, p2=p
+        )
+        n, d = patches_nd.shape
         assert n == self.n_patches, f"Expected n={self.n_patches}, got {n}"
-        assert k == c * p * p, f"k mismatch: {k} != {c}*{p}*{p}"
+        assert d == c * p * p, f"d mismatch: {d} != {c}*{p}*{p}"
 
-        sample["image"] = einops.rearrange(cols_bpn, "() k n -> n k").contiguous()
+        sample[self.key] = patches_nd.contiguous()
         sample["grid"] = torch.tensor([h // p, w // p], dtype=torch.int16)
         return sample
 
@@ -3370,13 +3401,15 @@ def unfolded_conv2d(
     assert conv.groups == 1
     assert conv.dilation == (1, 1)
 
-    b, c, h, w = x_bchw.shape
+    *b, c, h, w = x_bchw.shape
 
     assert h % k == 0 and w % k == 0
 
-    cols_bpn = F.unfold(x_bchw, kernel_size=k, stride=k)  # (B, C x P x P, D)
+    tokens_bnd = einops.rearrange(
+        x_bchw, "b c (hp p1) (wp p2) -> b (hp wp) (c p1 p2)", p1=k, p2=k
+    ).contiguous()
     w_dp = conv.weight.reshape(conv.out_channels, c * k * k)
-    tokens_bnd = einops.rearrange(cols_bpn, "b px n -> b n px") @ w_dp.T
+    tokens_bnd = tokens_bnd @ w_dp.T
     if conv.bias is not None:
         tokens_bnd = tokens_bnd + conv.bias[None, None, :]
     return tokens_bnd

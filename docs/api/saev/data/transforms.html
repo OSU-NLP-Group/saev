@@ -79,13 +79,15 @@ def unfolded_conv2d(
     assert conv.groups == 1
     assert conv.dilation == (1, 1)
 
-    b, c, h, w = x_bchw.shape
+    *b, c, h, w = x_bchw.shape
 
     assert h % k == 0 and w % k == 0
 
-    cols_bpn = F.unfold(x_bchw, kernel_size=k, stride=k)  # (B, C x P x P, D)
+    tokens_bnd = einops.rearrange(
+        x_bchw, &#34;b c (hp p1) (wp p2) -&gt; b (hp wp) (c p1 p2)&#34;, p1=k, p2=k
+    ).contiguous()
     w_dp = conv.weight.reshape(conv.out_channels, c * k * k)
-    tokens_bnd = einops.rearrange(cols_bpn, &#34;b px n -&gt; b n px&#34;) @ w_dp.T
+    tokens_bnd = tokens_bnd @ w_dp.T
     if conv.bias is not None:
         tokens_bnd = tokens_bnd + conv.bias[None, None, :]
     return tokens_bnd</code></pre>
@@ -98,7 +100,7 @@ def unfolded_conv2d(
 <dl>
 <dt id="saev.data.transforms.FlexResize"><code class="flex name class">
 <span>class <span class="ident">FlexResize</span></span>
-<span>(</span><span>patch_size: int, n_patches: int)</span>
+<span>(</span><span>patch_size: int, n_patches: int, resample: PIL.Image.Resampling | int = 1)</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Base class to implement your own v2 transforms.</p>
@@ -112,14 +114,22 @@ more details.</p>
 </summary>
 <pre><code class="python">@beartype.beartype
 class FlexResize(v2.Transform):
-    def __init__(self, patch_size: int, n_patches: int):
+    def __init__(
+        self,
+        patch_size: int,
+        n_patches: int,
+        resample: Image.Resampling | int = Image.LANCZOS,
+    ):
         super().__init__()
         self.patch_size = patch_size
         self.n_patches = n_patches
+        self.resample = resample
 
     def transform(self, inpt: tp.Any, params: dict[str, tp.Any]):
         if isinstance(inpt, Image.Image):
-            return _resize_to_patch_grid(inpt, p=self.patch_size, n=self.n_patches)
+            return _resize_to_patch_grid(
+                inpt, p=self.patch_size, n=self.n_patches, resample=self.resample
+            )
         else:
             raise TypeError(type(inpt))</code></pre>
 </details>
@@ -141,16 +151,18 @@ class FlexResize(v2.Transform):
 </summary>
 <pre><code class="python">def transform(self, inpt: tp.Any, params: dict[str, tp.Any]):
     if isinstance(inpt, Image.Image):
-        return _resize_to_patch_grid(inpt, p=self.patch_size, n=self.n_patches)
+        return _resize_to_patch_grid(
+            inpt, p=self.patch_size, n=self.n_patches, resample=self.resample
+        )
     else:
         raise TypeError(type(inpt))</code></pre>
 </details>
 </dd>
 </dl>
 </dd>
-<dt id="saev.data.transforms.Unfold"><code class="flex name class">
-<span>class <span class="ident">Unfold</span></span>
-<span>(</span><span>patch_size: int, n_patches: int)</span>
+<dt id="saev.data.transforms.Patchify"><code class="flex name class">
+<span>class <span class="ident">Patchify</span></span>
+<span>(</span><span>patch_size: int, n_patches: int, key: str = 'image')</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Base class for all neural network modules.</p>
@@ -187,25 +199,28 @@ evaluation mode.
 <span>Expand source code</span>
 </summary>
 <pre><code class="python">@beartype.beartype
-class Unfold(nn.Module):
-    def __init__(self, patch_size: int, n_patches: int):
+class Patchify(nn.Module):
+    def __init__(self, patch_size: int, n_patches: int, key: str = &#34;image&#34;):
         super().__init__()
         self.patch_size = patch_size
         self.n_patches = n_patches
+        self.key = key
 
     def forward(self, sample: dict[str, object]) -&gt; dict[str, object]:
-        assert &#34;image&#34; in sample
-        img = sample[&#34;image&#34;]
+        assert self.key in sample
+        img = sample[self.key]
         c, h, w = img.shape
         p = self.patch_size
         assert (h % p == 0) and (w % p == 0), f&#34;Got {h}x{w}, patch={p}&#34;
 
-        cols_bpn = F.unfold(img[None, ...], kernel_size=p, stride=p)
-        _, k, n = cols_bpn.shape
+        patches_nd = einops.rearrange(
+            img, &#34;c (hp p1) (wp p2) -&gt; (hp wp) (c p1 p2)&#34;, p1=p, p2=p
+        )
+        n, d = patches_nd.shape
         assert n == self.n_patches, f&#34;Expected n={self.n_patches}, got {n}&#34;
-        assert k == c * p * p, f&#34;k mismatch: {k} != {c}*{p}*{p}&#34;
+        assert d == c * p * p, f&#34;d mismatch: {d} != {c}*{p}*{p}&#34;
 
-        sample[&#34;image&#34;] = einops.rearrange(cols_bpn, &#34;() k n -&gt; n k&#34;).contiguous()
+        sample[self.key] = patches_nd.contiguous()
         sample[&#34;grid&#34;] = torch.tensor([h // p, w // p], dtype=torch.int16)
         return sample</code></pre>
 </details>
@@ -215,7 +230,7 @@ class Unfold(nn.Module):
 </ul>
 <h3>Methods</h3>
 <dl>
-<dt id="saev.data.transforms.Unfold.forward"><code class="name flex">
+<dt id="saev.data.transforms.Patchify.forward"><code class="name flex">
 <span>def <span class="ident">forward</span></span>(<span>self, sample: dict[str, object]) ‑> dict[str, object]</span>
 </code></dt>
 <dd>
@@ -225,18 +240,20 @@ class Unfold(nn.Module):
 <span>Expand source code</span>
 </summary>
 <pre><code class="python">def forward(self, sample: dict[str, object]) -&gt; dict[str, object]:
-    assert &#34;image&#34; in sample
-    img = sample[&#34;image&#34;]
+    assert self.key in sample
+    img = sample[self.key]
     c, h, w = img.shape
     p = self.patch_size
     assert (h % p == 0) and (w % p == 0), f&#34;Got {h}x{w}, patch={p}&#34;
 
-    cols_bpn = F.unfold(img[None, ...], kernel_size=p, stride=p)
-    _, k, n = cols_bpn.shape
+    patches_nd = einops.rearrange(
+        img, &#34;c (hp p1) (wp p2) -&gt; (hp wp) (c p1 p2)&#34;, p1=p, p2=p
+    )
+    n, d = patches_nd.shape
     assert n == self.n_patches, f&#34;Expected n={self.n_patches}, got {n}&#34;
-    assert k == c * p * p, f&#34;k mismatch: {k} != {c}*{p}*{p}&#34;
+    assert d == c * p * p, f&#34;d mismatch: {d} != {c}*{p}*{p}&#34;
 
-    sample[&#34;image&#34;] = einops.rearrange(cols_bpn, &#34;() k n -&gt; n k&#34;).contiguous()
+    sample[self.key] = patches_nd.contiguous()
     sample[&#34;grid&#34;] = torch.tensor([h // p, w // p], dtype=torch.int16)
     return sample</code></pre>
 </details>
@@ -317,9 +334,9 @@ setTimeout(() => input.focus(), 100);
 </ul>
 </li>
 <li>
-<h4><code><a title="saev.data.transforms.Unfold" href="#saev.data.transforms.Unfold">Unfold</a></code></h4>
+<h4><code><a title="saev.data.transforms.Patchify" href="#saev.data.transforms.Patchify">Patchify</a></code></h4>
 <ul class="">
-<li><code><a title="saev.data.transforms.Unfold.forward" href="#saev.data.transforms.Unfold.forward">forward</a></code></li>
+<li><code><a title="saev.data.transforms.Patchify.forward" href="#saev.data.transforms.Patchify.forward">forward</a></code></li>
 </ul>
 </li>
 </ul>

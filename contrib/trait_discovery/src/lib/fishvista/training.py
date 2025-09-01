@@ -1,4 +1,12 @@
-# Trains multiple linear probes in parallel on DINOv3's FishVista activations.
+"""
+Trains multiple linear probes in parallel on DINOv3's FishVista activations.
+
+Size key:
+* B: Batch size
+* D: ViT activation dimension (typically 768 or 1024)
+* N: Number of images
+"""
+
 import dataclasses
 import itertools
 import logging
@@ -6,6 +14,8 @@ import typing as tp
 
 import beartype
 import einops
+import numpy as np
+import sklearn.metrics
 import torch.utils.data
 from jaxtyping import Shaped, jaxtyped
 from PIL import Image
@@ -15,6 +25,7 @@ from torchvision.transforms import v2
 import saev.data.images
 import saev.data.models
 import saev.data.transforms
+import saev.helpers
 
 n_classes = 10
 
@@ -232,6 +243,7 @@ def train(cfg: Config):
         if epoch % cfg.eval_every == 0 or epoch + 1 == cfg.n_epochs:
             with torch.inference_mode():
                 pred_label_list, true_label_list = [], []
+                logits_list = []
                 for batch in val_dataloader:
                     imgs_bnd = batch["image"].to(cfg.device)
                     grid = batch["grid"].to(cfg.device)
@@ -242,6 +254,7 @@ def train(cfg: Config):
                     logits_mbnc = torch.stack([model(vit_acts_bnd) for model in models])
                     preds_mbn = logits_mbnc.argmax(axis=-1)
                     pred_label_list.append(preds_mbn)
+                    logits_list.append(logits_mbnc)
 
                     labels_bn = batch["patch_labels"].to(cfg.device)
                     true_label_list.append(labels_bn.expand(len(models), -1, -1))
@@ -252,6 +265,9 @@ def train(cfg: Config):
                 true_labels_mn = einops.rearrange(
                     torch.cat(true_label_list, dim=1).int(), "m b n -> m (b n)"
                 )
+                logits_mnc = einops.rearrange(
+                    torch.cat(logits_list, dim=1), "m b n c -> m (b n) c"
+                )
 
                 logger.info("Evaluated all validation batchs.")
                 acc_m = einops.reduce(
@@ -260,11 +276,35 @@ def train(cfg: Config):
                     "mean",
                 )
 
+            # Compute per-class AP and mAP (one-vs-rest) for each model
+            with torch.inference_mode():
+                y_mn = true_labels_mn.cpu().numpy()
+                s_mnc = logits_mnc.cpu().numpy()
+
+                ap_mc = np.zeros((len(models), n_classes), dtype=np.float64)
+                for m in range(len(models)):
+                    for c in range(n_classes):
+                        y_true = (y_mn[m] == c).astype(np.int32)
+                        scores = s_mnc[m, :, c]
+                        # Guard against degenerate cases with no positives or no negatives
+                        if y_true.max() == 0 or y_true.min() == 1:
+                            ap = np.nan
+                        else:
+                            ap = float(
+                                sklearn.metrics.average_precision_score(y_true, scores)
+                            )
+                        ap_mc[m, c] = ap
+
+                mAP_m = np.nanmean(ap_mc, axis=1)
+                best_i = int(np.nanargmin(-mAP_m))  # index of max mAP
+                best_mAP = float(mAP_m[best_i])
+
             logger.info(
-                "epoch: %d, step: %d, max val acc: %.3f",
+                "epoch: %d, step: %d, best val acc: %.3f, best val mAP: %.4f",
                 epoch,
                 global_step,
                 acc_m.max().item() * 100,
+                best_mAP,
             )
 
             # for cfg, model in zip(cfgs, models):

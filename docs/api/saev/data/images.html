@@ -190,9 +190,12 @@ class ImageFolder:
     @property
     def n_imgs(self) -&gt; int:
         &#34;&#34;&#34;Number of images in the dataset. Calculated on the fly, but is non-trivial to calculate because it requires walking the directory structure. If you need to reference this number very often, cache it in a local variable.&#34;&#34;&#34;
+        # Use the same image extensions as torchvision&#39;s ImageFolder
+        img_extensions = tuple(torchvision.datasets.folder.IMG_EXTENSIONS)
         n = 0
         for _, _, files in os.walk(self.root):
-            n += len(files)
+            # Only count files with valid image extensions
+            n += sum(1 for f in files if f.lower().endswith(img_extensions))
         return n</code></pre>
 </details>
 <h3>Instance variables</h3>
@@ -207,9 +210,12 @@ class ImageFolder:
 <pre><code class="python">@property
 def n_imgs(self) -&gt; int:
     &#34;&#34;&#34;Number of images in the dataset. Calculated on the fly, but is non-trivial to calculate because it requires walking the directory structure. If you need to reference this number very often, cache it in a local variable.&#34;&#34;&#34;
+    # Use the same image extensions as torchvision&#39;s ImageFolder
+    img_extensions = tuple(torchvision.datasets.folder.IMG_EXTENSIONS)
     n = 0
     for _, _, files in os.walk(self.root):
-        n += len(files)
+        # Only count files with valid image extensions
+        n += sum(1 for f in files if f.lower().endswith(img_extensions))
     return n</code></pre>
 </details>
 </dd>
@@ -433,7 +439,7 @@ class ImagenetDataset(torch.utils.data.Dataset):
 </dd>
 <dt id="saev.data.images.SegFolder"><code class="flex name class">
 <span>class <span class="ident">SegFolder</span></span>
-<span>(</span><span>root: str = './data/segdataset',<br>split: Literal['training', 'validation'] = 'training')</span>
+<span>(</span><span>root: str = './data/segdataset',<br>split: Literal['training', 'validation'] = 'training',<br>img_label_fname: str = 'sceneCategories.txt')</span>
 </code></dt>
 <dd>
 <div class="desc"></div>
@@ -450,29 +456,55 @@ class SegFolder:
     &#34;&#34;&#34;Where the class folders with images are stored.&#34;&#34;&#34;
     split: typing.Literal[&#34;training&#34;, &#34;validation&#34;] = &#34;training&#34;
     &#34;&#34;&#34;Data split.&#34;&#34;&#34;
+    img_label_fname: str = &#34;sceneCategories.txt&#34;
+    &#34;&#34;&#34;Image labels filename.&#34;&#34;&#34;
 
     @property
     def n_imgs(self) -&gt; int:
-        if self.split == &#34;validation&#34;:
-            return 2000
-        else:
-            return 20210</code></pre>
+        &#34;&#34;&#34;Number of images in the dataset. Calculated on the fly by counting image files in root/images/split.&#34;&#34;&#34;
+        # Use the same image extensions as torchvision&#39;s ImageFolder
+        img_extensions = tuple(torchvision.datasets.folder.IMG_EXTENSIONS)
+
+        # Look for images in root/images/split
+        img_dir = os.path.join(self.root, &#34;images&#34;, self.split)
+        if not os.path.isdir(img_dir):
+            return 0
+
+        n = 0
+        for _, _, files in os.walk(img_dir):
+            # Only count files with valid image extensions
+            n += sum(1 for f in files if f.lower().endswith(img_extensions))
+        return n</code></pre>
 </details>
 <h3>Instance variables</h3>
 <dl>
+<dt id="saev.data.images.SegFolder.img_label_fname"><code class="name">var <span class="ident">img_label_fname</span> : str</code></dt>
+<dd>
+<div class="desc"><p>Image labels filename.</p></div>
+</dd>
 <dt id="saev.data.images.SegFolder.n_imgs"><code class="name">prop <span class="ident">n_imgs</span> : int</code></dt>
 <dd>
-<div class="desc"></div>
+<div class="desc"><p>Number of images in the dataset. Calculated on the fly by counting image files in root/images/split.</p></div>
 <details class="source">
 <summary>
 <span>Expand source code</span>
 </summary>
 <pre><code class="python">@property
 def n_imgs(self) -&gt; int:
-    if self.split == &#34;validation&#34;:
-        return 2000
-    else:
-        return 20210</code></pre>
+    &#34;&#34;&#34;Number of images in the dataset. Calculated on the fly by counting image files in root/images/split.&#34;&#34;&#34;
+    # Use the same image extensions as torchvision&#39;s ImageFolder
+    img_extensions = tuple(torchvision.datasets.folder.IMG_EXTENSIONS)
+
+    # Look for images in root/images/split
+    img_dir = os.path.join(self.root, &#34;images&#34;, self.split)
+    if not os.path.isdir(img_dir):
+        return 0
+
+    n = 0
+    for _, _, files in os.walk(img_dir):
+        # Only count files with valid image extensions
+        n += sum(1 for f in files if f.lower().endswith(img_extensions))
+    return n</code></pre>
 </details>
 </dd>
 <dt id="saev.data.images.SegFolder.root"><code class="name">var <span class="ident">root</span> : str</code></dt>
@@ -562,7 +594,9 @@ class SegFolderDataset(torch.utils.data.Dataset):
         base2seg: dict[str, str] = {
             _stem(seg_path): seg_path
             for seg_path, split in torchvision.datasets.folder.make_dataset(
-                self.seg_dir, split_mapping, extensions=...
+                self.seg_dir,
+                split_mapping,
+                extensions=torchvision.datasets.folder.IMG_EXTENSIONS,
             )
             if split_lookup[split] == cfg.split
         }
@@ -579,9 +613,9 @@ class SegFolderDataset(torch.utils.data.Dataset):
 
         # Load all the targets, classes and mappings
         img_labels: dict[str, str] = {}
-        with open(os.path.join(cfg.root, cfg.img_label_fpath)) as fd:
+        with open(os.path.join(cfg.root, cfg.img_label_fname)) as fd:
             for line in fd.readlines():
-                stem, label = line.split()
+                stem, _, label = line.rpartition(&#34; &#34;)
                 img_labels[stem] = label
 
         label_set = sorted(set(img_labels.values()))
@@ -607,7 +641,7 @@ class SegFolderDataset(torch.utils.data.Dataset):
             if image is not None:
                 sample[&#34;image&#34;] = image
 
-        sample[&#34;segmentation&#34;] = Image.open(sample.pop(&#34;seg_path&#34;)).convert(&#34;L&#34;)
+        sample[&#34;segmentation&#34;] = Image.open(sample.pop(&#34;seg_path&#34;))
         if self.seg_transform is not None:
             segmentation = self.seg_transform(sample.pop(&#34;segmentation&#34;))
             if segmentation is not None:
@@ -739,6 +773,7 @@ setTimeout(() => input.focus(), 100);
 <li>
 <h4><code><a title="saev.data.images.SegFolder" href="#saev.data.images.SegFolder">SegFolder</a></code></h4>
 <ul class="">
+<li><code><a title="saev.data.images.SegFolder.img_label_fname" href="#saev.data.images.SegFolder.img_label_fname">img_label_fname</a></code></li>
 <li><code><a title="saev.data.images.SegFolder.n_imgs" href="#saev.data.images.SegFolder.n_imgs">n_imgs</a></code></li>
 <li><code><a title="saev.data.images.SegFolder.root" href="#saev.data.images.SegFolder.root">root</a></code></li>
 <li><code><a title="saev.data.images.SegFolder.split" href="#saev.data.images.SegFolder.split">split</a></code></li>

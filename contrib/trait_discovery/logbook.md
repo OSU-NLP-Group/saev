@@ -755,7 +755,7 @@ Okay, since working on all these tasks in parallel will probably make me lose my
 
 1. [done] Use the no-bg patch mode on FishVista.
 2. [done] Include patch-level validation accuracy on FishVista (re-train).
-3. Include validation mAP on FishVista (re-train).
+3. [done] Include validation mAP on FishVista (re-train).
 4. Save linear checkpoints
 5. Apply RandomVectors to FishVista.
 6. Butterflies, beetles, equids, writing, etc.
