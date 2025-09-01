@@ -732,3 +732,30 @@ I did visualize the trait labels in a notebook.
 You can see these results in contrib/trait_discovery/notebooks/fishvista-patches.ipynb.
 
 So now we just have to keep going and train a linear model to get the upper bound.
+
+I have submitted a job.
+It doesn't do validation because I didn't want to work out interpolation in order to calculate mAP.
+It also doesn't save checkpoints.
+But at least this way we can see what the performance of a linear probe is.
+Then we can visualize some predictions.
+After that, we will be forced to do the baselines again and get some freaking results.
+
+In parallel, I could also work on:
+
+1. Writing
+2. Beetles?
+3. Butterflies?
+4. Equids?
+
+Certainly I need to start with butterflies, since that was the original motiviation of the project.
+I need to read that paper about SAEs for discovery.
+I need to measure mAP for these linear probes.
+
+Okay, since working on all these tasks in parallel will probably make me lose my mind, let's simply organize them sequentially and work on them one at a time.
+
+1. [done] Use the no-bg patch mode on FishVista.
+2. [done] Include patch-level validation accuracy on FishVista (re-train).
+3. Include validation mAP on FishVista (re-train).
+4. Save linear checkpoints
+5. Apply RandomVectors to FishVista.
+6. Butterflies, beetles, equids, writing, etc.

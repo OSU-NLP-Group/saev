@@ -7,7 +7,9 @@ import typing as tp
 import beartype
 import einops
 import torch.utils.data
+from jaxtyping import Shaped, jaxtyped
 from PIL import Image
+from torch import Tensor
 from torchvision.transforms import v2
 
 import saev.data.images
@@ -36,12 +38,12 @@ class Config:
     """Batch size for ViT inference."""
     n_workers: int = 8
     """Number of dataloader workers."""
-    patch_label_mode: tp.Literal["mode", "no-bg"] = "no-bg"
+    patch_labeling: tp.Literal["mode", "no-bg"] = "no-bg"
 
     # Linear Probe
     lrs: list[float] = dataclasses.field(default_factory=lambda: [1e-4, 3e-4, 1e-3])
     wds: list[float] = dataclasses.field(default_factory=lambda: [1e-4, 3e-4, 1e-3])
-    n_epochs: int = 400
+    n_epochs: int = 200
     """Number of linear probing epochs."""
     eval_every: int = 20
 
@@ -58,9 +60,31 @@ class Config:
     """Where to log Slurm job stdout/stderr."""
 
 
+@jaxtyped(typechecker=beartype.beartype)
+def patch_label_no_bg(
+    pixel_labels_nd: Shaped[Tensor, "n k"], *, n_classes: int, bg: int = 0
+) -> Shaped[Tensor, " n"]:
+    x = pixel_labels_nd.to(torch.long)
+    N, _ = x.shape
+
+    # counts[i, c] = number of times class c appears in patch i
+    offsets = torch.arange(N, device=x.device).unsqueeze(1) * n_classes
+    flat = (x + offsets).reshape(-1)
+    counts = torch.bincount(flat, minlength=N * n_classes).reshape(N, n_classes)
+
+    nonbg = counts.clone()
+    nonbg[:, bg] = 0
+    has_nonbg = nonbg.sum(dim=1) > 0
+    nonbg_arg = nonbg.argmax(dim=1)
+    bg = torch.full_like(nonbg_arg, bg)
+    return torch.where(has_nonbg, nonbg_arg, bg)
+
+
 @beartype.beartype
 class Dataset(torch.utils.data.Dataset):
-    def __init__(self, cfg: saev.data.images.SegFolder):
+    def __init__(self, cfg: Config):
+        self.cfg = cfg
+
         img_transform = v2.Compose([
             saev.data.transforms.FlexResize(patch_size=16, n_patches=640),
             v2.ToImage(),
@@ -82,7 +106,7 @@ class Dataset(torch.utils.data.Dataset):
         ])
 
         self.samples = saev.data.images.SegFolderDataset(
-            cfg,
+            cfg.imgs,
             img_transform=img_transform,
             seg_transform=seg_transform,
             sample_transform=sample_transform,
@@ -94,7 +118,12 @@ class Dataset(torch.utils.data.Dataset):
         # Get patch and pixel level semantic labels.
         sample = self.samples[i]
         pixel_labels = sample["segmentation"].squeeze()
-        patch_labels = pixel_labels.mode(axis=1).values
+        if self.cfg.patch_labeling == "mode":
+            patch_labels = pixel_labels.mode(axis=1).values
+        elif self.cfg.patch_labeling == "no-bg":
+            patch_labels = patch_label_no_bg(pixel_labels, bg=0, n_classes=10)
+        else:
+            tp.assert_never(self.cfg.patch_labeling)
 
         return {
             "index": i,
@@ -112,10 +141,13 @@ class Dataset(torch.utils.data.Dataset):
 def get_dataloader(cfg: Config, *, is_train: bool):
     if is_train:
         shuffle = True
-        dataset = Dataset(dataclasses.replace(cfg.imgs, split="training"))
+        img_cfg = dataclasses.replace(cfg.imgs, split="training")
     else:
         shuffle = False
-        dataset = Dataset(dataclasses.replace(cfg.imgs, split="validation"))
+        img_cfg = dataclasses.replace(cfg.imgs, split="validation")
+
+    cfg = dataclasses.replace(cfg, imgs=img_cfg)
+    dataset = Dataset(cfg)
 
     return torch.utils.data.DataLoader(
         dataset,
@@ -182,7 +214,6 @@ def train(cfg: Config):
             optim.zero_grad()
 
             global_step += 1
-            break
 
         # Show last batch's loss and acc.
         acc_M = einops.reduce(
@@ -198,65 +229,43 @@ def train(cfg: Config):
             acc_M.max().item() * 100,
         )
 
-        # if epoch % cfg.eval_every == 0 or epoch + 1 == cfg.n_epochs:
-        #     with torch.inference_mode():
-        #         pred_label_list, true_label_list = [], []
-        #         for batch in val_dataloader:
-        #             imgs_bnd = batch["image"].to(cfg.device)
-        #             grid = batch["grid"].to(cfg.device)
-        #             with torch.inference_mode():
-        #                 vit_acts_bnd = vit(imgs_bnd, grid=grid)
-        #                 # Remove CLS
-        #                 vit_acts_bnd = vit_acts_bnd[:, 1:, :]
+        if epoch % cfg.eval_every == 0 or epoch + 1 == cfg.n_epochs:
+            with torch.inference_mode():
+                pred_label_list, true_label_list = [], []
+                for batch in val_dataloader:
+                    imgs_bnd = batch["image"].to(cfg.device)
+                    grid = batch["grid"].to(cfg.device)
+                    vit_acts_bnd = vit(imgs_bnd, grid=grid)
+                    # Remove CLS
+                    vit_acts_bnd = vit_acts_bnd[:, 1:, :]
 
-        #             pixel_labels_bnk = batch["pixel_labels"]
-        #             true_label_list.append(pixel_labels_bnk)
+                    logits_mbnc = torch.stack([model(vit_acts_bnd) for model in models])
+                    preds_mbn = logits_mbnc.argmax(axis=-1)
+                    pred_label_list.append(preds_mbn)
 
-        #             logits_mbnc = torch.stack([model(vit_acts_bnd) for model in models])
-        #             logits_mb_cn = einops.rearrange(
-        #                 logits_mbnc,
-        #                 "models batch n classes -> (models batch) classes n",
-        #             )
+                    labels_bn = batch["patch_labels"].to(cfg.device)
+                    true_label_list.append(labels_bn.expand(len(models), -1, -1))
 
-        #             pred_mb_n = lib.fishvista.utils.batched_upsample_and_pred(
-        #                 logits_mb_cn, size=(224, 224), mode="bilinear"
-        #             )
-        #             del logits_mb_cn
+                pred_labels_mn = einops.rearrange(
+                    torch.cat(pred_label_list, dim=1).int(), "m b n -> m (b n)"
+                )
+                true_labels_mn = einops.rearrange(
+                    torch.cat(true_label_list, dim=1).int(), "m b n -> m (b n)"
+                )
 
-        #             pred_MBWH = einops.rearrange(
-        #                 pred_MB_WH,
-        #                 "(models batch) width height -> models batch width height",
-        #                 models=len(models),
-        #             )
-        #             pred_label_list.append(pred_MBWH)
+                logger.info("Evaluated all validation batchs.")
+                acc_m = einops.reduce(
+                    (pred_labels_mn == true_labels_mn).float(),
+                    "models n -> models",
+                    "mean",
+                )
 
-        #         pred_labels_MNWH = torch.cat(pred_label_list, dim=1).int()
-        #         true_labels_MNWH = (
-        #             torch.cat(true_label_list).int().expand(len(models), -1, -1, -1)
-        #         )
+            logger.info(
+                "epoch: %d, step: %d, max val acc: %.3f",
+                epoch,
+                global_step,
+                acc_m.max().item() * 100,
+            )
 
-        #         logger.info("Evaluated all validation batchs.")
-        #         class_ious_MC = get_class_ious(
-        #             pred_labels_MNWH,
-        #             true_labels_MNWH.expand(len(models), -1, -1, -1),
-        #             n_classes,
-        #         )
-        #         mean_ious_M = einops.reduce(
-        #             class_ious_MC, "models classes -> models", "mean"
-        #         )
-        #         acc_M = einops.reduce(
-        #             (pred_labels_MNWH == true_labels_MNWH).float(),
-        #             "models n width height -> models",
-        #             "mean",
-        #         )
-
-        #     logger.info(
-        #         "epoch: %d, step: %d, max val miou: %.5f, max val acc: %.3f",
-        #         epoch,
-        #         global_step,
-        #         mean_ious_M.max().item(),
-        #         acc_M.max().item() * 100,
-        #     )
-
-        #     for cfg, model in zip(cfgs, models):
-        #         dump(cfg, model, step=global_step)
+            # for cfg, model in zip(cfgs, models):
+            #     dump(cfg, model, step=global_step)

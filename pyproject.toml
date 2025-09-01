@@ -59,6 +59,7 @@ dev = [
     "coverage-badge>=1.1.2",
     "vl-convert-python>=1.8.0",
     "pytest-timeout>=2.2.0",
+    "numpy>=2.3.2",
 ]
 
 [tool.pytest.ini_options]

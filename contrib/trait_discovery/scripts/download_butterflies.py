@@ -218,13 +218,9 @@ def download_images(jiggins_data, image_folder, log_filepath, error_log_filepath
                     f"duplicate image: {jiggins_data['X']}, {jiggins_data['Image_name']}, from record {record_number}"
                 )
 
-    return
 
-
-def main():
-    # get arguments from commandline
-    cfg = tyro.cli(Config)
-
+@beartype
+def main(cfg: Config):
     # log file location (folder of source CSV)
     log_filepath = cfg.csv.split(".")[0] + "_log.json"
     error_log_filepath = cfg.csv.split(".")[0] + "_error_log.json"
@@ -252,8 +248,6 @@ def main():
         f"Checksums recorded in {checksum_path} and download logs are in {log_filepath} and {error_log_filepath}."
     )
 
-    return
-
 
 if __name__ == "__main__":
-    main()
+    main(tyro.cli(Config))
