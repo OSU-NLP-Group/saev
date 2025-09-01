@@ -32,7 +32,7 @@ class Scorer(torch.nn.Module):
         """The constructor's kwargs."""
         raise NotImplementedError()
 
-    def train(self, dataloader: saev.data.shuffled.DataLoader):
+    def train(self, dataloader: saev.data.ShuffledDataLoader):
         """ """
         raise NotImplementedError()
 
@@ -174,7 +174,7 @@ class KMeans(Scorer):
     def n_prototypes(self) -> int:
         return self._n_means
 
-    def train(self, dataloader: saev.data.shuffled.DataLoader):
+    def train(self, dataloader: saev.data.ShuffledDataLoader):
         raise NotImplementedError()
 
     def forward(self, activations_BD: Float[Tensor, "B D"]) -> Float[Tensor, "B K"]:
@@ -200,7 +200,7 @@ class PCA(Scorer):
     def n_prototypes(self) -> int:
         return self._n_components
 
-    def train(self, dataloader: saev.data.shuffled.DataLoader):
+    def train(self, dataloader: saev.data.ShuffledDataLoader):
         raise NotImplementedError()
 
     def forward(self, activations_BD: Float[Tensor, "B D"]) -> Float[Tensor, "B K"]:
@@ -235,7 +235,7 @@ class LinearClassifier(Scorer):
         self._patience = 20
         self._min_delta = 1e-3
         self._loss_window_size = 10
-        self._max_steps = 100
+        self._max_steps = 10_000
         self._log_every = 10
         self._convergence_check_every = 10
 
@@ -315,7 +315,7 @@ class LinearClassifier(Scorer):
                     )
 
                 # Check for convergence periodically
-                if step > 0 and step % self._convergence_check_interval == 0:
+                if step > 0 and step % self._convergence_check_every == 0:
                     avg_loss = sum(loss_history[-self._loss_window_size :]) / n_losses
 
                     # Check if loss improved

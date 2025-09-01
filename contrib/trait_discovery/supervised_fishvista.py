@@ -1,13 +1,13 @@
 import time
 
 import beartype
-import lib.fishvista.training
 import submitit
 import tyro
+from tdiscovery.fishvista.supervised import Config, train
 
 
 @beartype.beartype
-def main(cfg: lib.fishvista.training.Config):
+def main(cfg: Config):
     if cfg.slurm_acct:
         executor = submitit.SlurmExecutor(folder=cfg.log_to)
 
@@ -23,7 +23,7 @@ def main(cfg: lib.fishvista.training.Config):
     else:
         executor = submitit.DebugExecutor(folder=cfg.log_to)
 
-    job = executor.submit(lib.fishvista.training.train, cfg)
+    job = executor.submit(train, cfg)
 
     # Give the executor five seconds to fire the jobs off.
     time.sleep(5.0)
@@ -33,4 +33,4 @@ def main(cfg: lib.fishvista.training.Config):
 
 
 if __name__ == "__main__":
-    main(tyro.cli(lib.fishvista.training.Config))
+    main(tyro.cli(Config))
