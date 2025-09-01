@@ -5,8 +5,8 @@ import torch
 from hypothesis import strategies as st
 from hypothesis.extra.numpy import arrays
 from jaxtyping import Bool, Float, jaxtyped
-from lib import metrics
 from sklearn.metrics import average_precision_score
+from tdiscovery import metrics
 from torch import Tensor
 
 

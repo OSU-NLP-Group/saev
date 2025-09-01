@@ -30,8 +30,8 @@ import numpy as np
 import submitit
 import torch
 import tyro
-from jaxtyping import Float, Int, jaxtyped
-from tdiscovery import baselines, fishvista, saes
+from jaxtyping import Bool, Float, Int, jaxtyped
+from tdiscovery import baselines, fishvista, metrics, saes
 from torch import Tensor
 
 import saev.data
@@ -77,6 +77,8 @@ class Config:
         default_factory=lambda: [1, 5, 10, 20, 50, 100]
     )
     """Different numbers of top prototypes to evaluate."""
+    n_train: int = -1
+    """Number of images to use to pick best prototypes. Less than 0 indicates all images."""
 
     # Output configuration
     dump_to: str = os.path.join(".", "results")
@@ -125,31 +127,59 @@ def get_scorer(cfg: Config) -> baselines.Scorer:
         raise RuntimeError(f"Method '{cfg.method}' not implemented.")
 
 
+@jaxtyped(typechecker=beartype.beartype)
+def make_keep_mask(n_total: int, n_keep: int, *, seed: int) -> Bool[Tensor, " n_total"]:
+    if n_keep < 0:
+        return torch.ones(n_total, dtype=torch.bool)
+
+    if n_keep >= n_total:
+        return torch.ones(n_total, dtype=torch.bool)
+
+    g = torch.Generator(device="cpu").manual_seed(seed)
+    keep_idx_k = torch.randperm(n_total, generator=g)[:n_keep]
+    keep_mask_n = torch.zeros(n_total, dtype=torch.bool)
+    keep_mask_n[keep_idx_k] = True
+    return keep_mask_n
+
+
 @torch.no_grad()
 @jaxtyped(typechecker=beartype.beartype)
 def compute_patch_scores(
+    cfg: Config,
     scorer: baselines.Scorer,
     acts_dl: saev.data.OrderedDataLoader,
     imgs_dl: torch.utils.data.DataLoader,
-    device: str,
-) -> tuple[Float[Tensor, "N K"], Int[Tensor, " N"]]:
+    *,
+    n: int = -1,
+) -> tuple[Float[Tensor, "n k"], Int[Tensor, " n"]]:
     """
     Compute prototype scores for all patches in the dataset.
 
     Returns:
-        scores: Prototype scores for each patch (N images × P patches × K prototypes)
-        labels: Ground truth segmentation labels for each patch (N images × P patches)
+        scores: Prototype scores for each patch
+        labels: Ground truth segmentation labels for each patch
     """
     n_patches = acts_dl.metadata.n_imgs * acts_dl.metadata.n_patches_per_img
-    scores_nk = torch.full((n_patches, scorer.n_prototypes), -torch.inf)
-    labels_n = torch.full((n_patches,), -1, dtype=int)
+    keep_mask_n = make_keep_mask(n_patches, n, seed=cfg.seed)
+    if n < 0:
+        scores_nk = torch.full((n_patches, scorer.n_prototypes), -torch.inf)
+        labels_n = torch.full((n_patches,), -1, dtype=int)
+    else:
+        scores_nk = torch.full((n, scorer.n_prototypes), -torch.inf)
+        labels_n = torch.full((n,), -1, dtype=int)
 
-    scorer = scorer.to(device)
+    assert len(labels_n) == keep_mask_n.int().sum().item()
+
+    breakpoint()
+
+    scorer = scorer.to(cfg.device)
     scorer.eval()
 
+    n_kept_total = 0
     for acts, imgs in zip(
         saev.helpers.progress(acts_dl, desc="Computing scores"), imgs_dl
     ):
+        # Check that our two dataloaders are synced up.
         image_i_b = imgs["index"].repeat_interleave(acts_dl.metadata.n_patches_per_img)
         assert (image_i_b == acts["image_i"]).all()
 
@@ -158,107 +188,57 @@ def compute_patch_scores(
         )
         assert (patch_i_b == acts["patch_i"]).all()
 
-        acts_bd = acts["act"].to(device)
+        # Check if any of these patches are kept.
+        i_b = image_i_b * acts_dl.metadata.n_patches_per_img + patch_i_b
+        keep_b = keep_mask_n[i_b]
+        if not keep_b.any():
+            continue
+
+        # Do inference.
+        acts_bd = acts["act"][keep_b].to(cfg.device)
         # Open a fresh jaxtyping dynamic shape context so B rebinds per batch; without this, the outer @jaxtyped pins B from earlier iterations (e.g., 16000) and a smaller final batch (e.g., 10240) triggers a shape violation.
         with jaxtyped("context"):
             scores_bk = scorer(acts_bd)
 
-        i_b = image_i_b * acts_dl.metadata.n_patches_per_img + patch_i_b
-        scores_nk[i_b] = scores_bk
-        labels_n[i_b] = einops.rearrange(
+        # Update scores_nk and labels_n in the correct indices.
+        n_kept_batch = keep_b.sum().item()
+        scores_nk[n_kept_total : n_kept_total + n_kept_batch] = scores_bk
+        labels_n[n_kept_total : n_kept_total + n_kept_batch] = einops.rearrange(
             imgs["patch_labels"], "imgs patches -> (imgs patches)"
-        )
+        )[keep_b]
+        n_kept_total += n_kept_batch
 
     return scores_nk, labels_n
 
 
 @jaxtyped(typechecker=beartype.beartype)
-def evaluate_segmentation(
-    scores_NPK: Float[Tensor, "N P K"],
-    labels_NP: Int[Tensor, "N P"],
-    prototype_to_class: Int[Tensor, " K"],
-    n_classes: int,
+def evaluate(
+    train_scores_nk: Float[Tensor, "n_train k"],
+    train_labels_n: Int[Tensor, " n_train"],
+    test_scores_nk: Float[Tensor, "n_test k"],
+    test_labels_n: Int[Tensor, " n_test"],
+    cfg: Config,
+    k: int,
 ) -> dict[str, float]:
-    """
-    Evaluate segmentation performance using prototype scores.
+    train_labels_nc = torch.nn.functional.one_hot(
+        train_labels_n, num_classes=fishvista.n_classes
+    ).bool()
 
-    Args:
-        scores_NPK: Prototype scores for each patch
-        labels_NP: Ground truth labels for each patch
-        prototype_to_class: Mapping from prototype to class
-        n_classes: Number of segmentation classes
+    # Pick best prototypes
+    n, k = train_scores_nk.shape
+    best_ap_c = torch.full((fishvista.n_classes,), -1.0, dtype=torch.float32)
+    best_idx_c = torch.full((fishvista.n_classes,), -1, dtype=torch.int64)
 
-    Returns:
-        Dictionary of evaluation metrics
-    """
-    N, P, K = scores_NPK.shape
-
-    # Get predictions by finding highest scoring prototype and mapping to class
-    best_prototypes = scores_NPK.argmax(dim=-1)  # (N, P)
-    predictions = prototype_to_class[best_prototypes]  # (N, P)
-
-    # Compute per-class IoU
-    ious = []
-    for c in range(n_classes):
-        pred_mask = predictions == c
-        true_mask = labels_NP == c
-
-        intersection = (pred_mask & true_mask).sum().item()
-        union = (pred_mask | true_mask).sum().item()
-
-        if union > 0:
-            ious.append(intersection / union)
-
-    # Compute accuracy
-    accuracy = (predictions == labels_NP).float().mean().item()
-
-    return {
-        "mIoU": np.mean(ious) if ious else 0.0,
-        "accuracy": accuracy,
-        "per_class_IoU": ious,
-    }
-
-
-@jaxtyped(typechecker=beartype.beartype)
-def assign_prototypes_to_classes(
-    scores_NPK: Float[Tensor, "N P K"],
-    labels_NP: Int[Tensor, "N P"],
-    n_classes: int,
-    n_train: int = -1,
-) -> Int[Tensor, " K"]:
-    """
-    Assign each prototype to a segmentation class based on training data.
-
-    Args:
-        scores_NPK: Prototype scores for each patch
-        labels_NP: Ground truth labels for each patch
-        n_classes: Number of segmentation classes
-        n_train: Number of training samples to use (-1 for all)
-
-    Returns:
-        Mapping from prototype index to class index
-    """
-    N, P, K = scores_NPK.shape
-
-    if n_train > 0:
-        n_use = min(n_train, N)
-        scores_NPK = scores_NPK[:n_use]
-        labels_NP = labels_NP[:n_use]
-
-    # For each prototype, find which class it activates most strongly on
-    prototype_class_scores = torch.zeros(K, n_classes)
-
-    for c in range(n_classes):
-        class_mask = labels_NP == c  # (N, P)
-        if class_mask.any():
-            # Average score for this prototype on patches of this class
-            class_scores = scores_NPK[class_mask].mean(dim=0)  # (K,)
-            prototype_class_scores[:, c] = class_scores
-
-    # Assign each prototype to its highest scoring class
-    prototype_to_class = prototype_class_scores.argmax(dim=1)  # (K,)
-
-    return prototype_to_class
+    # I want the best prototype (measure via AP score) for each of the 10 fishvista classes.
+    breakpoint()
+    bsz = 512
+    for start, end in saev.helpers.batched_idx(k, bsz):
+        ap_bc = metrics.calc_avg_prec(train_scores_nk[:, start:end], train_labels_nc)
+        max_in_chunk, row_idx = ap_bc.max(dim=0)
+        update_mask = max_in_chunk > best_ap_c
+        best_ap_c[update_mask] = max_in_chunk[update_mask]
+        best_idx_c[update_mask] = start + row_idx[update_mask]
+    breakpoint()
 
 
 @beartype.beartype
@@ -315,18 +295,22 @@ def worker_fn(cfg: Config):
 
     # Compute scores for all test patches
     test_scores, test_labels = compute_patch_scores(
-        scorer, test_acts_dl, test_imgs_dl, cfg.device
+        cfg, scorer, test_acts_dl, test_imgs_dl
     )
     # Also compute scores for train set to determine prototype assignments
     train_scores, train_labels = compute_patch_scores(
-        scorer, train_acts_dl, train_imgs_dl, cfg.device
+        cfg, scorer, train_acts_dl, train_imgs_dl, n=cfg.n_train
     )
+    breakpoint()
 
     # Evaluate with different numbers of top prototypes
+    # TODO: I'm pretty sure this doesn't work at all. Needs to be fundamentally rewritten/double-checked, in depth.
     results = []
     for k in cfg.top_k_prototypes:
         if k > cfg.n_prototypes:
             continue
+
+        metrics = evaluate(train_scores, train_labels, test_scores, test_labels, cfg, k)
 
         # Use only top k prototypes
         top_k_indices = train_scores.abs().mean(dim=(0, 1)).topk(k).indices

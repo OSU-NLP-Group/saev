@@ -770,3 +770,8 @@ For SAEs, there is no training (people will use train.py from the main repo root
 For linear probes, we have supervised_fishvista.py.
 For RandomVectors, PCA, KMeans, I think training is short enough that we don't need to separate the scripts.
 So I think we can put stuff that's common to cub200 and fishvista in src/tdiscovery/*.py.
+
+
+```sh
+uv run eval_fishvista.py --method random --n-prototypes 1024 --device cpu --train-acts.shard-root /fs/scratch/PAS2136/samuelstevens/cache/saev/f570462d063c4a5f24633d6d66ef00474b67b5d81f0f05c8f7fddb2487079b34 --train-acts.layer 23 --test-acts.shard-root /fs/scratch/PAS2136/samuelstevens/cache/saev/45cff2f83e5369155fcee27e9db609e77c7474fb0b2ff7d41869b534a7800d29/ --test-acts.layer 23 --test-imgs.root /fs/scratch/PAS2136/samuelstevens/datasets/fish-vista-segfolder/ --test-imgs.split validation --test-imgs.img-label-fname image_labels.txt --train-imgs.root /fs/scratch/PAS2136/samuelstevens/datasets/fish-vista-segfolder/ --train-imgs.split training --train-imgs.img-label-fname image_labels.txt
+```
