@@ -3,10 +3,11 @@
 import beartype
 import torch
 from jaxtyping import Float, jaxtyped
-from lib.baselines import Scorer
 from torch import Tensor
 
 import saev.nn.modeling
+
+from .baselines import Scorer
 
 
 @jaxtyped(typechecker=beartype.beartype)

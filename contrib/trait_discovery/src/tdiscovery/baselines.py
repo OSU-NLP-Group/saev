@@ -32,7 +32,7 @@ class Scorer(torch.nn.Module):
         """The constructor's kwargs."""
         raise NotImplementedError()
 
-    def train(self, dataloader: saev.data.ShuffledDataLoader):
+    def fit(self, dataloader: saev.data.ShuffledDataLoader):
         """ """
         raise NotImplementedError()
 
@@ -107,7 +107,7 @@ class RandomVectors(Scorer):
         """The constructor's kwargs."""
         return dict(n_prototypes=self.n_prototypes, d=self._d, seed=self._seed)
 
-    def train(self, dataloader: saev.data.ShuffledDataLoader):
+    def fit(self, dataloader: saev.data.ShuffledDataLoader):
         """Uniformly sample n_prototypes vectors from a streaming DataLoader using reservoir sampling.
 
         Args:
@@ -153,7 +153,7 @@ class RandomVectors(Scorer):
 
     def forward(self, activations_BD: Float[Tensor, "B D"]) -> Float[Tensor, "B K"]:
         if not self._trained:
-            raise RuntimeError("Call train() first.")
+            raise RuntimeError("Call fit() first.")
 
         return activations_BD @ self.prototypes_KD.T
 
@@ -174,12 +174,12 @@ class KMeans(Scorer):
     def n_prototypes(self) -> int:
         return self._n_means
 
-    def train(self, dataloader: saev.data.ShuffledDataLoader):
+    def fit(self, dataloader: saev.data.ShuffledDataLoader):
         raise NotImplementedError()
 
     def forward(self, activations_BD: Float[Tensor, "B D"]) -> Float[Tensor, "B K"]:
         if not self._trained:
-            raise RuntimeError("Call train() first.")
+            raise RuntimeError("Call fit() first.")
 
         return activations_BD @ self.means_KD.T
 
@@ -200,12 +200,12 @@ class PCA(Scorer):
     def n_prototypes(self) -> int:
         return self._n_components
 
-    def train(self, dataloader: saev.data.ShuffledDataLoader):
+    def fit(self, dataloader: saev.data.ShuffledDataLoader):
         raise NotImplementedError()
 
     def forward(self, activations_BD: Float[Tensor, "B D"]) -> Float[Tensor, "B K"]:
         if not self._trained:
-            raise RuntimeError("Call train() first.")
+            raise RuntimeError("Call fit() first.")
 
         return activations_BD @ self.components_KD.T
 
@@ -259,7 +259,7 @@ class LinearClassifier(Scorer):
             device=self._device,
         )
 
-    def train(self, dataloader: saev.data.ShuffledDataLoader):
+    def fit(self, dataloader: saev.data.ShuffledDataLoader):
         """Fits a linear classifier using the image-level traits as supervision.
 
         Uses AdamW optimizer with early stopping based on validation loss.
@@ -352,7 +352,7 @@ class LinearClassifier(Scorer):
 
     def forward(self, activations_BD: Float[Tensor, "B D"]) -> Float[Tensor, "B K"]:
         if not self._trained:
-            raise RuntimeError("Call train() first.")
+            raise RuntimeError("Call fit() first.")
 
         with torch.no_grad():
             return self.linear(activations_BD)

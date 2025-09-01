@@ -759,3 +759,14 @@ Okay, since working on all these tasks in parallel will probably make me lose my
 4. Save linear checkpoints
 5. Apply RandomVectors to FishVista.
 6. Butterflies, beetles, equids, writing, etc.
+
+Now we need to take the RandomVector thing and apply it to the FishVista dataset using DINOv3.
+
+For CUB-200, I used the max across all patches to score each image, because for each trait, I only had image-level annotations. For FishVista, I have patch-level annotations (technically pixel-level, but we operate at patches). I want to train/evaluate the RandomVector Scorer on FishVista. Make a plan for how you would implement that.
+
+I also have saved FishVista shards, so we can use the same set of dataloaders from CUB200 for FishVista.
+The main thing I would like to simplify is in CUB200, we had a training script, then an evaluate script.
+For SAEs, there is no training (people will use train.py from the main repo root).
+For linear probes, we have supervised_fishvista.py.
+For RandomVectors, PCA, KMeans, I think training is short enough that we don't need to separate the scripts.
+So I think we can put stuff that's common to cub200 and fishvista in src/tdiscovery/*.py.

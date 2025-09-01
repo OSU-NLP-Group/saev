@@ -33,8 +33,8 @@ import submitit
 import torch
 import tyro
 from jaxtyping import Bool, Float, Int
-from lib import baselines, cub200, metrics, saes
 from sklearn.metrics import average_precision_score
+from tdiscovery import baselines, cub200, metrics, saes
 from torch import Tensor
 
 import saev.data

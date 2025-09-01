@@ -17,15 +17,13 @@ import einops
 import numpy as np
 import sklearn.metrics
 import torch.utils.data
-from jaxtyping import Shaped, jaxtyped
-from PIL import Image
-from torch import Tensor
-from torchvision.transforms import v2
 
 import saev.data.images
 import saev.data.models
 import saev.data.transforms
 import saev.helpers
+
+from . import utils
 
 n_classes = 10
 
@@ -71,83 +69,6 @@ class Config:
     """Where to log Slurm job stdout/stderr."""
 
 
-@jaxtyped(typechecker=beartype.beartype)
-def patch_label_no_bg(
-    pixel_labels_nd: Shaped[Tensor, "n k"], *, n_classes: int, bg: int = 0
-) -> Shaped[Tensor, " n"]:
-    x = pixel_labels_nd.to(torch.long)
-    N, _ = x.shape
-
-    # counts[i, c] = number of times class c appears in patch i
-    offsets = torch.arange(N, device=x.device).unsqueeze(1) * n_classes
-    flat = (x + offsets).reshape(-1)
-    counts = torch.bincount(flat, minlength=N * n_classes).reshape(N, n_classes)
-
-    nonbg = counts.clone()
-    nonbg[:, bg] = 0
-    has_nonbg = nonbg.sum(dim=1) > 0
-    nonbg_arg = nonbg.argmax(dim=1)
-    bg = torch.full_like(nonbg_arg, bg)
-    return torch.where(has_nonbg, nonbg_arg, bg)
-
-
-@beartype.beartype
-class Dataset(torch.utils.data.Dataset):
-    def __init__(self, cfg: Config):
-        self.cfg = cfg
-
-        img_transform = v2.Compose([
-            saev.data.transforms.FlexResize(patch_size=16, n_patches=640),
-            v2.ToImage(),
-            v2.ToDtype(torch.float32, scale=True),
-            v2.Normalize(mean=[0.4850, 0.4560, 0.4060], std=[0.2290, 0.2240, 0.2250]),
-        ])
-
-        seg_transform = v2.Compose([
-            saev.data.transforms.FlexResize(
-                patch_size=16, n_patches=640, resample=Image.NEAREST
-            ),
-            v2.ToImage(),
-        ])
-        sample_transform = v2.Compose([
-            saev.data.transforms.Patchify(patch_size=16, n_patches=640),
-            saev.data.transforms.Patchify(
-                patch_size=16, n_patches=640, key="segmentation"
-            ),
-        ])
-
-        self.samples = saev.data.images.SegFolderDataset(
-            cfg.imgs,
-            img_transform=img_transform,
-            seg_transform=seg_transform,
-            sample_transform=sample_transform,
-        )
-
-        self.patch_size_px = (16, 16)
-
-    def __getitem__(self, i: int) -> dict[str, object]:
-        # Get patch and pixel level semantic labels.
-        sample = self.samples[i]
-        pixel_labels = sample["segmentation"].squeeze()
-        if self.cfg.patch_labeling == "mode":
-            patch_labels = pixel_labels.mode(axis=1).values
-        elif self.cfg.patch_labeling == "no-bg":
-            patch_labels = patch_label_no_bg(pixel_labels, bg=0, n_classes=10)
-        else:
-            tp.assert_never(self.cfg.patch_labeling)
-
-        return {
-            "index": i,
-            "image": sample["image"],
-            "pixel_labels": pixel_labels,
-            "patch_labels": patch_labels,
-            "grid": sample["grid"],
-        }
-
-    def __len__(self) -> int:
-        return len(self.samples)
-
-
 @beartype.beartype
 def get_dataloader(cfg: Config, *, is_train: bool):
     if is_train:
@@ -158,7 +79,7 @@ def get_dataloader(cfg: Config, *, is_train: bool):
         img_cfg = dataclasses.replace(cfg.imgs, split="validation")
 
     cfg = dataclasses.replace(cfg, imgs=img_cfg)
-    dataset = Dataset(cfg)
+    dataset = utils.ImageDataset(cfg)
 
     return torch.utils.data.DataLoader(
         dataset,
