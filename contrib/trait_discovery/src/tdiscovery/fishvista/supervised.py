@@ -29,7 +29,7 @@ n_classes = 10
 
 log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
 logging.basicConfig(level=logging.INFO, format=log_format)
-logger = logging.getLogger("fishvista")
+logger = logging.getLogger("supervised")
 
 
 @beartype.beartype
@@ -78,8 +78,7 @@ def get_dataloader(cfg: Config, *, is_train: bool):
         shuffle = False
         img_cfg = dataclasses.replace(cfg.imgs, split="validation")
 
-    cfg = dataclasses.replace(cfg, imgs=img_cfg)
-    dataset = utils.ImageDataset(cfg)
+    dataset = utils.ImageDataset(img_cfg, cfg.patch_labeling)
 
     return torch.utils.data.DataLoader(
         dataset,
@@ -113,6 +112,8 @@ def train(cfg: Config):
         torch.backends.cuda.matmul.allow_tf32 = True
         torch.backends.cudnn.benchmark = True
         torch.backends.cudnn.deterministic = False
+
+    timestamp = time.strftime("%Y%m%d_%H%M%S")
 
     train_dataloader = get_dataloader(cfg, is_train=True)
     val_dataloader = get_dataloader(cfg, is_train=False)
@@ -161,10 +162,10 @@ def train(cfg: Config):
             acc_M.max().item() * 100,
         )
 
+        models.eval()
         if epoch % cfg.eval_every == 0 or epoch + 1 == cfg.n_epochs:
             with torch.inference_mode():
-                pred_label_list, true_label_list = [], []
-                logits_list = []
+                pred_label_list, true_label_list, logits_list = [], [], []
                 for batch in val_dataloader:
                     imgs_bnd = batch["image"].to(cfg.device)
                     grid = batch["grid"].to(cfg.device)
@@ -197,12 +198,11 @@ def train(cfg: Config):
                     "mean",
                 )
 
-            # Compute per-class AP and mAP (one-vs-rest) for each model
-            with torch.inference_mode():
+                # Compute per-class AP and mAP (one-vs-rest) for each model
                 y_mn = true_labels_mn.cpu().numpy()
                 s_mnc = logits_mnc.cpu().numpy()
 
-                ap_mc = np.zeros((len(models), n_classes), dtype=np.float64)
+                avg_prec_mc = np.zeros((len(models), n_classes), dtype=np.float64)
                 for m in range(len(models)):
                     for c in range(n_classes):
                         y_true = (y_mn[m] == c).astype(np.int32)
@@ -214,19 +214,47 @@ def train(cfg: Config):
                             ap = float(
                                 sklearn.metrics.average_precision_score(y_true, scores)
                             )
-                        ap_mc[m, c] = ap
+                        avg_prec_mc[m, c] = ap
 
-                mAP_m = np.nanmean(ap_mc, axis=1)
-                best_i = int(np.nanargmin(-mAP_m))  # index of max mAP
-                best_mAP = float(mAP_m[best_i])
+                mean_avg_prec_m = np.nanmean(avg_prec_mc, axis=1)
+                best_i = int(np.nanargmin(-mean_avg_prec_m))  # index of max mAP
+                best_mean_avg_prec = float(mean_avg_prec_m[best_i])
 
             logger.info(
                 "epoch: %d, step: %d, best val acc: %.3f, best val mAP: %.4f",
                 epoch,
                 global_step,
                 acc_m.max().item() * 100,
-                best_mAP,
+                best_mean_avg_prec,
             )
 
-            # for cfg, model in zip(cfgs, models):
-            #     dump(cfg, model, step=global_step)
+            breakpoint()
+
+            results = []
+            for param_group, avg_prec_c in zip(params, avg_prec_mc):
+                for i, ap in enumerate(avg_prec_c.tolist()):
+                    result = utils.Result(
+                        method="linear-clf",
+                        n_prototypes=utils.n_classes,
+                        n_train=-1,
+                        seed=cfg.seed,
+                        class_ix=i,
+                        average_precision=ap,
+                        best_prototype_idx=i,
+                        vit_family="",
+                        vit_ckpt="",
+                        layer=0,
+                        d_vit=0,
+                        extra={
+                            "lr": param_group["lr"],
+                            "wd": param_group["weight_decay"],
+                        },
+                    )
+            # Save results
+            os.makedirs(cfg.dump_to, exist_ok=True)
+            fname = f"fishvista__linear-clf__n-prototypes_10__n-train_-1__seed_{cfg.seed}__vit-ckpt_{saev.helpers.fssafe(test_acts_md.vit_ckpt)}__layer_{cfg.test_acts.layer}__{timestamp}.json"
+
+            json_path = os.path.join(cfg.dump_to, fname)
+            with open(json_path, "w") as fd:
+                json.dump([dataclasses.asdict(r) for r in results], fd)
+            logger.info("Saved JSON results for step %d to %s", json_path)
