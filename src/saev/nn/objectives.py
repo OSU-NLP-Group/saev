@@ -37,12 +37,13 @@ ObjectiveConfig = Vanilla | Matryoshka
 class Auxiliary:
     """
     Config for the Auxiliary loss (not for the SAE itself, but for auxiliary loss).
-    
+
     Reference paper is https://doi.org/10.48550/arXiv.2412.06410
     """
 
     aux_coeff: float = 0.03125
     """Coefficient for the auxiliary loss term."""
+
 
 @jaxtyped(typechecker=beartype.beartype)
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -212,6 +213,7 @@ class AuxiliaryObjective(Objective):
         mse_loss = mse_loss.mean()
 
         return AuxiliaryLoss(self.cfg.aux_coeff * mse_loss)
+
 
 @beartype.beartype
 def get_objective(cfg: ObjectiveConfig) -> Objective:

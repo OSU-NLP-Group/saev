@@ -46,6 +46,28 @@ def test_safe_mse_large_x():
     assert not safe.isnan().any()
 
 
+def test_auxiliary_mse_same():
+    x = torch.zeros((45, 12), dtype=torch.float)
+    x_hat = torch.ones((45, 12), dtype=torch.float)
+    aux_objective = objectives.AuxiliaryObjective(objectives.Auxiliary(aux_coeff=1))
+    torch.testing.assert_close(
+        aux_objective(x_hat, x),
+        objectives.mean_squared_err(x_hat, x),
+        dtype=torch.float,
+    )
+
+
+def test_auxiliary_coeff():
+    x = torch.zeros((45, 12), dtype=torch.float)
+    x_hat = torch.ones((45, 12), dtype=torch.float)
+    aux_objective = objectives.AuxiliaryObjective(objectives.Auxiliary(aux_coeff=0.5))
+    torch.testing.assert_close(
+        aux_objective(x_hat, x),
+        0.5 * objectives.mean_squared_err(x_hat, x),
+        dtype=torch.float,
+    )
+
+
 def test_factories():
     assert isinstance(
         objectives.get_objective(objectives.Vanilla()), objectives.VanillaObjective

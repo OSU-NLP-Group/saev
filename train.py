@@ -28,13 +28,13 @@ import einops
 import psutil
 import torch
 import tyro
-import wandb
 from jaxtyping import Float
 from torch import Tensor
 
 import saev.data.shuffled
 import saev.utils.scheduling
 import saev.utils.wandb
+import wandb
 from saev import helpers, nn
 
 logger = logging.getLogger("train.py")
@@ -219,11 +219,8 @@ def train(
     objectives.train()
     objectives = objectives.to(cfg.device)
 
-
     aux_activations = [
-        nn.modeling.AuxiliaryLossActivation(
-            nn.modeling.AuxiliaryConfig(c.dead_top_k)
-        )
+        nn.modeling.AuxiliaryLossActivation(nn.modeling.AuxiliaryConfig(c.dead_top_k))
         for c in cfgs
     ]
 
@@ -238,14 +235,12 @@ def train(
 
     p_dataloader, p_children, last_rb, last_t = None, None, 0, time.time()
 
-    iterations_dead = [torch.zeros(
-        (s.cfg.d_sae), dtype=torch.float, device=cfg.device)
-        for s in saes
+    iterations_dead = [
+        torch.zeros((s.cfg.d_sae), dtype=torch.float, device=cfg.device) for s in saes
     ]
 
     dead_latents = [
-        torch.zeros((s.cfg.d_sae), dtype=torch.float, device=cfg.device)
-        for s in saes
+        torch.zeros((s.cfg.d_sae), dtype=torch.float, device=cfg.device) for s in saes
     ]
 
     for batch in helpers.progress(dataloader, every=cfg.log_every):
@@ -260,7 +255,14 @@ def train(
         losses = []
         x_hats = []
         f_xs = []
-        for sae, objective, aux_activation, aux_objective, iters_dead, dead_lts in zip(saes, objectives, aux_activations, aux_objectives, iterations_dead, dead_latents):
+        for sae, objective, aux_activation, aux_objective, iters_dead, dead_lts in zip(
+            saes,
+            objectives,
+            aux_activations,
+            aux_objectives,
+            iterations_dead,
+            dead_latents,
+        ):
             if isinstance(objective, nn.objectives.MatryoshkaObjective):
                 # Specific case has to be given for Matryoshka SAEs since we need to decode several times with varying prefix lengths
                 x_hat, f_x = sae.matryoshka_forward(acts_BD, cfg.n_prefixes)
@@ -274,8 +276,9 @@ def train(
                 aux_f_x = aux_activation(f_x, dead_latents=dead_lts)
                 aux_x_hat = sae.decode(aux_f_x)
 
-                losses.append(objective(acts_BD, f_x, x_hat) +
-                              aux_objective(acts_BD, aux_x_hat))
+                losses.append(
+                    objective(acts_BD, f_x, x_hat) + aux_objective(acts_BD, aux_x_hat)
+                )
             else:
                 losses.append(objective(acts_BD, f_x, x_hat))
 

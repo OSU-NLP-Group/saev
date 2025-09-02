@@ -325,6 +325,7 @@ class BatchTopKActivation(torch.nn.Module):
 
         return torch.mul(mask, x)
 
+
 class AuxiliaryLossActivation(torch.nn.Module):
     """
     Auxiliary loss activation function. Used to take the top-k dead latents before calculating the auxiliary loss.
@@ -334,7 +335,11 @@ class AuxiliaryLossActivation(torch.nn.Module):
         super().__init__()
         self.cfg = cfg
 
-    def forward(self, f_x: Float[Tensor, "batch d_sae"], dead_latents: Float[Tensor, "batch d_sae"]) -> Float[Tensor, "batch d_sae"]:
+    def forward(
+        self,
+        f_x: Float[Tensor, "batch d_sae"],
+        dead_latents: Float[Tensor, "batch d_sae"],
+    ) -> Float[Tensor, "batch d_sae"]:
         """
         Apply auxiliary loss activation (top-k of dead latents) to the input tensor.
         """
@@ -350,11 +355,13 @@ class AuxiliaryLossActivation(torch.nn.Module):
             masked_dead_latents = f_x * dead_latents
 
             # Find top k of dead latents
-            k_vals, k_inds = torch.topk(masked_dead_latents, self.cfg.top_k, dim=1, sorted=False)
+            k_vals, k_inds = torch.topk(
+                masked_dead_latents, self.cfg.top_k, dim=1, sorted=False
+            )
             top_k_mask = torch.zeros_like(masked_dead_latents).scatter_(
                 dim=-1, index=k_inds, src=torch.ones_like(masked_dead_latents)
             )
-            
+
             # Mask out all but top k dead latents
             masked_dead_top_k = torch.mul(top_k_mask, f_x)
 

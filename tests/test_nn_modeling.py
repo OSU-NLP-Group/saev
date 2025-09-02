@@ -101,7 +101,7 @@ def test_topk_activation(cfg, batch, d_sae):
 def test_batch_topk_activation(cfg, batch, d_sae):
     act = modeling.get_activation(cfg)
     x = torch.randn(batch, d_sae)
-    y = act(x)
+    y = act(x, torch.ones_like(x))
     assert y.shape == (batch, d_sae)
     # Check that only k elements are non-zero per sample
     assert (y != 0).sum(dim=1).eq(cfg.top_k).all()
@@ -133,6 +133,20 @@ def test_topk_ties():
     assert y[y != 0].unique().item() == 2.0
 
 
+def test_auxiliary_activation_ties():
+    """Test Auxiliary activation behavior with tied values."""
+    cfg = modeling.AuxiliaryConfig(top_k=2)
+    act = modeling.AuxiliaryLossActivation(cfg)
+
+    x = torch.tensor([[2.0, 2.0, 2.0, 2.0]])
+    y = act(x, torch.ones_like(x))
+
+    # Should select first k elements in case of ties
+    assert (y != 0).sum() == 2
+    # Verify the selected values are correct
+    assert y[y != 0].unique().item() == 2.0
+
+
 def test_topk_k_equals_size():
     """Test TopK when k equals tensor size."""
     cfg = modeling.TopK(top_k=4)
@@ -145,6 +159,30 @@ def test_topk_k_equals_size():
     torch.testing.assert_close(y, x)
 
 
+def test_auxiliary_activation_k_equals_size():
+    """Test Auxiliary activation when k equals tensor size."""
+    cfg = modeling.AuxiliaryConfig(top_k=4)
+    act = modeling.AuxiliaryLossActivation(cfg)
+
+    x = torch.tensor([[5.0, 1.0, 3.0, 2.0]])
+    y = act(x, torch.ones_like(x))
+
+    # All values should be preserved
+    torch.testing.assert_close(y, x)
+
+
+def test_auxiliary_activation_k_exceeds_size():
+    """Test Auxiliary activation when k exceeds tensor size."""
+    cfg = modeling.AuxiliaryConfig(top_k=8)
+    act = modeling.AuxiliaryLossActivation(cfg)
+
+    x = torch.tensor([[5.0, 1.0, 3.0, 2.0]])
+    y = act(x, torch.ones_like(x))
+
+    # All values should be preserved
+    torch.testing.assert_close(y, x)
+
+
 def test_topk_negative_values():
     """Test TopK with negative values."""
     cfg = modeling.TopK(top_k=2)
@@ -152,6 +190,19 @@ def test_topk_negative_values():
 
     x = torch.tensor([[-5.0, -1.0, -3.0, -2.0]])
     y = act(x)
+
+    # Should select -1.0 and -2.0 (largest values)
+    expected = torch.tensor([[0.0, -1.0, 0.0, -2.0]])
+    torch.testing.assert_close(y, expected)
+
+
+def test_auxiliary_activation_negative_values():
+    """Test Auxiliary activation with negative values."""
+    cfg = modeling.AuxiliaryConfig(top_k=2)
+    act = modeling.AuxiliaryLossActivation(cfg)
+
+    x = torch.tensor([[-5.0, -1.0, -3.0, -2.0]])
+    y = act(x, torch.ones_like(x))
 
     # Should select -1.0 and -2.0 (largest values)
     expected = torch.tensor([[0.0, -1.0, 0.0, -2.0]])
@@ -175,6 +226,23 @@ def test_topk_gradient_flow():
     torch.testing.assert_close(x.grad, expected_grad)
 
 
+def test_auxiliary_activation_gradient_flow():
+    """Test that gradients flow correctly through Auxiliary activation."""
+    cfg = modeling.AuxiliaryConfig(top_k=2)
+    act = modeling.AuxiliaryLossActivation(cfg)
+
+    x = torch.tensor([[5.0, 1.0, 3.0, 2.0], [2.0, 4.0, 1.0, 3.0]], requires_grad=True)
+    y = act(x, torch.ones_like(x))
+
+    # Create a simple loss (sum of outputs)
+    loss = y.sum()
+    loss.backward()
+
+    # Expected gradient: 1.0 for selected elements, 0.0 for others
+    expected_grad = torch.tensor([[1.0, 0.0, 1.0, 0.0], [0.0, 1.0, 0.0, 1.0]])
+    torch.testing.assert_close(x.grad, expected_grad)
+
+
 def test_topk_gradient_sparsity():
     """Verify gradient sparsity matches forward pass selection."""
     cfg = modeling.TopK(top_k=3)
@@ -183,6 +251,30 @@ def test_topk_gradient_sparsity():
     torch.manual_seed(42)
     x = torch.randn(2, 8, requires_grad=True)
     y = act(x)
+
+    # Use a different upstream gradient
+    grad_output = torch.randn_like(y)
+    y.backward(grad_output)
+
+    # Check that gradient sparsity matches forward pass
+    forward_mask = (y != 0).float()
+    grad_mask = (x.grad != 0).float()
+    torch.testing.assert_close(forward_mask, grad_mask)
+
+    # Verify gradient values for selected elements
+    selected_grads = x.grad * forward_mask
+    expected_grads = grad_output * forward_mask
+    torch.testing.assert_close(selected_grads, expected_grads)
+
+
+def test_auxiliary_activation_gradient_sparsity():
+    """Verify gradient sparsity matches forward pass selection for Auxiliary activation."""
+    cfg = modeling.AuxiliaryConfig(top_k=3)
+    act = modeling.AuxiliaryLossActivation(cfg)
+
+    torch.manual_seed(42)
+    x = torch.randn(2, 8, requires_grad=True)
+    y = act(x, torch.ones_like(x))
 
     # Use a different upstream gradient
     grad_output = torch.randn_like(y)
@@ -218,6 +310,29 @@ def test_topk_zero_gradient_for_unselected():
     # Elements at indices 4, 5 should have non-zero gradients
     torch.testing.assert_close(x.grad[0, 4], torch.tensor(1.0))
     torch.testing.assert_close(x.grad[0, 5], torch.tensor(1.0))
+
+
+def test_auxiliary_activation_zero_gradient_for_unselected():
+    """Explicitly verify that non-selected elements have exactly 0.0 gradients."""
+    cfg = modeling.AuxiliaryConfig(top_k=2)
+    act = modeling.AuxiliaryLossActivation(cfg)
+
+    x = torch.tensor([[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]], requires_grad=True)
+    y = act(x, torch.ones_like(x))
+
+    loss = y.sum()
+    loss.backward()
+
+    # Elements at indices 0, 1, 2, 3 should have zero gradients
+    torch.testing.assert_close(x.grad[0, 0], torch.tensor(0.0))
+    torch.testing.assert_close(x.grad[0, 1], torch.tensor(0.0))
+    torch.testing.assert_close(x.grad[0, 2], torch.tensor(0.0))
+    torch.testing.assert_close(x.grad[0, 3], torch.tensor(0.0))
+    # Elements at indices 4, 5 should have non-zero gradients
+    torch.testing.assert_close(x.grad[0, 4], torch.tensor(1.0))
+    torch.testing.assert_close(x.grad[0, 5], torch.tensor(1.0))
+
+    # TODO: Add portion of this test that looks at values masked out by the dead latent mask.
 
 
 # BatchTopK Edge Case Tests
