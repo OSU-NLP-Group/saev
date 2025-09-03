@@ -1,4 +1,5 @@
 import dataclasses
+import glob
 import logging
 import os
 import typing
@@ -39,7 +40,7 @@ class ImageFolder:
     """Configuration for a generic image folder dataset."""
 
     root: str = os.path.join(".", "data", "split")
-    """Where the class folders with images are stored."""
+    """Where the class folders with images are stored. Can be a glob pattern to match multiple directories."""
 
     @property
     def n_imgs(self) -> int:
@@ -47,9 +48,10 @@ class ImageFolder:
         # Use the same image extensions as torchvision's ImageFolder
         img_extensions = tuple(torchvision.datasets.folder.IMG_EXTENSIONS)
         n = 0
-        for _, _, files in os.walk(self.root):
-            # Only count files with valid image extensions
-            n += sum(1 for f in files if f.lower().endswith(img_extensions))
+        for root in glob.glob(self.root, recursive=True):
+            for _, _, files in os.walk(root):
+                # Only count files with valid image extensions
+                n += sum(1 for f in files if f.lower().endswith(img_extensions))
         return n
 
 
@@ -101,7 +103,6 @@ def get_dataset(cfg: Config, *, img_transform, sample_transform=None):
         cfg: Experiment config.
         img_transform: Image transform to be applied to each image.
         sample_transform: Transform to be applied to each sample dict.
-
     Returns:
         A dataset that has dictionaries with `'image'`, `'index'`, `'target'`, and `'label'` keys containing examples.
     """
@@ -115,9 +116,16 @@ def get_dataset(cfg: Config, *, img_transform, sample_transform=None):
             cfg, img_transform=img_transform, sample_transform=sample_transform
         )
     elif isinstance(cfg, ImageFolder):
-        return ImageFolderDataset(
-            cfg.root, transform=img_transform, sample_transform=sample_transform
-        )
+        ds = [
+            ImageFolderDataset(
+                root, transform=img_transform, sample_transform=sample_transform
+            )
+            for root in glob.glob(cfg.root, recursive=True)
+        ]
+        if len(ds) == 1:
+            return ds[0]
+        else:
+            return torch.utils.data.ConcatDataset(ds)
     elif isinstance(cfg, Fake):
         return FakeDataset(
             cfg, img_transform=img_transform, sample_transform=sample_transform
