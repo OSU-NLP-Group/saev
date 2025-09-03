@@ -343,6 +343,36 @@ This is useful for iterating through all patches in an image at once.</p>
 <section>
 </section>
 <section>
+<h2 class="section-title" id="header-functions">Functions</h2>
+<dl>
+<dt id="saev.data.make_ordered_config"><code class="name flex">
+<span>def <span class="ident">make_ordered_config</span></span>(<span>shuffled_cfg: <a title="saev.data.shuffled.Config" href="shuffled.html#saev.data.shuffled.Config">Config</a>,<br>**overrides: object) ‑> <a title="saev.data.ordered.Config" href="ordered.html#saev.data.ordered.Config">Config</a></span>
+</code></dt>
+<dd>
+<div class="desc"><p>Create an <code><a title="saev.data.Config" href="#saev.data.Config">Config</a></code> from a <code><a title="saev.data.Config" href="#saev.data.Config">Config</a></code>, with optional overrides.</p>
+<p>Defaults come from <code>shuffled_cfg</code> for fields present in <code><a title="saev.data.Config" href="#saev.data.Config">Config</a></code>, and <code>overrides</code> take precedence. Unknown override fields raise <code>TypeError</code> from the <code><a title="saev.data.Config" href="#saev.data.Config">Config</a></code> constructor, mirroring <code>dataclasses.replace</code>.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+def make_ordered_config(
+    shuffled_cfg: ShuffledConfig, **overrides: object
+) -&gt; OrderedConfig:
+    &#34;&#34;&#34;Create an `OrderedConfig` from a `ShuffledConfig`, with optional overrides.
+
+    Defaults come from `shuffled_cfg` for fields present in `OrderedConfig`, and `overrides` take precedence. Unknown override fields raise `TypeError` from the `OrderedConfig` constructor, mirroring `dataclasses.replace`.
+    &#34;&#34;&#34;
+    params: dict[str, object] = {}
+    for f in dataclasses.fields(OrderedConfig):
+        name = f.name
+        if hasattr(shuffled_cfg, name):
+            params[name] = getattr(shuffled_cfg, name)
+    params.update(overrides)
+    return OrderedConfig(**params)</code></pre>
+</details>
+</dd>
+</dl>
 </section>
 <section>
 <h2 class="section-title" id="header-classes">Classes</h2>
@@ -1750,6 +1780,11 @@ setTimeout(() => input.focus(), 100);
 <li><code><a title="saev.data.shuffled" href="shuffled.html">saev.data.shuffled</a></code></li>
 <li><code><a title="saev.data.transforms" href="transforms.html">saev.data.transforms</a></code></li>
 <li><code><a title="saev.data.writers" href="writers.html">saev.data.writers</a></code></li>
+</ul>
+</li>
+<li><h3><a href="#header-functions">Functions</a></h3>
+<ul class="">
+<li><code><a title="saev.data.make_ordered_config" href="#saev.data.make_ordered_config">make_ordered_config</a></code></li>
 </ul>
 </li>
 <li><h3><a href="#header-classes">Classes</a></h3>

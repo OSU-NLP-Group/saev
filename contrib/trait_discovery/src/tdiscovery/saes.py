@@ -29,7 +29,7 @@ class SparseAutoencoderScorer(Scorer):
         """Not applicable for pre-trained SAEs."""
         return {"ckpt_fpath": self.ckpt_fpath}
 
-    def train(self, dataloader):
+    def fit(self, dataloader):
         """Pre-trained SAEs don't need training."""
         pass
 

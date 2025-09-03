@@ -1,0 +1,26 @@
+slurm_acct = "PAS2136"
+slurm_partition = "nextgen"
+n_hours = 2.0
+
+method = ["random"]
+
+# Number of prototypes/components for each method
+n_prototypes = [128, 512, 2048, 8224, 16384]
+
+# Number of training samples for trait selection
+n_train = [10, 30, 100, 300, 1000, 3000, 10000, 30000, 100000]  
+
+# Random seeds for statistical significance
+seed = [17, 42, 137]
+
+layer = [13, 15, 17, 19, 21, 23]
+
+[train_acts]
+shard_root = "/fs/scratch/PAS2136/samuelstevens/cache/saev/f570462d063c4a5f24633d6d66ef00474b67b5d81f0f05c8f7fddb2487079b34"
+
+[test_acts]
+shard_root = "/fs/scratch/PAS2136/samuelstevens/cache/saev/45cff2f83e5369155fcee27e9db609e77c7474fb0b2ff7d41869b534a7800d29"
+
+[imgs]
+root = "/fs/scratch/PAS2136/samuelstevens/datasets/fish-vista-segfolder"
+img_label_fname = "image_labels.txt"

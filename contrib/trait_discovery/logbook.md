@@ -773,5 +773,79 @@ So I think we can put stuff that's common to cub200 and fishvista in src/tdiscov
 
 
 ```sh
-uv run eval_fishvista.py --method random --n-prototypes 1024 --device cpu --train-acts.shard-root /fs/scratch/PAS2136/samuelstevens/cache/saev/f570462d063c4a5f24633d6d66ef00474b67b5d81f0f05c8f7fddb2487079b34 --train-acts.layer 23 --test-acts.shard-root /fs/scratch/PAS2136/samuelstevens/cache/saev/45cff2f83e5369155fcee27e9db609e77c7474fb0b2ff7d41869b534a7800d29/ --test-acts.layer 23 --test-imgs.root /fs/scratch/PAS2136/samuelstevens/datasets/fish-vista-segfolder/ --test-imgs.split validation --test-imgs.img-label-fname image_labels.txt --train-imgs.root /fs/scratch/PAS2136/samuelstevens/datasets/fish-vista-segfolder/ --train-imgs.split training --train-imgs.img-label-fname image_labels.txt
+uv run eval_fishvista.py --sweep sweeps/fishvista-baselines.toml
+uv run supervised_fishvista.py --sweep sweeps/fishvista-supervised.toml
 ```
+
+# 09/03/2025
+
+1. [done] Evaluate DINOv3-trained SAEs on FishVista.
+2. Try training Matryoshka SAEs on DINOv3+iNat21 if it doesn't work.
+3. Vanilla SAEs on FishVista
+4. Subset of ToL-200M for fish - talk to Matt + Net.
+
+Later:
+
+- Butterflies
+- Beetles
+- Equids
+
+I also need to visualize the learned DINOv3 features on iNat21.
+
+The SAE is really bad at fitting the DINOv3 features on iNat21.
+That is, the MSE/L0 tradeoff is really bad.
+Why is this?
+
+- Increased dimensionality (768 -> 1024) -> probably not, we trained on SigLIP 2 and DINOv2 ViT-Ls.
+- Increased feature richness (DINOv2 -> DINOv3)
+- FlexResize (16x16 patches to HxW patches)
+- Something else?
+
+For reference, here's how we did on ImageNet-1K with CLIP and DINOv2 ViT-B:
+
+| Model | MSE | L0 | Dead | Dense|
+|---|---|---|---|
+| CLIP | 0.0761 | 412.7 | 0 | 11,858|
+| DINOv2 | 0.0697 | 728.7 | 1 | 19,735|
+
+And here's a sweep on layer 11/12
+
+| Model |	L0 | MSE | lambda | Learning Rate |
+|---|---|---|---|---|
+| DINOv2 ViT‑B/14 |	3003.89 | 0.03821 | 0.0004 |0.0003 |
+|  |	1138.11 | 0.07542 | 0.0008 |0.0003 |
+|  |	419.05 | 0.12867 | 0.0016 |0.0003 |
+|  |	1614.23 | 0.04765 | 0.0004 |0.0010 |
+|  |	664.96 | 0.08113 | 0.0008 |0.0010 |
+|  |	249.24 | 0.13107 | 0.0016 |0.0010 |
+|  |	728.71 | 0.07024 | 0.0004 |0.0030 |
+|  |	320.43 | 0.10416 | 0.0008 |0.0030 |
+|  |	138.78 | 0.15187 | 0.0016 |0.0030 |
+| CLIP ViT‑B/16 |	2109.84 | 0.02967 | 0.0004 |0.0003 |
+|  |	1011.87 | 0.06381 | 0.0008 |0.0003 |
+|  |	289.24 | 0.12350 | 0.0016 |0.0003 |
+|  |	1585.54 | 0.03219 | 0.0004 |0.0010 |
+|  |	694.05 | 0.06570 | 0.0008 |0.0010 |
+|  |	183.17 | 0.11830 | 0.0016 |0.0010 |
+|  |	776.41 | 0.03137 | 0.0004 |0.0030 |
+|  |	412.70 | 0.07598 | 0.0008 |0.0030 |
+|  |	124.65 | 0.12318 | 0.0016 |0.0030 |
+
+
+Notes from Tanya
+
+Think about how a combination of SAE features can map to a given class or node in the tree of life.
+
+Can we visualize a heatmap of the 16K SAE features over the 60K fish images?
+Then, can we make it interactive where we sort by the species, genus, etc?
+Can we order the 16K features by co-occurence?
+This could really lead to data-driven discovery.
+If the co-occurences are pure with respect to a node in the tree of life, then we can say a set of features is both sufficient and necessary to distinguish/classify a node in the tree?
+We could do this for beetles too and go beyond just species label--connect to the other metadata.
+
+---
+
+I need to train some STUPID SAES ON MY DATA.
+Let's make it as easy as possible.
+First, train an SAE on FishVista training data.
+Use all the images, not just the segmented ones.

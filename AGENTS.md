@@ -11,6 +11,7 @@
 - Prefer `make` over `build` when naming functions that construct objects, and use `get` when constructing primitives (like string paths or config values).
 - Only use `setup` for naming functions that don't return anything.
 - You can use `gh` to access issues and PRs on GitHub to gather more context. We use GitHub issues a lot to share ideas and communicate about problems, so you should almost always check to see if there's a relevant GitHub issue for whatever you're working on.
+- submitit and jaxtyping don't work in the same file. See [this issue]. To solve this, all jaxtyped functions/classes need to be in a different file to the submitit launcher script.
 
 # Tensor Variables
 

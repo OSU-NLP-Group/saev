@@ -12,6 +12,7 @@
 - Prefer `make` over `build` when naming functions that construct objects, and use `get` when constructing primitives (like string paths or config values).
 - Only use `setup` for naming functions that don't return anything.
 - You can use `gh` to access issues and PRs on GitHub to gather more context. We use GitHub issues a lot to share ideas and communicate about problems, so you should almost always check to see if there's a relevant GitHub issue for whatever you're working on.
+- submitit and jaxtyping don't work in the same file. See [this issue]. To solve this, all jaxtyped functions/classes need to be in a different file to the submitit launcher script.
 
 # Tensor Variables
 
@@ -442,6 +443,10 @@ print(f"First activation: {mmap[0, 0, 0, :5]}")  # First 5 dims
 .. include:: ./performance.md
 """
 
+import dataclasses
+
+import beartype
+
 from .indexed import Config as IndexedConfig
 from .indexed import Dataset
 from .ordered import Config as OrderedConfig
@@ -458,7 +463,25 @@ __all__ = [
     "ShuffledDataLoader",
     "ShuffledConfig",
     "Metadata",
+    "make_ordered_config",
 ]
+
+
+@beartype.beartype
+def make_ordered_config(
+    shuffled_cfg: ShuffledConfig, **overrides: object
+) -> OrderedConfig:
+    """Create an `OrderedConfig` from a `ShuffledConfig`, with optional overrides.
+
+    Defaults come from `shuffled_cfg` for fields present in `OrderedConfig`, and `overrides` take precedence. Unknown override fields raise `TypeError` from the `OrderedConfig` constructor, mirroring `dataclasses.replace`.
+    """
+    params: dict[str, object] = {}
+    for f in dataclasses.fields(OrderedConfig):
+        name = f.name
+        if hasattr(shuffled_cfg, name):
+            params[name] = getattr(shuffled_cfg, name)
+    params.update(overrides)
+    return OrderedConfig(**params)
 
 >>>> data/__main__.py
 """

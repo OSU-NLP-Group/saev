@@ -1,14 +1,37 @@
-import time
+import tomllib
+import typing as tp
 
 import beartype
-import submitit
+import tdiscovery.fishvista.supervised
 import tyro
-from tdiscovery.fishvista.supervised import Config, train
+
+import saev.helpers
 
 
 @beartype.beartype
-def main(cfg: Config):
+def main(
+    cfg: tp.Annotated[tdiscovery.fishvista.supervised.Config, tyro.conf.arg(name="")],
+    sweep: str | None = None,
+):
+    """Main entry point."""
+
+    if sweep is not None:
+        with open(sweep, "rb") as fd:
+            cfgs, errs = saev.helpers.grid(cfg, tomllib.load(fd))
+
+        if errs:
+            for err in errs:
+                print(f"Error in config: {err}")
+            return
+    else:
+        cfgs = [cfg]
+
+    assert all(c.slurm_acct == cfgs[0].slurm_acct for c in cfgs)
+    cfg = cfgs[0]
+
     if cfg.slurm_acct:
+        import submitit
+
         executor = submitit.SlurmExecutor(folder=cfg.log_to)
 
         executor.update_parameters(
@@ -20,17 +43,22 @@ def main(cfg: Config):
             stderr_to_stdout=True,
             account=cfg.slurm_acct,
         )
+        with executor.batch():
+            jobs = [
+                executor.submit(tdiscovery.fishvista.supervised.train, c) for c in cfgs
+            ]
+
+        print(f"Submitted {len(jobs)} job(s).")
+        for j, job in enumerate(jobs):
+            job.result()
+            print(f"Job {job.job_id} finished ({j + 1}/{len(jobs)}).")
+
     else:
-        executor = submitit.DebugExecutor(folder=cfg.log_to)
+        for c in cfgs:
+            tdiscovery.fishvista.supervised.train(c)
 
-    job = executor.submit(train, cfg)
-
-    # Give the executor five seconds to fire the jobs off.
-    time.sleep(5.0)
-    print(f"Job {job.job_id} {job.state}")
-    job.result()
-    print("Job done.")
+    print("Jobs done.")
 
 
 if __name__ == "__main__":
-    main(tyro.cli(Config))
+    tyro.cli(main)

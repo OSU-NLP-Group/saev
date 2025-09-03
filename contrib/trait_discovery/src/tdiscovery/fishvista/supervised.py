@@ -9,7 +9,10 @@ Size key:
 
 import dataclasses
 import itertools
+import json
 import logging
+import os
+import time
 import typing as tp
 
 import beartype
@@ -56,6 +59,8 @@ class Config:
     """Number of linear probing epochs."""
     eval_every: int = 20
 
+    seed: int = 32
+
     # Hardware
     device: str = "cuda"
     """Which device to use."""
@@ -67,6 +72,7 @@ class Config:
     """Slurm partition."""
     log_to: str = "./logs"
     """Where to log Slurm job stdout/stderr."""
+    dump_to: str = "./results"
 
 
 @beartype.beartype
@@ -112,6 +118,9 @@ def train(cfg: Config):
         torch.backends.cuda.matmul.allow_tf32 = True
         torch.backends.cudnn.benchmark = True
         torch.backends.cudnn.deterministic = False
+
+    torch.manual_seed(cfg.seed)
+    np.random.seed(cfg.seed)
 
     timestamp = time.strftime("%Y%m%d_%H%M%S")
 
@@ -228,8 +237,7 @@ def train(cfg: Config):
                 best_mean_avg_prec,
             )
 
-            breakpoint()
-
+            layer = len(vit.model.blocks) - 1
             results = []
             for param_group, avg_prec_c in zip(params, avg_prec_mc):
                 for i, ap in enumerate(avg_prec_c.tolist()):
@@ -238,23 +246,24 @@ def train(cfg: Config):
                         n_prototypes=utils.n_classes,
                         n_train=-1,
                         seed=cfg.seed,
-                        class_ix=i,
+                        class_idx=i,
                         average_precision=ap,
                         best_prototype_idx=i,
-                        vit_family="",
-                        vit_ckpt="",
-                        layer=0,
-                        d_vit=0,
+                        vit_family="dinov3",
+                        vit_ckpt=cfg.vit_ckpt,
+                        layer=layer,
+                        d_vit=cfg.d_vit,
                         extra={
                             "lr": param_group["lr"],
                             "wd": param_group["weight_decay"],
                         },
                     )
+                    results.append(result)
             # Save results
             os.makedirs(cfg.dump_to, exist_ok=True)
-            fname = f"fishvista__linear-clf__n-prototypes_10__n-train_-1__seed_{cfg.seed}__vit-ckpt_{saev.helpers.fssafe(test_acts_md.vit_ckpt)}__layer_{cfg.test_acts.layer}__{timestamp}.json"
+            fname = f"fishvista__linear-clf__n-prototypes_10__n-train_-1__seed_{cfg.seed}__vit-ckpt_{saev.helpers.fssafe(cfg.vit_ckpt)}__layer_{layer}__{timestamp}.json"
 
             json_path = os.path.join(cfg.dump_to, fname)
             with open(json_path, "w") as fd:
                 json.dump([dataclasses.asdict(r) for r in results], fd)
-            logger.info("Saved JSON results for step %d to %s", json_path)
+            logger.info("Saved JSON results for step %d to %s", global_step, json_path)

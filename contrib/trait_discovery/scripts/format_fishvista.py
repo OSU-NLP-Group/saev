@@ -5,6 +5,7 @@ import dataclasses
 import logging
 import pathlib
 import shutil
+import typing as tp
 
 import beartype
 import polars as pl
@@ -16,7 +17,7 @@ log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
 logging.basicConfig(level=logging.INFO, format=log_format)
 logger = logging.getLogger("format")
 
-split_mapping = {"train": "training", "val": "validation", "test": "test"}
+seg_split_mapping = {"train": "training", "val": "validation", "test": "test"}
 
 
 @beartype.beartype
@@ -35,7 +36,7 @@ class Config:
 
 
 @beartype.beartype
-def _cp(cfg: Config, fv_split: str, tgt_split: str, start: int, end: int):
+def _cp_seg(cfg: Config, fv_split: str, tgt_split: str, start: int, end: int):
     seg_df = pl.read_csv(cfg.fv_root / f"segmentation_{fv_split}.csv")
 
     for (fname,) in seg_df.select("filename").slice(start, end - start).iter_rows():
@@ -65,9 +66,9 @@ def _cp(cfg: Config, fv_split: str, tgt_split: str, start: int, end: int):
 
 
 @beartype.beartype
-def _write_labels(cfg: Config):
+def _write_seg_labels(cfg: Config):
     with open(cfg.dump_to / cfg.cls_label_fname, "w") as fd:
-        for fv_split in split_mapping:
+        for fv_split in seg_split_mapping:
             seg_df = pl.read_csv(cfg.fv_root / f"segmentation_{fv_split}.csv")
             for fname, family, sci_name in seg_df.select(
                 "filename", "family", "standardized_species"
@@ -78,21 +79,23 @@ def _write_labels(cfg: Config):
 
 
 @beartype.beartype
-def main(cfg: Config):
+def segfolder(
+    cfg: tp.Annotated[Config, tyro.conf.arg(name="")],
+) -> int:
     """
     Convert FishVista to a format useable with SegFolderDataset in src/saev/data/images.py.
     """
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=cfg.n_threads) as pool:
-        futs = [pool.submit(_write_labels, cfg)]
+        futs = [pool.submit(_write_seg_labels, cfg)]
 
-        for fv_split, tgt_split in split_mapping.items():
+        for fv_split, tgt_split in seg_split_mapping.items():
             (cfg.dump_to / "images" / tgt_split).mkdir(exist_ok=True, parents=True)
             (cfg.dump_to / "annotations" / tgt_split).mkdir(exist_ok=True, parents=True)
             seg_df = pl.read_csv(cfg.fv_root / f"segmentation_{fv_split}.csv")
 
             futs.extend([
-                pool.submit(_cp, cfg, fv_split, tgt_split, start, end)
+                pool.submit(_cp_seg, cfg, fv_split, tgt_split, start, end)
                 for start, end in helpers.batched_idx(seg_df.height, cfg.job_size)
             ])
 
@@ -102,10 +105,69 @@ def main(cfg: Config):
             if err := fut.exception():
                 logger.warning("Exception: %s", err)
 
+    return 0
+
+
+@beartype.beartype
+def _cp_img(cfg: Config, split: str, start: int, end: int):
+    seg_df = pl.read_csv(cfg.fv_root / f"classification_{split}.csv")
+
+    for fname, clsname in (
+        seg_df.select("filename", "standardized_species")
+        .slice(start, end - start)
+        .iter_rows()
+    ):
+        src_fpath = cfg.fv_root / "Images" / fname
+        if not src_fpath.exists():
+            logger.warning("Missing image '%s'", src_fpath)
+            continue
+
+        dst_fpath = cfg.dump_to / split / clsname / fname
+        if dst_fpath.exists():
+            continue
+
+        dst_fpath.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src_fpath, dst_fpath)
+
+
+@beartype.beartype
+def imgfolder(
+    cfg: tp.Annotated[Config, tyro.conf.arg(name="")],
+) -> int:
+    """
+    Convert FishVista to a format useable with ImageFolderDataset in src/saev/data/images.py.
+    """
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=cfg.n_threads) as pool:
+        futs = []
+
+        for split in ["train", "val", "test"]:
+            (cfg.dump_to / split).mkdir(exist_ok=True, parents=True)
+
+            img_df = pl.read_csv(cfg.fv_root / f"classification_{split}.csv")
+
+            futs.extend([
+                pool.submit(_cp_img, cfg, split, start, end)
+                for start, end in helpers.batched_idx(img_df.height, cfg.job_size)
+            ])
+
+        for fut in helpers.progress(
+            concurrent.futures.as_completed(futs), total=len(futs), desc="copying"
+        ):
+            if err := fut.exception():
+                logger.warning("Exception: %s", err)
+
+    return 0
+
 
 if __name__ == "__main__":
     try:
-        raise SystemExit(main(tyro.cli(Config)))
+        raise SystemExit(
+            tyro.extras.subcommand_cli_from_dict({
+                "imgfolder": imgfolder,
+                "segfolder": segfolder,
+            })
+        )
     except KeyboardInterrupt:
         print("Interrupted.")
         raise SystemExit(130)

@@ -1,3 +1,4 @@
+import dataclasses
 import typing as tp
 
 import beartype
@@ -7,7 +8,27 @@ from PIL import Image
 from torch import Tensor
 from torchvision.transforms import v2
 
+import saev.data
 import saev.helpers
+
+n_classes = 10
+
+
+@beartype.beartype
+@dataclasses.dataclass(frozen=True)
+class Result:
+    method: tp.Literal["linear-clf", "random", "k-means", "sae", "pca"]
+    n_prototypes: int
+    n_train: int
+    seed: int
+    class_idx: int
+    average_precision: float
+    best_prototype_idx: int
+    vit_family: str
+    vit_ckpt: str
+    layer: int
+    d_vit: int
+    extra: dict[str, object] = dataclasses.field(default_factory=dict)
 
 
 @beartype.beartype
