@@ -16,7 +16,7 @@ from torch import Tensor
 
 from saev import helpers
 
-from . import images
+from . import datasets
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 class Config:
     """Configuration for calculating and saving ViT activations."""
 
-    data: images.Config = dataclasses.field(default_factory=images.Imagenet)
+    data: datasets.Config = dataclasses.field(default_factory=datasets.Imagenet)
     """Which dataset to use."""
     dump_to: str = os.path.join(".", "shards")
     """Where to write shards."""
@@ -399,7 +399,7 @@ def get_dataloader(
     Returns:
         A PyTorch Dataloader that yields dictionaries with `'image'` keys containing image batches, `'index'` keys containing original dataset indices and `'label'` keys containing label batches.
     """
-    dataset = images.get_dataset(
+    dataset = datasets.get_dataset(
         cfg.data, img_transform=img_transform, sample_transform=sample_transform
     )
 
@@ -439,11 +439,12 @@ def worker_fn(cfg: Config):
         logger.warning("No CUDA device available, using CPU.")
         cfg = dataclasses.replace(cfg, device="cpu")
 
-    vit = models.make_vit(cfg.vit_family, cfg.vit_ckpt).to(cfg.device)
+    vit_cls = models.load_vit_cls(cfg.vit_family)
+    vit = vit_cls(cfg.vit_ckpt).to(cfg.device)
     vit = RecordedVisionTransformer(
         vit, cfg.n_patches_per_img, cfg.cls_token, cfg.vit_layers
     )
-    img_tr, sample_tr = models.make_transforms(cfg.vit_family, cfg.vit_ckpt)
+    img_tr, sample_tr = vit_cls.make_transforms(cfg.vit_ckpt)
     dataloader = get_dataloader(cfg, img_transform=img_tr, sample_transform=sample_tr)
 
     writer = ShardWriter(cfg)
@@ -462,8 +463,10 @@ def worker_fn(cfg: Config):
             grid = batch.get("grid")
             if grid is not None:
                 grid = grid.to(cfg.device)
+                out, cache = vit(imgs, grid=grid)
+            else:
+                out, cache = vit(imgs)
             # cache has shape [batch size, n layers, n patches + 1, d vit]
-            out, cache = vit(imgs, grid=grid)
             del out
 
             writer[i : i + len(cache)] = cache

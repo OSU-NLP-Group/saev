@@ -377,7 +377,7 @@ def test_timeout_handling(ordered_cfg):
 @pytest.mark.slow
 def test_ordered_dataloader_with_tiny_fake_dataset(tmp_path):
     """Test OrderedDataLoader with a very small fake dataset to ensure end behavior works."""
-    from saev.data import images, writers
+    from saev.data import datasets, writers
 
     # Create a tiny dataset - just 2 images
     # The tiny-open-clip-model uses 16 patches + 1 CLS token
@@ -388,7 +388,7 @@ def test_ordered_dataloader_with_tiny_fake_dataset(tmp_path):
 
     # Create activation shards using the fake dataset
     cfg = writers.Config(
-        data=images.Fake(n_imgs=n_imgs),
+        data=datasets.Fake(n_imgs=n_imgs),
         dump_to=str(tmp_path),
         vit_family="clip",
         vit_ckpt="hf-hub:hf-internal-testing/tiny-open-clip-model",
@@ -438,7 +438,7 @@ def test_ordered_dataloader_with_tiny_fake_dataset(tmp_path):
 @pytest.mark.slow
 def test_missing_shard_file_not_detected_at_init(tmp_path):
     """Test that missing shard files are NOT detected at initialization - exposes the validation gap."""
-    from saev.data import images, writers
+    from saev.data import datasets, writers
 
     # Create a small dataset with multiple shards
     n_imgs = 10
@@ -452,7 +452,7 @@ def test_missing_shard_file_not_detected_at_init(tmp_path):
 
     # Create activation shards
     cfg = writers.Config(
-        data=images.Fake(n_imgs=n_imgs),
+        data=datasets.Fake(n_imgs=n_imgs),
         dump_to=str(tmp_path),
         vit_family="clip",
         vit_ckpt="hf-hub:hf-internal-testing/tiny-open-clip-model",

@@ -1,7 +1,9 @@
 import dataclasses
+import logging
 import math
 import pathlib
 import typing as tp
+from collections.abc import Callable
 
 import beartype
 import einops
@@ -10,6 +12,9 @@ import torch.nn.functional as F
 import torch.nn.init
 from jaxtyping import Float, Int, jaxtyped
 from torch import Tensor, nn
+from torchvision.transforms import v2
+
+from . import models, transforms
 
 
 @beartype.beartype
@@ -393,7 +398,7 @@ _dtype_lookup = {
 
 
 @jaxtyped(typechecker=beartype.beartype)
-class VisionTransformer(nn.Module):
+class Encoder(nn.Module):
     def __init__(self, cfg: Config):
         super().__init__()
 
@@ -589,14 +594,68 @@ _PRETRAINED_CFGS = {
 
 
 @beartype.beartype
-def load(name: str, fpath: str | pathlib.Path, device="cpu") -> VisionTransformer:
+def load(name: str, fpath: str | pathlib.Path, device="cpu") -> Encoder:
     if name not in _PRETRAINED_CFGS:
         raise ValueError(f"Name '{name}' not in {list(_PRETRAINED_CFGS)}.")
     cfg = _PRETRAINED_CFGS[name]
     state_dict = torch.load(fpath, mmap=True, weights_only=True, map_location="cpu")
     with torch.device("meta"):
-        model = VisionTransformer(cfg)
+        model = Encoder(cfg)
     model.load_state_dict(state_dict, assign=True)
 
     model = model.to(device)
     return model
+
+
+@jaxtyped(typechecker=beartype.beartype)
+class Vit(torch.nn.Module, models.VisionTransformer):
+    patch_size: int = 16
+    family: str = "dinov3"
+
+    def __init__(self, ckpt: str):
+        super().__init__()
+        name = self._parse_name(ckpt)
+        self.model = load(name, ckpt)
+
+        self.ckpt = name
+        self.logger = logging.getLogger(f"dinov3/{name}")
+
+    def get_residuals(self) -> list[torch.nn.Module]:
+        return self.model.blocks
+
+    def get_patches(self, n_patches_per_img: int) -> slice:
+        n_reg = self.model.cfg.n_storage_tokens
+        patches = torch.cat((
+            torch.tensor([0]),  # CLS token
+            torch.arange(n_reg + 1, n_reg + 1 + n_patches_per_img),  # patches
+        ))
+        return patches
+
+    @staticmethod
+    def _parse_name(dinov3_ckpt: str) -> str:
+        name_ds, sha = pathlib.Path(dinov3_ckpt).stem.split("-")
+        *name, pretrain, ds = name_ds.split("_")
+        assert pretrain == "pretrain"
+        return "_".join(name)
+
+    def forward(
+        self, batch: Float[Tensor, "batch n kernel"], **kwargs
+    ) -> Float[Tensor, "batch patches dim"]:
+        grid = kwargs.pop("grid")
+        if kwargs:
+            self.logger.info("Unused kwargs: %s", kwargs)
+        dct = self.model(batch, grid=grid)
+
+        features = torch.cat((dct["cls"][:, None, :], dct["patches"]), axis=1)
+        return features
+
+    @staticmethod
+    def make_transforms(ckpt: str) -> tuple[Callable, Callable | None]:
+        img_transform = v2.Compose([
+            transforms.FlexResize(patch_size=16, n_patches=640),
+            v2.ToImage(),
+            v2.ToDtype(torch.float32, scale=True),
+            v2.Normalize(mean=[0.4850, 0.4560, 0.4060], std=[0.2290, 0.2240, 0.2250]),
+        ])
+        sample_transform = transforms.Patchify(patch_size=16, n_patches=640)
+        return img_transform, sample_transform

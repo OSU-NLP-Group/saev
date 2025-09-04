@@ -8,6 +8,7 @@ import dataclasses
 
 import beartype
 
+from . import clip, dinov2, dinov3, models, siglip
 from .indexed import Config as IndexedConfig
 from .indexed import Dataset
 from .ordered import Config as OrderedConfig
@@ -26,6 +27,11 @@ __all__ = [
     "Metadata",
     "make_ordered_config",
 ]
+
+models.register_family(siglip.Vit)
+models.register_family(clip.Vit)
+models.register_family(dinov2.Vit)
+models.register_family(dinov3.Vit)
 
 
 @beartype.beartype

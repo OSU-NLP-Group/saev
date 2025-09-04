@@ -468,7 +468,7 @@ def test_memmap_file_access(shards_path, layer, metadata):
 @pytest.mark.slow
 def test_missing_shard_file_not_detected_at_init(tmp_path):
     """Test that missing shard files are NOT detected at initialization - exposes the validation gap."""
-    from saev.data import images, writers
+    from saev.data import datasets, writers
 
     # Create a small dataset with multiple shards
     n_imgs = 10
@@ -482,7 +482,7 @@ def test_missing_shard_file_not_detected_at_init(tmp_path):
 
     # Create activation shards
     cfg = writers.Config(
-        data=images.Fake(n_imgs=n_imgs),
+        data=datasets.Fake(n_imgs=n_imgs),
         dump_to=str(tmp_path),
         vit_family="clip",
         vit_ckpt="hf-hub:hf-internal-testing/tiny-open-clip-model",

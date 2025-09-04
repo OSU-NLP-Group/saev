@@ -11,10 +11,10 @@ import tempfile
 
 import pytest
 import torch
-from hypothesis import given, reject, settings
+from hypothesis import assume, given, reject, settings
 from hypothesis import strategies as st
 
-from saev.data import Dataset, IndexedConfig, images, models
+from saev.data import Dataset, IndexedConfig, datasets, models
 from saev.data.writers import (
     Config,
     IndexLookup,
@@ -57,7 +57,10 @@ def metadatas(draw) -> Metadata:
 
 @st.composite
 def writers_configs(draw) -> Config:
-    return Config(vit_family=draw(st.sampled_from(["clip", "siglip", "dinov2"])))
+    return Config(
+        data=datasets.Fake(n_imgs=1024),
+        vit_family=draw(st.sampled_from(["clip", "siglip", "dinov2"])),
+    )
 
 
 def patches():
@@ -71,7 +74,7 @@ def layers():
 @pytest.mark.slow
 def test_dataloader_batches(tmp_path):
     cfg = Config(
-        data=images.Imagenet(split="validation"),
+        data=datasets.Fake(n_imgs=10),
         vit_ckpt="ViT-B-32/openai",
         d_vit=768,
         vit_layers=[-2, -1],
@@ -79,8 +82,10 @@ def test_dataloader_batches(tmp_path):
         vit_batch_size=8,
         dump_to=str(tmp_path),
     )
+    vit_cls = models.load_vit_cls(cfg.vit_family)
+    img_transform, sample_transform = vit_cls.make_transforms(cfg.vit_ckpt)
     dataloader = get_dataloader(
-        cfg, img_transform=models.make_img_transform(cfg.vit_family, cfg.vit_ckpt)
+        cfg, img_transform=img_transform, sample_transform=sample_transform
     )
     batch = next(iter(dataloader))
 
@@ -95,7 +100,7 @@ def test_dataloader_batches(tmp_path):
 @pytest.mark.slow
 def test_shard_writer_and_dataset_e2e(tmp_path):
     cfg = Config(
-        data=images.Imagenet(split="validation"),
+        data=datasets.Fake(n_imgs=128),
         vit_family="clip",
         vit_ckpt="hf-hub:hf-internal-testing/tiny-open-clip-model",
         d_vit=128,
@@ -105,13 +110,16 @@ def test_shard_writer_and_dataset_e2e(tmp_path):
         n_workers=8,
         dump_to=str(tmp_path),
     )
-    vit = models.make_vit(cfg.vit_family, cfg.vit_ckpt)
+    vit_cls = models.load_vit_cls(cfg.vit_family)
+    img_transform, sample_transform = vit_cls.make_transforms(cfg.vit_ckpt)
     vit = RecordedVisionTransformer(
-        vit, cfg.n_patches_per_img, cfg.cls_token, cfg.vit_layers
+        vit_cls(cfg.vit_ckpt),
+        cfg.n_patches_per_img,
+        cfg.cls_token,
+        cfg.vit_layers,
     )
     dataloader = get_dataloader(
-        cfg,
-        img_transform=models.make_img_transform(cfg.vit_family, cfg.vit_ckpt),
+        cfg, img_transform=img_transform, sample_transform=sample_transform
     )
     writer = ShardWriter(cfg)
     dataset = Dataset(
@@ -258,7 +266,7 @@ def test_missing_cls_token(md, patches):
 
 def test_shards_json_is_emitted(tmp_path):
     cfg = Config(
-        data=images.Fake(n_imgs=10),
+        data=datasets.Fake(n_imgs=10),
         dump_to=str(tmp_path),
         vit_layers=[0],
         n_patches_per_img=16,
@@ -335,6 +343,7 @@ def test_metadata_json_has_required_keys(cfg):
     cls_token=st.booleans(),
 )
 def test_shard_size_consistency(max_patches, n_patches, n_layers, cls_token):
+    assume(max_patches >= n_patches)
     # We cannot use the tmp_path fixture because of Hypothesis.
     # See https://hypothesis.readthedocs.io/en/latest/reference/api.html#hypothesis.HealthCheck.function_scoped_fixture
     with tempfile.TemporaryDirectory() as tmp_path:
@@ -356,7 +365,7 @@ def test_shard_size_consistency(max_patches, n_patches, n_layers, cls_token):
         assert md.n_imgs_per_shard == spec_nv
         # via ShardWriter logic
         cfg = Config(
-            data=images.Imagenet(),
+            data=datasets.Fake(n_imgs=128),
             dump_to=str(tmp_path),
             vit_layers=list(range(n_layers)),
             n_patches_per_img=n_patches,
