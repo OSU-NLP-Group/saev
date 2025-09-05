@@ -5,6 +5,8 @@ lr = [3e-4, 1e-3, 3e-3]
 n_lr_warmup = 500
 n_sparsity_warmup = 6000
 
+ckpt_path = "/fs/ess/PAS2136/samuelstevens/checkpoints/saev"
+
 [sae]
 normalize_w_dec = true
 remove_parallel_grads = true

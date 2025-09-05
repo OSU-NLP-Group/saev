@@ -35,7 +35,7 @@ class Result:
 class ImageDataset(torch.utils.data.Dataset):
     def __init__(
         self,
-        cfg: saev.data.images.SegFolder,
+        cfg: saev.data.datasets.SegFolder,
         patch_labeling: tp.Literal["mode", "no-bg"],
     ):
         self.cfg = cfg
@@ -61,7 +61,7 @@ class ImageDataset(torch.utils.data.Dataset):
             ),
         ])
 
-        self.samples = saev.data.images.SegFolderDataset(
+        self.samples = saev.data.datasets.SegFolderDataset(
             self.cfg,
             img_transform=img_transform,
             seg_transform=seg_transform,

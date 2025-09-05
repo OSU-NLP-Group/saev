@@ -14,7 +14,7 @@ from jaxtyping import Bool, Float, Int, jaxtyped
 from torch import Tensor
 
 import saev.data
-import saev.data.images
+import saev.data.datasets
 import saev.data.transforms
 import saev.helpers
 
@@ -47,7 +47,7 @@ class Config:
     """Test activations shard configuration."""
     layer: int = 23
     """ViT layer."""
-    imgs: saev.data.images.SegFolder = saev.data.images.SegFolder()
+    imgs: saev.data.datasets.SegFolder = saev.data.datasets.SegFolder()
 
     # Evaluation configuration
     n_train: int = -1
@@ -307,6 +307,7 @@ def evaluate(cfg: Config):
             vit_ckpt=test_acts_md.vit_ckpt,
             layer=cfg.test_acts.layer,
             d_vit=test_acts_md.d_vit,
+            extra={"sae_ckpt": cfg.sae_ckpt},
         )
         results.append(result)
 

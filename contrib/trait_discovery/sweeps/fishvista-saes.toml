@@ -4,8 +4,12 @@ n_hours = 2.0
 
 method = "sae"
 sae_ckpt = [
-  "/fs/ess/PAS2136/samuelstevens/checkpoints/saev/i9n09hmy/sae.pt",
-  "/fs/ess/PAS2136/samuelstevens/checkpoints/saev/shnv58el/sae.pt"
+  "/fs/ess/PAS2136/samuelstevens/checkpoints/saev/pivxp0yq/sae.pt",
+  "/fs/ess/PAS2136/samuelstevens/checkpoints/saev/jzzq43mp/sae.pt",
+  # "/fs/ess/PAS2136/samuelstevens/checkpoints/saev/t9dk274s/sae.pt",
+  "/fs/ess/PAS2136/samuelstevens/checkpoints/saev/9okvhs3u/sae.pt",
+  # "/fs/ess/PAS2136/samuelstevens/checkpoints/saev/goztek1c/sae.pt",
+  "/fs/ess/PAS2136/samuelstevens/checkpoints/saev/30k4cbbc/sae.pt",
 ]
 layer = 21
 
