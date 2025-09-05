@@ -117,38 +117,6 @@ try:
 except importlib.metadata.PackageNotFoundError:
     __version__ = _version_from_pyproject()  # running from source tree
 
->>>> __main__.py
-import logging
-import typing
-
-import beartype
-import tyro
-
-from . import config
-
-log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
-logging.basicConfig(level=logging.INFO, format=log_format)
-
-logger = logging.getLogger("saev")
-
-
-@beartype.beartype
-def visuals(cfg: typing.Annotated[config.Visuals, tyro.conf.arg(name="")]):
-    """
-    Save maximally activating images for each SAE latent.
-
-    Args:
-        cfg: Config
-    """
-    from . import visuals
-
-    visuals.main(cfg)
-
-
-if __name__ == "__main__":
-    tyro.extras.subcommand_cli_from_dict({"visuals": visuals})
-    logger.info("Done.")
-
 >>>> colors.py
 """Utility color palettes used across saev visualizations."""
 # https://coolors.co/palette/001219-005f73-0a9396-94d2bd-e9d8a6-ee9b00-ca6702-bb3e03-ae2012-9b2226
@@ -447,6 +415,7 @@ import dataclasses
 
 import beartype
 
+from . import clip, dinov2, dinov3, models, siglip
 from .indexed import Config as IndexedConfig
 from .indexed import Dataset
 from .ordered import Config as OrderedConfig
@@ -465,6 +434,11 @@ __all__ = [
     "Metadata",
     "make_ordered_config",
 ]
+
+models.register_family(siglip.Vit)
+models.register_family(clip.Vit)
+models.register_family(dinov2.Vit)
+models.register_family(dinov3.Vit)
 
 
 @beartype.beartype
@@ -777,6 +751,72 @@ class ReservoirBuffer:
         """Approximate proportion of filled slots (race-safe enough for tests)."""
         return self.qsize() / self.capacity
 
+>>>> data/clip.py
+from collections.abc import Callable
+
+import beartype
+import open_clip
+import torch
+from jaxtyping import Float, jaxtyped
+from torch import Tensor
+
+from .. import helpers
+from . import models
+
+
+@jaxtyped(typechecker=beartype.beartype)
+class Vit(models.VisionTransformer, torch.nn.Module):
+    family: str = "clip"
+
+    @staticmethod
+    def make_transforms(ckpt: str) -> tuple[Callable, Callable | None]:
+        if ckpt.startswith("hf-hub:"):
+            _, img_transform = open_clip.create_model_from_pretrained(
+                ckpt, cache_dir=helpers.get_cache_dir()
+            )
+        else:
+            arch, ckpt = ckpt.split("/")
+            _, img_transform = open_clip.create_model_from_pretrained(
+                arch, pretrained=ckpt, cache_dir=helpers.get_cache_dir()
+            )
+        return img_transform, None
+
+    def __init__(self, ckpt: str):
+        super().__init__()
+
+        if ckpt.startswith("hf-hub:"):
+            clip, _ = open_clip.create_model_from_pretrained(
+                ckpt, cache_dir=helpers.get_cache_dir()
+            )
+            _, ckpt = ckpt.split("hf-hub:")
+        else:
+            arch, ckpt = ckpt.split("/")
+            clip, _ = open_clip.create_model_from_pretrained(
+                arch, pretrained=ckpt, cache_dir=helpers.get_cache_dir()
+            )
+        self._ckpt = ckpt
+        model = clip.visual
+        model.proj = None
+        model.output_tokens = True  # type: ignore
+        self.model = model.eval()
+
+        assert not isinstance(self.model, open_clip.timm_model.TimmModel)
+
+    @property
+    def ckpt(self) -> str:
+        return self._ckpt
+
+    def get_residuals(self) -> list[torch.nn.Module]:
+        return self.model.transformer.resblocks
+
+    def get_patches(self, n_patches_per_img: int) -> slice:
+        return slice(None, None, None)
+
+    def forward(
+        self, batch: Float[Tensor, "batch 3 width height"]
+    ) -> Float[Tensor, "batch patches dim"]:
+        return self.model(batch)
+
 >>>> data/config.py
 import dataclasses
 import os.path
@@ -807,11 +847,437 @@ class Activations:
     scale_norm: bool | str = True
     """Whether to scale average dataset norm to sqrt(d_vit). If a string, manually load from the filepath."""
 
+>>>> data/datasets.py
+import dataclasses
+import glob
+import logging
+import os
+import typing
+from collections.abc import Callable
+
+import beartype
+import torch
+import torchvision.datasets
+from PIL import Image
+
+logger = logging.getLogger(__name__)
+
+
+@beartype.beartype
+@dataclasses.dataclass(frozen=True)
+class Imagenet:
+    """Configuration for HuggingFace Imagenet."""
+
+    name: str = "ILSVRC/imagenet-1k"
+    """Dataset name on HuggingFace. Don't need to change this.."""
+    split: str = "train"
+    """Dataset split. For the default ImageNet-1K dataset, can either be 'train', 'validation' or 'test'."""
+
+    @property
+    def n_imgs(self) -> int:
+        """Number of images in the dataset. Calculated on the fly, but is non-trivial to calculate because it requires loading the dataset. If you need to reference this number very often, cache it in a local variable."""
+        import datasets
+
+        dataset = datasets.load_dataset(
+            self.name, split=self.split, trust_remote_code=True
+        )
+        return len(dataset)
+
+
+@beartype.beartype
+@dataclasses.dataclass(frozen=True)
+class ImageFolder:
+    """Configuration for a generic image folder dataset."""
+
+    root: str = os.path.join(".", "data", "split")
+    """Where the class folders with images are stored. Can be a glob pattern to match multiple directories."""
+
+    @property
+    def n_imgs(self) -> int:
+        """Number of images in the dataset. Calculated on the fly, but is non-trivial to calculate because it requires walking the directory structure. If you need to reference this number very often, cache it in a local variable."""
+        # Use the same image extensions as torchvision's ImageFolder
+        img_extensions = tuple(torchvision.datasets.folder.IMG_EXTENSIONS)
+        n = 0
+        for root in glob.glob(self.root, recursive=True):
+            for _, _, files in os.walk(root):
+                # Only count files with valid image extensions
+                n += sum(1 for f in files if f.lower().endswith(img_extensions))
+        return n
+
+
+@beartype.beartype
+@dataclasses.dataclass(frozen=True)
+class SegFolder:
+    """ """
+
+    root: str = os.path.join(".", "data", "segdataset")
+    """Where the class folders with images are stored."""
+    split: typing.Literal["training", "validation"] = "training"
+    """Data split."""
+    img_label_fname: str = "sceneCategories.txt"
+    """Image labels filename."""
+
+    @property
+    def n_imgs(self) -> int:
+        """Number of images in the dataset. Calculated on the fly by counting image files in root/images/split."""
+        # Use the same image extensions as torchvision's ImageFolder
+        img_extensions = tuple(torchvision.datasets.folder.IMG_EXTENSIONS)
+
+        # Look for images in root/images/split
+        img_dir = os.path.join(self.root, "images", self.split)
+        if not os.path.isdir(img_dir):
+            return 0
+
+        n = 0
+        for _, _, files in os.walk(img_dir):
+            # Only count files with valid image extensions
+            n += sum(1 for f in files if f.lower().endswith(img_extensions))
+        return n
+
+
+@beartype.beartype
+@dataclasses.dataclass(frozen=True)
+class Fake:
+    n_imgs: int = 10
+
+
+Config = Imagenet | ImageFolder | SegFolder | Fake
+
+
+@beartype.beartype
+def get_dataset(cfg: Config, *, img_transform, sample_transform=None):
+    """
+    Gets the dataset for the current experiment; delegates construction to dataset-specific functions.
+
+    Args:
+        cfg: Experiment config.
+        img_transform: Image transform to be applied to each image.
+        sample_transform: Transform to be applied to each sample dict.
+    Returns:
+        A dataset that has dictionaries with `'image'`, `'index'`, `'target'`, and `'label'` keys containing examples.
+    """
+    # TODO: Can we reduce duplication? Or is it nice to see that there is no magic here?
+    if isinstance(cfg, Imagenet):
+        return ImagenetDataset(
+            cfg, img_transform=img_transform, sample_transform=sample_transform
+        )
+    elif isinstance(cfg, SegFolder):
+        return SegFolderDataset(
+            cfg, img_transform=img_transform, sample_transform=sample_transform
+        )
+    elif isinstance(cfg, ImageFolder):
+        ds = [
+            ImageFolderDataset(
+                root, transform=img_transform, sample_transform=sample_transform
+            )
+            for root in glob.glob(cfg.root, recursive=True)
+        ]
+        if len(ds) == 1:
+            return ds[0]
+        else:
+            return torch.utils.data.ConcatDataset(ds)
+    elif isinstance(cfg, Fake):
+        return FakeDataset(
+            cfg, img_transform=img_transform, sample_transform=sample_transform
+        )
+    else:
+        typing.assert_never(cfg)
+
+
+@beartype.beartype
+class ImagenetDataset(torch.utils.data.Dataset):
+    def __init__(
+        self,
+        cfg: Imagenet,
+        *,
+        img_transform=None,
+        sample_transform: Callable | None = None,
+    ):
+        import datasets
+
+        self.hf_dataset = datasets.load_dataset(
+            cfg.name, split=cfg.split, trust_remote_code=True
+        )
+
+        self.img_transform = img_transform
+        self.sample_transform = sample_transform
+        self.labels = self.hf_dataset.info.features["label"].names
+
+    def __getitem__(self, i):
+        sample = self.hf_dataset[i]
+        sample["index"] = i
+
+        sample["image"] = sample["image"].convert("RGB")
+        if self.img_transform:
+            sample["image"] = self.img_transform(sample["image"])
+        sample["target"] = sample.pop("label")
+        sample["label"] = self.labels[sample["target"]]
+
+        if self.sample_transform is not None:
+            sample = self.sample_transform(sample)
+
+        return sample
+
+    def __len__(self) -> int:
+        return len(self.hf_dataset)
+
+
+@beartype.beartype
+class ImageFolderDataset(torchvision.datasets.ImageFolder):
+    def __init__(self, *args, sample_transform: Callable | None = None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.sample_transform = sample_transform
+
+    def __getitem__(self, index: int) -> dict[str, object]:
+        """
+        Args:
+            index: Index
+
+        Returns:
+            dict with keys 'image', 'index', 'target' and 'label'.
+        """
+        path, target = self.samples[index]
+        image = self.loader(path)
+        if self.transform is not None:
+            image = self.transform(image)
+        if self.target_transform is not None:
+            target = self.target_transform(target)
+
+        sample = {
+            "image": image,
+            "target": target,
+            "label": self.classes[target],
+            "index": index,
+        }
+
+        if self.sample_transform is not None:
+            sample = self.sample_transform(sample)
+
+        return sample
+
+
+def _stem(fpath: str) -> str:
+    fname = os.path.basename(fpath)
+    stem, ext = os.path.splitext(fname)
+    return stem
+
+
+@beartype.beartype
+class SegFolderDataset(torch.utils.data.Dataset):
+    @beartype.beartype
+    @dataclasses.dataclass(frozen=True)
+    class Sample:
+        img_path: str
+        seg_path: str
+        label: str
+        target: int
+
+    samples: list[Sample]
+
+    def __init__(
+        self,
+        cfg: SegFolder,
+        *,
+        img_transform: Callable | None = None,
+        seg_transform: Callable | None = lambda x: None,
+        sample_transform: Callable | None = None,
+    ):
+        self.logger = logging.getLogger("segfolder")
+        self.cfg = cfg
+        self.img_dir = os.path.join(cfg.root, "images")
+        self.seg_dir = os.path.join(cfg.root, "annotations")
+
+        self.img_transform = img_transform
+        self.seg_transform = seg_transform
+        self.sample_transform = sample_transform
+
+        # Check that we have the right path.
+        for subdir in ("images", "annotations"):
+            if not os.path.isdir(os.path.join(cfg.root, subdir)):
+                # Something is missing.
+                if os.path.realpath(cfg.root).endswith(subdir):
+                    self.logger.warning(
+                        "The SegFolder root should contain 'images/' and 'annotations/' directories."
+                    )
+                raise ValueError(f"Can't find path '{os.path.join(cfg.root, subdir)}'.")
+
+        _, split_mapping = torchvision.datasets.folder.find_classes(self.img_dir)
+        split_lookup: dict[int, str] = {
+            value: key for key, value in split_mapping.items()
+        }
+        self.loader = torchvision.datasets.folder.default_loader
+
+        assert cfg.split in set(split_lookup.values())
+
+        # Load all the image paths.
+        base2seg: dict[str, str] = {
+            _stem(seg_path): seg_path
+            for seg_path, split in torchvision.datasets.folder.make_dataset(
+                self.seg_dir,
+                split_mapping,
+                extensions=torchvision.datasets.folder.IMG_EXTENSIONS,
+            )
+            if split_lookup[split] == cfg.split
+        }
+
+        imgs: list[str] = [
+            path
+            for path, s in torchvision.datasets.folder.make_dataset(
+                self.img_dir,
+                split_mapping,
+                extensions=torchvision.datasets.folder.IMG_EXTENSIONS,
+            )
+            if split_lookup[s] == cfg.split
+        ]
+
+        # Load all the targets, classes and mappings
+        img_labels: dict[str, str] = {}
+        with open(os.path.join(cfg.root, cfg.img_label_fname)) as fd:
+            for line in fd.readlines():
+                stem, _, label = line.rpartition(" ")
+                img_labels[stem] = label
+
+        label_set = sorted(set(img_labels.values()))
+        label_to_idx = {label: i for i, label in enumerate(label_set)}
+
+        self.samples = [
+            self.Sample(
+                img_path,
+                base2seg[_stem(img_path)],
+                img_labels[_stem(img_path)],
+                label_to_idx[label],
+            )
+            for img_path in (imgs)
+        ]
+
+    def __getitem__(self, index: int) -> dict[str, object]:
+        # Convert to dict.
+        sample = dataclasses.asdict(self.samples[index])
+
+        sample["image"] = self.loader(sample.pop("img_path"))
+        if self.img_transform is not None:
+            image = self.img_transform(sample.pop("image"))
+            if image is not None:
+                sample["image"] = image
+
+        sample["segmentation"] = Image.open(sample.pop("seg_path"))
+        if self.seg_transform is not None:
+            segmentation = self.seg_transform(sample.pop("segmentation"))
+            if segmentation is not None:
+                sample["segmentation"] = segmentation
+
+        sample["index"] = index
+
+        if self.sample_transform is not None:
+            sample = self.sample_transform(sample)
+
+        return sample
+
+    def __len__(self) -> int:
+        return len(self.samples)
+
+
+class FakeDataset(torch.utils.data.Dataset):
+    def __init__(self, cfg: Fake, *, img_transform=None, sample_transform=None):
+        self.n_imgs = cfg.n_imgs
+        self.img_transform = img_transform
+        self.sample_transform = sample_transform
+
+    def __len__(self):
+        return self.n_imgs
+
+    def __getitem__(self, i):
+        img = Image.new("RGB", (256, 256))
+        if self.img_transform is not None:
+            img = self.img_transform(img)
+
+        sample = {"image": img, "index": i, "target": 0, "label": "dummy"}
+        if self.sample_transform is not None:
+            sample = self.sample_transform(sample)
+
+        return sample
+
+>>>> data/dinov2.py
+from collections.abc import Callable
+
+import beartype
+import torch
+from jaxtyping import Float, jaxtyped
+from PIL import Image
+from torch import Tensor
+from torchvision.transforms import v2
+
+from . import models
+
+
+@jaxtyped(typechecker=beartype.beartype)
+class Vit(torch.nn.Module, models.VisionTransformer):
+    family: str = "dinov2"
+
+    @staticmethod
+    def make_transforms(ckpt: str) -> tuple[Callable, Callable | None]:
+        img_transform = v2.Compose([
+            v2.Resize(size=(256, 256)),
+            v2.CenterCrop(size=(224, 224)),
+            v2.ToImage(),
+            v2.ToDtype(torch.float32, scale=True),
+            v2.Normalize(mean=[0.4850, 0.4560, 0.4060], std=[0.2290, 0.2240, 0.2250]),
+        ])
+        return img_transform, None
+
+    def __init__(self, ckpt: str):
+        super().__init__()
+        self.ckpt = ckpt
+        self.model = torch.hub.load("facebookresearch/dinov2", ckpt)
+
+    def get_residuals(self) -> list[torch.nn.Module]:
+        return self.model.blocks
+
+    def get_patches(self, n_patches_per_img: int) -> slice:
+        n_reg = self.model.num_register_tokens
+        patches = torch.cat((
+            torch.tensor([0]),  # CLS token
+            torch.arange(n_reg + 1, n_reg + 1 + n_patches_per_img),  # patches
+        ))
+        return patches
+
+    def forward(
+        self, batch: Float[Tensor, "batch 3 width height"], **kwargs
+    ) -> Float[Tensor, "batch patches dim"]:
+        dct = self.model.forward_features(batch)
+
+        features = torch.cat(
+            (dct["x_norm_clstoken"][:, None, :], dct["x_norm_patchtokens"]), axis=1
+        )
+        return features
+
+    @staticmethod
+    def make_resize(
+        ckpt: str, *, scale: float = 2.0
+    ) -> Callable[[Image.Image], Image.Image]:
+        def resize(img: Image.Image) -> Image.Image:
+            resize_size_px = (int(256 * scale), int(256 * scale))
+            crop_size_px = (int(224 * scale), int(224 * scale))
+
+            resize_w_px, resize_h_px = resize_size_px
+            crop_w_px, crop_h_px = crop_size_px
+            crop_coords_px = (
+                (resize_w_px - crop_w_px) // 2,
+                (resize_h_px - crop_h_px) // 2,
+                (resize_w_px + crop_w_px) // 2,
+                (resize_h_px + crop_h_px) // 2,
+            )
+            return img.resize(resize_size_px).crop(crop_coords_px)
+
+        return resize
+
 >>>> data/dinov3.py
 import dataclasses
+import logging
 import math
 import pathlib
 import typing as tp
+from collections.abc import Callable
 
 import beartype
 import einops
@@ -819,7 +1285,11 @@ import torch
 import torch.nn.functional as F
 import torch.nn.init
 from jaxtyping import Float, Int, jaxtyped
+from PIL import Image
 from torch import Tensor, nn
+from torchvision.transforms import v2
+
+from . import models, transforms
 
 
 @beartype.beartype
@@ -1203,7 +1673,7 @@ _dtype_lookup = {
 
 
 @jaxtyped(typechecker=beartype.beartype)
-class VisionTransformer(nn.Module):
+class Encoder(nn.Module):
     def __init__(self, cfg: Config):
         super().__init__()
 
@@ -1399,17 +1869,81 @@ _PRETRAINED_CFGS = {
 
 
 @beartype.beartype
-def load(name: str, fpath: str | pathlib.Path, device="cpu") -> VisionTransformer:
+def load(name: str, fpath: str | pathlib.Path, device="cpu") -> Encoder:
     if name not in _PRETRAINED_CFGS:
         raise ValueError(f"Name '{name}' not in {list(_PRETRAINED_CFGS)}.")
     cfg = _PRETRAINED_CFGS[name]
     state_dict = torch.load(fpath, mmap=True, weights_only=True, map_location="cpu")
     with torch.device("meta"):
-        model = VisionTransformer(cfg)
+        model = Encoder(cfg)
     model.load_state_dict(state_dict, assign=True)
 
     model = model.to(device)
     return model
+
+
+@jaxtyped(typechecker=beartype.beartype)
+class Vit(torch.nn.Module, models.VisionTransformer):
+    patch_size: int = 16
+    family: str = "dinov3"
+
+    def __init__(self, ckpt: str):
+        super().__init__()
+        name = self._parse_name(ckpt)
+        self.model = load(name, ckpt)
+
+        self.ckpt = name
+        self.logger = logging.getLogger(f"dinov3/{name}")
+
+    def get_residuals(self) -> list[torch.nn.Module]:
+        return self.model.blocks
+
+    def get_patches(self, n_patches_per_img: int) -> slice:
+        n_reg = self.model.cfg.n_storage_tokens
+        patches = torch.cat((
+            torch.tensor([0]),  # CLS token
+            torch.arange(n_reg + 1, n_reg + 1 + n_patches_per_img),  # patches
+        ))
+        return patches
+
+    @staticmethod
+    def _parse_name(dinov3_ckpt: str) -> str:
+        name_ds, sha = pathlib.Path(dinov3_ckpt).stem.split("-")
+        *name, pretrain, ds = name_ds.split("_")
+        assert pretrain == "pretrain"
+        return "_".join(name)
+
+    def forward(
+        self, batch: Float[Tensor, "batch n kernel"], **kwargs
+    ) -> Float[Tensor, "batch patches dim"]:
+        grid = kwargs.pop("grid")
+        if kwargs:
+            self.logger.info("Unused kwargs: %s", kwargs)
+        dct = self.model(batch, grid=grid)
+
+        features = torch.cat((dct["cls"][:, None, :], dct["patches"]), axis=1)
+        return features
+
+    @staticmethod
+    def make_transforms(ckpt: str) -> tuple[Callable, Callable | None]:
+        img_transform = v2.Compose([
+            transforms.FlexResize(patch_size=16, n_patches=640),
+            v2.ToImage(),
+            v2.ToDtype(torch.float32, scale=True),
+            v2.Normalize(mean=[0.4850, 0.4560, 0.4060], std=[0.2290, 0.2240, 0.2250]),
+        ])
+        sample_transform = transforms.Patchify(patch_size=16, n_patches=640)
+        return img_transform, sample_transform
+
+    @staticmethod
+    def make_resize(
+        ckpt: str, *, scale: float = 2.0
+    ) -> Callable[[Image.Image], Image.Image]:
+        import functools
+
+        return functools.partial(
+            transforms.resize_to_patch_grid, p=int(16 * scale), n=640
+        )
 
 >>>> data/filesystem.md
 # File System & Performance
@@ -1489,348 +2023,6 @@ Run status group 0 (all jobs):
    READ: bw=22.9MiB/s (24.0MB/s), 22.9MiB/s-22.9MiB/s (24.0MB/s-24.0MB/s), io=687MiB (721MB), run=30001-30001msec
 [I] samuelstevens@a0001 ~/p/saev (main)>
 ```
-
->>>> data/images.py
-import dataclasses
-import logging
-import os
-import typing
-from collections.abc import Callable
-
-import beartype
-import torch
-import torchvision.datasets
-from PIL import Image
-
-logger = logging.getLogger(__name__)
-
-
-@beartype.beartype
-@dataclasses.dataclass(frozen=True)
-class Imagenet:
-    """Configuration for HuggingFace Imagenet."""
-
-    name: str = "ILSVRC/imagenet-1k"
-    """Dataset name on HuggingFace. Don't need to change this.."""
-    split: str = "train"
-    """Dataset split. For the default ImageNet-1K dataset, can either be 'train', 'validation' or 'test'."""
-
-    @property
-    def n_imgs(self) -> int:
-        """Number of images in the dataset. Calculated on the fly, but is non-trivial to calculate because it requires loading the dataset. If you need to reference this number very often, cache it in a local variable."""
-        import datasets
-
-        dataset = datasets.load_dataset(
-            self.name, split=self.split, trust_remote_code=True
-        )
-        return len(dataset)
-
-
-@beartype.beartype
-@dataclasses.dataclass(frozen=True)
-class ImageFolder:
-    """Configuration for a generic image folder dataset."""
-
-    root: str = os.path.join(".", "data", "split")
-    """Where the class folders with images are stored."""
-
-    @property
-    def n_imgs(self) -> int:
-        """Number of images in the dataset. Calculated on the fly, but is non-trivial to calculate because it requires walking the directory structure. If you need to reference this number very often, cache it in a local variable."""
-        # Use the same image extensions as torchvision's ImageFolder
-        img_extensions = tuple(torchvision.datasets.folder.IMG_EXTENSIONS)
-        n = 0
-        for _, _, files in os.walk(self.root):
-            # Only count files with valid image extensions
-            n += sum(1 for f in files if f.lower().endswith(img_extensions))
-        return n
-
-
-@beartype.beartype
-@dataclasses.dataclass(frozen=True)
-class SegFolder:
-    """ """
-
-    root: str = os.path.join(".", "data", "segdataset")
-    """Where the class folders with images are stored."""
-    split: typing.Literal["training", "validation"] = "training"
-    """Data split."""
-    img_label_fname: str = "sceneCategories.txt"
-    """Image labels filename."""
-
-    @property
-    def n_imgs(self) -> int:
-        """Number of images in the dataset. Calculated on the fly by counting image files in root/images/split."""
-        # Use the same image extensions as torchvision's ImageFolder
-        img_extensions = tuple(torchvision.datasets.folder.IMG_EXTENSIONS)
-
-        # Look for images in root/images/split
-        img_dir = os.path.join(self.root, "images", self.split)
-        if not os.path.isdir(img_dir):
-            return 0
-
-        n = 0
-        for _, _, files in os.walk(img_dir):
-            # Only count files with valid image extensions
-            n += sum(1 for f in files if f.lower().endswith(img_extensions))
-        return n
-
-
-@beartype.beartype
-@dataclasses.dataclass(frozen=True)
-class Fake:
-    n_imgs: int = 10
-
-
-Config = Imagenet | ImageFolder | SegFolder | Fake
-
-
-@beartype.beartype
-def get_dataset(cfg: Config, *, img_transform, sample_transform=None):
-    """
-    Gets the dataset for the current experiment; delegates construction to dataset-specific functions.
-
-    Args:
-        cfg: Experiment config.
-        img_transform: Image transform to be applied to each image.
-        sample_transform: Transform to be applied to each sample dict.
-
-    Returns:
-        A dataset that has dictionaries with `'image'`, `'index'`, `'target'`, and `'label'` keys containing examples.
-    """
-    # TODO: Can we reduce duplication? Or is it nice to see that there is no magic here?
-    if isinstance(cfg, Imagenet):
-        return ImagenetDataset(
-            cfg, img_transform=img_transform, sample_transform=sample_transform
-        )
-    elif isinstance(cfg, SegFolder):
-        return SegFolderDataset(
-            cfg, img_transform=img_transform, sample_transform=sample_transform
-        )
-    elif isinstance(cfg, ImageFolder):
-        return ImageFolderDataset(
-            cfg.root, transform=img_transform, sample_transform=sample_transform
-        )
-    elif isinstance(cfg, Fake):
-        return FakeDataset(
-            cfg, img_transform=img_transform, sample_transform=sample_transform
-        )
-    else:
-        typing.assert_never(cfg)
-
-
-@beartype.beartype
-class ImagenetDataset(torch.utils.data.Dataset):
-    def __init__(
-        self,
-        cfg: Imagenet,
-        *,
-        img_transform=None,
-        sample_transform: Callable | None = None,
-    ):
-        import datasets
-
-        self.hf_dataset = datasets.load_dataset(
-            cfg.name, split=cfg.split, trust_remote_code=True
-        )
-
-        self.img_transform = img_transform
-        self.sample_transform = sample_transform
-        self.labels = self.hf_dataset.info.features["label"].names
-
-    def __getitem__(self, i):
-        sample = self.hf_dataset[i]
-        sample["index"] = i
-
-        sample["image"] = sample["image"].convert("RGB")
-        if self.img_transform:
-            sample["image"] = self.img_transform(sample["image"])
-        sample["target"] = sample.pop("label")
-        sample["label"] = self.labels[sample["target"]]
-
-        if self.sample_transform is not None:
-            sample = self.sample_transform(sample)
-
-        return sample
-
-    def __len__(self) -> int:
-        return len(self.hf_dataset)
-
-
-@beartype.beartype
-class ImageFolderDataset(torchvision.datasets.ImageFolder):
-    def __init__(self, *args, sample_transform: Callable | None = None, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.sample_transform = sample_transform
-
-    def __getitem__(self, index: int) -> dict[str, object]:
-        """
-        Args:
-            index: Index
-
-        Returns:
-            dict with keys 'image', 'index', 'target' and 'label'.
-        """
-        path, target = self.samples[index]
-        image = self.loader(path)
-        if self.transform is not None:
-            image = self.transform(image)
-        if self.target_transform is not None:
-            target = self.target_transform(target)
-
-        sample = {
-            "image": image,
-            "target": target,
-            "label": self.classes[target],
-            "index": index,
-        }
-
-        if self.sample_transform is not None:
-            sample = self.sample_transform(sample)
-
-        return sample
-
-
-def _stem(fpath: str) -> str:
-    fname = os.path.basename(fpath)
-    stem, ext = os.path.splitext(fname)
-    return stem
-
-
-@beartype.beartype
-class SegFolderDataset(torch.utils.data.Dataset):
-    @beartype.beartype
-    @dataclasses.dataclass(frozen=True)
-    class Sample:
-        img_path: str
-        seg_path: str
-        label: str
-        target: int
-
-    samples: list[Sample]
-
-    def __init__(
-        self,
-        cfg: SegFolder,
-        *,
-        img_transform: Callable | None = None,
-        seg_transform: Callable | None = lambda x: None,
-        sample_transform: Callable | None = None,
-    ):
-        self.logger = logging.getLogger("segfolder")
-        self.cfg = cfg
-        self.img_dir = os.path.join(cfg.root, "images")
-        self.seg_dir = os.path.join(cfg.root, "annotations")
-
-        self.img_transform = img_transform
-        self.seg_transform = seg_transform
-        self.sample_transform = sample_transform
-
-        # Check that we have the right path.
-        for subdir in ("images", "annotations"):
-            if not os.path.isdir(os.path.join(cfg.root, subdir)):
-                # Something is missing.
-                if os.path.realpath(cfg.root).endswith(subdir):
-                    self.logger.warning(
-                        "The SegFolder root should contain 'images/' and 'annotations/' directories."
-                    )
-                raise ValueError(f"Can't find path '{os.path.join(cfg.root, subdir)}'.")
-
-        _, split_mapping = torchvision.datasets.folder.find_classes(self.img_dir)
-        split_lookup: dict[int, str] = {
-            value: key for key, value in split_mapping.items()
-        }
-        self.loader = torchvision.datasets.folder.default_loader
-
-        assert cfg.split in set(split_lookup.values())
-
-        # Load all the image paths.
-        base2seg: dict[str, str] = {
-            _stem(seg_path): seg_path
-            for seg_path, split in torchvision.datasets.folder.make_dataset(
-                self.seg_dir,
-                split_mapping,
-                extensions=torchvision.datasets.folder.IMG_EXTENSIONS,
-            )
-            if split_lookup[split] == cfg.split
-        }
-
-        imgs: list[str] = [
-            path
-            for path, s in torchvision.datasets.folder.make_dataset(
-                self.img_dir,
-                split_mapping,
-                extensions=torchvision.datasets.folder.IMG_EXTENSIONS,
-            )
-            if split_lookup[s] == cfg.split
-        ]
-
-        # Load all the targets, classes and mappings
-        img_labels: dict[str, str] = {}
-        with open(os.path.join(cfg.root, cfg.img_label_fname)) as fd:
-            for line in fd.readlines():
-                stem, _, label = line.rpartition(" ")
-                img_labels[stem] = label
-
-        label_set = sorted(set(img_labels.values()))
-        label_to_idx = {label: i for i, label in enumerate(label_set)}
-
-        self.samples = [
-            self.Sample(
-                img_path,
-                base2seg[_stem(img_path)],
-                img_labels[_stem(img_path)],
-                label_to_idx[label],
-            )
-            for img_path in (imgs)
-        ]
-
-    def __getitem__(self, index: int) -> dict[str, object]:
-        # Convert to dict.
-        sample = dataclasses.asdict(self.samples[index])
-
-        sample["image"] = self.loader(sample.pop("img_path"))
-        if self.img_transform is not None:
-            image = self.img_transform(sample.pop("image"))
-            if image is not None:
-                sample["image"] = image
-
-        sample["segmentation"] = Image.open(sample.pop("seg_path"))
-        if self.seg_transform is not None:
-            segmentation = self.seg_transform(sample.pop("segmentation"))
-            if segmentation is not None:
-                sample["segmentation"] = segmentation
-
-        sample["index"] = index
-
-        if self.sample_transform is not None:
-            sample = self.sample_transform(sample)
-
-        return sample
-
-    def __len__(self) -> int:
-        return len(self.samples)
-
-
-class FakeDataset(torch.utils.data.Dataset):
-    def __init__(self, cfg: Fake, *, img_transform=None, sample_transform=None):
-        self.n_imgs = cfg.n_imgs
-        self.img_transform = img_transform
-        self.sample_transform = sample_transform
-
-    def __len__(self):
-        return self.n_imgs
-
-    def __getitem__(self, i):
-        img = Image.new("RGB", (256, 256))
-        if self.img_transform is not None:
-            img = self.img_transform(img)
-
-        sample = {"image": img, "index": i, "target": 0, "label": "dummy"}
-        if self.sample_transform is not None:
-            sample = self.sample_transform(sample)
-
-        return sample
 
 >>>> data/indexed.py
 import dataclasses
@@ -2007,243 +2199,84 @@ class Dataset(torch.utils.data.Dataset):
                 typing.assert_never((self.cfg.patches, self.cfg.layer))
 
 >>>> data/models.py
+import abc
 import logging
-import pathlib
-import typing as tp
 from collections.abc import Callable
 
 import beartype
 import torch
 from jaxtyping import Float, jaxtyped
+from PIL import Image
 from torch import Tensor
-
-from saev import helpers
-
-from . import dinov3
 
 logger = logging.getLogger(__name__)
 
 
-@tp.runtime_checkable
-class VisionTransformer(tp.Protocol):
+@jaxtyped(typechecker=beartype.beartype)
+class VisionTransformer(abc.ABC):
     """Protocol defining the interface for all Vision Transformer models."""
 
-    name: str
+    @property
+    @abc.abstractmethod
+    def family(self) -> str: ...
 
+    @property
+    @abc.abstractmethod
+    def ckpt(self) -> str: ...
+
+    @staticmethod
+    @abc.abstractmethod
+    def make_transforms(ckpt: str) -> tuple[Callable, Callable | None]: ...
+
+    @staticmethod
+    @abc.abstractmethod
+    def make_resize(
+        ckpt: str, *, scale: float = 2.0
+    ) -> Callable[[Image.Image], Image.Image]:
+        """How to resize images for patch visualizations."""
+
+    @abc.abstractmethod
     def get_residuals(self) -> list[torch.nn.Module]:
         """Return the list of residual blocks/layers for hook registration."""
 
+    @abc.abstractmethod
     def get_patches(self, n_patches_per_img: int) -> slice | torch.Tensor:
         """Return indices for selecting relevant patches from activations."""
 
+    @abc.abstractmethod
     def forward(
         self, batch: Float[Tensor, "batch 3 width height"]
     ) -> Float[Tensor, "batch patches dim"]:
         """Run forward pass on batch of images."""
 
-
-@jaxtyped(typechecker=beartype.beartype)
-class DinoV3(torch.nn.Module):
-    def __init__(self, vit_ckpt: str):
-        super().__init__()
-        name = self._parse_name(vit_ckpt)
-        self.name = f"dinov3/{name}"
-        self.model = dinov3.load(name, vit_ckpt)
-
-    def get_residuals(self) -> list[torch.nn.Module]:
-        return self.model.blocks
-
-    def get_patches(self, n_patches_per_img: int) -> slice:
-        n_reg = self.model.cfg.n_storage_tokens
-        patches = torch.cat((
-            torch.tensor([0]),  # CLS token
-            torch.arange(n_reg + 1, n_reg + 1 + n_patches_per_img),  # patches
-        ))
-        return patches
-
-    @staticmethod
-    def _parse_name(dinov3_ckpt: str) -> str:
-        name_ds, sha = pathlib.Path(dinov3_ckpt).stem.split("-")
-        *name, pretrain, ds = name_ds.split("_")
-        assert pretrain == "pretrain"
-        return "_".join(name)
-
-    def forward(
-        self, batch: Float[Tensor, "batch n kernel"], **kwargs
-    ) -> Float[Tensor, "batch patches dim"]:
-        grid = kwargs.pop("grid")
-        if kwargs:
-            logger.info("Unused kwargs: %s", kwargs)
-        dct = self.model(batch, grid=grid)
-
-        features = torch.cat((dct["cls"][:, None, :], dct["patches"]), axis=1)
-        return features
+    @property
+    def name(self) -> str:
+        return f"{self.family}/{self.ckpt}"
 
 
-@jaxtyped(typechecker=beartype.beartype)
-class DinoV2(torch.nn.Module):
-    def __init__(self, vit_ckpt: str):
-        super().__init__()
-
-        self.model = torch.hub.load("facebookresearch/dinov2", vit_ckpt)
-        self.name = f"dinov2/{vit_ckpt}"
-
-    def get_residuals(self) -> list[torch.nn.Module]:
-        return self.model.blocks
-
-    def get_patches(self, n_patches_per_img: int) -> slice:
-        n_reg = self.model.num_register_tokens
-        patches = torch.cat((
-            torch.tensor([0]),  # CLS token
-            torch.arange(n_reg + 1, n_reg + 1 + n_patches_per_img),  # patches
-        ))
-        return patches
-
-    def forward(
-        self, batch: Float[Tensor, "batch 3 width height"], **kwargs
-    ) -> Float[Tensor, "batch patches dim"]:
-        dct = self.model.forward_features(batch)
-
-        features = torch.cat(
-            (dct["x_norm_clstoken"][:, None, :], dct["x_norm_patchtokens"]), axis=1
-        )
-        return features
-
-
-@jaxtyped(typechecker=beartype.beartype)
-class Clip(torch.nn.Module):
-    def __init__(self, vit_ckpt: str):
-        super().__init__()
-
-        import open_clip
-
-        if vit_ckpt.startswith("hf-hub:"):
-            clip, _ = open_clip.create_model_from_pretrained(
-                vit_ckpt, cache_dir=helpers.get_cache_dir()
-            )
-        else:
-            arch, ckpt = vit_ckpt.split("/")
-            clip, _ = open_clip.create_model_from_pretrained(
-                arch, pretrained=ckpt, cache_dir=helpers.get_cache_dir()
-            )
-
-        model = clip.visual
-        model.proj = None
-        model.output_tokens = True  # type: ignore
-        self.model = model.eval()
-
-        assert not isinstance(self.model, open_clip.timm_model.TimmModel)
-
-        self.name = f"clip/{vit_ckpt}"
-
-    def get_residuals(self) -> list[torch.nn.Module]:
-        return self.model.transformer.resblocks
-
-    def get_patches(self, n_patches_per_img: int) -> slice:
-        return slice(None, None, None)
-
-    def forward(
-        self, batch: Float[Tensor, "batch 3 width height"]
-    ) -> Float[Tensor, "batch patches dim"]:
-        return self.model(batch)
-
-
-@jaxtyped(typechecker=beartype.beartype)
-class Siglip(torch.nn.Module):
-    def __init__(self, vit_ckpt: str):
-        super().__init__()
-
-        import open_clip
-
-        if vit_ckpt.startswith("hf-hub:"):
-            clip, _ = open_clip.create_model_from_pretrained(
-                vit_ckpt, cache_dir=helpers.get_cache_dir()
-            )
-        else:
-            arch, ckpt = vit_ckpt.split("/")
-            clip, _ = open_clip.create_model_from_pretrained(
-                arch, pretrained=ckpt, cache_dir=helpers.get_cache_dir()
-            )
-
-        model = clip.visual
-        model.proj = None
-        model.output_tokens = True  # type: ignore
-        self.model = model
-
-        assert isinstance(self.model, open_clip.timm_model.TimmModel)
-
-        self.name = f"siglip/{vit_ckpt}"
-
-    def get_residuals(self) -> list[torch.nn.Module]:
-        return self.model.trunk.blocks
-
-    def get_patches(self, n_patches_per_img: int) -> slice:
-        return slice(None, None, None)
-
-    def forward(
-        self, batch: Float[Tensor, "batch 3 width height"]
-    ) -> Float[Tensor, "batch patches dim"]:
-        result = self.model(batch)
-        return result
+_global_vit_registry: dict[str, type[VisionTransformer]] = {}
 
 
 @beartype.beartype
-def make_vit(vit_family: str, vit_ckpt: str) -> VisionTransformer:
-    if vit_family == "clip":
-        return Clip(vit_ckpt)
-    if vit_family == "siglip":
-        return Siglip(vit_ckpt)
-    elif vit_family == "dinov2":
-        return DinoV2(vit_ckpt)
-    elif vit_family == "dinov3":
-        return DinoV3(vit_ckpt)
-    else:
-        tp.assert_never(vit_family)
+def load_vit_cls(family: str) -> type[VisionTransformer]:
+    """Load a ViT family class."""
+    if family not in _global_vit_registry:
+        raise ValueError(f"Family '{family}' not found.")
+
+    return _global_vit_registry[family]
 
 
 @beartype.beartype
-def make_transforms(vit_family: str, vit_ckpt: str) -> tuple[Callable, Callable | None]:
-    if vit_family == "clip" or vit_family == "siglip":
-        import open_clip
+def register_family(cls: type[VisionTransformer]):
+    """Register a new ViT family class."""
+    if cls.family in _global_vit_registry:
+        logger.warning("Overwriting key '%s' in registry.", cls.family)
+    _global_vit_registry[cls.family] = cls
 
-        if vit_ckpt.startswith("hf-hub:"):
-            _, img_transform = open_clip.create_model_from_pretrained(
-                vit_ckpt, cache_dir=helpers.get_cache_dir()
-            )
-        else:
-            arch, ckpt = vit_ckpt.split("/")
-            _, img_transform = open_clip.create_model_from_pretrained(
-                arch, pretrained=ckpt, cache_dir=helpers.get_cache_dir()
-            )
-        return img_transform, None
 
-    elif vit_family == "dinov2":
-        from torchvision.transforms import v2
-
-        img_transform = v2.Compose([
-            v2.Resize(size=(256, 256)),
-            v2.CenterCrop(size=(224, 224)),
-            v2.ToImage(),
-            v2.ToDtype(torch.float32, scale=True),
-            v2.Normalize(mean=[0.4850, 0.4560, 0.4060], std=[0.2290, 0.2240, 0.2250]),
-        ])
-        return img_transform, None
-
-    elif vit_family == "dinov3":
-        from torchvision.transforms import v2
-
-        from . import transforms
-
-        img_transform = v2.Compose([
-            transforms.FlexResize(patch_size=16, n_patches=640),
-            v2.ToImage(),
-            v2.ToDtype(torch.float32, scale=True),
-            v2.Normalize(mean=[0.4850, 0.4560, 0.4060], std=[0.2290, 0.2240, 0.2250]),
-        ])
-        sample_transform = transforms.Patchify(patch_size=16, n_patches=640)
-        return img_transform, sample_transform
-    else:
-        tp.assert_never(vit_family)
+def list_families() -> list[str]:
+    """List all ViT family names."""
+    return list(_global_vit_registry.keys())
 
 >>>> data/ordered.py
 # src/saev/data/ordered.py
@@ -3303,6 +3336,69 @@ class DataLoader:
         """Returns the number of batches in an epoch."""
         return math.ceil(self.n_samples / self.cfg.batch_size)
 
+>>>> data/siglip.py
+from collections.abc import Callable
+
+import beartype
+import open_clip
+import torch
+from jaxtyping import Float, jaxtyped
+from torch import Tensor
+
+from .. import helpers
+from . import models
+
+
+@jaxtyped(typechecker=beartype.beartype)
+class Vit(torch.nn.Module, models.VisionTransformer):
+    family = "siglip"
+
+    @staticmethod
+    def make_transforms(ckpt: str) -> tuple[Callable, Callable | None]:
+        if ckpt.startswith("hf-hub:"):
+            _, img_transform = open_clip.create_model_from_pretrained(
+                ckpt, cache_dir=helpers.get_cache_dir()
+            )
+        else:
+            arch, ckpt = ckpt.split("/")
+            _, img_transform = open_clip.create_model_from_pretrained(
+                arch, pretrained=ckpt, cache_dir=helpers.get_cache_dir()
+            )
+        return img_transform, None
+
+    def __init__(self, ckpt: str):
+        super().__init__()
+
+        if ckpt.startswith("hf-hub:"):
+            clip, _ = open_clip.create_model_from_pretrained(
+                ckpt, cache_dir=helpers.get_cache_dir()
+            )
+        else:
+            arch, ckpt = ckpt.split("/")
+            clip, _ = open_clip.create_model_from_pretrained(
+                arch, pretrained=ckpt, cache_dir=helpers.get_cache_dir()
+            )
+        self.ckpt = ckpt
+
+        model = clip.visual
+        model.proj = None
+        model.output_tokens = True  # type: ignore
+        self.model = model
+
+        assert isinstance(self.model, open_clip.timm_model.TimmModel)
+
+    def get_residuals(self) -> list[torch.nn.Module]:
+        return self.model.trunk.blocks
+
+    def get_patches(self, n_patches_per_img: int) -> slice:
+        return slice(None, None, None)
+
+    def forward(
+        self, batch: Float[Tensor, "batch 3 width height"]
+    ) -> Float[Tensor, "batch patches dim"]:
+        result = self.model(batch)
+        return result
+
 >>>> data/transforms.py
 # src/saev/data/transforms.py
 import math
@@ -3332,7 +3428,7 @@ class FlexResize(v2.Transform):
 
     def transform(self, inpt: tp.Any, params: dict[str, tp.Any]):
         if isinstance(inpt, Image.Image):
-            return _resize_to_patch_grid(
+            return resize_to_patch_grid(
                 inpt, p=self.patch_size, n=self.n_patches, resample=self.resample
             )
         else:
@@ -3340,7 +3436,7 @@ class FlexResize(v2.Transform):
 
 
 @beartype.beartype
-def _resize_to_patch_grid(
+def resize_to_patch_grid(
     img: Image.Image,
     *,
     p: int,
@@ -3465,7 +3561,7 @@ from torch import Tensor
 
 from saev import helpers
 
-from . import images
+from . import datasets
 
 logger = logging.getLogger(__name__)
 
@@ -3475,7 +3571,7 @@ logger = logging.getLogger(__name__)
 class Config:
     """Configuration for calculating and saving ViT activations."""
 
-    data: images.Config = dataclasses.field(default_factory=images.Imagenet)
+    data: datasets.Config = dataclasses.field(default_factory=datasets.Imagenet)
     """Which dataset to use."""
     dump_to: str = os.path.join(".", "shards")
     """Where to write shards."""
@@ -3848,7 +3944,7 @@ def get_dataloader(
     Returns:
         A PyTorch Dataloader that yields dictionaries with `'image'` keys containing image batches, `'index'` keys containing original dataset indices and `'label'` keys containing label batches.
     """
-    dataset = images.get_dataset(
+    dataset = datasets.get_dataset(
         cfg.data, img_transform=img_transform, sample_transform=sample_transform
     )
 
@@ -3888,11 +3984,12 @@ def worker_fn(cfg: Config):
         logger.warning("No CUDA device available, using CPU.")
         cfg = dataclasses.replace(cfg, device="cpu")
 
-    vit = models.make_vit(cfg.vit_family, cfg.vit_ckpt).to(cfg.device)
+    vit_cls = models.load_vit_cls(cfg.vit_family)
+    vit = vit_cls(cfg.vit_ckpt).to(cfg.device)
     vit = RecordedVisionTransformer(
         vit, cfg.n_patches_per_img, cfg.cls_token, cfg.vit_layers
     )
-    img_tr, sample_tr = models.make_transforms(cfg.vit_family, cfg.vit_ckpt)
+    img_tr, sample_tr = vit_cls.make_transforms(cfg.vit_ckpt)
     dataloader = get_dataloader(cfg, img_transform=img_tr, sample_transform=sample_tr)
 
     writer = ShardWriter(cfg)
@@ -3911,8 +4008,10 @@ def worker_fn(cfg: Config):
             grid = batch.get("grid")
             if grid is not None:
                 grid = grid.to(cfg.device)
+                out, cache = vit(imgs, grid=grid)
+            else:
+                out, cache = vit(imgs)
             # cache has shape [batch size, n layers, n patches + 1, d vit]
-            out, cache = vit(imgs, grid=grid)
             del out
 
             writer[i : i + len(cache)] = cache
@@ -4740,55 +4839,6 @@ def get_slurm_job_count() -> int:
         # If we can't check, assume no jobs
         return 0
 
->>>> imaging.py
-import math
-
-import beartype
-import matplotlib
-import numpy as np
-from jaxtyping import Float, jaxtyped
-from PIL import Image, ImageDraw
-
-colormap = matplotlib.colormaps.get_cmap("plasma")
-
-
-@jaxtyped(typechecker=beartype.beartype)
-def add_highlights(
-    img: Image.Image,
-    patches: Float[np.ndarray, " n_patches"],
-    *,
-    upper: float | None = None,
-    opacity: float = 0.9,
-) -> Image.Image:
-    if not len(patches):
-        return img
-
-    iw_np, ih_np = int(math.sqrt(len(patches))), int(math.sqrt(len(patches)))
-    iw_px, ih_px = img.size
-    pw_px, ph_px = iw_px // iw_np, ih_px // ih_np
-    assert iw_np * ih_np == len(patches)
-
-    # Create a transparent overlay
-    overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
-    draw = ImageDraw.Draw(overlay)
-
-    colors = (colormap(patches / (upper + 1e-9))[:, :3] * 256).astype(np.uint8)
-
-    for p, (val, color) in enumerate(zip(patches, colors)):
-        assert upper is not None
-        val /= upper + 1e-9
-        x_np, y_np = p % iw_np, p // ih_np
-        draw.rectangle(
-            [
-                (x_np * pw_px, y_np * ph_px),
-                (x_np * pw_px + pw_px, y_np * ph_px + ph_px),
-            ],
-            fill=(*color, int(opacity * val * 256)),
-        )
-
-    # Composite the original image and the overlay
-    return Image.alpha_composite(img.convert("RGBA"), overlay)
-
 >>>> inference.md
 # Inference Instructions
 
@@ -5159,28 +5209,26 @@ if __name__ == "__main__":
 >>>> interactive/features.py
 import marimo
 
-__generated_with = "0.9.14"
+__generated_with = "0.15.0"
 app = marimo.App(width="full")
 
 
 @app.cell
-def __():
+def _():
     import json
     import os
-    import random
 
     import marimo as mo
     import matplotlib.pyplot as plt
     import numpy as np
-    import polars as pl
     import torch
     import tqdm
 
-    return json, mo, np, os, pl, plt, random, torch, tqdm
+    return json, mo, np, os, plt, torch, tqdm
 
 
 @app.cell
-def __(mo, os):
+def _(mo, os):
     def make_ckpt_dropdown():
         try:
             choices = sorted(
@@ -5193,17 +5241,17 @@ def __(mo, os):
         return mo.ui.dropdown(choices, label="Checkpoint:")
 
     ckpt_dropdown = make_ckpt_dropdown()
-    return ckpt_dropdown, make_ckpt_dropdown
+    return (ckpt_dropdown,)
 
 
 @app.cell
-def __(ckpt_dropdown, mo):
+def _(ckpt_dropdown, mo):
     mo.hstack([ckpt_dropdown], justify="start")
     return
 
 
 @app.cell
-def __(ckpt_dropdown, mo):
+def _(ckpt_dropdown, mo):
     mo.stop(
         ckpt_dropdown.value is None,
         mo.md(
@@ -5218,7 +5266,7 @@ def __(ckpt_dropdown, mo):
 
 
 @app.cell
-def __(mo):
+def _(mo):
     sort_by_freq_btn = mo.ui.run_button(label="Sort by frequency")
 
     sort_by_value_btn = mo.ui.run_button(label="Sort by value")
@@ -5228,7 +5276,7 @@ def __(mo):
 
 
 @app.cell
-def __(mo, sort_by_freq_btn, sort_by_latent_btn, sort_by_value_btn):
+def _(mo, sort_by_freq_btn, sort_by_latent_btn, sort_by_value_btn):
     mo.hstack(
         [sort_by_freq_btn, sort_by_value_btn, sort_by_latent_btn], justify="start"
     )
@@ -5236,7 +5284,7 @@ def __(mo, sort_by_freq_btn, sort_by_latent_btn, sort_by_value_btn):
 
 
 @app.cell
-def __(
+def _(
     json,
     mo,
     os,
@@ -5270,11 +5318,11 @@ def __(
         neurons = sorted(neurons, key=lambda dct: dct["log10_value"], reverse=True)
 
     mo.md(f"Found {len(neurons)} saved neurons.")
-    return get_neurons, neurons
+    return (neurons,)
 
 
 @app.cell
-def __(mo, neurons, set_i):
+def _(mo, neurons, set_i):
     next_button = mo.ui.button(
         label="Next",
         on_change=lambda _: set_i(lambda v: (v + 1) % len(neurons)),
@@ -5288,7 +5336,7 @@ def __(mo, neurons, set_i):
 
 
 @app.cell
-def __(get_i, mo, neurons, set_i):
+def _(get_i, mo, neurons, set_i):
     neuron_slider = mo.ui.slider(
         0,
         len(neurons),
@@ -5300,12 +5348,12 @@ def __(get_i, mo, neurons, set_i):
 
 
 @app.cell
-def __():
+def _():
     return
 
 
 @app.cell
-def __(
+def _(
     display_info,
     get_i,
     mo,
@@ -5324,12 +5372,12 @@ def __(
 
 
 @app.cell
-def __():
+def _():
     return
 
 
 @app.cell
-def __(get_i, mo, neurons):
+def _(get_i, mo, neurons):
     def display_info(log10_freq: float, log10_value: float, neuron: int):
         return mo.md(
             f"Neuron {neuron} ({get_i()}/{len(neurons)}; {get_i() / len(neurons) * 100:.1f}%) | Frequency: {10**log10_freq * 100:.3f}% of inputs | Mean Value: {10**log10_value:.3f}"
@@ -5339,7 +5387,7 @@ def __(get_i, mo, neurons):
 
 
 @app.cell
-def __(mo, webapp_dir):
+def _(mo, webapp_dir):
     def show_img(n: int, i: int):
         label = "No label found."
         try:
@@ -5354,7 +5402,7 @@ def __(mo, webapp_dir):
 
 
 @app.cell
-def __(get_i, mo, neurons, show_img):
+def _(get_i, mo, neurons, show_img):
     n = neurons[get_i()]["neuron"]
 
     mo.vstack([
@@ -5409,21 +5457,21 @@ def __(get_i, mo, neurons, show_img):
             widths="equal",
         ),
     ])
-    return (n,)
+    return
 
 
 @app.cell
-def __(os, torch, webapp_dir):
+def _(os, torch, webapp_dir):
     sparsity_fpath = os.path.join(webapp_dir, "sparsity.pt")
     sparsity = torch.load(sparsity_fpath, weights_only=True, map_location="cpu")
 
     values_fpath = os.path.join(webapp_dir, "mean_values.pt")
     values = torch.load(values_fpath, weights_only=True, map_location="cpu")
-    return sparsity, sparsity_fpath, values, values_fpath
+    return sparsity, values
 
 
 @app.cell
-def __(mo, np, plt, sparsity):
+def _(mo, np, plt, sparsity):
     def plot_hist(counts):
         fig, ax = plt.subplots()
         ax.hist(np.log10(counts.numpy() + 1e-9), bins=100)
@@ -5438,17 +5486,19 @@ def __(mo, np, plt, sparsity):
 
 
 @app.cell
-def __(mo, plot_hist, values):
-    mo.md(f"""
+def _(mo, plot_hist, values):
+    mo.md(
+        f"""
     Mean Value Log10
 
     {mo.as_html(plot_hist(values))}
-    """)
+    """
+    )
     return
 
 
 @app.cell
-def __(np, plt, sparsity, values):
+def _(np, plt, sparsity, values):
     def plot_dist(
         min_log_sparsity: float,
         max_log_sparsity: float,
@@ -5500,8 +5550,9 @@ def __(np, plt, sparsity, values):
 
 
 @app.cell
-def __(mo, plot_dist, sparsity_slider, value_slider):
-    mo.md(f"""
+def _(mo, plot_dist, sparsity_slider, value_slider):
+    mo.md(
+        f"""
     Log Sparsity Range: {sparsity_slider}
     {sparsity_slider.value}
 
@@ -5509,44 +5560,45 @@ def __(mo, plot_dist, sparsity_slider, value_slider):
     {value_slider.value}
 
     {mo.as_html(plot_dist(sparsity_slider.value[0], sparsity_slider.value[1], value_slider.value[0], value_slider.value[1]))}
-    """)
+    """
+    )
     return
 
 
 @app.cell
-def __(mo):
+def _(mo):
     sparsity_slider = mo.ui.range_slider(start=-8, stop=0, step=0.1, value=[-6, -1])
     return (sparsity_slider,)
 
 
 @app.cell
-def __(mo):
+def _(mo):
     value_slider = mo.ui.range_slider(start=-3, stop=1, step=0.1, value=[-0.75, 1.0])
     return (value_slider,)
 
 
 @app.cell
-def __():
+def _():
     return
 
 
 @app.cell
-def __():
+def _():
     return
 
 
 @app.cell
-def __():
+def _():
     return
 
 
 @app.cell
-def __():
+def _():
     return
 
 
 @app.cell
-def __():
+def _():
     return
 
 
@@ -5556,15 +5608,14 @@ if __name__ == "__main__":
 >>>> interactive/metrics.py
 import marimo
 
-__generated_with = "0.9.14"
+__generated_with = "0.15.0"
 app = marimo.App(width="medium")
 
 
 @app.cell
-def __():
+def _():
     import itertools
     import json
-    import math
     import os
 
     import altair as alt
@@ -5587,7 +5638,6 @@ def __():
         itertools,
         jaxtyped,
         json,
-        math,
         mo,
         np,
         os,
@@ -5599,43 +5649,43 @@ def __():
 
 
 @app.cell
-def __(mo):
+def _(mo):
     mo.md(
         """
-        # SAE Metrics Explorer
+    # SAE Metrics Explorer
 
-        This notebook helps you analyze and compare SAE training runs from WandB.
+    This notebook helps you analyze and compare SAE training runs from WandB.
 
-        ## Setup Instructions
+    ## Setup Instructions
 
-        1. Edit the configuration cell at the top to set your WandB username and project
-        2. Make sure you have access to the original ViT activation shards
-        3. Use the filters to narrow down which models to compare
+    1. Edit the configuration cell at the top to set your WandB username and project
+    2. Make sure you have access to the original ViT activation shards
+    3. Use the filters to narrow down which models to compare
 
-        ## Troubleshooting
+    ## Troubleshooting
 
-        - **Missing data error**: This notebook needs access to the original ViT activation shards
-        - **No runs found**: Check your WandB username, project name, and tag filter
-        """
+    - **Missing data error**: This notebook needs access to the original ViT activation shards
+    - **No runs found**: Check your WandB username, project name, and tag filter
+    """
     )
     return
 
 
 @app.cell
-def __():
+def _():
     WANDB_USERNAME = "samuelstevens"
-    WANDB_PROJECT = "beetle-saes"
+    WANDB_PROJECT = "saev"
     return WANDB_PROJECT, WANDB_USERNAME
 
 
 @app.cell
-def __(mo):
+def _(mo):
     tag_input = mo.ui.text(value="train-v1.0", label="Sweep Tag:")
     return (tag_input,)
 
 
 @app.cell
-def __(WANDB_PROJECT, WANDB_USERNAME, mo, tag_input):
+def _(WANDB_PROJECT, WANDB_USERNAME, mo, tag_input):
     mo.vstack([
         mo.md(
             f"Look at [{WANDB_USERNAME}/{WANDB_PROJECT} on WandB](https://wandb.ai/{WANDB_USERNAME}/{WANDB_PROJECT}/table) to pick your tag."
@@ -5646,7 +5696,7 @@ def __(WANDB_PROJECT, WANDB_USERNAME, mo, tag_input):
 
 
 @app.cell
-def __(df, mo):
+def _(df, mo):
     # All unique (model, layer) pairs
     pairs = (
         df.select(["model_key", "config/data/layer"])
@@ -5677,11 +5727,11 @@ def __(df, mo):
     elems = [*pair_dict.elements.values(), show_rest, show_ids]
     ui_grid = _make_grid(elems, 3, 0.5)
     ui_grid
-    return elems, pair_dict, pair_elems, pairs, show_ids, show_rest, ui_grid
+    return pair_dict, show_ids, show_rest
 
 
 @app.cell
-def __(
+def _(
     adjust_text,
     df,
     itertools,
@@ -5814,19 +5864,11 @@ def __(
 
     fig = plot_layerwise(filtered_df, show_rest.value, show_ids.value)
     fig
-    return (
-        fig,
-        filtered_df,
-        layers,
-        models,
-        pairs_df,
-        plot_layerwise,
-        selected_keys,
-    )
+    return
 
 
 @app.cell
-def __(alt, df, mo):
+def _(alt, df, mo):
     chart = mo.ui.altair_chart(
         alt.Chart(
             df.select(
@@ -5857,7 +5899,7 @@ def __(alt, df, mo):
 
 
 @app.cell
-def __(chart, df, mo, np, plot_dist, plt):
+def _(chart, df, mo, np, plot_dist, plt):
     mo.stop(
         len(chart.value) < 2,
         mo.md(
@@ -5919,36 +5961,23 @@ def __(chart, df, mo, np, plot_dist, plt):
 
     scatter_fig.tight_layout()
     hist_fig.tight_layout()
-    return (
-        bins,
-        freq_hist_ax,
-        freqs,
-        hist_axes,
-        hist_fig,
-        id,
-        scatter_ax,
-        scatter_axes,
-        scatter_fig,
-        sub_df,
-        values,
-        values_hist_ax,
-    )
+    return hist_fig, scatter_fig
 
 
 @app.cell
-def __(scatter_fig):
+def _(scatter_fig):
     scatter_fig
     return
 
 
 @app.cell
-def __(hist_fig):
+def _(hist_fig):
     hist_fig
     return
 
 
 @app.cell
-def __(chart, df, pl):
+def _(chart, df, pl):
     df.join(chart.value.select("id"), on="id", how="inner").sort(
         by="summary/eval/l0"
     ).select("id", pl.selectors.starts_with("config/"))
@@ -5956,7 +5985,7 @@ def __(chart, df, pl):
 
 
 @app.cell
-def __(Float, beartype, jaxtyped, np):
+def _(Float, beartype, jaxtyped, np):
     @jaxtyped(typechecker=beartype.beartype)
     def plot_dist(
         freqs: Float[np.ndarray, " d_sae"],
@@ -6007,7 +6036,7 @@ def __(Float, beartype, jaxtyped, np):
 
 
 @app.cell
-def __(
+def _(
     WANDB_PROJECT,
     WANDB_USERNAME,
     beartype,
@@ -6058,6 +6087,10 @@ def __(
         filters = {}
         if tag:
             filters["config.tag"] = tag
+            filters["config.data.metadata.n_patches_per_img"] = 640
+            filters["config.data.metadata.data.root"] = (
+                "/fs/scratch/PAS2136/samuelstevens/datasets/fish-vista-imgfolder/*"
+            )
         runs = wandb.Api().runs(
             path=f"{WANDB_USERNAME}/{WANDB_PROJECT}", filters=filters
         )
@@ -6140,11 +6173,11 @@ def __(
         return df
 
     df = make_df(tag_input.value)
-    return MetadataAccessError, df, find_metadata, make_df
+    return (df,)
 
 
 @app.cell
-def __(beartype):
+def _(beartype):
     @beartype.beartype
     def get_model_key(metadata: dict[str, object]) -> str:
         family = next(
@@ -6159,6 +6192,8 @@ def __(beartype):
             return "DINOv2 ViT-B/14 (reg)"
         if family == "dinov2" and ckpt == "dinov2_vitl14_reg":
             return "DINOv2 ViT-L/14 (reg)"
+        if family == "dinov3" and "vitl" in ckpt:
+            return "DINOv3 ViT-L/14"
         if family == "clip" and ckpt == "ViT-B-16/openai":
             return "CLIP ViT-B/16"
         if family == "clip" and ckpt == "hf-hub:imageomics/bioclip":
@@ -6185,6 +6220,12 @@ def __(beartype):
         ):
             return "Beetles"
 
+        if (
+            "fish-vista-imgfolder" in metadata["data"]["root"]
+            and metadata["data"]["__class__"] == "ImageFolder"
+        ):
+            return "FishVista"
+
         if "train" in metadata["data"] and "Imagenet" in metadata["data"]:
             return "ImageNet-1K"
 
@@ -6195,7 +6236,7 @@ def __(beartype):
 
 
 @app.cell
-def __(Float, json, np, os):
+def _(Float, json, np, os):
     def load_freqs(run) -> Float[np.ndarray, " d_sae"]:
         try:
             for artifact in run.logged_artifacts():
@@ -6234,7 +6275,7 @@ def __(Float, json, np, os):
 
 
 @app.cell
-def __(df):
+def _(df):
     df.drop(
         "config/log_every",
         "config/slurm_acct",
@@ -6267,9 +6308,7 @@ __all__ = [
 ]
 
 >>>> nn/modeling.py
-"""
-Neural network architectures for sparse autoencoders.
-"""
+"""Neural network architectures for sparse autoencoders."""
 
 import dataclasses
 import io
@@ -6281,7 +6320,7 @@ import typing
 import beartype
 import einops
 import torch
-from jaxtyping import Float, jaxtyped
+from jaxtyping import Float, Int, jaxtyped
 from torch import Tensor
 
 from .. import __version__, helpers
@@ -6382,13 +6421,58 @@ class SparseAutoencoder(torch.nn.Module):
         return f_x
 
     def decode(
-        self, f_x: Float[Tensor, "batch d_sae"]
-    ) -> Float[Tensor, "batch d_model"]:
-        x_hat = (
-            einops.einsum(f_x, self.W_dec, "... d_sae, d_sae d_vit -> ... d_vit")
-            + self.b_dec
-        )
-        return x_hat
+        self,
+        f_x: Float[Tensor, "batch d_sae"],
+        *,
+        prefixes: Int[Tensor, " n_prefixes"] | None = None,
+    ) -> Float[Tensor, "batch n_prefixes d_model"]:
+        """
+        Decode latent features to reconstructions.
+
+        Args:
+            f_x: Latent features of shape (batch, d_sae)
+            prefixes: Optional tensor of prefix lengths for Matryoshka decoding.
+
+        Returns:
+            Matryoshka reconstructions (n_prefixes, batch, d_model).
+        """
+        b, d_sae = f_x.shape
+
+        # Matryoshka cumulative decode
+        device = f_x.device
+        if prefixes is None:
+            prefixes = torch.tensor([d_sae], dtype=int)
+        prefixes = prefixes.to(device)
+
+        # Build blocks from prefix cuts: [0, cut1), [cut1, cut2), ...
+        block_indices = torch.cat([torch.tensor([0], device=device), prefixes])
+        blocks = list(zip(block_indices[:-1], block_indices[1:]))
+
+        # Compute block outputs
+        block_outputs = []
+        for i, (start, end) in enumerate(blocks):
+            # Each block uses its portion of f_x and W_dec
+            block_f_x = f_x[:, start:end]
+            block_W_dec = self.W_dec[start:end, :]
+
+            # Compute block output: (batch, d_sae_block) @ (d_sae_block, d_vit) -> (batch, d_vit)
+            # Note: W_dec is (d_sae, d_vit), so block_W_dec is (block_size, d_vit)
+            block_output = einops.einsum(
+                block_f_x,
+                block_W_dec,
+                "... d_sae_block, d_sae_block d_vit -> ... d_vit",
+            )
+
+            # Add bias only to the first block
+            if i == 0:
+                block_output = block_output + self.b_dec
+
+            block_outputs.append(block_output)
+
+        # Cumulative sum to get prefix reconstructions
+        x_hats = torch.cumsum(torch.stack(block_outputs, dim=-2), dim=-2)
+
+        return x_hats
 
     @torch.no_grad()
     def normalize_w_dec(self):
@@ -6418,117 +6502,6 @@ class SparseAutoencoder(torch.nn.Module):
             self.W_dec.data,
             "d_sae, d_sae d_vit -> d_sae d_vit",
         )
-
-
-@jaxtyped(typechecker=beartype.beartype)
-class MatryoshkaSparseAutoencoder(SparseAutoencoder):
-    """
-    Subclass of SparseAutoencoder for use with the Matryoshka objective function.
-    Needed since the matryoshka objective requires access to the weights of the decoder in order to calculate the
-    reconstructions from prefixes of the sparse encoding.
-
-    Still uses L1 for sparsity penalty, though when using BatchTopK as activation (recommended), this is not relevant.
-    """
-
-    def __init__(self, cfg: SparseAutoencoderConfig):
-        super().__init__(cfg)
-
-    def matryoshka_forward(
-        self, x: Float[Tensor, "batch d_model"], n_prefixes: int
-    ) -> tuple[Float[Tensor, "batch d_model"], Float[Tensor, "batch d_sae"]]:
-        """
-        Given x, calculates the reconstructed x_hat from the prefixes of encoded intermediate activations f_x.
-
-        Arguments:
-            x: a batch of ViT activations.
-        """
-
-        # Remove encoder bias as per Anthropic
-        h_pre = (
-            einops.einsum(
-                x - self.b_dec, self.W_enc, "... d_vit, d_vit d_sae -> ... d_sae"
-            )
-            + self.b_enc
-        )
-        f_x = self.activation(h_pre)
-
-        prefixes = self.sample_prefixes(len(f_x), n_prefixes).to(self.b_dec.device)
-
-        block_indices = torch.torch.cat((
-            torch.tensor([0]).to(self.b_dec.device),
-            prefixes,
-        ))
-        block_bounds = list(zip(block_indices[:-1], block_indices[1:]))
-
-        block_preds = [self.block_decode(f_x, block) for block in block_bounds]
-
-        prefix_preds = torch.cumsum(torch.stack(block_preds), dim=0)
-
-        return prefix_preds, f_x
-
-    def block_decode(
-        self, f_x: Float[Tensor, "batch d_sae"], block: tuple[int]
-    ) -> Float[Tensor, "batch d_model"]:
-        """Decodes sparse encoding using only the given interval of indices.
-
-        Arguments:
-            f_x: Sparse encoding"""
-
-        # Can't use einsum here because the block lengths can change
-        x_hat = (
-            torch.matmul(f_x[:, block[0] : block[1]], self.W_dec[block[0] : block[1]])
-            + self.b_dec
-        )
-
-        # x_hat = (
-        #    einops.einsum(f_x[block[0]:block[1]], self.W_dec[block[0]:block[1]], "... block, block d_vit -> ... d_vit")
-        #    + self.b_dec[block[0]:block[1]]
-        # )
-
-        return x_hat
-
-    @torch.no_grad()
-    def sample_prefixes(
-        self,
-        sae_dim: int,
-        n_prefixes: int,
-        min_prefix_length: int = 1,
-        pareto_power: float = 0.5,
-        replacement: bool = False,
-    ) -> torch.Tensor:
-        """
-        Samples prefix lengths using a Pareto distribution. Derived from "Learning Multi-Level Features with
-        Matryoshka Sparse Autoencoders" (https://doi.org/10.48550/arXiv.2503.17547)
-
-        Args:
-            sae_dim: Total number of latent dimensions
-            n_prefixes: Number of prefixes to sample
-            min_prefix_length: Minimum length of any prefix
-            pareto_power: Power parameter for Pareto distribution (lower = more uniform)
-
-        Returns:
-            torch.Tensor: Sorted prefix lengths
-        """
-        if n_prefixes <= 1:
-            return torch.tensor([sae_dim])
-
-        # Calculate probability distribution favoring shorter prefixes
-        lengths = torch.arange(1, sae_dim)
-        pareto_cdf = 1 - ((min_prefix_length / lengths.float()) ** pareto_power)
-        pareto_pdf = torch.cat([pareto_cdf[:1], pareto_cdf[1:] - pareto_cdf[:-1]])
-        probability_dist = pareto_pdf / pareto_pdf.sum()
-
-        # Sample and sort prefix lengths
-        prefixes = torch.multinomial(
-            probability_dist, num_samples=n_prefixes - 1, replacement=replacement
-        )
-
-        # Add n_latents as the final prefix
-        prefixes = torch.cat((prefixes.detach().clone(), torch.tensor([sae_dim])))
-
-        prefixes, _ = torch.sort(prefixes, descending=False)
-
-        return prefixes
 
 
 @jaxtyped(typechecker=beartype.beartype)
@@ -6699,9 +6672,12 @@ import dataclasses
 import typing
 
 import beartype
+import einops
 import torch
 from jaxtyping import Float, jaxtyped
 from torch import Tensor
+
+from . import modeling
 
 
 @beartype.beartype
@@ -6746,10 +6722,7 @@ class Loss:
 @jaxtyped(typechecker=beartype.beartype)
 class Objective(torch.nn.Module):
     def forward(
-        self,
-        x: Float[Tensor, "batch d_model"],
-        f_x: Float[Tensor, "batch d_sae"],
-        x_hat: Float[Tensor, "batch d_model"],
+        self, sae: modeling.SparseAutoencoder, x: Float[Tensor, "batch d_model"]
     ) -> Loss:
         raise NotImplementedError()
 
@@ -6788,20 +6761,22 @@ class VanillaObjective(Objective):
     def __init__(self, cfg: Vanilla):
         super().__init__()
         self.cfg = cfg
+        # Keep sparsity_coeff as mutable attribute for scheduler compatibility
+        self.sparsity_coeff = cfg.sparsity_coeff
 
     def forward(
-        self,
-        x: Float[Tensor, "batch d_model"],
-        f_x: Float[Tensor, "batch d_sae"],
-        x_hat: Float[Tensor, "batch d_model"],
+        self, sae: modeling.SparseAutoencoder, x: Float[Tensor, "batch d_model"]
     ) -> VanillaLoss:
+        f_x = sae.encode(x)
+        x_hat = einops.rearrange(sae.decode(f_x), "batch () d_model -> batch d_model")
+
         # Some values of x and x_hat can be very large. We can calculate a safe MSE
         mse_loss = mean_squared_err(x_hat, x)
 
         mse_loss = mse_loss.mean()
         l0 = (f_x > 0).float().sum(axis=1).mean(axis=0)
         l1 = f_x.sum(axis=1).mean(axis=0)
-        sparsity_loss = self.cfg.sparsity_coeff * l1
+        sparsity_loss = self.sparsity_coeff * l1
 
         return VanillaLoss(mse_loss, sparsity_loss, l0, l1)
 
@@ -6842,22 +6817,76 @@ class MatryoshkaObjective(Objective):
     def __init__(self, cfg: Matryoshka):
         super().__init__()
         self.cfg = cfg
+        # Keep sparsity_coeff as mutable attribute for scheduler compatibility
+        self.sparsity_coeff = cfg.sparsity_coeff
 
     def forward(
-        self,
-        x: Float[Tensor, "batch d_model"],
-        f_x: Float[Tensor, "batch n_prefixes d_sae"],
-        prefix_preds: Float[Tensor, "batch n_prefixes d_model"],
-    ) -> "MatryoshkaLoss.Loss":
-        # Some values of x and x_hat can be very large. We can calculate a safe MSE
-        # mse_losses = torch.flatten([mean_squared_err(p, x) for p in prefix_preds])
-        mse_losses = torch.stack([mean_squared_err(p, x) for p in prefix_preds], dim=0)
-        mse_loss = mse_losses.sum(dim=-1).mean()
+        self, sae: modeling.SparseAutoencoder, x: Float[Tensor, "batch d_model"]
+    ) -> MatryoshkaLoss:
+        f_x = sae.encode(x)  # shape: (batch, d_sae)
+        b, d_sae = f_x.shape
+
+        # Sample prefix cuts
+        prefixes = sample_prefixes(d_sae, self.cfg.n_prefixes)
+
+        # Use the new decode API with prefixes
+        x_hats = sae.decode(f_x, prefixes=prefixes)
+
+        # Calculate losses
+        mse_loss = mean_squared_err(
+            x_hats,
+            einops.repeat(
+                x, "b d_sae -> b prefixes d_sae", prefixes=self.cfg.n_prefixes
+            ),
+        ).mean()
+
+        # Calculate sparsity metrics on full encoding
         l0 = (f_x > 0).float().sum(axis=1).mean(axis=0)
         l1 = f_x.sum(axis=1).mean(axis=0)
-        sparsity_loss = self.cfg.sparsity_coeff * l1
+        sparsity_loss = self.sparsity_coeff * l1
 
         return MatryoshkaLoss(mse_loss, sparsity_loss, l0, l1)
+
+
+@torch.no_grad()
+def sample_prefixes(
+    d_sae: int, n_prefixes: int, min_prefix_length: int = 1, pareto_power: float = 0.5
+) -> torch.Tensor:
+    """
+    Samples prefix lengths using a Pareto distribution. Derived from "Learning Multi-Level Features with
+    Matryoshka Sparse Autoencoders" (https://doi.org/10.48550/arXiv.2503.17547)
+
+    Args:
+        sae_dim: Total number of latent dimensions
+        n_prefixes: Number of prefixes to sample
+        min_prefix_length: Minimum length of any prefix
+        pareto_power: Power parameter for Pareto distribution (lower = more uniform)
+
+    Returns:
+        torch.Tensor: Sorted prefix lengths
+    """
+    if n_prefixes <= 1:
+        return torch.tensor([d_sae])
+
+    assert n_prefixes <= d_sae
+
+    # Calculate probability distribution favoring shorter prefixes
+    lengths = torch.arange(1, d_sae)
+    pareto_cdf = 1 - ((min_prefix_length / lengths.float()) ** pareto_power)
+    pareto_pdf = torch.cat([pareto_cdf[:1], pareto_cdf[1:] - pareto_cdf[:-1]])
+    probability_dist = pareto_pdf / pareto_pdf.sum()
+
+    # Sample and sort prefix lengths
+    prefixes = torch.multinomial(
+        probability_dist, num_samples=n_prefixes - 1, replacement=False
+    )
+
+    # Add n_latents as the final prefix
+    prefixes = torch.cat((prefixes.detach().clone(), torch.tensor([d_sae])))
+
+    prefixes, _ = torch.sort(prefixes, descending=False)
+
+    return prefixes
 
 
 @beartype.beartype
@@ -7017,7 +7046,6 @@ There is some important notation used only in this file to dramatically shorten 
 Variables suffixed with `_im` refer to entire images, and variables suffixed with `_p` refer to patches.
 """
 
-import collections.abc
 import dataclasses
 import json
 import logging
@@ -7034,8 +7062,8 @@ from PIL import Image
 from torch import Tensor
 
 import saev.data
-import saev.data.images
-from saev import helpers, imaging, nn
+import saev.data.datasets
+from saev import helpers, nn, viz
 
 log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
 logging.basicConfig(level=logging.INFO, format=log_format)
@@ -7054,8 +7082,8 @@ class Config:
         default_factory=saev.data.OrderedConfig
     )
     """Data configuration"""
-    images: saev.data.images.Config = dataclasses.field(
-        default_factory=saev.data.images.Imagenet
+    images: saev.data.datasets.Config = dataclasses.field(
+        default_factory=saev.data.datasets.Imagenet
     )
     """Which images to use."""
     dump_to: str = os.path.join(".", "data")
@@ -7082,7 +7110,6 @@ class Config:
     """Maximum number of latents to save images for."""
     sae_batch_size: int = 1024 * 16
     """Batch size for SAE inference."""
-    topk_batch_size: int = 1024 * 16
 
     # Hardware
     device: str = "cuda"
@@ -7170,20 +7197,7 @@ class GridElement:
 
 @beartype.beartype
 def make_img(elem: GridElement, *, upper: float | None = None) -> Image.Image:
-    # Resize to 256x256 and crop to 224x224
-    resize_size_px = (512, 512)
-    resize_w_px, resize_h_px = resize_size_px
-    crop_size_px = (448, 448)
-    crop_w_px, crop_h_px = crop_size_px
-    crop_coords_px = (
-        (resize_w_px - crop_w_px) // 2,
-        (resize_h_px - crop_h_px) // 2,
-        (resize_w_px + crop_w_px) // 2,
-        (resize_h_px + crop_h_px) // 2,
-    )
-
-    img = elem.img.resize(resize_size_px).crop(crop_coords_px)
-    img = imaging.add_highlights(img, elem.patches.numpy(), upper=upper)
+    img = viz.add_highlights(elem.img, elem.patches.numpy(), patch_size=32, upper=upper)
     return img
 
 
@@ -7216,25 +7230,6 @@ def get_new_topk(
     return new_values, new_indices
 
 
-@beartype.beartype
-def batched_idx(
-    total_size: int, batch_size: int
-) -> collections.abc.Iterator[tuple[int, int]]:
-    """
-    Iterate over (start, end) indices for total_size examples, where end - start is at most batch_size.
-
-    Args:
-        total_size: total number of examples
-        batch_size: maximum distance between the generated indices.
-
-    Returns:
-        A generator of (int, int) tuples that can slice up a list or a tensor.
-    """
-    for start in range(0, total_size, batch_size):
-        stop = min(start + batch_size, total_size)
-        yield start, stop
-
-
 @jaxtyped(typechecker=beartype.beartype)
 def get_sae_acts(
     vit_acts: Float[Tensor, "n d_vit"], sae: nn.SparseAutoencoder, cfg: Config
@@ -7248,7 +7243,7 @@ def get_sae_acts(
         cfg: Experimental config.
     """
     sae_acts = []
-    for start, end in batched_idx(len(vit_acts), cfg.sae_batch_size):
+    for start, end in helpers.batched_idx(len(vit_acts), cfg.sae_batch_size):
         _, f_x, *_ = sae(vit_acts[start:end].to(cfg.device))
         sae_acts.append(f_x)
 
@@ -7260,14 +7255,20 @@ def get_sae_acts(
 @jaxtyped(typechecker=beartype.beartype)
 @dataclasses.dataclass(frozen=True)
 class TopKPatch:
-    ".. todo:: Document this class."
+    """Summary of which images and patches most activate each SAE latent."""
 
     top_values: Float[Tensor, "d_sae k n_patches_per_img"]
+    """For each latent and its top k images, the per-patch activation values over that image's patches. Used for heatmaps/highlighting of contributing regions."""
     top_i: Int[Tensor, "d_sae k"]
+    """Global image indices for those top-`k` images per latent (aligned with the dataset's `image_i` indexing)."""
     mean_values: Float[Tensor, " d_sae"]
+    """Mean positive activation per latent, computed as the sum of activations divided by the count of positives (`> 0`). With nonnegative activations (e.g., ReLU/TopK), this is the average active value."""
     sparsity: Float[Tensor, " d_sae"]
+    """Fraction of samples where each latent is active (`> 0`), i.e., empirical activation rate."""
     distributions: Float[Tensor, "m n"]
+    """For the first `m = cfg.n_distributions` latents, the raw activation values across all `n` samples. Useful for plotting activation histograms."""
     percentiles: Float[Tensor, " d_sae"]
+    """Online estimate of the `cfg.percentile` activation threshold per latent over the dataset (used for outlier detection/thresholding)."""
 
 
 @beartype.beartype
@@ -7304,7 +7305,7 @@ def get_topk_patch(cfg: Config) -> TopKPatch:
     mean_values_S = torch.zeros((sae.cfg.d_sae,), device=cfg.device)
 
     batch_size = (
-        cfg.topk_batch_size // metadata.n_patches_per_img * metadata.n_patches_per_img
+        cfg.data.batch_size // metadata.n_patches_per_img * metadata.n_patches_per_img
     )
     n_imgs_per_batch = batch_size // metadata.n_patches_per_img
     dataloader = saev.data.OrderedDataLoader(
@@ -7320,7 +7321,7 @@ def get_topk_patch(cfg: Config) -> TopKPatch:
 
     logger.info("Loaded SAE and data.")
 
-    for batch in helpers.progress(dataloader, desc="picking top-k", every=50):
+    for batch in helpers.progress(dataloader, desc="picking top-k"):
         vit_acts_BD = batch["act"]
         sae_acts_BS = get_sae_acts(vit_acts_BD, sae, cfg)
 
@@ -7503,7 +7504,10 @@ def dump_imgs(cfg: Config):
         "Saved %d activation distributions to '%s'.", cfg.n_distributions, fig_fpath
     )
 
-    dataset = saev.data.images.get_dataset(cfg.images, img_transform=None)
+    metadata = saev.data.Metadata.load(cfg.data.shard_root)
+    vit_cls = saev.data.models.load_vit_cls(metadata.vit_family)
+    img_transform = vit_cls.make_resize(metadata.vit_ckpt)
+    dataset = saev.data.datasets.get_dataset(cfg.images, img_transform=img_transform)
 
     min_log_freq, max_log_freq = cfg.log_freq_range
     min_log_value, max_log_value = cfg.log_value_range
@@ -7809,4 +7813,52 @@ class ParallelWandbRun:
             run.finish()
 
         return ids
+
+>>>> viz.py
+import beartype
+import matplotlib
+import numpy as np
+from jaxtyping import Float, jaxtyped
+from PIL import Image, ImageDraw
+
+colormap = matplotlib.colormaps.get_cmap("plasma")
+
+
+@jaxtyped(typechecker=beartype.beartype)
+def add_highlights(
+    img: Image.Image,
+    patches: Float[np.ndarray, " n_patches"],
+    *,
+    patch_size: int,
+    upper: float | None = None,
+    opacity: float = 0.9,
+) -> Image.Image:
+    if not len(patches):
+        return img
+    iw_px, ih_px = img.size
+    assert ih_px % patch_size == 0
+    assert iw_px % patch_size == 0
+    ih_np, iw_np = ih_px // patch_size, iw_px // patch_size
+    assert iw_np * ih_np == len(patches)
+
+    # Create a transparent overlay
+    overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(overlay)
+
+    colors = (colormap(patches / (upper + 1e-9))[:, :3] * 255).astype(np.uint8)
+
+    for p, (val, color) in enumerate(zip(patches, colors)):
+        assert upper is not None
+        val /= upper + 1e-9
+        x_np, y_np = p % iw_np, p // ih_np
+        draw.rectangle(
+            [
+                (x_np * patch_size, y_np * patch_size),
+                (x_np * patch_size + patch_size, y_np * patch_size + patch_size),
+            ],
+            fill=(*color, int(opacity * val * 255)),
+        )
+
+    # Composite the original image and the overlay
+    return Image.alpha_composite(img.convert("RGBA"), overlay)
 

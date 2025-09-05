@@ -2,9 +2,12 @@ import dataclasses
 import typing
 
 import beartype
+import einops
 import torch
 from jaxtyping import Float, jaxtyped
 from torch import Tensor
+
+from . import modeling
 
 
 @beartype.beartype
@@ -49,10 +52,7 @@ class Loss:
 @jaxtyped(typechecker=beartype.beartype)
 class Objective(torch.nn.Module):
     def forward(
-        self,
-        x: Float[Tensor, "batch d_model"],
-        f_x: Float[Tensor, "batch d_sae"],
-        x_hat: Float[Tensor, "batch d_model"],
+        self, sae: modeling.SparseAutoencoder, x: Float[Tensor, "batch d_model"]
     ) -> Loss:
         raise NotImplementedError()
 
@@ -91,20 +91,22 @@ class VanillaObjective(Objective):
     def __init__(self, cfg: Vanilla):
         super().__init__()
         self.cfg = cfg
+        # Keep sparsity_coeff as mutable attribute for scheduler compatibility
+        self.sparsity_coeff = cfg.sparsity_coeff
 
     def forward(
-        self,
-        x: Float[Tensor, "batch d_model"],
-        f_x: Float[Tensor, "batch d_sae"],
-        x_hat: Float[Tensor, "batch d_model"],
+        self, sae: modeling.SparseAutoencoder, x: Float[Tensor, "batch d_model"]
     ) -> VanillaLoss:
+        f_x = sae.encode(x)
+        x_hat = einops.rearrange(sae.decode(f_x), "batch () d_model -> batch d_model")
+
         # Some values of x and x_hat can be very large. We can calculate a safe MSE
         mse_loss = mean_squared_err(x_hat, x)
 
         mse_loss = mse_loss.mean()
         l0 = (f_x > 0).float().sum(axis=1).mean(axis=0)
         l1 = f_x.sum(axis=1).mean(axis=0)
-        sparsity_loss = self.cfg.sparsity_coeff * l1
+        sparsity_loss = self.sparsity_coeff * l1
 
         return VanillaLoss(mse_loss, sparsity_loss, l0, l1)
 
@@ -145,20 +147,76 @@ class MatryoshkaObjective(Objective):
     def __init__(self, cfg: Matryoshka):
         super().__init__()
         self.cfg = cfg
+        # Keep sparsity_coeff as mutable attribute for scheduler compatibility
+        self.sparsity_coeff = cfg.sparsity_coeff
 
     def forward(
-        self,
-        x: Float[Tensor, "batch d_model"],
-        f_x: Float[Tensor, "batch n_prefixes d_sae"],
-        x_hat: Float[Tensor, "batch n_prefixes d_model"],
+        self, sae: modeling.SparseAutoencoder, x: Float[Tensor, "batch d_model"]
     ) -> MatryoshkaLoss:
-        mse_losses = torch.stack([mean_squared_err(x_h, x) for x_h in x_hat], dim=0)
-        mse_loss = mse_losses.sum(dim=-1).mean()
+        f_x = sae.encode(x)  # shape: (batch, d_sae)
+        b, d_sae = f_x.shape
+
+        # Sample prefix cuts
+        prefixes = sample_prefixes(d_sae, self.cfg.n_prefixes)
+
+        # Use the new decode API with prefixes
+        x_hats = sae.decode(f_x, prefixes=prefixes)
+
+        # Calculate losses
+        mse_loss = mean_squared_err(
+            x_hats,
+            einops.repeat(
+                x, "b d_sae -> b prefixes d_sae", prefixes=self.cfg.n_prefixes
+            ),
+        ).mean()
+
+        # Calculate sparsity metrics on full encoding
         l0 = (f_x > 0).float().sum(axis=1).mean(axis=0)
         l1 = f_x.sum(axis=1).mean(axis=0)
-        sparsity_loss = self.cfg.sparsity_coeff * l1
+        sparsity_loss = self.sparsity_coeff * l1
 
         return MatryoshkaLoss(mse_loss, sparsity_loss, l0, l1)
+
+
+@torch.no_grad()
+def sample_prefixes(
+    d_sae: int, n_prefixes: int, min_prefix_length: int = 1, pareto_power: float = 0.5
+) -> torch.Tensor:
+    """
+    Samples prefix lengths using a Pareto distribution. Derived from "Learning Multi-Level Features with
+    Matryoshka Sparse Autoencoders" (https://doi.org/10.48550/arXiv.2503.17547)
+
+    Args:
+        sae_dim: Total number of latent dimensions
+        n_prefixes: Number of prefixes to sample
+        min_prefix_length: Minimum length of any prefix
+        pareto_power: Power parameter for Pareto distribution (lower = more uniform)
+
+    Returns:
+        torch.Tensor: Sorted prefix lengths
+    """
+    if n_prefixes <= 1:
+        return torch.tensor([d_sae])
+
+    assert n_prefixes <= d_sae
+
+    # Calculate probability distribution favoring shorter prefixes
+    lengths = torch.arange(1, d_sae)
+    pareto_cdf = 1 - ((min_prefix_length / lengths.float()) ** pareto_power)
+    pareto_pdf = torch.cat([pareto_cdf[:1], pareto_cdf[1:] - pareto_cdf[:-1]])
+    probability_dist = pareto_pdf / pareto_pdf.sum()
+
+    # Sample and sort prefix lengths
+    prefixes = torch.multinomial(
+        probability_dist, num_samples=n_prefixes - 1, replacement=False
+    )
+
+    # Add n_latents as the final prefix
+    prefixes = torch.cat((prefixes.detach().clone(), torch.tensor([d_sae])))
+
+    prefixes, _ = torch.sort(prefixes, descending=False)
+
+    return prefixes
 
 
 @beartype.beartype

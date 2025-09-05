@@ -280,297 +280,6 @@ class BatchTopKActivation(torch.nn.Module):
 </dd>
 </dl>
 </dd>
-<dt id="saev.nn.modeling.MatryoshkaSparseAutoencoder"><code class="flex name class">
-<span>class <span class="ident">MatryoshkaSparseAutoencoder</span></span>
-<span>(</span><span>cfg: <a title="saev.nn.modeling.SparseAutoencoderConfig" href="#saev.nn.modeling.SparseAutoencoderConfig">SparseAutoencoderConfig</a>)</span>
-</code></dt>
-<dd>
-<div class="desc"><p>Subclass of SparseAutoencoder for use with the Matryoshka objective function.
-Needed since the matryoshka objective requires access to the weights of the decoder in order to calculate the
-reconstructions from prefixes of the sparse encoding.</p>
-<p>Still uses L1 for sparsity penalty, though when using BatchTopK as activation (recommended), this is not relevant.</p>
-<p>Initialize internal Module state, shared by both nn.Module and ScriptModule.</p></div>
-<details class="source">
-<summary>
-<span>Expand source code</span>
-</summary>
-<pre><code class="python">@jaxtyped(typechecker=beartype.beartype)
-class MatryoshkaSparseAutoencoder(SparseAutoencoder):
-    &#34;&#34;&#34;
-    Subclass of SparseAutoencoder for use with the Matryoshka objective function.
-    Needed since the matryoshka objective requires access to the weights of the decoder in order to calculate the
-    reconstructions from prefixes of the sparse encoding.
-
-    Still uses L1 for sparsity penalty, though when using BatchTopK as activation (recommended), this is not relevant.
-    &#34;&#34;&#34;
-
-    def __init__(self, cfg: SparseAutoencoderConfig):
-        super().__init__(cfg)
-
-    def matryoshka_forward(
-        self, x: Float[Tensor, &#34;batch d_model&#34;], n_prefixes: int
-    ) -&gt; tuple[Float[Tensor, &#34;batch d_model&#34;], Float[Tensor, &#34;batch d_sae&#34;]]:
-        &#34;&#34;&#34;
-        Given x, calculates the reconstructed x_hat from the prefixes of encoded intermediate activations f_x.
-
-        Arguments:
-            x: a batch of ViT activations.
-        &#34;&#34;&#34;
-
-        # Remove encoder bias as per Anthropic
-        h_pre = (
-            einops.einsum(
-                x - self.b_dec, self.W_enc, &#34;... d_vit, d_vit d_sae -&gt; ... d_sae&#34;
-            )
-            + self.b_enc
-        )
-        f_x = self.activation(h_pre)
-
-        prefixes = self.sample_prefixes(len(f_x), n_prefixes).to(self.b_dec.device)
-
-        block_indices = torch.torch.cat((
-            torch.tensor([0]).to(self.b_dec.device),
-            prefixes,
-        ))
-        block_bounds = list(zip(block_indices[:-1], block_indices[1:]))
-
-        block_preds = [self.block_decode(f_x, block) for block in block_bounds]
-
-        prefix_preds = torch.cumsum(torch.stack(block_preds), dim=0)
-
-        return prefix_preds, f_x
-
-    def block_decode(
-        self, f_x: Float[Tensor, &#34;batch d_sae&#34;], block: tuple[int]
-    ) -&gt; Float[Tensor, &#34;batch d_model&#34;]:
-        &#34;&#34;&#34;Decodes sparse encoding using only the given interval of indices.
-
-        Arguments:
-            f_x: Sparse encoding&#34;&#34;&#34;
-
-        # Can&#39;t use einsum here because the block lengths can change
-        x_hat = (
-            torch.matmul(f_x[:, block[0] : block[1]], self.W_dec[block[0] : block[1]])
-            + self.b_dec
-        )
-
-        # x_hat = (
-        #    einops.einsum(f_x[block[0]:block[1]], self.W_dec[block[0]:block[1]], &#34;... block, block d_vit -&gt; ... d_vit&#34;)
-        #    + self.b_dec[block[0]:block[1]]
-        # )
-
-        return x_hat
-
-    @torch.no_grad()
-    def sample_prefixes(
-        self,
-        sae_dim: int,
-        n_prefixes: int,
-        min_prefix_length: int = 1,
-        pareto_power: float = 0.5,
-        replacement: bool = False,
-    ) -&gt; torch.Tensor:
-        &#34;&#34;&#34;
-        Samples prefix lengths using a Pareto distribution. Derived from &#34;Learning Multi-Level Features with
-        Matryoshka Sparse Autoencoders&#34; (https://doi.org/10.48550/arXiv.2503.17547)
-
-        Args:
-            sae_dim: Total number of latent dimensions
-            n_prefixes: Number of prefixes to sample
-            min_prefix_length: Minimum length of any prefix
-            pareto_power: Power parameter for Pareto distribution (lower = more uniform)
-
-        Returns:
-            torch.Tensor: Sorted prefix lengths
-        &#34;&#34;&#34;
-        if n_prefixes &lt;= 1:
-            return torch.tensor([sae_dim])
-
-        # Calculate probability distribution favoring shorter prefixes
-        lengths = torch.arange(1, sae_dim)
-        pareto_cdf = 1 - ((min_prefix_length / lengths.float()) ** pareto_power)
-        pareto_pdf = torch.cat([pareto_cdf[:1], pareto_cdf[1:] - pareto_cdf[:-1]])
-        probability_dist = pareto_pdf / pareto_pdf.sum()
-
-        # Sample and sort prefix lengths
-        prefixes = torch.multinomial(
-            probability_dist, num_samples=n_prefixes - 1, replacement=replacement
-        )
-
-        # Add n_latents as the final prefix
-        prefixes = torch.cat((prefixes.detach().clone(), torch.tensor([sae_dim])))
-
-        prefixes, _ = torch.sort(prefixes, descending=False)
-
-        return prefixes</code></pre>
-</details>
-<h3>Ancestors</h3>
-<ul class="hlist">
-<li><a title="saev.nn.modeling.SparseAutoencoder" href="#saev.nn.modeling.SparseAutoencoder">SparseAutoencoder</a></li>
-<li>torch.nn.modules.module.Module</li>
-</ul>
-<h3>Methods</h3>
-<dl>
-<dt id="saev.nn.modeling.MatryoshkaSparseAutoencoder.block_decode"><code class="name flex">
-<span>def <span class="ident">block_decode</span></span>(<span>self, f_x: jaxtyping.Float[Tensor, 'batch d_sae'], block: tuple[int]) ‑> jaxtyping.Float[Tensor, 'batch d_model']</span>
-</code></dt>
-<dd>
-<div class="desc"><p>Decodes sparse encoding using only the given interval of indices.</p>
-<h2 id="arguments">Arguments</h2>
-<p>f_x: Sparse encoding</p></div>
-<details class="source">
-<summary>
-<span>Expand source code</span>
-</summary>
-<pre><code class="python">def block_decode(
-    self, f_x: Float[Tensor, &#34;batch d_sae&#34;], block: tuple[int]
-) -&gt; Float[Tensor, &#34;batch d_model&#34;]:
-    &#34;&#34;&#34;Decodes sparse encoding using only the given interval of indices.
-
-    Arguments:
-        f_x: Sparse encoding&#34;&#34;&#34;
-
-    # Can&#39;t use einsum here because the block lengths can change
-    x_hat = (
-        torch.matmul(f_x[:, block[0] : block[1]], self.W_dec[block[0] : block[1]])
-        + self.b_dec
-    )
-
-    # x_hat = (
-    #    einops.einsum(f_x[block[0]:block[1]], self.W_dec[block[0]:block[1]], &#34;... block, block d_vit -&gt; ... d_vit&#34;)
-    #    + self.b_dec[block[0]:block[1]]
-    # )
-
-    return x_hat</code></pre>
-</details>
-</dd>
-<dt id="saev.nn.modeling.MatryoshkaSparseAutoencoder.matryoshka_forward"><code class="name flex">
-<span>def <span class="ident">matryoshka_forward</span></span>(<span>self, x: jaxtyping.Float[Tensor, 'batch d_model'], n_prefixes: int) ‑> tuple[jaxtyping.Float[Tensor, 'batch d_model'], jaxtyping.Float[Tensor, 'batch d_sae']]</span>
-</code></dt>
-<dd>
-<div class="desc"><p>Given x, calculates the reconstructed x_hat from the prefixes of encoded intermediate activations f_x.</p>
-<h2 id="arguments">Arguments</h2>
-<p>x: a batch of ViT activations.</p></div>
-<details class="source">
-<summary>
-<span>Expand source code</span>
-</summary>
-<pre><code class="python">def matryoshka_forward(
-    self, x: Float[Tensor, &#34;batch d_model&#34;], n_prefixes: int
-) -&gt; tuple[Float[Tensor, &#34;batch d_model&#34;], Float[Tensor, &#34;batch d_sae&#34;]]:
-    &#34;&#34;&#34;
-    Given x, calculates the reconstructed x_hat from the prefixes of encoded intermediate activations f_x.
-
-    Arguments:
-        x: a batch of ViT activations.
-    &#34;&#34;&#34;
-
-    # Remove encoder bias as per Anthropic
-    h_pre = (
-        einops.einsum(
-            x - self.b_dec, self.W_enc, &#34;... d_vit, d_vit d_sae -&gt; ... d_sae&#34;
-        )
-        + self.b_enc
-    )
-    f_x = self.activation(h_pre)
-
-    prefixes = self.sample_prefixes(len(f_x), n_prefixes).to(self.b_dec.device)
-
-    block_indices = torch.torch.cat((
-        torch.tensor([0]).to(self.b_dec.device),
-        prefixes,
-    ))
-    block_bounds = list(zip(block_indices[:-1], block_indices[1:]))
-
-    block_preds = [self.block_decode(f_x, block) for block in block_bounds]
-
-    prefix_preds = torch.cumsum(torch.stack(block_preds), dim=0)
-
-    return prefix_preds, f_x</code></pre>
-</details>
-</dd>
-<dt id="saev.nn.modeling.MatryoshkaSparseAutoencoder.sample_prefixes"><code class="name flex">
-<span>def <span class="ident">sample_prefixes</span></span>(<span>self,<br>sae_dim: int,<br>n_prefixes: int,<br>min_prefix_length: int = 1,<br>pareto_power: float = 0.5,<br>replacement: bool = False) ‑> torch.Tensor</span>
-</code></dt>
-<dd>
-<div class="desc"><p>Samples prefix lengths using a Pareto distribution. Derived from "Learning Multi-Level Features with
-Matryoshka Sparse Autoencoders" (<a href="https://doi.org/10.48550/arXiv.2503.17547">https://doi.org/10.48550/arXiv.2503.17547</a>)</p>
-<h2 id="args">Args</h2>
-<dl>
-<dt><strong><code>sae_dim</code></strong></dt>
-<dd>Total number of latent dimensions</dd>
-<dt><strong><code>n_prefixes</code></strong></dt>
-<dd>Number of prefixes to sample</dd>
-<dt><strong><code>min_prefix_length</code></strong></dt>
-<dd>Minimum length of any prefix</dd>
-<dt><strong><code>pareto_power</code></strong></dt>
-<dd>Power parameter for Pareto distribution (lower = more uniform)</dd>
-</dl>
-<h2 id="returns">Returns</h2>
-<dl>
-<dt><code>torch.Tensor</code></dt>
-<dd>Sorted prefix lengths</dd>
-</dl></div>
-<details class="source">
-<summary>
-<span>Expand source code</span>
-</summary>
-<pre><code class="python">@torch.no_grad()
-def sample_prefixes(
-    self,
-    sae_dim: int,
-    n_prefixes: int,
-    min_prefix_length: int = 1,
-    pareto_power: float = 0.5,
-    replacement: bool = False,
-) -&gt; torch.Tensor:
-    &#34;&#34;&#34;
-    Samples prefix lengths using a Pareto distribution. Derived from &#34;Learning Multi-Level Features with
-    Matryoshka Sparse Autoencoders&#34; (https://doi.org/10.48550/arXiv.2503.17547)
-
-    Args:
-        sae_dim: Total number of latent dimensions
-        n_prefixes: Number of prefixes to sample
-        min_prefix_length: Minimum length of any prefix
-        pareto_power: Power parameter for Pareto distribution (lower = more uniform)
-
-    Returns:
-        torch.Tensor: Sorted prefix lengths
-    &#34;&#34;&#34;
-    if n_prefixes &lt;= 1:
-        return torch.tensor([sae_dim])
-
-    # Calculate probability distribution favoring shorter prefixes
-    lengths = torch.arange(1, sae_dim)
-    pareto_cdf = 1 - ((min_prefix_length / lengths.float()) ** pareto_power)
-    pareto_pdf = torch.cat([pareto_cdf[:1], pareto_cdf[1:] - pareto_cdf[:-1]])
-    probability_dist = pareto_pdf / pareto_pdf.sum()
-
-    # Sample and sort prefix lengths
-    prefixes = torch.multinomial(
-        probability_dist, num_samples=n_prefixes - 1, replacement=replacement
-    )
-
-    # Add n_latents as the final prefix
-    prefixes = torch.cat((prefixes.detach().clone(), torch.tensor([sae_dim])))
-
-    prefixes, _ = torch.sort(prefixes, descending=False)
-
-    return prefixes</code></pre>
-</details>
-</dd>
-</dl>
-<h3>Inherited members</h3>
-<ul class="hlist">
-<li><code><b><a title="saev.nn.modeling.SparseAutoencoder" href="#saev.nn.modeling.SparseAutoencoder">SparseAutoencoder</a></b></code>:
-<ul class="hlist">
-<li><code><a title="saev.nn.modeling.SparseAutoencoder.forward" href="#saev.nn.modeling.SparseAutoencoder.forward">forward</a></code></li>
-<li><code><a title="saev.nn.modeling.SparseAutoencoder.normalize_w_dec" href="#saev.nn.modeling.SparseAutoencoder.normalize_w_dec">normalize_w_dec</a></code></li>
-<li><code><a title="saev.nn.modeling.SparseAutoencoder.remove_parallel_grads" href="#saev.nn.modeling.SparseAutoencoder.remove_parallel_grads">remove_parallel_grads</a></code></li>
-</ul>
-</li>
-</ul>
-</dd>
 <dt id="saev.nn.modeling.Relu"><code class="flex name class">
 <span>class <span class="ident">Relu</span></span>
 </code></dt>
@@ -648,13 +357,58 @@ class SparseAutoencoder(torch.nn.Module):
         return f_x
 
     def decode(
-        self, f_x: Float[Tensor, &#34;batch d_sae&#34;]
-    ) -&gt; Float[Tensor, &#34;batch d_model&#34;]:
-        x_hat = (
-            einops.einsum(f_x, self.W_dec, &#34;... d_sae, d_sae d_vit -&gt; ... d_vit&#34;)
-            + self.b_dec
-        )
-        return x_hat
+        self,
+        f_x: Float[Tensor, &#34;batch d_sae&#34;],
+        *,
+        prefixes: Int[Tensor, &#34; n_prefixes&#34;] | None = None,
+    ) -&gt; Float[Tensor, &#34;batch n_prefixes d_model&#34;]:
+        &#34;&#34;&#34;
+        Decode latent features to reconstructions.
+
+        Args:
+            f_x: Latent features of shape (batch, d_sae)
+            prefixes: Optional tensor of prefix lengths for Matryoshka decoding.
+
+        Returns:
+            Matryoshka reconstructions (n_prefixes, batch, d_model).
+        &#34;&#34;&#34;
+        b, d_sae = f_x.shape
+
+        # Matryoshka cumulative decode
+        device = f_x.device
+        if prefixes is None:
+            prefixes = torch.tensor([d_sae], dtype=int)
+        prefixes = prefixes.to(device)
+
+        # Build blocks from prefix cuts: [0, cut1), [cut1, cut2), ...
+        block_indices = torch.cat([torch.tensor([0], device=device), prefixes])
+        blocks = list(zip(block_indices[:-1], block_indices[1:]))
+
+        # Compute block outputs
+        block_outputs = []
+        for i, (start, end) in enumerate(blocks):
+            # Each block uses its portion of f_x and W_dec
+            block_f_x = f_x[:, start:end]
+            block_W_dec = self.W_dec[start:end, :]
+
+            # Compute block output: (batch, d_sae_block) @ (d_sae_block, d_vit) -&gt; (batch, d_vit)
+            # Note: W_dec is (d_sae, d_vit), so block_W_dec is (block_size, d_vit)
+            block_output = einops.einsum(
+                block_f_x,
+                block_W_dec,
+                &#34;... d_sae_block, d_sae_block d_vit -&gt; ... d_vit&#34;,
+            )
+
+            # Add bias only to the first block
+            if i == 0:
+                block_output = block_output + self.b_dec
+
+            block_outputs.append(block_output)
+
+        # Cumulative sum to get prefix reconstructions
+        x_hats = torch.cumsum(torch.stack(block_outputs, dim=-2), dim=-2)
+
+        return x_hats
 
     @torch.no_grad()
     def normalize_w_dec(self):
@@ -689,29 +443,79 @@ class SparseAutoencoder(torch.nn.Module):
 <ul class="hlist">
 <li>torch.nn.modules.module.Module</li>
 </ul>
-<h3>Subclasses</h3>
-<ul class="hlist">
-<li><a title="saev.nn.modeling.MatryoshkaSparseAutoencoder" href="#saev.nn.modeling.MatryoshkaSparseAutoencoder">MatryoshkaSparseAutoencoder</a></li>
-</ul>
 <h3>Methods</h3>
 <dl>
 <dt id="saev.nn.modeling.SparseAutoencoder.decode"><code class="name flex">
-<span>def <span class="ident">decode</span></span>(<span>self, f_x: jaxtyping.Float[Tensor, 'batch d_sae']) ‑> jaxtyping.Float[Tensor, 'batch d_model']</span>
+<span>def <span class="ident">decode</span></span>(<span>self,<br>f_x: jaxtyping.Float[Tensor, 'batch d_sae'],<br>*,<br>prefixes: jaxtyping.Int[Tensor, 'n_prefixes'] | None = None) ‑> jaxtyping.Float[Tensor, 'batch n_prefixes d_model']</span>
 </code></dt>
 <dd>
-<div class="desc"></div>
+<div class="desc"><p>Decode latent features to reconstructions.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>f_x</code></strong></dt>
+<dd>Latent features of shape (batch, d_sae)</dd>
+<dt><strong><code>prefixes</code></strong></dt>
+<dd>Optional tensor of prefix lengths for Matryoshka decoding.</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<p>Matryoshka reconstructions (n_prefixes, batch, d_model).</p></div>
 <details class="source">
 <summary>
 <span>Expand source code</span>
 </summary>
 <pre><code class="python">def decode(
-    self, f_x: Float[Tensor, &#34;batch d_sae&#34;]
-) -&gt; Float[Tensor, &#34;batch d_model&#34;]:
-    x_hat = (
-        einops.einsum(f_x, self.W_dec, &#34;... d_sae, d_sae d_vit -&gt; ... d_vit&#34;)
-        + self.b_dec
-    )
-    return x_hat</code></pre>
+    self,
+    f_x: Float[Tensor, &#34;batch d_sae&#34;],
+    *,
+    prefixes: Int[Tensor, &#34; n_prefixes&#34;] | None = None,
+) -&gt; Float[Tensor, &#34;batch n_prefixes d_model&#34;]:
+    &#34;&#34;&#34;
+    Decode latent features to reconstructions.
+
+    Args:
+        f_x: Latent features of shape (batch, d_sae)
+        prefixes: Optional tensor of prefix lengths for Matryoshka decoding.
+
+    Returns:
+        Matryoshka reconstructions (n_prefixes, batch, d_model).
+    &#34;&#34;&#34;
+    b, d_sae = f_x.shape
+
+    # Matryoshka cumulative decode
+    device = f_x.device
+    if prefixes is None:
+        prefixes = torch.tensor([d_sae], dtype=int)
+    prefixes = prefixes.to(device)
+
+    # Build blocks from prefix cuts: [0, cut1), [cut1, cut2), ...
+    block_indices = torch.cat([torch.tensor([0], device=device), prefixes])
+    blocks = list(zip(block_indices[:-1], block_indices[1:]))
+
+    # Compute block outputs
+    block_outputs = []
+    for i, (start, end) in enumerate(blocks):
+        # Each block uses its portion of f_x and W_dec
+        block_f_x = f_x[:, start:end]
+        block_W_dec = self.W_dec[start:end, :]
+
+        # Compute block output: (batch, d_sae_block) @ (d_sae_block, d_vit) -&gt; (batch, d_vit)
+        # Note: W_dec is (d_sae, d_vit), so block_W_dec is (block_size, d_vit)
+        block_output = einops.einsum(
+            block_f_x,
+            block_W_dec,
+            &#34;... d_sae_block, d_sae_block d_vit -&gt; ... d_vit&#34;,
+        )
+
+        # Add bias only to the first block
+        if i == 0:
+            block_output = block_output + self.b_dec
+
+        block_outputs.append(block_output)
+
+    # Cumulative sum to get prefix reconstructions
+    x_hats = torch.cumsum(torch.stack(block_outputs, dim=-2), dim=-2)
+
+    return x_hats</code></pre>
 </details>
 </dd>
 <dt id="saev.nn.modeling.SparseAutoencoder.encode"><code class="name flex">
@@ -1054,14 +858,6 @@ setTimeout(() => input.focus(), 100);
 <h4><code><a title="saev.nn.modeling.BatchTopKActivation" href="#saev.nn.modeling.BatchTopKActivation">BatchTopKActivation</a></code></h4>
 <ul class="">
 <li><code><a title="saev.nn.modeling.BatchTopKActivation.forward" href="#saev.nn.modeling.BatchTopKActivation.forward">forward</a></code></li>
-</ul>
-</li>
-<li>
-<h4><code><a title="saev.nn.modeling.MatryoshkaSparseAutoencoder" href="#saev.nn.modeling.MatryoshkaSparseAutoencoder">MatryoshkaSparseAutoencoder</a></code></h4>
-<ul class="">
-<li><code><a title="saev.nn.modeling.MatryoshkaSparseAutoencoder.block_decode" href="#saev.nn.modeling.MatryoshkaSparseAutoencoder.block_decode">block_decode</a></code></li>
-<li><code><a title="saev.nn.modeling.MatryoshkaSparseAutoencoder.matryoshka_forward" href="#saev.nn.modeling.MatryoshkaSparseAutoencoder.matryoshka_forward">matryoshka_forward</a></code></li>
-<li><code><a title="saev.nn.modeling.MatryoshkaSparseAutoencoder.sample_prefixes" href="#saev.nn.modeling.MatryoshkaSparseAutoencoder.sample_prefixes">sample_prefixes</a></code></li>
 </ul>
 </li>
 <li>

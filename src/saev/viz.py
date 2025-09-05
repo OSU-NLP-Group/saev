@@ -1,5 +1,3 @@
-import math
-
 import beartype
 import matplotlib
 import numpy as np
@@ -14,22 +12,23 @@ def add_highlights(
     img: Image.Image,
     patches: Float[np.ndarray, " n_patches"],
     *,
+    patch_size: int,
     upper: float | None = None,
     opacity: float = 0.9,
 ) -> Image.Image:
     if not len(patches):
         return img
-
-    iw_np, ih_np = int(math.sqrt(len(patches))), int(math.sqrt(len(patches)))
     iw_px, ih_px = img.size
-    pw_px, ph_px = iw_px // iw_np, ih_px // ih_np
+    assert ih_px % patch_size == 0
+    assert iw_px % patch_size == 0
+    ih_np, iw_np = ih_px // patch_size, iw_px // patch_size
     assert iw_np * ih_np == len(patches)
 
     # Create a transparent overlay
     overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
     draw = ImageDraw.Draw(overlay)
 
-    colors = (colormap(patches / (upper + 1e-9))[:, :3] * 256).astype(np.uint8)
+    colors = (colormap(patches / (upper + 1e-9))[:, :3] * 255).astype(np.uint8)
 
     for p, (val, color) in enumerate(zip(patches, colors)):
         assert upper is not None
@@ -37,10 +36,10 @@ def add_highlights(
         x_np, y_np = p % iw_np, p // ih_np
         draw.rectangle(
             [
-                (x_np * pw_px, y_np * ph_px),
-                (x_np * pw_px + pw_px, y_np * ph_px + ph_px),
+                (x_np * patch_size, y_np * patch_size),
+                (x_np * patch_size + patch_size, y_np * patch_size + patch_size),
             ],
-            fill=(*color, int(opacity * val * 256)),
+            fill=(*color, int(opacity * val * 255)),
         )
 
     # Composite the original image and the overlay

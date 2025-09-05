@@ -35,81 +35,53 @@ hljs.highlightAll();
 <section>
 <h2 class="section-title" id="header-functions">Functions</h2>
 <dl>
-<dt id="saev.data.models.make_transforms"><code class="name flex">
-<span>def <span class="ident">make_transforms</span></span>(<span>vit_family: str, vit_ckpt: str) ‑> tuple[<class 'collections.abc.Callable'>, collections.abc.Callable | None]</span>
+<dt id="saev.data.models.list_families"><code class="name flex">
+<span>def <span class="ident">list_families</span></span>(<span>) ‑> list[str]</span>
 </code></dt>
 <dd>
-<div class="desc"></div>
+<div class="desc"><p>List all ViT family names.</p></div>
 <details class="source">
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">@beartype.beartype
-def make_transforms(vit_family: str, vit_ckpt: str) -&gt; tuple[Callable, Callable | None]:
-    if vit_family == &#34;clip&#34; or vit_family == &#34;siglip&#34;:
-        import open_clip
-
-        if vit_ckpt.startswith(&#34;hf-hub:&#34;):
-            _, img_transform = open_clip.create_model_from_pretrained(
-                vit_ckpt, cache_dir=helpers.get_cache_dir()
-            )
-        else:
-            arch, ckpt = vit_ckpt.split(&#34;/&#34;)
-            _, img_transform = open_clip.create_model_from_pretrained(
-                arch, pretrained=ckpt, cache_dir=helpers.get_cache_dir()
-            )
-        return img_transform, None
-
-    elif vit_family == &#34;dinov2&#34;:
-        from torchvision.transforms import v2
-
-        img_transform = v2.Compose([
-            v2.Resize(size=(256, 256)),
-            v2.CenterCrop(size=(224, 224)),
-            v2.ToImage(),
-            v2.ToDtype(torch.float32, scale=True),
-            v2.Normalize(mean=[0.4850, 0.4560, 0.4060], std=[0.2290, 0.2240, 0.2250]),
-        ])
-        return img_transform, None
-
-    elif vit_family == &#34;dinov3&#34;:
-        from torchvision.transforms import v2
-
-        from . import transforms
-
-        img_transform = v2.Compose([
-            transforms.FlexResize(patch_size=16, n_patches=640),
-            v2.ToImage(),
-            v2.ToDtype(torch.float32, scale=True),
-            v2.Normalize(mean=[0.4850, 0.4560, 0.4060], std=[0.2290, 0.2240, 0.2250]),
-        ])
-        sample_transform = transforms.Patchify(patch_size=16, n_patches=640)
-        return img_transform, sample_transform
-    else:
-        tp.assert_never(vit_family)</code></pre>
+<pre><code class="python">def list_families() -&gt; list[str]:
+    &#34;&#34;&#34;List all ViT family names.&#34;&#34;&#34;
+    return list(_global_vit_registry.keys())</code></pre>
 </details>
 </dd>
-<dt id="saev.data.models.make_vit"><code class="name flex">
-<span>def <span class="ident">make_vit</span></span>(<span>vit_family: str, vit_ckpt: str) ‑> <a title="saev.data.models.VisionTransformer" href="#saev.data.models.VisionTransformer">VisionTransformer</a></span>
+<dt id="saev.data.models.load_vit_cls"><code class="name flex">
+<span>def <span class="ident">load_vit_cls</span></span>(<span>family: str) ‑> type[<a title="saev.data.models.VisionTransformer" href="#saev.data.models.VisionTransformer">VisionTransformer</a>]</span>
 </code></dt>
 <dd>
-<div class="desc"></div>
+<div class="desc"><p>Load a ViT family class.</p></div>
 <details class="source">
 <summary>
 <span>Expand source code</span>
 </summary>
 <pre><code class="python">@beartype.beartype
-def make_vit(vit_family: str, vit_ckpt: str) -&gt; VisionTransformer:
-    if vit_family == &#34;clip&#34;:
-        return Clip(vit_ckpt)
-    if vit_family == &#34;siglip&#34;:
-        return Siglip(vit_ckpt)
-    elif vit_family == &#34;dinov2&#34;:
-        return DinoV2(vit_ckpt)
-    elif vit_family == &#34;dinov3&#34;:
-        return DinoV3(vit_ckpt)
-    else:
-        tp.assert_never(vit_family)</code></pre>
+def load_vit_cls(family: str) -&gt; type[VisionTransformer]:
+    &#34;&#34;&#34;Load a ViT family class.&#34;&#34;&#34;
+    if family not in _global_vit_registry:
+        raise ValueError(f&#34;Family &#39;{family}&#39; not found.&#34;)
+
+    return _global_vit_registry[family]</code></pre>
+</details>
+</dd>
+<dt id="saev.data.models.register_family"><code class="name flex">
+<span>def <span class="ident">register_family</span></span>(<span>cls: type[<a title="saev.data.models.VisionTransformer" href="#saev.data.models.VisionTransformer">VisionTransformer</a>])</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Register a new ViT family class.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+def register_family(cls: type[VisionTransformer]):
+    &#34;&#34;&#34;Register a new ViT family class.&#34;&#34;&#34;
+    if cls.family in _global_vit_registry:
+        logger.warning(&#34;Overwriting key &#39;%s&#39; in registry.&#34;, cls.family)
+    _global_vit_registry[cls.family] = cls</code></pre>
 </details>
 </dd>
 </dl>
@@ -117,552 +89,8 @@ def make_vit(vit_family: str, vit_ckpt: str) -&gt; VisionTransformer:
 <section>
 <h2 class="section-title" id="header-classes">Classes</h2>
 <dl>
-<dt id="saev.data.models.Clip"><code class="flex name class">
-<span>class <span class="ident">Clip</span></span>
-<span>(</span><span>vit_ckpt: str)</span>
-</code></dt>
-<dd>
-<div class="desc"><p>Base class for all neural network modules.</p>
-<p>Your models should also subclass this class.</p>
-<p>Modules can also contain other Modules, allowing them to be nested in
-a tree structure. You can assign the submodules as regular attributes::</p>
-<pre><code>import torch.nn as nn
-import torch.nn.functional as F
-
-
-class Model(nn.Module):
-    def __init__(self) -&gt; None:
-        super().__init__()
-        self.conv1 = nn.Conv2d(1, 20, 5)
-        self.conv2 = nn.Conv2d(20, 20, 5)
-
-    def forward(self, x):
-        x = F.relu(self.conv1(x))
-        return F.relu(self.conv2(x))
-</code></pre>
-<p>Submodules assigned in this way will be registered, and will also have their
-parameters converted when you call :meth:<code>to</code>, etc.</p>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>As per the example above, an <code>__init__()</code> call to the parent class
-must be made before assignment on the child.</p>
-</div>
-<p>:ivar training: Boolean represents whether this module is in training or
-evaluation mode.
-:vartype training: bool</p>
-<p>Initialize internal Module state, shared by both nn.Module and ScriptModule.</p></div>
-<details class="source">
-<summary>
-<span>Expand source code</span>
-</summary>
-<pre><code class="python">@jaxtyped(typechecker=beartype.beartype)
-class Clip(torch.nn.Module):
-    def __init__(self, vit_ckpt: str):
-        super().__init__()
-
-        import open_clip
-
-        if vit_ckpt.startswith(&#34;hf-hub:&#34;):
-            clip, _ = open_clip.create_model_from_pretrained(
-                vit_ckpt, cache_dir=helpers.get_cache_dir()
-            )
-        else:
-            arch, ckpt = vit_ckpt.split(&#34;/&#34;)
-            clip, _ = open_clip.create_model_from_pretrained(
-                arch, pretrained=ckpt, cache_dir=helpers.get_cache_dir()
-            )
-
-        model = clip.visual
-        model.proj = None
-        model.output_tokens = True  # type: ignore
-        self.model = model.eval()
-
-        assert not isinstance(self.model, open_clip.timm_model.TimmModel)
-
-        self.name = f&#34;clip/{vit_ckpt}&#34;
-
-    def get_residuals(self) -&gt; list[torch.nn.Module]:
-        return self.model.transformer.resblocks
-
-    def get_patches(self, n_patches_per_img: int) -&gt; slice:
-        return slice(None, None, None)
-
-    def forward(
-        self, batch: Float[Tensor, &#34;batch 3 width height&#34;]
-    ) -&gt; Float[Tensor, &#34;batch patches dim&#34;]:
-        return self.model(batch)</code></pre>
-</details>
-<h3>Ancestors</h3>
-<ul class="hlist">
-<li>torch.nn.modules.module.Module</li>
-</ul>
-<h3>Methods</h3>
-<dl>
-<dt id="saev.data.models.Clip.forward"><code class="name flex">
-<span>def <span class="ident">forward</span></span>(<span>self, batch: jaxtyping.Float[Tensor, 'batch 3 width height']) ‑> jaxtyping.Float[Tensor, 'batch patches dim']</span>
-</code></dt>
-<dd>
-<div class="desc"><p>Define the computation performed at every call.</p>
-<p>Should be overridden by all subclasses.</p>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>Although the recipe for forward pass needs to be defined within
-this function, one should call the :class:<code>Module</code> instance afterwards
-instead of this since the former takes care of running the
-registered hooks while the latter silently ignores them.</p>
-</div></div>
-<details class="source">
-<summary>
-<span>Expand source code</span>
-</summary>
-<pre><code class="python">def forward(
-    self, batch: Float[Tensor, &#34;batch 3 width height&#34;]
-) -&gt; Float[Tensor, &#34;batch patches dim&#34;]:
-    return self.model(batch)</code></pre>
-</details>
-</dd>
-<dt id="saev.data.models.Clip.get_patches"><code class="name flex">
-<span>def <span class="ident">get_patches</span></span>(<span>self, n_patches_per_img: int) ‑> slice</span>
-</code></dt>
-<dd>
-<div class="desc"></div>
-<details class="source">
-<summary>
-<span>Expand source code</span>
-</summary>
-<pre><code class="python">def get_patches(self, n_patches_per_img: int) -&gt; slice:
-    return slice(None, None, None)</code></pre>
-</details>
-</dd>
-<dt id="saev.data.models.Clip.get_residuals"><code class="name flex">
-<span>def <span class="ident">get_residuals</span></span>(<span>self) ‑> list[torch.nn.modules.module.Module]</span>
-</code></dt>
-<dd>
-<div class="desc"></div>
-<details class="source">
-<summary>
-<span>Expand source code</span>
-</summary>
-<pre><code class="python">def get_residuals(self) -&gt; list[torch.nn.Module]:
-    return self.model.transformer.resblocks</code></pre>
-</details>
-</dd>
-</dl>
-</dd>
-<dt id="saev.data.models.DinoV2"><code class="flex name class">
-<span>class <span class="ident">DinoV2</span></span>
-<span>(</span><span>vit_ckpt: str)</span>
-</code></dt>
-<dd>
-<div class="desc"><p>Base class for all neural network modules.</p>
-<p>Your models should also subclass this class.</p>
-<p>Modules can also contain other Modules, allowing them to be nested in
-a tree structure. You can assign the submodules as regular attributes::</p>
-<pre><code>import torch.nn as nn
-import torch.nn.functional as F
-
-
-class Model(nn.Module):
-    def __init__(self) -&gt; None:
-        super().__init__()
-        self.conv1 = nn.Conv2d(1, 20, 5)
-        self.conv2 = nn.Conv2d(20, 20, 5)
-
-    def forward(self, x):
-        x = F.relu(self.conv1(x))
-        return F.relu(self.conv2(x))
-</code></pre>
-<p>Submodules assigned in this way will be registered, and will also have their
-parameters converted when you call :meth:<code>to</code>, etc.</p>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>As per the example above, an <code>__init__()</code> call to the parent class
-must be made before assignment on the child.</p>
-</div>
-<p>:ivar training: Boolean represents whether this module is in training or
-evaluation mode.
-:vartype training: bool</p>
-<p>Initialize internal Module state, shared by both nn.Module and ScriptModule.</p></div>
-<details class="source">
-<summary>
-<span>Expand source code</span>
-</summary>
-<pre><code class="python">@jaxtyped(typechecker=beartype.beartype)
-class DinoV2(torch.nn.Module):
-    def __init__(self, vit_ckpt: str):
-        super().__init__()
-
-        self.model = torch.hub.load(&#34;facebookresearch/dinov2&#34;, vit_ckpt)
-        self.name = f&#34;dinov2/{vit_ckpt}&#34;
-
-    def get_residuals(self) -&gt; list[torch.nn.Module]:
-        return self.model.blocks
-
-    def get_patches(self, n_patches_per_img: int) -&gt; slice:
-        n_reg = self.model.num_register_tokens
-        patches = torch.cat((
-            torch.tensor([0]),  # CLS token
-            torch.arange(n_reg + 1, n_reg + 1 + n_patches_per_img),  # patches
-        ))
-        return patches
-
-    def forward(
-        self, batch: Float[Tensor, &#34;batch 3 width height&#34;], **kwargs
-    ) -&gt; Float[Tensor, &#34;batch patches dim&#34;]:
-        dct = self.model.forward_features(batch)
-
-        features = torch.cat(
-            (dct[&#34;x_norm_clstoken&#34;][:, None, :], dct[&#34;x_norm_patchtokens&#34;]), axis=1
-        )
-        return features</code></pre>
-</details>
-<h3>Ancestors</h3>
-<ul class="hlist">
-<li>torch.nn.modules.module.Module</li>
-</ul>
-<h3>Methods</h3>
-<dl>
-<dt id="saev.data.models.DinoV2.forward"><code class="name flex">
-<span>def <span class="ident">forward</span></span>(<span>self, batch: jaxtyping.Float[Tensor, 'batch 3 width height'], **kwargs) ‑> jaxtyping.Float[Tensor, 'batch patches dim']</span>
-</code></dt>
-<dd>
-<div class="desc"><p>Define the computation performed at every call.</p>
-<p>Should be overridden by all subclasses.</p>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>Although the recipe for forward pass needs to be defined within
-this function, one should call the :class:<code>Module</code> instance afterwards
-instead of this since the former takes care of running the
-registered hooks while the latter silently ignores them.</p>
-</div></div>
-<details class="source">
-<summary>
-<span>Expand source code</span>
-</summary>
-<pre><code class="python">def forward(
-    self, batch: Float[Tensor, &#34;batch 3 width height&#34;], **kwargs
-) -&gt; Float[Tensor, &#34;batch patches dim&#34;]:
-    dct = self.model.forward_features(batch)
-
-    features = torch.cat(
-        (dct[&#34;x_norm_clstoken&#34;][:, None, :], dct[&#34;x_norm_patchtokens&#34;]), axis=1
-    )
-    return features</code></pre>
-</details>
-</dd>
-<dt id="saev.data.models.DinoV2.get_patches"><code class="name flex">
-<span>def <span class="ident">get_patches</span></span>(<span>self, n_patches_per_img: int) ‑> slice</span>
-</code></dt>
-<dd>
-<div class="desc"></div>
-<details class="source">
-<summary>
-<span>Expand source code</span>
-</summary>
-<pre><code class="python">def get_patches(self, n_patches_per_img: int) -&gt; slice:
-    n_reg = self.model.num_register_tokens
-    patches = torch.cat((
-        torch.tensor([0]),  # CLS token
-        torch.arange(n_reg + 1, n_reg + 1 + n_patches_per_img),  # patches
-    ))
-    return patches</code></pre>
-</details>
-</dd>
-<dt id="saev.data.models.DinoV2.get_residuals"><code class="name flex">
-<span>def <span class="ident">get_residuals</span></span>(<span>self) ‑> list[torch.nn.modules.module.Module]</span>
-</code></dt>
-<dd>
-<div class="desc"></div>
-<details class="source">
-<summary>
-<span>Expand source code</span>
-</summary>
-<pre><code class="python">def get_residuals(self) -&gt; list[torch.nn.Module]:
-    return self.model.blocks</code></pre>
-</details>
-</dd>
-</dl>
-</dd>
-<dt id="saev.data.models.DinoV3"><code class="flex name class">
-<span>class <span class="ident">DinoV3</span></span>
-<span>(</span><span>vit_ckpt: str)</span>
-</code></dt>
-<dd>
-<div class="desc"><p>Base class for all neural network modules.</p>
-<p>Your models should also subclass this class.</p>
-<p>Modules can also contain other Modules, allowing them to be nested in
-a tree structure. You can assign the submodules as regular attributes::</p>
-<pre><code>import torch.nn as nn
-import torch.nn.functional as F
-
-
-class Model(nn.Module):
-    def __init__(self) -&gt; None:
-        super().__init__()
-        self.conv1 = nn.Conv2d(1, 20, 5)
-        self.conv2 = nn.Conv2d(20, 20, 5)
-
-    def forward(self, x):
-        x = F.relu(self.conv1(x))
-        return F.relu(self.conv2(x))
-</code></pre>
-<p>Submodules assigned in this way will be registered, and will also have their
-parameters converted when you call :meth:<code>to</code>, etc.</p>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>As per the example above, an <code>__init__()</code> call to the parent class
-must be made before assignment on the child.</p>
-</div>
-<p>:ivar training: Boolean represents whether this module is in training or
-evaluation mode.
-:vartype training: bool</p>
-<p>Initialize internal Module state, shared by both nn.Module and ScriptModule.</p></div>
-<details class="source">
-<summary>
-<span>Expand source code</span>
-</summary>
-<pre><code class="python">@jaxtyped(typechecker=beartype.beartype)
-class DinoV3(torch.nn.Module):
-    def __init__(self, vit_ckpt: str):
-        super().__init__()
-        name = self._parse_name(vit_ckpt)
-        self.name = f&#34;dinov3/{name}&#34;
-        self.model = dinov3.load(name, vit_ckpt)
-
-    def get_residuals(self) -&gt; list[torch.nn.Module]:
-        return self.model.blocks
-
-    def get_patches(self, n_patches_per_img: int) -&gt; slice:
-        n_reg = self.model.cfg.n_storage_tokens
-        patches = torch.cat((
-            torch.tensor([0]),  # CLS token
-            torch.arange(n_reg + 1, n_reg + 1 + n_patches_per_img),  # patches
-        ))
-        return patches
-
-    @staticmethod
-    def _parse_name(dinov3_ckpt: str) -&gt; str:
-        name_ds, sha = pathlib.Path(dinov3_ckpt).stem.split(&#34;-&#34;)
-        *name, pretrain, ds = name_ds.split(&#34;_&#34;)
-        assert pretrain == &#34;pretrain&#34;
-        return &#34;_&#34;.join(name)
-
-    def forward(
-        self, batch: Float[Tensor, &#34;batch n kernel&#34;], **kwargs
-    ) -&gt; Float[Tensor, &#34;batch patches dim&#34;]:
-        grid = kwargs.pop(&#34;grid&#34;)
-        if kwargs:
-            logger.info(&#34;Unused kwargs: %s&#34;, kwargs)
-        dct = self.model(batch, grid=grid)
-
-        features = torch.cat((dct[&#34;cls&#34;][:, None, :], dct[&#34;patches&#34;]), axis=1)
-        return features</code></pre>
-</details>
-<h3>Ancestors</h3>
-<ul class="hlist">
-<li>torch.nn.modules.module.Module</li>
-</ul>
-<h3>Methods</h3>
-<dl>
-<dt id="saev.data.models.DinoV3.forward"><code class="name flex">
-<span>def <span class="ident">forward</span></span>(<span>self, batch: jaxtyping.Float[Tensor, 'batch n kernel'], **kwargs) ‑> jaxtyping.Float[Tensor, 'batch patches dim']</span>
-</code></dt>
-<dd>
-<div class="desc"><p>Define the computation performed at every call.</p>
-<p>Should be overridden by all subclasses.</p>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>Although the recipe for forward pass needs to be defined within
-this function, one should call the :class:<code>Module</code> instance afterwards
-instead of this since the former takes care of running the
-registered hooks while the latter silently ignores them.</p>
-</div></div>
-<details class="source">
-<summary>
-<span>Expand source code</span>
-</summary>
-<pre><code class="python">def forward(
-    self, batch: Float[Tensor, &#34;batch n kernel&#34;], **kwargs
-) -&gt; Float[Tensor, &#34;batch patches dim&#34;]:
-    grid = kwargs.pop(&#34;grid&#34;)
-    if kwargs:
-        logger.info(&#34;Unused kwargs: %s&#34;, kwargs)
-    dct = self.model(batch, grid=grid)
-
-    features = torch.cat((dct[&#34;cls&#34;][:, None, :], dct[&#34;patches&#34;]), axis=1)
-    return features</code></pre>
-</details>
-</dd>
-<dt id="saev.data.models.DinoV3.get_patches"><code class="name flex">
-<span>def <span class="ident">get_patches</span></span>(<span>self, n_patches_per_img: int) ‑> slice</span>
-</code></dt>
-<dd>
-<div class="desc"></div>
-<details class="source">
-<summary>
-<span>Expand source code</span>
-</summary>
-<pre><code class="python">def get_patches(self, n_patches_per_img: int) -&gt; slice:
-    n_reg = self.model.cfg.n_storage_tokens
-    patches = torch.cat((
-        torch.tensor([0]),  # CLS token
-        torch.arange(n_reg + 1, n_reg + 1 + n_patches_per_img),  # patches
-    ))
-    return patches</code></pre>
-</details>
-</dd>
-<dt id="saev.data.models.DinoV3.get_residuals"><code class="name flex">
-<span>def <span class="ident">get_residuals</span></span>(<span>self) ‑> list[torch.nn.modules.module.Module]</span>
-</code></dt>
-<dd>
-<div class="desc"></div>
-<details class="source">
-<summary>
-<span>Expand source code</span>
-</summary>
-<pre><code class="python">def get_residuals(self) -&gt; list[torch.nn.Module]:
-    return self.model.blocks</code></pre>
-</details>
-</dd>
-</dl>
-</dd>
-<dt id="saev.data.models.Siglip"><code class="flex name class">
-<span>class <span class="ident">Siglip</span></span>
-<span>(</span><span>vit_ckpt: str)</span>
-</code></dt>
-<dd>
-<div class="desc"><p>Base class for all neural network modules.</p>
-<p>Your models should also subclass this class.</p>
-<p>Modules can also contain other Modules, allowing them to be nested in
-a tree structure. You can assign the submodules as regular attributes::</p>
-<pre><code>import torch.nn as nn
-import torch.nn.functional as F
-
-
-class Model(nn.Module):
-    def __init__(self) -&gt; None:
-        super().__init__()
-        self.conv1 = nn.Conv2d(1, 20, 5)
-        self.conv2 = nn.Conv2d(20, 20, 5)
-
-    def forward(self, x):
-        x = F.relu(self.conv1(x))
-        return F.relu(self.conv2(x))
-</code></pre>
-<p>Submodules assigned in this way will be registered, and will also have their
-parameters converted when you call :meth:<code>to</code>, etc.</p>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>As per the example above, an <code>__init__()</code> call to the parent class
-must be made before assignment on the child.</p>
-</div>
-<p>:ivar training: Boolean represents whether this module is in training or
-evaluation mode.
-:vartype training: bool</p>
-<p>Initialize internal Module state, shared by both nn.Module and ScriptModule.</p></div>
-<details class="source">
-<summary>
-<span>Expand source code</span>
-</summary>
-<pre><code class="python">@jaxtyped(typechecker=beartype.beartype)
-class Siglip(torch.nn.Module):
-    def __init__(self, vit_ckpt: str):
-        super().__init__()
-
-        import open_clip
-
-        if vit_ckpt.startswith(&#34;hf-hub:&#34;):
-            clip, _ = open_clip.create_model_from_pretrained(
-                vit_ckpt, cache_dir=helpers.get_cache_dir()
-            )
-        else:
-            arch, ckpt = vit_ckpt.split(&#34;/&#34;)
-            clip, _ = open_clip.create_model_from_pretrained(
-                arch, pretrained=ckpt, cache_dir=helpers.get_cache_dir()
-            )
-
-        model = clip.visual
-        model.proj = None
-        model.output_tokens = True  # type: ignore
-        self.model = model
-
-        assert isinstance(self.model, open_clip.timm_model.TimmModel)
-
-        self.name = f&#34;siglip/{vit_ckpt}&#34;
-
-    def get_residuals(self) -&gt; list[torch.nn.Module]:
-        return self.model.trunk.blocks
-
-    def get_patches(self, n_patches_per_img: int) -&gt; slice:
-        return slice(None, None, None)
-
-    def forward(
-        self, batch: Float[Tensor, &#34;batch 3 width height&#34;]
-    ) -&gt; Float[Tensor, &#34;batch patches dim&#34;]:
-        result = self.model(batch)
-        return result</code></pre>
-</details>
-<h3>Ancestors</h3>
-<ul class="hlist">
-<li>torch.nn.modules.module.Module</li>
-</ul>
-<h3>Methods</h3>
-<dl>
-<dt id="saev.data.models.Siglip.forward"><code class="name flex">
-<span>def <span class="ident">forward</span></span>(<span>self, batch: jaxtyping.Float[Tensor, 'batch 3 width height']) ‑> jaxtyping.Float[Tensor, 'batch patches dim']</span>
-</code></dt>
-<dd>
-<div class="desc"><p>Define the computation performed at every call.</p>
-<p>Should be overridden by all subclasses.</p>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>Although the recipe for forward pass needs to be defined within
-this function, one should call the :class:<code>Module</code> instance afterwards
-instead of this since the former takes care of running the
-registered hooks while the latter silently ignores them.</p>
-</div></div>
-<details class="source">
-<summary>
-<span>Expand source code</span>
-</summary>
-<pre><code class="python">def forward(
-    self, batch: Float[Tensor, &#34;batch 3 width height&#34;]
-) -&gt; Float[Tensor, &#34;batch patches dim&#34;]:
-    result = self.model(batch)
-    return result</code></pre>
-</details>
-</dd>
-<dt id="saev.data.models.Siglip.get_patches"><code class="name flex">
-<span>def <span class="ident">get_patches</span></span>(<span>self, n_patches_per_img: int) ‑> slice</span>
-</code></dt>
-<dd>
-<div class="desc"></div>
-<details class="source">
-<summary>
-<span>Expand source code</span>
-</summary>
-<pre><code class="python">def get_patches(self, n_patches_per_img: int) -&gt; slice:
-    return slice(None, None, None)</code></pre>
-</details>
-</dd>
-<dt id="saev.data.models.Siglip.get_residuals"><code class="name flex">
-<span>def <span class="ident">get_residuals</span></span>(<span>self) ‑> list[torch.nn.modules.module.Module]</span>
-</code></dt>
-<dd>
-<div class="desc"></div>
-<details class="source">
-<summary>
-<span>Expand source code</span>
-</summary>
-<pre><code class="python">def get_residuals(self) -&gt; list[torch.nn.Module]:
-    return self.model.trunk.blocks</code></pre>
-</details>
-</dd>
-</dl>
-</dd>
 <dt id="saev.data.models.VisionTransformer"><code class="flex name class">
 <span>class <span class="ident">VisionTransformer</span></span>
-<span>(</span><span>*args, **kwargs)</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Protocol defining the interface for all Vision Transformer models.</p></div>
@@ -670,33 +98,129 @@ registered hooks while the latter silently ignores them.</p>
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">@tp.runtime_checkable
-class VisionTransformer(tp.Protocol):
+<pre><code class="python">@jaxtyped(typechecker=beartype.beartype)
+class VisionTransformer(abc.ABC):
     &#34;&#34;&#34;Protocol defining the interface for all Vision Transformer models.&#34;&#34;&#34;
 
-    name: str
+    @property
+    @abc.abstractmethod
+    def family(self) -&gt; str: ...
 
+    @property
+    @abc.abstractmethod
+    def ckpt(self) -&gt; str: ...
+
+    @staticmethod
+    @abc.abstractmethod
+    def make_transforms(ckpt: str) -&gt; tuple[Callable, Callable | None]: ...
+
+    @staticmethod
+    @abc.abstractmethod
+    def make_resize(
+        ckpt: str, *, scale: float = 2.0
+    ) -&gt; Callable[[Image.Image], Image.Image]:
+        &#34;&#34;&#34;How to resize images for patch visualizations.&#34;&#34;&#34;
+
+    @abc.abstractmethod
     def get_residuals(self) -&gt; list[torch.nn.Module]:
         &#34;&#34;&#34;Return the list of residual blocks/layers for hook registration.&#34;&#34;&#34;
 
+    @abc.abstractmethod
     def get_patches(self, n_patches_per_img: int) -&gt; slice | torch.Tensor:
         &#34;&#34;&#34;Return indices for selecting relevant patches from activations.&#34;&#34;&#34;
 
+    @abc.abstractmethod
     def forward(
         self, batch: Float[Tensor, &#34;batch 3 width height&#34;]
     ) -&gt; Float[Tensor, &#34;batch patches dim&#34;]:
-        &#34;&#34;&#34;Run forward pass on batch of images.&#34;&#34;&#34;</code></pre>
+        &#34;&#34;&#34;Run forward pass on batch of images.&#34;&#34;&#34;
+
+    @property
+    def name(self) -&gt; str:
+        return f&#34;{self.family}/{self.ckpt}&#34;</code></pre>
 </details>
 <h3>Ancestors</h3>
 <ul class="hlist">
-<li>typing.Protocol</li>
-<li>typing.Generic</li>
+<li>abc.ABC</li>
 </ul>
-<h3>Class variables</h3>
+<h3>Subclasses</h3>
+<ul class="hlist">
+<li><a title="saev.data.clip.Vit" href="clip.html#saev.data.clip.Vit">Vit</a></li>
+<li><a title="saev.data.dinov2.Vit" href="dinov2.html#saev.data.dinov2.Vit">Vit</a></li>
+<li><a title="saev.data.dinov3.Vit" href="dinov3.html#saev.data.dinov3.Vit">Vit</a></li>
+<li><a title="saev.data.siglip.Vit" href="siglip.html#saev.data.siglip.Vit">Vit</a></li>
+</ul>
+<h3>Static methods</h3>
 <dl>
-<dt id="saev.data.models.VisionTransformer.name"><code class="name">var <span class="ident">name</span> : str</code></dt>
+<dt id="saev.data.models.VisionTransformer.make_resize"><code class="name flex">
+<span>def <span class="ident">make_resize</span></span>(<span>ckpt: str, *, scale: float = 2.0) ‑> Callable[[PIL.Image.Image], PIL.Image.Image]</span>
+</code></dt>
+<dd>
+<div class="desc"><p>How to resize images for patch visualizations.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@staticmethod
+@abc.abstractmethod
+def make_resize(
+    ckpt: str, *, scale: float = 2.0
+) -&gt; Callable[[Image.Image], Image.Image]:
+    &#34;&#34;&#34;How to resize images for patch visualizations.&#34;&#34;&#34;</code></pre>
+</details>
+</dd>
+<dt id="saev.data.models.VisionTransformer.make_transforms"><code class="name flex">
+<span>def <span class="ident">make_transforms</span></span>(<span>ckpt: str) ‑> tuple[<class 'collections.abc.Callable'>, collections.abc.Callable | None]</span>
+</code></dt>
 <dd>
 <div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@staticmethod
+@abc.abstractmethod
+def make_transforms(ckpt: str) -&gt; tuple[Callable, Callable | None]: ...</code></pre>
+</details>
+</dd>
+</dl>
+<h3>Instance variables</h3>
+<dl>
+<dt id="saev.data.models.VisionTransformer.ckpt"><code class="name">prop <span class="ident">ckpt</span> : str</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+@abc.abstractmethod
+def ckpt(self) -&gt; str: ...</code></pre>
+</details>
+</dd>
+<dt id="saev.data.models.VisionTransformer.family"><code class="name">prop <span class="ident">family</span> : str</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+@abc.abstractmethod
+def family(self) -&gt; str: ...</code></pre>
+</details>
+</dd>
+<dt id="saev.data.models.VisionTransformer.name"><code class="name">prop <span class="ident">name</span> : str</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def name(self) -&gt; str:
+    return f&#34;{self.family}/{self.ckpt}&#34;</code></pre>
+</details>
 </dd>
 </dl>
 <h3>Methods</h3>
@@ -710,7 +234,8 @@ class VisionTransformer(tp.Protocol):
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def forward(
+<pre><code class="python">@abc.abstractmethod
+def forward(
     self, batch: Float[Tensor, &#34;batch 3 width height&#34;]
 ) -&gt; Float[Tensor, &#34;batch patches dim&#34;]:
     &#34;&#34;&#34;Run forward pass on batch of images.&#34;&#34;&#34;</code></pre>
@@ -725,7 +250,8 @@ class VisionTransformer(tp.Protocol):
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def get_patches(self, n_patches_per_img: int) -&gt; slice | torch.Tensor:
+<pre><code class="python">@abc.abstractmethod
+def get_patches(self, n_patches_per_img: int) -&gt; slice | torch.Tensor:
     &#34;&#34;&#34;Return indices for selecting relevant patches from activations.&#34;&#34;&#34;</code></pre>
 </details>
 </dd>
@@ -738,7 +264,8 @@ class VisionTransformer(tp.Protocol):
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def get_residuals(self) -&gt; list[torch.nn.Module]:
+<pre><code class="python">@abc.abstractmethod
+def get_residuals(self) -&gt; list[torch.nn.Module]:
     &#34;&#34;&#34;Return the list of residual blocks/layers for hook registration.&#34;&#34;&#34;</code></pre>
 </details>
 </dd>
@@ -805,50 +332,23 @@ setTimeout(() => input.focus(), 100);
 </li>
 <li><h3><a href="#header-functions">Functions</a></h3>
 <ul class="">
-<li><code><a title="saev.data.models.make_transforms" href="#saev.data.models.make_transforms">make_transforms</a></code></li>
-<li><code><a title="saev.data.models.make_vit" href="#saev.data.models.make_vit">make_vit</a></code></li>
+<li><code><a title="saev.data.models.list_families" href="#saev.data.models.list_families">list_families</a></code></li>
+<li><code><a title="saev.data.models.load_vit_cls" href="#saev.data.models.load_vit_cls">load_vit_cls</a></code></li>
+<li><code><a title="saev.data.models.register_family" href="#saev.data.models.register_family">register_family</a></code></li>
 </ul>
 </li>
 <li><h3><a href="#header-classes">Classes</a></h3>
 <ul>
 <li>
-<h4><code><a title="saev.data.models.Clip" href="#saev.data.models.Clip">Clip</a></code></h4>
-<ul class="">
-<li><code><a title="saev.data.models.Clip.forward" href="#saev.data.models.Clip.forward">forward</a></code></li>
-<li><code><a title="saev.data.models.Clip.get_patches" href="#saev.data.models.Clip.get_patches">get_patches</a></code></li>
-<li><code><a title="saev.data.models.Clip.get_residuals" href="#saev.data.models.Clip.get_residuals">get_residuals</a></code></li>
-</ul>
-</li>
-<li>
-<h4><code><a title="saev.data.models.DinoV2" href="#saev.data.models.DinoV2">DinoV2</a></code></h4>
-<ul class="">
-<li><code><a title="saev.data.models.DinoV2.forward" href="#saev.data.models.DinoV2.forward">forward</a></code></li>
-<li><code><a title="saev.data.models.DinoV2.get_patches" href="#saev.data.models.DinoV2.get_patches">get_patches</a></code></li>
-<li><code><a title="saev.data.models.DinoV2.get_residuals" href="#saev.data.models.DinoV2.get_residuals">get_residuals</a></code></li>
-</ul>
-</li>
-<li>
-<h4><code><a title="saev.data.models.DinoV3" href="#saev.data.models.DinoV3">DinoV3</a></code></h4>
-<ul class="">
-<li><code><a title="saev.data.models.DinoV3.forward" href="#saev.data.models.DinoV3.forward">forward</a></code></li>
-<li><code><a title="saev.data.models.DinoV3.get_patches" href="#saev.data.models.DinoV3.get_patches">get_patches</a></code></li>
-<li><code><a title="saev.data.models.DinoV3.get_residuals" href="#saev.data.models.DinoV3.get_residuals">get_residuals</a></code></li>
-</ul>
-</li>
-<li>
-<h4><code><a title="saev.data.models.Siglip" href="#saev.data.models.Siglip">Siglip</a></code></h4>
-<ul class="">
-<li><code><a title="saev.data.models.Siglip.forward" href="#saev.data.models.Siglip.forward">forward</a></code></li>
-<li><code><a title="saev.data.models.Siglip.get_patches" href="#saev.data.models.Siglip.get_patches">get_patches</a></code></li>
-<li><code><a title="saev.data.models.Siglip.get_residuals" href="#saev.data.models.Siglip.get_residuals">get_residuals</a></code></li>
-</ul>
-</li>
-<li>
 <h4><code><a title="saev.data.models.VisionTransformer" href="#saev.data.models.VisionTransformer">VisionTransformer</a></code></h4>
-<ul class="">
+<ul class="two-column">
+<li><code><a title="saev.data.models.VisionTransformer.ckpt" href="#saev.data.models.VisionTransformer.ckpt">ckpt</a></code></li>
+<li><code><a title="saev.data.models.VisionTransformer.family" href="#saev.data.models.VisionTransformer.family">family</a></code></li>
 <li><code><a title="saev.data.models.VisionTransformer.forward" href="#saev.data.models.VisionTransformer.forward">forward</a></code></li>
 <li><code><a title="saev.data.models.VisionTransformer.get_patches" href="#saev.data.models.VisionTransformer.get_patches">get_patches</a></code></li>
 <li><code><a title="saev.data.models.VisionTransformer.get_residuals" href="#saev.data.models.VisionTransformer.get_residuals">get_residuals</a></code></li>
+<li><code><a title="saev.data.models.VisionTransformer.make_resize" href="#saev.data.models.VisionTransformer.make_resize">make_resize</a></code></li>
+<li><code><a title="saev.data.models.VisionTransformer.make_transforms" href="#saev.data.models.VisionTransformer.make_transforms">make_transforms</a></code></li>
 <li><code><a title="saev.data.models.VisionTransformer.name" href="#saev.data.models.VisionTransformer.name">name</a></code></li>
 </ul>
 </li>

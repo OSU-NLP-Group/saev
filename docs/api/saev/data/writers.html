@@ -109,7 +109,7 @@ def get_dataloader(
     Returns:
         A PyTorch Dataloader that yields dictionaries with `&#39;image&#39;` keys containing image batches, `&#39;index&#39;` keys containing original dataset indices and `&#39;label&#39;` keys containing label batches.
     &#34;&#34;&#34;
-    dataset = images.get_dataset(
+    dataset = datasets.get_dataset(
         cfg.data, img_transform=img_transform, sample_transform=sample_transform
     )
 
@@ -162,11 +162,12 @@ def worker_fn(cfg: Config):
         logger.warning(&#34;No CUDA device available, using CPU.&#34;)
         cfg = dataclasses.replace(cfg, device=&#34;cpu&#34;)
 
-    vit = models.make_vit(cfg.vit_family, cfg.vit_ckpt).to(cfg.device)
+    vit_cls = models.load_vit_cls(cfg.vit_family)
+    vit = vit_cls(cfg.vit_ckpt).to(cfg.device)
     vit = RecordedVisionTransformer(
         vit, cfg.n_patches_per_img, cfg.cls_token, cfg.vit_layers
     )
-    img_tr, sample_tr = models.make_transforms(cfg.vit_family, cfg.vit_ckpt)
+    img_tr, sample_tr = vit_cls.make_transforms(cfg.vit_ckpt)
     dataloader = get_dataloader(cfg, img_transform=img_tr, sample_transform=sample_tr)
 
     writer = ShardWriter(cfg)
@@ -185,8 +186,10 @@ def worker_fn(cfg: Config):
             grid = batch.get(&#34;grid&#34;)
             if grid is not None:
                 grid = grid.to(cfg.device)
+                out, cache = vit(imgs, grid=grid)
+            else:
+                out, cache = vit(imgs)
             # cache has shape [batch size, n layers, n patches + 1, d vit]
-            out, cache = vit(imgs, grid=grid)
             del out
 
             writer[i : i + len(cache)] = cache
@@ -202,7 +205,7 @@ def worker_fn(cfg: Config):
 <dl>
 <dt id="saev.data.writers.Config"><code class="flex name class">
 <span>class <span class="ident">Config</span></span>
-<span>(</span><span>data: <a title="saev.data.images.Imagenet" href="images.html#saev.data.images.Imagenet">Imagenet</a> | <a title="saev.data.images.ImageFolder" href="images.html#saev.data.images.ImageFolder">ImageFolder</a> | <a title="saev.data.images.SegFolder" href="images.html#saev.data.images.SegFolder">SegFolder</a> | <a title="saev.data.images.Fake" href="images.html#saev.data.images.Fake">Fake</a> = &lt;factory&gt;,<br>dump_to: str = './shards',<br>vit_family: Literal['clip', 'siglip', 'dinov2', 'dinov3'] = 'clip',<br>vit_ckpt: str = 'ViT-L-14/openai',<br>vit_batch_size: int = 1024,<br>n_workers: int = 8,<br>d_vit: int = 1024,<br>vit_layers: list[int] = &lt;factory&gt;,<br>n_patches_per_img: int = 256,<br>cls_token: bool = True,<br>max_patches_per_shard: int = 2400000,<br>ssl: bool = True,<br>device: str = 'cuda',<br>n_hours: float = 24.0,<br>slurm_acct: str = '',<br>slurm_partition: str = '',<br>log_to: str = './logs')</span>
+<span>(</span><span>data: <a title="saev.data.datasets.Imagenet" href="datasets.html#saev.data.datasets.Imagenet">Imagenet</a> | <a title="saev.data.datasets.ImageFolder" href="datasets.html#saev.data.datasets.ImageFolder">ImageFolder</a> | <a title="saev.data.datasets.SegFolder" href="datasets.html#saev.data.datasets.SegFolder">SegFolder</a> | <a title="saev.data.datasets.Fake" href="datasets.html#saev.data.datasets.Fake">Fake</a> = &lt;factory&gt;,<br>dump_to: str = './shards',<br>vit_family: Literal['clip', 'siglip', 'dinov2', 'dinov3'] = 'clip',<br>vit_ckpt: str = 'ViT-L-14/openai',<br>vit_batch_size: int = 1024,<br>n_workers: int = 8,<br>d_vit: int = 1024,<br>vit_layers: list[int] = &lt;factory&gt;,<br>n_patches_per_img: int = 256,<br>cls_token: bool = True,<br>max_patches_per_shard: int = 2400000,<br>ssl: bool = True,<br>device: str = 'cuda',<br>n_hours: float = 24.0,<br>slurm_acct: str = '',<br>slurm_partition: str = '',<br>log_to: str = './logs')</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Configuration for calculating and saving ViT activations.</p></div>
@@ -215,7 +218,7 @@ def worker_fn(cfg: Config):
 class Config:
     &#34;&#34;&#34;Configuration for calculating and saving ViT activations.&#34;&#34;&#34;
 
-    data: images.Config = dataclasses.field(default_factory=images.Imagenet)
+    data: datasets.Config = dataclasses.field(default_factory=datasets.Imagenet)
     &#34;&#34;&#34;Which dataset to use.&#34;&#34;&#34;
     dump_to: str = os.path.join(&#34;.&#34;, &#34;shards&#34;)
     &#34;&#34;&#34;Where to write shards.&#34;&#34;&#34;
@@ -263,7 +266,7 @@ class Config:
 <dd>
 <div class="desc"><p>Dimension of the ViT activations (depends on model).</p></div>
 </dd>
-<dt id="saev.data.writers.Config.data"><code class="name">var <span class="ident">data</span> : <a title="saev.data.images.Imagenet" href="images.html#saev.data.images.Imagenet">Imagenet</a> | <a title="saev.data.images.ImageFolder" href="images.html#saev.data.images.ImageFolder">ImageFolder</a> | <a title="saev.data.images.SegFolder" href="images.html#saev.data.images.SegFolder">SegFolder</a> | <a title="saev.data.images.Fake" href="images.html#saev.data.images.Fake">Fake</a></code></dt>
+<dt id="saev.data.writers.Config.data"><code class="name">var <span class="ident">data</span> : <a title="saev.data.datasets.Imagenet" href="datasets.html#saev.data.datasets.Imagenet">Imagenet</a> | <a title="saev.data.datasets.ImageFolder" href="datasets.html#saev.data.datasets.ImageFolder">ImageFolder</a> | <a title="saev.data.datasets.SegFolder" href="datasets.html#saev.data.datasets.SegFolder">SegFolder</a> | <a title="saev.data.datasets.Fake" href="datasets.html#saev.data.datasets.Fake">Fake</a></code></dt>
 <dd>
 <div class="desc"><p>Which dataset to use.</p></div>
 </dd>

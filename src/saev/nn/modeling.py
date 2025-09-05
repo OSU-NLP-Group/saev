@@ -10,7 +10,7 @@ import typing
 import beartype
 import einops
 import torch
-from jaxtyping import Float, jaxtyped
+from jaxtyping import Float, Int, jaxtyped
 from torch import Tensor
 
 from .. import __version__, helpers
@@ -111,13 +111,58 @@ class SparseAutoencoder(torch.nn.Module):
         return f_x
 
     def decode(
-        self, f_x: Float[Tensor, "batch d_sae"]
-    ) -> Float[Tensor, "batch d_model"]:
-        x_hat = (
-            einops.einsum(f_x, self.W_dec, "... d_sae, d_sae d_vit -> ... d_vit")
-            + self.b_dec
-        )
-        return x_hat
+        self,
+        f_x: Float[Tensor, "batch d_sae"],
+        *,
+        prefixes: Int[Tensor, " n_prefixes"] | None = None,
+    ) -> Float[Tensor, "batch n_prefixes d_model"]:
+        """
+        Decode latent features to reconstructions.
+
+        Args:
+            f_x: Latent features of shape (batch, d_sae)
+            prefixes: Optional tensor of prefix lengths for Matryoshka decoding.
+
+        Returns:
+            Matryoshka reconstructions (n_prefixes, batch, d_model).
+        """
+        b, d_sae = f_x.shape
+
+        # Matryoshka cumulative decode
+        device = f_x.device
+        if prefixes is None:
+            prefixes = torch.tensor([d_sae], dtype=int)
+        prefixes = prefixes.to(device)
+
+        # Build blocks from prefix cuts: [0, cut1), [cut1, cut2), ...
+        block_indices = torch.cat([torch.tensor([0], device=device), prefixes])
+        blocks = list(zip(block_indices[:-1], block_indices[1:]))
+
+        # Compute block outputs
+        block_outputs = []
+        for i, (start, end) in enumerate(blocks):
+            # Each block uses its portion of f_x and W_dec
+            block_f_x = f_x[:, start:end]
+            block_W_dec = self.W_dec[start:end, :]
+
+            # Compute block output: (batch, d_sae_block) @ (d_sae_block, d_vit) -> (batch, d_vit)
+            # Note: W_dec is (d_sae, d_vit), so block_W_dec is (block_size, d_vit)
+            block_output = einops.einsum(
+                block_f_x,
+                block_W_dec,
+                "... d_sae_block, d_sae_block d_vit -> ... d_vit",
+            )
+
+            # Add bias only to the first block
+            if i == 0:
+                block_output = block_output + self.b_dec
+
+            block_outputs.append(block_output)
+
+        # Cumulative sum to get prefix reconstructions
+        x_hats = torch.cumsum(torch.stack(block_outputs, dim=-2), dim=-2)
+
+        return x_hats
 
     @torch.no_grad()
     def normalize_w_dec(self):
@@ -147,116 +192,6 @@ class SparseAutoencoder(torch.nn.Module):
             self.W_dec.data,
             "d_sae, d_sae d_vit -> d_sae d_vit",
         )
-
-
-@jaxtyped(typechecker=beartype.beartype)
-class MatryoshkaSparseAutoencoder(SparseAutoencoder):
-    """
-    Subclass of SparseAutoencoder for use with the Matryoshka objective function.
-    Needed since the matryoshka objective requires access to the weights of the decoder in order to calculate the reconstructions from prefixes of the sparse encoding.
-
-    Still uses L1 for sparsity penalty, though when using BatchTopK as activation (recommended), this is not relevant.
-    """
-
-    def __init__(self, cfg: SparseAutoencoderConfig):
-        super().__init__(cfg)
-
-    def matryoshka_forward(
-        self, x: Float[Tensor, "batch d_model"], n_prefixes: int
-    ) -> tuple[Float[Tensor, "batch d_model"], Float[Tensor, "batch d_sae"]]:
-        """
-        Given x, calculates the reconstructed x_hat from the prefixes of encoded intermediate activations f_x.
-
-        Arguments:
-            x: a batch of ViT activations.
-        """
-
-        # Remove encoder bias as per Anthropic
-        h_pre = (
-            einops.einsum(
-                x - self.b_dec, self.W_enc, "... d_vit, d_vit d_sae -> ... d_sae"
-            )
-            + self.b_enc
-        )
-        f_x = self.activation(h_pre)
-
-        prefixes = self.sample_prefixes(len(f_x), n_prefixes).to(self.b_dec.device)
-
-        block_indices = torch.torch.cat((
-            torch.tensor([0]).to(self.b_dec.device),
-            prefixes,
-        ))
-        block_bounds = list(zip(block_indices[:-1], block_indices[1:]))
-
-        block_preds = [self.block_decode(f_x, block) for block in block_bounds]
-
-        prefix_preds = torch.cumsum(torch.stack(block_preds), dim=0)
-
-        return prefix_preds, f_x
-
-    def block_decode(
-        self, f_x: Float[Tensor, "batch d_sae"], block: tuple[int]
-    ) -> Float[Tensor, "batch d_model"]:
-        """Decodes sparse encoding using only the given interval of indices.
-
-        Arguments:
-            f_x: Sparse encoding"""
-
-        # Can't use einsum here because the block lengths can change
-        x_hat = (
-            torch.matmul(f_x[:, block[0] : block[1]], self.W_dec[block[0] : block[1]])
-            + self.b_dec
-        )
-
-        # x_hat = (
-        #    einops.einsum(f_x[block[0]:block[1]], self.W_dec[block[0]:block[1]], "... block, block d_vit -> ... d_vit")
-        #    + self.b_dec[block[0]:block[1]]
-        # )
-
-        return x_hat
-
-    @torch.no_grad()
-    def sample_prefixes(
-        self,
-        sae_dim: int,
-        n_prefixes: int,
-        min_prefix_length: int = 1,
-        pareto_power: float = 0.5,
-        replacement: bool = False,
-    ) -> torch.Tensor:
-        """
-        Samples prefix lengths using a Pareto distribution. Derived from "Learning Multi-Level Features with
-        Matryoshka Sparse Autoencoders" (https://doi.org/10.48550/arXiv.2503.17547)
-
-        Args:
-            sae_dim: Total number of latent dimensions
-            n_prefixes: Number of prefixes to sample
-            min_prefix_length: Minimum length of any prefix
-            pareto_power: Power parameter for Pareto distribution (lower = more uniform)
-
-        Returns:
-            torch.Tensor: Sorted prefix lengths
-        """
-        if n_prefixes <= 1:
-            return torch.tensor([sae_dim])
-
-        # Calculate probability distribution favoring shorter prefixes
-        lengths = torch.arange(1, sae_dim)
-        pareto_cdf = 1 - ((min_prefix_length / lengths.float()) ** pareto_power)
-        pareto_pdf = torch.cat([pareto_cdf[:1], pareto_cdf[1:] - pareto_cdf[:-1]])
-        probability_dist = pareto_pdf / pareto_pdf.sum()
-
-        # Sample and sort prefix lengths
-        prefixes = torch.multinomial(
-            probability_dist, num_samples=n_prefixes - 1, replacement=replacement
-        )
-
-        # Add n_latents as the final prefix
-        prefixes = torch.cat((prefixes.detach().clone(), torch.tensor([sae_dim])))
-
-        prefixes, _ = torch.sort(prefixes, descending=False)
-
-        return prefixes
 
 
 @jaxtyped(typechecker=beartype.beartype)

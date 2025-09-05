@@ -302,15 +302,23 @@ This is useful for iterating through all patches in an image at once.</p>
 <dd>
 <div class="desc"></div>
 </dd>
+<dt><code class="name"><a title="saev.data.clip" href="clip.html">saev.data.clip</a></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
 <dt><code class="name"><a title="saev.data.config" href="config.html">saev.data.config</a></code></dt>
 <dd>
 <div class="desc"></div>
 </dd>
-<dt><code class="name"><a title="saev.data.dinov3" href="dinov3.html">saev.data.dinov3</a></code></dt>
+<dt><code class="name"><a title="saev.data.datasets" href="datasets.html">saev.data.datasets</a></code></dt>
 <dd>
 <div class="desc"></div>
 </dd>
-<dt><code class="name"><a title="saev.data.images" href="images.html">saev.data.images</a></code></dt>
+<dt><code class="name"><a title="saev.data.dinov2" href="dinov2.html">saev.data.dinov2</a></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt><code class="name"><a title="saev.data.dinov3" href="dinov3.html">saev.data.dinov3</a></code></dt>
 <dd>
 <div class="desc"></div>
 </dd>
@@ -327,6 +335,10 @@ This is useful for iterating through all patches in an image at once.</p>
 <div class="desc"><p>Ordered (sequential) dataloader for activation data …</p></div>
 </dd>
 <dt><code class="name"><a title="saev.data.shuffled" href="shuffled.html">saev.data.shuffled</a></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt><code class="name"><a title="saev.data.siglip" href="siglip.html">saev.data.siglip</a></code></dt>
 <dd>
 <div class="desc"></div>
 </dd>
@@ -1407,7 +1419,7 @@ def d_vit(self) -&gt; int:
 </dd>
 <dt id="saev.data.Metadata"><code class="flex name class">
 <span>class <span class="ident">Metadata</span></span>
-<span>(</span><span>vit_family: Literal['clip', 'siglip', 'dinov2', '<a title="saev.data.dinov3" href="dinov3.html">saev.data.dinov3</a>'],<br>vit_ckpt: str,<br>layers: tuple[int, ...],<br>n_patches_per_img: int,<br>cls_token: bool,<br>d_vit: int,<br>n_imgs: int,<br>max_patches_per_shard: int,<br>data: dict[str, object],<br>dtype: Literal['float32'] = 'float32',<br>protocol: Literal['1.0.0'] = '1.0.0')</span>
+<span>(</span><span>vit_family: Literal['<a title="saev.data.clip" href="clip.html">saev.data.clip</a>', '<a title="saev.data.siglip" href="siglip.html">saev.data.siglip</a>', '<a title="saev.data.dinov2" href="dinov2.html">saev.data.dinov2</a>', '<a title="saev.data.dinov3" href="dinov3.html">saev.data.dinov3</a>'],<br>vit_ckpt: str,<br>layers: tuple[int, ...],<br>n_patches_per_img: int,<br>cls_token: bool,<br>d_vit: int,<br>n_imgs: int,<br>max_patches_per_shard: int,<br>data: dict[str, object],<br>dtype: Literal['float32'] = 'float32',<br>protocol: Literal['1.0.0'] = '1.0.0')</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Metadata(vit_family: Literal['clip', 'siglip', 'dinov2', 'dinov3'], vit_ckpt: str, layers: tuple[int, &hellip;], n_patches_per_img: int, cls_token: bool, d_vit: int, n_imgs: int, max_patches_per_shard: int, data: dict[str, object], dtype: Literal['float32'] = 'float32', protocol: Literal['1.0.0'] = '1.0.0')</p></div>
@@ -1659,7 +1671,7 @@ def shard_shape(self) -&gt; tuple[int, int, int, int]:
 <dd>
 <div class="desc"></div>
 </dd>
-<dt id="saev.data.Metadata.vit_family"><code class="name">var <span class="ident">vit_family</span> : Literal['clip', 'siglip', 'dinov2', '<a title="saev.data.dinov3" href="dinov3.html">saev.data.dinov3</a>']</code></dt>
+<dt id="saev.data.Metadata.vit_family"><code class="name">var <span class="ident">vit_family</span> : Literal['<a title="saev.data.clip" href="clip.html">saev.data.clip</a>', '<a title="saev.data.siglip" href="siglip.html">saev.data.siglip</a>', '<a title="saev.data.dinov2" href="dinov2.html">saev.data.dinov2</a>', '<a title="saev.data.dinov3" href="dinov3.html">saev.data.dinov3</a>']</code></dt>
 <dd>
 <div class="desc"></div>
 </dd>
@@ -1771,13 +1783,16 @@ setTimeout(() => input.focus(), 100);
 <li><h3><a href="#header-submodules">Sub-modules</a></h3>
 <ul>
 <li><code><a title="saev.data.buffers" href="buffers.html">saev.data.buffers</a></code></li>
+<li><code><a title="saev.data.clip" href="clip.html">saev.data.clip</a></code></li>
 <li><code><a title="saev.data.config" href="config.html">saev.data.config</a></code></li>
+<li><code><a title="saev.data.datasets" href="datasets.html">saev.data.datasets</a></code></li>
+<li><code><a title="saev.data.dinov2" href="dinov2.html">saev.data.dinov2</a></code></li>
 <li><code><a title="saev.data.dinov3" href="dinov3.html">saev.data.dinov3</a></code></li>
-<li><code><a title="saev.data.images" href="images.html">saev.data.images</a></code></li>
 <li><code><a title="saev.data.indexed" href="indexed.html">saev.data.indexed</a></code></li>
 <li><code><a title="saev.data.models" href="models.html">saev.data.models</a></code></li>
 <li><code><a title="saev.data.ordered" href="ordered.html">saev.data.ordered</a></code></li>
 <li><code><a title="saev.data.shuffled" href="shuffled.html">saev.data.shuffled</a></code></li>
+<li><code><a title="saev.data.siglip" href="siglip.html">saev.data.siglip</a></code></li>
 <li><code><a title="saev.data.transforms" href="transforms.html">saev.data.transforms</a></code></li>
 <li><code><a title="saev.data.writers" href="writers.html">saev.data.writers</a></code></li>
 </ul>

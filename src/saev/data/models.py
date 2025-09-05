@@ -5,6 +5,7 @@ from collections.abc import Callable
 import beartype
 import torch
 from jaxtyping import Float, jaxtyped
+from PIL import Image
 from torch import Tensor
 
 logger = logging.getLogger(__name__)
@@ -25,6 +26,13 @@ class VisionTransformer(abc.ABC):
     @staticmethod
     @abc.abstractmethod
     def make_transforms(ckpt: str) -> tuple[Callable, Callable | None]: ...
+
+    @staticmethod
+    @abc.abstractmethod
+    def make_resize(
+        ckpt: str, *, scale: float = 2.0
+    ) -> Callable[[Image.Image], Image.Image]:
+        """How to resize images for patch visualizations."""
 
     @abc.abstractmethod
     def get_residuals(self) -> list[torch.nn.Module]:

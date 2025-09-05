@@ -246,13 +246,58 @@ class SparseAutoencoder(torch.nn.Module):
         return f_x
 
     def decode(
-        self, f_x: Float[Tensor, &#34;batch d_sae&#34;]
-    ) -&gt; Float[Tensor, &#34;batch d_model&#34;]:
-        x_hat = (
-            einops.einsum(f_x, self.W_dec, &#34;... d_sae, d_sae d_vit -&gt; ... d_vit&#34;)
-            + self.b_dec
-        )
-        return x_hat
+        self,
+        f_x: Float[Tensor, &#34;batch d_sae&#34;],
+        *,
+        prefixes: Int[Tensor, &#34; n_prefixes&#34;] | None = None,
+    ) -&gt; Float[Tensor, &#34;batch n_prefixes d_model&#34;]:
+        &#34;&#34;&#34;
+        Decode latent features to reconstructions.
+
+        Args:
+            f_x: Latent features of shape (batch, d_sae)
+            prefixes: Optional tensor of prefix lengths for Matryoshka decoding.
+
+        Returns:
+            Matryoshka reconstructions (n_prefixes, batch, d_model).
+        &#34;&#34;&#34;
+        b, d_sae = f_x.shape
+
+        # Matryoshka cumulative decode
+        device = f_x.device
+        if prefixes is None:
+            prefixes = torch.tensor([d_sae], dtype=int)
+        prefixes = prefixes.to(device)
+
+        # Build blocks from prefix cuts: [0, cut1), [cut1, cut2), ...
+        block_indices = torch.cat([torch.tensor([0], device=device), prefixes])
+        blocks = list(zip(block_indices[:-1], block_indices[1:]))
+
+        # Compute block outputs
+        block_outputs = []
+        for i, (start, end) in enumerate(blocks):
+            # Each block uses its portion of f_x and W_dec
+            block_f_x = f_x[:, start:end]
+            block_W_dec = self.W_dec[start:end, :]
+
+            # Compute block output: (batch, d_sae_block) @ (d_sae_block, d_vit) -&gt; (batch, d_vit)
+            # Note: W_dec is (d_sae, d_vit), so block_W_dec is (block_size, d_vit)
+            block_output = einops.einsum(
+                block_f_x,
+                block_W_dec,
+                &#34;... d_sae_block, d_sae_block d_vit -&gt; ... d_vit&#34;,
+            )
+
+            # Add bias only to the first block
+            if i == 0:
+                block_output = block_output + self.b_dec
+
+            block_outputs.append(block_output)
+
+        # Cumulative sum to get prefix reconstructions
+        x_hats = torch.cumsum(torch.stack(block_outputs, dim=-2), dim=-2)
+
+        return x_hats
 
     @torch.no_grad()
     def normalize_w_dec(self):
@@ -287,29 +332,79 @@ class SparseAutoencoder(torch.nn.Module):
 <ul class="hlist">
 <li>torch.nn.modules.module.Module</li>
 </ul>
-<h3>Subclasses</h3>
-<ul class="hlist">
-<li><a title="saev.nn.modeling.MatryoshkaSparseAutoencoder" href="modeling.html#saev.nn.modeling.MatryoshkaSparseAutoencoder">MatryoshkaSparseAutoencoder</a></li>
-</ul>
 <h3>Methods</h3>
 <dl>
 <dt id="saev.nn.SparseAutoencoder.decode"><code class="name flex">
-<span>def <span class="ident">decode</span></span>(<span>self, f_x: jaxtyping.Float[Tensor, 'batch d_sae']) ‑> jaxtyping.Float[Tensor, 'batch d_model']</span>
+<span>def <span class="ident">decode</span></span>(<span>self,<br>f_x: jaxtyping.Float[Tensor, 'batch d_sae'],<br>*,<br>prefixes: jaxtyping.Int[Tensor, 'n_prefixes'] | None = None) ‑> jaxtyping.Float[Tensor, 'batch n_prefixes d_model']</span>
 </code></dt>
 <dd>
-<div class="desc"></div>
+<div class="desc"><p>Decode latent features to reconstructions.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>f_x</code></strong></dt>
+<dd>Latent features of shape (batch, d_sae)</dd>
+<dt><strong><code>prefixes</code></strong></dt>
+<dd>Optional tensor of prefix lengths for Matryoshka decoding.</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<p>Matryoshka reconstructions (n_prefixes, batch, d_model).</p></div>
 <details class="source">
 <summary>
 <span>Expand source code</span>
 </summary>
 <pre><code class="python">def decode(
-    self, f_x: Float[Tensor, &#34;batch d_sae&#34;]
-) -&gt; Float[Tensor, &#34;batch d_model&#34;]:
-    x_hat = (
-        einops.einsum(f_x, self.W_dec, &#34;... d_sae, d_sae d_vit -&gt; ... d_vit&#34;)
-        + self.b_dec
-    )
-    return x_hat</code></pre>
+    self,
+    f_x: Float[Tensor, &#34;batch d_sae&#34;],
+    *,
+    prefixes: Int[Tensor, &#34; n_prefixes&#34;] | None = None,
+) -&gt; Float[Tensor, &#34;batch n_prefixes d_model&#34;]:
+    &#34;&#34;&#34;
+    Decode latent features to reconstructions.
+
+    Args:
+        f_x: Latent features of shape (batch, d_sae)
+        prefixes: Optional tensor of prefix lengths for Matryoshka decoding.
+
+    Returns:
+        Matryoshka reconstructions (n_prefixes, batch, d_model).
+    &#34;&#34;&#34;
+    b, d_sae = f_x.shape
+
+    # Matryoshka cumulative decode
+    device = f_x.device
+    if prefixes is None:
+        prefixes = torch.tensor([d_sae], dtype=int)
+    prefixes = prefixes.to(device)
+
+    # Build blocks from prefix cuts: [0, cut1), [cut1, cut2), ...
+    block_indices = torch.cat([torch.tensor([0], device=device), prefixes])
+    blocks = list(zip(block_indices[:-1], block_indices[1:]))
+
+    # Compute block outputs
+    block_outputs = []
+    for i, (start, end) in enumerate(blocks):
+        # Each block uses its portion of f_x and W_dec
+        block_f_x = f_x[:, start:end]
+        block_W_dec = self.W_dec[start:end, :]
+
+        # Compute block output: (batch, d_sae_block) @ (d_sae_block, d_vit) -&gt; (batch, d_vit)
+        # Note: W_dec is (d_sae, d_vit), so block_W_dec is (block_size, d_vit)
+        block_output = einops.einsum(
+            block_f_x,
+            block_W_dec,
+            &#34;... d_sae_block, d_sae_block d_vit -&gt; ... d_vit&#34;,
+        )
+
+        # Add bias only to the first block
+        if i == 0:
+            block_output = block_output + self.b_dec
+
+        block_outputs.append(block_output)
+
+    # Cumulative sum to get prefix reconstructions
+    x_hats = torch.cumsum(torch.stack(block_outputs, dim=-2), dim=-2)
+
+    return x_hats</code></pre>
 </details>
 </dd>
 <dt id="saev.nn.SparseAutoencoder.encode"><code class="name flex">

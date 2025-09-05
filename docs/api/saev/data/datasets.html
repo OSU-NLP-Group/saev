@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1">
 <meta name="generator" content="pdoc3 0.11.6">
-<title>saev.data.images API documentation</title>
+<title>saev.data.datasets API documentation</title>
 <meta name="description" content="">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/13.0.0/sanitize.min.css" integrity="sha512-y1dtMcuvtTMJc1yPgEqF0ZjQbhnc/bFhyvIyVNb9Zk5mIGtqVaAB1Ttl28su8AvFMOY0EwRbAe+HCLqj6W7/KA==" crossorigin>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/13.0.0/typography.min.css" integrity="sha512-Y1DYSb995BAfxobCkKepB1BqJJTPrOp3zPL74AWFugHHmmdcvO+C48WLrUOlhGMc0QG7AE3f7gmvvcrmX2fDoA==" crossorigin>
@@ -24,7 +24,7 @@ hljs.highlightAll();
 <main>
 <article id="content">
 <header>
-<h1 class="title">Module <code>saev.data.images</code></h1>
+<h1 class="title">Module <code>saev.data.datasets</code></h1>
 </header>
 <section id="section-intro">
 </section>
@@ -35,8 +35,8 @@ hljs.highlightAll();
 <section>
 <h2 class="section-title" id="header-functions">Functions</h2>
 <dl>
-<dt id="saev.data.images.get_dataset"><code class="name flex">
-<span>def <span class="ident">get_dataset</span></span>(<span>cfg: <a title="saev.data.images.Imagenet" href="#saev.data.images.Imagenet">Imagenet</a> | <a title="saev.data.images.ImageFolder" href="#saev.data.images.ImageFolder">ImageFolder</a> | <a title="saev.data.images.SegFolder" href="#saev.data.images.SegFolder">SegFolder</a> | <a title="saev.data.images.Fake" href="#saev.data.images.Fake">Fake</a>,<br>*,<br>img_transform,<br>sample_transform=None)</span>
+<dt id="saev.data.datasets.get_dataset"><code class="name flex">
+<span>def <span class="ident">get_dataset</span></span>(<span>cfg: <a title="saev.data.datasets.Imagenet" href="#saev.data.datasets.Imagenet">Imagenet</a> | <a title="saev.data.datasets.ImageFolder" href="#saev.data.datasets.ImageFolder">ImageFolder</a> | <a title="saev.data.datasets.SegFolder" href="#saev.data.datasets.SegFolder">SegFolder</a> | <a title="saev.data.datasets.Fake" href="#saev.data.datasets.Fake">Fake</a>,<br>*,<br>img_transform,<br>sample_transform=None)</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Gets the dataset for the current experiment; delegates construction to dataset-specific functions.</p>
@@ -64,7 +64,6 @@ def get_dataset(cfg: Config, *, img_transform, sample_transform=None):
         cfg: Experiment config.
         img_transform: Image transform to be applied to each image.
         sample_transform: Transform to be applied to each sample dict.
-
     Returns:
         A dataset that has dictionaries with `&#39;image&#39;`, `&#39;index&#39;`, `&#39;target&#39;`, and `&#39;label&#39;` keys containing examples.
     &#34;&#34;&#34;
@@ -78,9 +77,16 @@ def get_dataset(cfg: Config, *, img_transform, sample_transform=None):
             cfg, img_transform=img_transform, sample_transform=sample_transform
         )
     elif isinstance(cfg, ImageFolder):
-        return ImageFolderDataset(
-            cfg.root, transform=img_transform, sample_transform=sample_transform
-        )
+        ds = [
+            ImageFolderDataset(
+                root, transform=img_transform, sample_transform=sample_transform
+            )
+            for root in glob.glob(cfg.root, recursive=True)
+        ]
+        if len(ds) == 1:
+            return ds[0]
+        else:
+            return torch.utils.data.ConcatDataset(ds)
     elif isinstance(cfg, Fake):
         return FakeDataset(
             cfg, img_transform=img_transform, sample_transform=sample_transform
@@ -94,7 +100,7 @@ def get_dataset(cfg: Config, *, img_transform, sample_transform=None):
 <section>
 <h2 class="section-title" id="header-classes">Classes</h2>
 <dl>
-<dt id="saev.data.images.Fake"><code class="flex name class">
+<dt id="saev.data.datasets.Fake"><code class="flex name class">
 <span>class <span class="ident">Fake</span></span>
 <span>(</span><span>n_imgs: int = 10)</span>
 </code></dt>
@@ -111,15 +117,15 @@ class Fake:
 </details>
 <h3>Instance variables</h3>
 <dl>
-<dt id="saev.data.images.Fake.n_imgs"><code class="name">var <span class="ident">n_imgs</span> : int</code></dt>
+<dt id="saev.data.datasets.Fake.n_imgs"><code class="name">var <span class="ident">n_imgs</span> : int</code></dt>
 <dd>
 <div class="desc"></div>
 </dd>
 </dl>
 </dd>
-<dt id="saev.data.images.FakeDataset"><code class="flex name class">
+<dt id="saev.data.datasets.FakeDataset"><code class="flex name class">
 <span>class <span class="ident">FakeDataset</span></span>
-<span>(</span><span>cfg: <a title="saev.data.images.Fake" href="#saev.data.images.Fake">Fake</a>,<br>*,<br>img_transform=None,<br>sample_transform=None)</span>
+<span>(</span><span>cfg: <a title="saev.data.datasets.Fake" href="#saev.data.datasets.Fake">Fake</a>,<br>*,<br>img_transform=None,<br>sample_transform=None)</span>
 </code></dt>
 <dd>
 <div class="desc"><p>An abstract class representing a :class:<code>Dataset</code>.</p>
@@ -169,7 +175,7 @@ dataset with non-integral indices/keys, a custom sampler must be provided.</p>
 <li>typing.Generic</li>
 </ul>
 </dd>
-<dt id="saev.data.images.ImageFolder"><code class="flex name class">
+<dt id="saev.data.datasets.ImageFolder"><code class="flex name class">
 <span>class <span class="ident">ImageFolder</span></span>
 <span>(</span><span>root: str = './data/split')</span>
 </code></dt>
@@ -185,7 +191,7 @@ class ImageFolder:
     &#34;&#34;&#34;Configuration for a generic image folder dataset.&#34;&#34;&#34;
 
     root: str = os.path.join(&#34;.&#34;, &#34;data&#34;, &#34;split&#34;)
-    &#34;&#34;&#34;Where the class folders with images are stored.&#34;&#34;&#34;
+    &#34;&#34;&#34;Where the class folders with images are stored. Can be a glob pattern to match multiple directories.&#34;&#34;&#34;
 
     @property
     def n_imgs(self) -&gt; int:
@@ -193,14 +199,15 @@ class ImageFolder:
         # Use the same image extensions as torchvision&#39;s ImageFolder
         img_extensions = tuple(torchvision.datasets.folder.IMG_EXTENSIONS)
         n = 0
-        for _, _, files in os.walk(self.root):
-            # Only count files with valid image extensions
-            n += sum(1 for f in files if f.lower().endswith(img_extensions))
+        for root in glob.glob(self.root, recursive=True):
+            for _, _, files in os.walk(root):
+                # Only count files with valid image extensions
+                n += sum(1 for f in files if f.lower().endswith(img_extensions))
         return n</code></pre>
 </details>
 <h3>Instance variables</h3>
 <dl>
-<dt id="saev.data.images.ImageFolder.n_imgs"><code class="name">prop <span class="ident">n_imgs</span> : int</code></dt>
+<dt id="saev.data.datasets.ImageFolder.n_imgs"><code class="name">prop <span class="ident">n_imgs</span> : int</code></dt>
 <dd>
 <div class="desc"><p>Number of images in the dataset. Calculated on the fly, but is non-trivial to calculate because it requires walking the directory structure. If you need to reference this number very often, cache it in a local variable.</p></div>
 <details class="source">
@@ -213,19 +220,20 @@ def n_imgs(self) -&gt; int:
     # Use the same image extensions as torchvision&#39;s ImageFolder
     img_extensions = tuple(torchvision.datasets.folder.IMG_EXTENSIONS)
     n = 0
-    for _, _, files in os.walk(self.root):
-        # Only count files with valid image extensions
-        n += sum(1 for f in files if f.lower().endswith(img_extensions))
+    for root in glob.glob(self.root, recursive=True):
+        for _, _, files in os.walk(root):
+            # Only count files with valid image extensions
+            n += sum(1 for f in files if f.lower().endswith(img_extensions))
     return n</code></pre>
 </details>
 </dd>
-<dt id="saev.data.images.ImageFolder.root"><code class="name">var <span class="ident">root</span> : str</code></dt>
+<dt id="saev.data.datasets.ImageFolder.root"><code class="name">var <span class="ident">root</span> : str</code></dt>
 <dd>
-<div class="desc"><p>Where the class folders with images are stored.</p></div>
+<div class="desc"><p>Where the class folders with images are stored. Can be a glob pattern to match multiple directories.</p></div>
 </dd>
 </dl>
 </dd>
-<dt id="saev.data.images.ImageFolderDataset"><code class="flex name class">
+<dt id="saev.data.datasets.ImageFolderDataset"><code class="flex name class">
 <span>class <span class="ident">ImageFolderDataset</span></span>
 <span>(</span><span>*args, sample_transform: collections.abc.Callable | None = None, **kwargs)</span>
 </code></dt>
@@ -308,7 +316,7 @@ class ImageFolderDataset(torchvision.datasets.ImageFolder):
 <li>typing.Generic</li>
 </ul>
 </dd>
-<dt id="saev.data.images.Imagenet"><code class="flex name class">
+<dt id="saev.data.datasets.Imagenet"><code class="flex name class">
 <span>class <span class="ident">Imagenet</span></span>
 <span>(</span><span>name: str = 'ILSVRC/imagenet-1k', split: str = 'train')</span>
 </code></dt>
@@ -340,7 +348,7 @@ class Imagenet:
 </details>
 <h3>Instance variables</h3>
 <dl>
-<dt id="saev.data.images.Imagenet.n_imgs"><code class="name">prop <span class="ident">n_imgs</span> : int</code></dt>
+<dt id="saev.data.datasets.Imagenet.n_imgs"><code class="name">prop <span class="ident">n_imgs</span> : int</code></dt>
 <dd>
 <div class="desc"><p>Number of images in the dataset. Calculated on the fly, but is non-trivial to calculate because it requires loading the dataset. If you need to reference this number very often, cache it in a local variable.</p></div>
 <details class="source">
@@ -358,19 +366,19 @@ def n_imgs(self) -&gt; int:
     return len(dataset)</code></pre>
 </details>
 </dd>
-<dt id="saev.data.images.Imagenet.name"><code class="name">var <span class="ident">name</span> : str</code></dt>
+<dt id="saev.data.datasets.Imagenet.name"><code class="name">var <span class="ident">name</span> : str</code></dt>
 <dd>
 <div class="desc"><p>Dataset name on HuggingFace. Don't need to change this..</p></div>
 </dd>
-<dt id="saev.data.images.Imagenet.split"><code class="name">var <span class="ident">split</span> : str</code></dt>
+<dt id="saev.data.datasets.Imagenet.split"><code class="name">var <span class="ident">split</span> : str</code></dt>
 <dd>
 <div class="desc"><p>Dataset split. For the default ImageNet-1K dataset, can either be 'train', 'validation' or 'test'.</p></div>
 </dd>
 </dl>
 </dd>
-<dt id="saev.data.images.ImagenetDataset"><code class="flex name class">
+<dt id="saev.data.datasets.ImagenetDataset"><code class="flex name class">
 <span>class <span class="ident">ImagenetDataset</span></span>
-<span>(</span><span>cfg: <a title="saev.data.images.Imagenet" href="#saev.data.images.Imagenet">Imagenet</a>,<br>*,<br>img_transform=None,<br>sample_transform: collections.abc.Callable | None = None)</span>
+<span>(</span><span>cfg: <a title="saev.data.datasets.Imagenet" href="#saev.data.datasets.Imagenet">Imagenet</a>,<br>*,<br>img_transform=None,<br>sample_transform: collections.abc.Callable | None = None)</span>
 </code></dt>
 <dd>
 <div class="desc"><p>An abstract class representing a :class:<code>Dataset</code>.</p>
@@ -437,7 +445,7 @@ class ImagenetDataset(torch.utils.data.Dataset):
 <li>typing.Generic</li>
 </ul>
 </dd>
-<dt id="saev.data.images.SegFolder"><code class="flex name class">
+<dt id="saev.data.datasets.SegFolder"><code class="flex name class">
 <span>class <span class="ident">SegFolder</span></span>
 <span>(</span><span>root: str = './data/segdataset',<br>split: Literal['training', 'validation'] = 'training',<br>img_label_fname: str = 'sceneCategories.txt')</span>
 </code></dt>
@@ -478,11 +486,11 @@ class SegFolder:
 </details>
 <h3>Instance variables</h3>
 <dl>
-<dt id="saev.data.images.SegFolder.img_label_fname"><code class="name">var <span class="ident">img_label_fname</span> : str</code></dt>
+<dt id="saev.data.datasets.SegFolder.img_label_fname"><code class="name">var <span class="ident">img_label_fname</span> : str</code></dt>
 <dd>
 <div class="desc"><p>Image labels filename.</p></div>
 </dd>
-<dt id="saev.data.images.SegFolder.n_imgs"><code class="name">prop <span class="ident">n_imgs</span> : int</code></dt>
+<dt id="saev.data.datasets.SegFolder.n_imgs"><code class="name">prop <span class="ident">n_imgs</span> : int</code></dt>
 <dd>
 <div class="desc"><p>Number of images in the dataset. Calculated on the fly by counting image files in root/images/split.</p></div>
 <details class="source">
@@ -507,19 +515,19 @@ def n_imgs(self) -&gt; int:
     return n</code></pre>
 </details>
 </dd>
-<dt id="saev.data.images.SegFolder.root"><code class="name">var <span class="ident">root</span> : str</code></dt>
+<dt id="saev.data.datasets.SegFolder.root"><code class="name">var <span class="ident">root</span> : str</code></dt>
 <dd>
 <div class="desc"><p>Where the class folders with images are stored.</p></div>
 </dd>
-<dt id="saev.data.images.SegFolder.split"><code class="name">var <span class="ident">split</span> : Literal['training', 'validation']</code></dt>
+<dt id="saev.data.datasets.SegFolder.split"><code class="name">var <span class="ident">split</span> : Literal['training', 'validation']</code></dt>
 <dd>
 <div class="desc"><p>Data split.</p></div>
 </dd>
 </dl>
 </dd>
-<dt id="saev.data.images.SegFolderDataset"><code class="flex name class">
+<dt id="saev.data.datasets.SegFolderDataset"><code class="flex name class">
 <span>class <span class="ident">SegFolderDataset</span></span>
-<span>(</span><span>cfg: <a title="saev.data.images.SegFolder" href="#saev.data.images.SegFolder">SegFolder</a>,<br>*,<br>img_transform: collections.abc.Callable | None = None,<br>seg_transform: collections.abc.Callable | None = &lt;function SegFolderDataset.&lt;lambda&gt;&gt;,<br>sample_transform: collections.abc.Callable | None = None)</span>
+<span>(</span><span>cfg: <a title="saev.data.datasets.SegFolder" href="#saev.data.datasets.SegFolder">SegFolder</a>,<br>*,<br>img_transform: collections.abc.Callable | None = None,<br>seg_transform: collections.abc.Callable | None = &lt;function SegFolderDataset.&lt;lambda&gt;&gt;,<br>sample_transform: collections.abc.Callable | None = None)</span>
 </code></dt>
 <dd>
 <div class="desc"><p>An abstract class representing a :class:<code>Dataset</code>.</p>
@@ -664,11 +672,11 @@ class SegFolderDataset(torch.utils.data.Dataset):
 </ul>
 <h3>Class variables</h3>
 <dl>
-<dt id="saev.data.images.SegFolderDataset.Sample"><code class="name">var <span class="ident">Sample</span></code></dt>
+<dt id="saev.data.datasets.SegFolderDataset.Sample"><code class="name">var <span class="ident">Sample</span></code></dt>
 <dd>
 <div class="desc"></div>
 </dd>
-<dt id="saev.data.images.SegFolderDataset.samples"><code class="name">var <span class="ident">samples</span> : list[<a title="saev.data.images.SegFolderDataset.Sample" href="#saev.data.images.SegFolderDataset.Sample">SegFolderDataset.Sample</a>]</code></dt>
+<dt id="saev.data.datasets.SegFolderDataset.samples"><code class="name">var <span class="ident">samples</span> : list[<a title="saev.data.datasets.SegFolderDataset.Sample" href="#saev.data.datasets.SegFolderDataset.Sample">SegFolderDataset.Sample</a>]</code></dt>
 <dd>
 <div class="desc"></div>
 </dd>
@@ -735,55 +743,55 @@ setTimeout(() => input.focus(), 100);
 </li>
 <li><h3><a href="#header-functions">Functions</a></h3>
 <ul class="">
-<li><code><a title="saev.data.images.get_dataset" href="#saev.data.images.get_dataset">get_dataset</a></code></li>
+<li><code><a title="saev.data.datasets.get_dataset" href="#saev.data.datasets.get_dataset">get_dataset</a></code></li>
 </ul>
 </li>
 <li><h3><a href="#header-classes">Classes</a></h3>
 <ul>
 <li>
-<h4><code><a title="saev.data.images.Fake" href="#saev.data.images.Fake">Fake</a></code></h4>
+<h4><code><a title="saev.data.datasets.Fake" href="#saev.data.datasets.Fake">Fake</a></code></h4>
 <ul class="">
-<li><code><a title="saev.data.images.Fake.n_imgs" href="#saev.data.images.Fake.n_imgs">n_imgs</a></code></li>
+<li><code><a title="saev.data.datasets.Fake.n_imgs" href="#saev.data.datasets.Fake.n_imgs">n_imgs</a></code></li>
 </ul>
 </li>
 <li>
-<h4><code><a title="saev.data.images.FakeDataset" href="#saev.data.images.FakeDataset">FakeDataset</a></code></h4>
+<h4><code><a title="saev.data.datasets.FakeDataset" href="#saev.data.datasets.FakeDataset">FakeDataset</a></code></h4>
 </li>
 <li>
-<h4><code><a title="saev.data.images.ImageFolder" href="#saev.data.images.ImageFolder">ImageFolder</a></code></h4>
+<h4><code><a title="saev.data.datasets.ImageFolder" href="#saev.data.datasets.ImageFolder">ImageFolder</a></code></h4>
 <ul class="">
-<li><code><a title="saev.data.images.ImageFolder.n_imgs" href="#saev.data.images.ImageFolder.n_imgs">n_imgs</a></code></li>
-<li><code><a title="saev.data.images.ImageFolder.root" href="#saev.data.images.ImageFolder.root">root</a></code></li>
+<li><code><a title="saev.data.datasets.ImageFolder.n_imgs" href="#saev.data.datasets.ImageFolder.n_imgs">n_imgs</a></code></li>
+<li><code><a title="saev.data.datasets.ImageFolder.root" href="#saev.data.datasets.ImageFolder.root">root</a></code></li>
 </ul>
 </li>
 <li>
-<h4><code><a title="saev.data.images.ImageFolderDataset" href="#saev.data.images.ImageFolderDataset">ImageFolderDataset</a></code></h4>
+<h4><code><a title="saev.data.datasets.ImageFolderDataset" href="#saev.data.datasets.ImageFolderDataset">ImageFolderDataset</a></code></h4>
 </li>
 <li>
-<h4><code><a title="saev.data.images.Imagenet" href="#saev.data.images.Imagenet">Imagenet</a></code></h4>
+<h4><code><a title="saev.data.datasets.Imagenet" href="#saev.data.datasets.Imagenet">Imagenet</a></code></h4>
 <ul class="">
-<li><code><a title="saev.data.images.Imagenet.n_imgs" href="#saev.data.images.Imagenet.n_imgs">n_imgs</a></code></li>
-<li><code><a title="saev.data.images.Imagenet.name" href="#saev.data.images.Imagenet.name">name</a></code></li>
-<li><code><a title="saev.data.images.Imagenet.split" href="#saev.data.images.Imagenet.split">split</a></code></li>
+<li><code><a title="saev.data.datasets.Imagenet.n_imgs" href="#saev.data.datasets.Imagenet.n_imgs">n_imgs</a></code></li>
+<li><code><a title="saev.data.datasets.Imagenet.name" href="#saev.data.datasets.Imagenet.name">name</a></code></li>
+<li><code><a title="saev.data.datasets.Imagenet.split" href="#saev.data.datasets.Imagenet.split">split</a></code></li>
 </ul>
 </li>
 <li>
-<h4><code><a title="saev.data.images.ImagenetDataset" href="#saev.data.images.ImagenetDataset">ImagenetDataset</a></code></h4>
+<h4><code><a title="saev.data.datasets.ImagenetDataset" href="#saev.data.datasets.ImagenetDataset">ImagenetDataset</a></code></h4>
 </li>
 <li>
-<h4><code><a title="saev.data.images.SegFolder" href="#saev.data.images.SegFolder">SegFolder</a></code></h4>
+<h4><code><a title="saev.data.datasets.SegFolder" href="#saev.data.datasets.SegFolder">SegFolder</a></code></h4>
 <ul class="">
-<li><code><a title="saev.data.images.SegFolder.img_label_fname" href="#saev.data.images.SegFolder.img_label_fname">img_label_fname</a></code></li>
-<li><code><a title="saev.data.images.SegFolder.n_imgs" href="#saev.data.images.SegFolder.n_imgs">n_imgs</a></code></li>
-<li><code><a title="saev.data.images.SegFolder.root" href="#saev.data.images.SegFolder.root">root</a></code></li>
-<li><code><a title="saev.data.images.SegFolder.split" href="#saev.data.images.SegFolder.split">split</a></code></li>
+<li><code><a title="saev.data.datasets.SegFolder.img_label_fname" href="#saev.data.datasets.SegFolder.img_label_fname">img_label_fname</a></code></li>
+<li><code><a title="saev.data.datasets.SegFolder.n_imgs" href="#saev.data.datasets.SegFolder.n_imgs">n_imgs</a></code></li>
+<li><code><a title="saev.data.datasets.SegFolder.root" href="#saev.data.datasets.SegFolder.root">root</a></code></li>
+<li><code><a title="saev.data.datasets.SegFolder.split" href="#saev.data.datasets.SegFolder.split">split</a></code></li>
 </ul>
 </li>
 <li>
-<h4><code><a title="saev.data.images.SegFolderDataset" href="#saev.data.images.SegFolderDataset">SegFolderDataset</a></code></h4>
+<h4><code><a title="saev.data.datasets.SegFolderDataset" href="#saev.data.datasets.SegFolderDataset">SegFolderDataset</a></code></h4>
 <ul class="">
-<li><code><a title="saev.data.images.SegFolderDataset.Sample" href="#saev.data.images.SegFolderDataset.Sample">Sample</a></code></li>
-<li><code><a title="saev.data.images.SegFolderDataset.samples" href="#saev.data.images.SegFolderDataset.samples">samples</a></code></li>
+<li><code><a title="saev.data.datasets.SegFolderDataset.Sample" href="#saev.data.datasets.SegFolderDataset.Sample">Sample</a></code></li>
+<li><code><a title="saev.data.datasets.SegFolderDataset.samples" href="#saev.data.datasets.SegFolderDataset.samples">samples</a></code></li>
 </ul>
 </li>
 </ul>

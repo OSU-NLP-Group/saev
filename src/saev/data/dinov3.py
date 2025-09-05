@@ -11,6 +11,7 @@ import torch
 import torch.nn.functional as F
 import torch.nn.init
 from jaxtyping import Float, Int, jaxtyped
+from PIL import Image
 from torch import Tensor, nn
 from torchvision.transforms import v2
 
@@ -659,3 +660,13 @@ class Vit(torch.nn.Module, models.VisionTransformer):
         ])
         sample_transform = transforms.Patchify(patch_size=16, n_patches=640)
         return img_transform, sample_transform
+
+    @staticmethod
+    def make_resize(
+        ckpt: str, *, scale: float = 2.0
+    ) -> Callable[[Image.Image], Image.Image]:
+        import functools
+
+        return functools.partial(
+            transforms.resize_to_patch_grid, p=int(16 * scale), n=640
+        )

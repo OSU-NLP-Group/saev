@@ -3,6 +3,7 @@ from collections.abc import Callable
 import beartype
 import torch
 from jaxtyping import Float, jaxtyped
+from PIL import Image
 from torch import Tensor
 from torchvision.transforms import v2
 
@@ -49,3 +50,23 @@ class Vit(torch.nn.Module, models.VisionTransformer):
             (dct["x_norm_clstoken"][:, None, :], dct["x_norm_patchtokens"]), axis=1
         )
         return features
+
+    @staticmethod
+    def make_resize(
+        ckpt: str, *, scale: float = 2.0
+    ) -> Callable[[Image.Image], Image.Image]:
+        def resize(img: Image.Image) -> Image.Image:
+            resize_size_px = (int(256 * scale), int(256 * scale))
+            crop_size_px = (int(224 * scale), int(224 * scale))
+
+            resize_w_px, resize_h_px = resize_size_px
+            crop_w_px, crop_h_px = crop_size_px
+            crop_coords_px = (
+                (resize_w_px - crop_w_px) // 2,
+                (resize_h_px - crop_h_px) // 2,
+                (resize_w_px + crop_w_px) // 2,
+                (resize_h_px + crop_h_px) // 2,
+            )
+            return img.resize(resize_size_px).crop(crop_coords_px)
+
+        return resize

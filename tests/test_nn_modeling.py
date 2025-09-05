@@ -2,11 +2,9 @@ import itertools
 import typing as tp
 
 import hypothesis.strategies as st
-import numpy as np
 import pytest
 import torch
 from hypothesis import given, settings
-from scipy.stats import kstest, pareto
 
 from saev.nn import modeling
 
@@ -546,7 +544,7 @@ def test_sae_shapes(cfg, batch):
     sae = modeling.SparseAutoencoder(cfg)
     x = torch.randn(batch, cfg.d_vit)
     x_hat, f = sae(x)
-    assert x_hat.shape == (batch, cfg.d_vit)
+    assert x_hat.shape == (batch, 1, cfg.d_vit)
     assert f.shape == (batch, cfg.d_sae)
 
 
@@ -573,7 +571,7 @@ def test_load_existing_checkpoint(repo_id, tmp_path):
     # Smoke-test shapes & numerics
     x = torch.randn(2, model.cfg.d_vit)
     x_hat, f_x = model(x)
-    assert x_hat.shape == x.shape
+    assert x_hat.shape == x[:, None, :].shape
     assert f_x.shape[1] == model.cfg.d_sae
     # reconstruction shouldn’t be exactly identical, but should have finite values
     assert torch.isfinite(x_hat).all()
@@ -656,37 +654,6 @@ def test_dump_load_roundtrip_hypothesis(sae_cfg):
         # tensors identical
         for k, v in sae.state_dict().items():
             torch.testing.assert_close(v, sae_loaded.state_dict()[k])
-
-
-@given(cfg=sae_cfgs(), n=st.integers(20, 100), pareto_power=st.floats(0.1, 0.8))
-@settings(deadline=None)
-def test_sample_prefix(cfg, n, pareto_power):
-    """Check to make sure that the prefix sampling follows a pareto dist."""
-    sae = modeling.MatryoshkaSparseAutoencoder(cfg)
-    assert isinstance(sae, modeling.MatryoshkaSparseAutoencoder)
-
-    prefixes = sae.sample_prefixes(
-        sae.cfg.d_sae, n, pareto_power=pareto_power, replacement=True
-    )
-
-    # Test against pareto distribution with the same params
-    # cdf is scaled according to the max value of the cdf (at d_sae)
-    # we also need to discretize the distribution since we are sampling integers.
-    # Testing this using the equation is a bit tricky, so we sample integers instead.
-    def pareto_cdf(x):
-        return pareto.cdf(x, b=pareto_power) / pareto.cdf(sae.cfg.d_sae, b=pareto_power)
-
-    pareto_pdf = np.diff(
-        np.concatenate(([0], [pareto_cdf(i) for i in range(1, sae.cfg.d_sae + 1)]))
-    )
-
-    pareto_prefixes = np.random.choice(
-        np.arange(1, sae.cfg.d_sae), size=n, replace=True, p=pareto_pdf[1:]
-    )
-
-    statistic, p_value = kstest(prefixes, pareto_prefixes)
-
-    assert p_value > 0.01
 
 
 def test_load_local_checkpoint(request):

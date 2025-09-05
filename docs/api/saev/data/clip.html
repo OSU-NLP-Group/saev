@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1">
 <meta name="generator" content="pdoc3 0.11.6">
-<title>saev.imaging API documentation</title>
+<title>saev.data.clip API documentation</title>
 <meta name="description" content="">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/13.0.0/sanitize.min.css" integrity="sha512-y1dtMcuvtTMJc1yPgEqF0ZjQbhnc/bFhyvIyVNb9Zk5mIGtqVaAB1Ttl28su8AvFMOY0EwRbAe+HCLqj6W7/KA==" crossorigin>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/13.0.0/typography.min.css" integrity="sha512-Y1DYSb995BAfxobCkKepB1BqJJTPrOp3zPL74AWFugHHmmdcvO+C48WLrUOlhGMc0QG7AE3f7gmvvcrmX2fDoA==" crossorigin>
@@ -24,7 +24,7 @@ hljs.highlightAll();
 <main>
 <article id="content">
 <header>
-<h1 class="title">Module <code>saev.imaging</code></h1>
+<h1 class="title">Module <code>saev.data.clip</code></h1>
 </header>
 <section id="section-intro">
 </section>
@@ -33,10 +33,90 @@ hljs.highlightAll();
 <section>
 </section>
 <section>
-<h2 class="section-title" id="header-functions">Functions</h2>
+</section>
+<section>
+<h2 class="section-title" id="header-classes">Classes</h2>
 <dl>
-<dt id="saev.imaging.add_highlights"><code class="name flex">
-<span>def <span class="ident">add_highlights</span></span>(<span>img: PIL.Image.Image,<br>patches: jaxtyping.Float[ndarray, 'n_patches'],<br>*,<br>upper: float | None = None,<br>opacity: float = 0.9) ‑> PIL.Image.Image</span>
+<dt id="saev.data.clip.Vit"><code class="flex name class">
+<span>class <span class="ident">Vit</span></span>
+<span>(</span><span>ckpt: str)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Protocol defining the interface for all Vision Transformer models.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@jaxtyped(typechecker=beartype.beartype)
+class Vit(models.VisionTransformer, torch.nn.Module):
+    family: str = &#34;clip&#34;
+
+    @staticmethod
+    def make_transforms(ckpt: str) -&gt; tuple[Callable, Callable | None]:
+        if ckpt.startswith(&#34;hf-hub:&#34;):
+            _, img_transform = open_clip.create_model_from_pretrained(
+                ckpt, cache_dir=helpers.get_cache_dir()
+            )
+        else:
+            arch, ckpt = ckpt.split(&#34;/&#34;)
+            _, img_transform = open_clip.create_model_from_pretrained(
+                arch, pretrained=ckpt, cache_dir=helpers.get_cache_dir()
+            )
+        return img_transform, None
+
+    def __init__(self, ckpt: str):
+        super().__init__()
+
+        if ckpt.startswith(&#34;hf-hub:&#34;):
+            clip, _ = open_clip.create_model_from_pretrained(
+                ckpt, cache_dir=helpers.get_cache_dir()
+            )
+            _, ckpt = ckpt.split(&#34;hf-hub:&#34;)
+        else:
+            arch, ckpt = ckpt.split(&#34;/&#34;)
+            clip, _ = open_clip.create_model_from_pretrained(
+                arch, pretrained=ckpt, cache_dir=helpers.get_cache_dir()
+            )
+        self._ckpt = ckpt
+        model = clip.visual
+        model.proj = None
+        model.output_tokens = True  # type: ignore
+        self.model = model.eval()
+
+        assert not isinstance(self.model, open_clip.timm_model.TimmModel)
+
+    @property
+    def ckpt(self) -&gt; str:
+        return self._ckpt
+
+    def get_residuals(self) -&gt; list[torch.nn.Module]:
+        return self.model.transformer.resblocks
+
+    def get_patches(self, n_patches_per_img: int) -&gt; slice:
+        return slice(None, None, None)
+
+    def forward(
+        self, batch: Float[Tensor, &#34;batch 3 width height&#34;]
+    ) -&gt; Float[Tensor, &#34;batch patches dim&#34;]:
+        return self.model(batch)</code></pre>
+</details>
+<h3>Ancestors</h3>
+<ul class="hlist">
+<li><a title="saev.data.models.VisionTransformer" href="models.html#saev.data.models.VisionTransformer">VisionTransformer</a></li>
+<li>abc.ABC</li>
+<li>torch.nn.modules.module.Module</li>
+</ul>
+<h3>Class variables</h3>
+<dl>
+<dt id="saev.data.clip.Vit.family"><code class="name">var <span class="ident">family</span> : str</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+</dl>
+<h3>Static methods</h3>
+<dl>
+<dt id="saev.data.clip.Vit.make_transforms"><code class="name flex">
+<span>def <span class="ident">make_transforms</span></span>(<span>ckpt: str) ‑> tuple[<class 'collections.abc.Callable'>, collections.abc.Callable | None]</span>
 </code></dt>
 <dd>
 <div class="desc"></div>
@@ -44,47 +124,49 @@ hljs.highlightAll();
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">@jaxtyped(typechecker=beartype.beartype)
-def add_highlights(
-    img: Image.Image,
-    patches: Float[np.ndarray, &#34; n_patches&#34;],
-    *,
-    upper: float | None = None,
-    opacity: float = 0.9,
-) -&gt; Image.Image:
-    if not len(patches):
-        return img
-
-    iw_np, ih_np = int(math.sqrt(len(patches))), int(math.sqrt(len(patches)))
-    iw_px, ih_px = img.size
-    pw_px, ph_px = iw_px // iw_np, ih_px // ih_np
-    assert iw_np * ih_np == len(patches)
-
-    # Create a transparent overlay
-    overlay = Image.new(&#34;RGBA&#34;, img.size, (0, 0, 0, 0))
-    draw = ImageDraw.Draw(overlay)
-
-    colors = (colormap(patches / (upper + 1e-9))[:, :3] * 256).astype(np.uint8)
-
-    for p, (val, color) in enumerate(zip(patches, colors)):
-        assert upper is not None
-        val /= upper + 1e-9
-        x_np, y_np = p % iw_np, p // ih_np
-        draw.rectangle(
-            [
-                (x_np * pw_px, y_np * ph_px),
-                (x_np * pw_px + pw_px, y_np * ph_px + ph_px),
-            ],
-            fill=(*color, int(opacity * val * 256)),
+<pre><code class="python">@staticmethod
+def make_transforms(ckpt: str) -&gt; tuple[Callable, Callable | None]:
+    if ckpt.startswith(&#34;hf-hub:&#34;):
+        _, img_transform = open_clip.create_model_from_pretrained(
+            ckpt, cache_dir=helpers.get_cache_dir()
         )
-
-    # Composite the original image and the overlay
-    return Image.alpha_composite(img.convert(&#34;RGBA&#34;), overlay)</code></pre>
+    else:
+        arch, ckpt = ckpt.split(&#34;/&#34;)
+        _, img_transform = open_clip.create_model_from_pretrained(
+            arch, pretrained=ckpt, cache_dir=helpers.get_cache_dir()
+        )
+    return img_transform, None</code></pre>
 </details>
 </dd>
 </dl>
-</section>
-<section>
+<h3>Instance variables</h3>
+<dl>
+<dt id="saev.data.clip.Vit.ckpt"><code class="name">prop <span class="ident">ckpt</span> : str</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def ckpt(self) -&gt; str:
+    return self._ckpt</code></pre>
+</details>
+</dd>
+</dl>
+<h3>Inherited members</h3>
+<ul class="hlist">
+<li><code><b><a title="saev.data.models.VisionTransformer" href="models.html#saev.data.models.VisionTransformer">VisionTransformer</a></b></code>:
+<ul class="hlist">
+<li><code><a title="saev.data.models.VisionTransformer.forward" href="models.html#saev.data.models.VisionTransformer.forward">forward</a></code></li>
+<li><code><a title="saev.data.models.VisionTransformer.get_patches" href="models.html#saev.data.models.VisionTransformer.get_patches">get_patches</a></code></li>
+<li><code><a title="saev.data.models.VisionTransformer.get_residuals" href="models.html#saev.data.models.VisionTransformer.get_residuals">get_residuals</a></code></li>
+<li><code><a title="saev.data.models.VisionTransformer.make_resize" href="models.html#saev.data.models.VisionTransformer.make_resize">make_resize</a></code></li>
+</ul>
+</li>
+</ul>
+</dd>
+</dl>
 </section>
 </article>
 <nav id="sidebar">
@@ -122,7 +204,7 @@ const query = new URL(window.location).searchParams.get('q');
 if (query)
 search(query);
 function search(query) {
-const url = '../doc-search.html#' + encodeURIComponent(query);
+const url = '../../doc-search.html#' + encodeURIComponent(query);
 new tingle.modal({
 cssClass: ['modal-dialog'],
 onClose: () => {
@@ -140,12 +222,19 @@ setTimeout(() => input.focus(), 100);
 <ul id="index">
 <li><h3>Super-module</h3>
 <ul>
-<li><code><a title="saev" href="index.html">saev</a></code></li>
+<li><code><a title="saev.data" href="index.html">saev.data</a></code></li>
 </ul>
 </li>
-<li><h3><a href="#header-functions">Functions</a></h3>
+<li><h3><a href="#header-classes">Classes</a></h3>
+<ul>
+<li>
+<h4><code><a title="saev.data.clip.Vit" href="#saev.data.clip.Vit">Vit</a></code></h4>
 <ul class="">
-<li><code><a title="saev.imaging.add_highlights" href="#saev.imaging.add_highlights">add_highlights</a></code></li>
+<li><code><a title="saev.data.clip.Vit.ckpt" href="#saev.data.clip.Vit.ckpt">ckpt</a></code></li>
+<li><code><a title="saev.data.clip.Vit.family" href="#saev.data.clip.Vit.family">family</a></code></li>
+<li><code><a title="saev.data.clip.Vit.make_transforms" href="#saev.data.clip.Vit.make_transforms">make_transforms</a></code></li>
+</ul>
+</li>
 </ul>
 </li>
 </ul>

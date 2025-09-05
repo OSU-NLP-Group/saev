@@ -155,21 +155,7 @@ class GridElement:
 
 @beartype.beartype
 def make_img(elem: GridElement, *, upper: float | None = None) -> Image.Image:
-    breakpoint()
-    # Resize to 256x256 and crop to 224x224
-    resize_size_px = (512, 512)
-    resize_w_px, resize_h_px = resize_size_px
-    crop_size_px = (448, 448)
-    crop_w_px, crop_h_px = crop_size_px
-    crop_coords_px = (
-        (resize_w_px - crop_w_px) // 2,
-        (resize_h_px - crop_h_px) // 2,
-        (resize_w_px + crop_w_px) // 2,
-        (resize_h_px + crop_h_px) // 2,
-    )
-
-    img = elem.img.resize(resize_size_px).crop(crop_coords_px)
-    img = viz.add_highlights(img, elem.patches.numpy(), upper=upper)
+    img = viz.add_highlights(elem.img, elem.patches.numpy(), patch_size=32, upper=upper)
     return img
 
 
@@ -476,7 +462,10 @@ def dump_imgs(cfg: Config):
         "Saved %d activation distributions to '%s'.", cfg.n_distributions, fig_fpath
     )
 
-    dataset = saev.data.datasets.get_dataset(cfg.images, img_transform=None)
+    metadata = saev.data.Metadata.load(cfg.data.shard_root)
+    vit_cls = saev.data.models.load_vit_cls(metadata.vit_family)
+    img_transform = vit_cls.make_resize(metadata.vit_ckpt)
+    dataset = saev.data.datasets.get_dataset(cfg.images, img_transform=img_transform)
 
     min_log_freq, max_log_freq = cfg.log_freq_range
     min_log_value, max_log_value = cfg.log_value_range

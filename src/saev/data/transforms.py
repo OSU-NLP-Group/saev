@@ -26,7 +26,7 @@ class FlexResize(v2.Transform):
 
     def transform(self, inpt: tp.Any, params: dict[str, tp.Any]):
         if isinstance(inpt, Image.Image):
-            return _resize_to_patch_grid(
+            return resize_to_patch_grid(
                 inpt, p=self.patch_size, n=self.n_patches, resample=self.resample
             )
         else:
@@ -34,7 +34,7 @@ class FlexResize(v2.Transform):
 
 
 @beartype.beartype
-def _resize_to_patch_grid(
+def resize_to_patch_grid(
     img: Image.Image,
     *,
     p: int,
