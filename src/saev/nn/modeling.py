@@ -1,6 +1,4 @@
-"""
-Neural network architectures for sparse autoencoders.
-"""
+"""Neural network architectures for sparse autoencoders."""
 
 import dataclasses
 import io
@@ -155,8 +153,7 @@ class SparseAutoencoder(torch.nn.Module):
 class MatryoshkaSparseAutoencoder(SparseAutoencoder):
     """
     Subclass of SparseAutoencoder for use with the Matryoshka objective function.
-    Needed since the matryoshka objective requires access to the weights of the decoder in order to calculate the
-    reconstructions from prefixes of the sparse encoding.
+    Needed since the matryoshka objective requires access to the weights of the decoder in order to calculate the reconstructions from prefixes of the sparse encoding.
 
     Still uses L1 for sparsity penalty, though when using BatchTopK as activation (recommended), this is not relevant.
     """

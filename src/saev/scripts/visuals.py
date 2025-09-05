@@ -293,7 +293,7 @@ def get_topk_patch(cfg: Config) -> TopKPatch:
 
     logger.info("Loaded SAE and data.")
 
-    for batch in helpers.progress(dataloader, desc="picking top-k", every=1):
+    for batch in helpers.progress(dataloader, desc="picking top-k"):
         vit_acts_BD = batch["act"]
         sae_acts_BS = get_sae_acts(vit_acts_BD, sae, cfg)
 

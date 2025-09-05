@@ -150,11 +150,9 @@ class MatryoshkaObjective(Objective):
         self,
         x: Float[Tensor, "batch d_model"],
         f_x: Float[Tensor, "batch n_prefixes d_sae"],
-        prefix_preds: Float[Tensor, "batch n_prefixes d_model"],
-    ) -> "MatryoshkaLoss.Loss":
-        # Some values of x and x_hat can be very large. We can calculate a safe MSE
-        # mse_losses = torch.flatten([mean_squared_err(p, x) for p in prefix_preds])
-        mse_losses = torch.stack([mean_squared_err(p, x) for p in prefix_preds], dim=0)
+        x_hat: Float[Tensor, "batch n_prefixes d_model"],
+    ) -> MatryoshkaLoss:
+        mse_losses = torch.stack([mean_squared_err(x_h, x) for x_h in x_hat], dim=0)
         mse_loss = mse_losses.sum(dim=-1).mean()
         l0 = (f_x > 0).float().sum(axis=1).mean(axis=0)
         l1 = f_x.sum(axis=1).mean(axis=0)
