@@ -14,4 +14,4 @@ exp_factor = [16]
 sparsity_coeff = [4e-4, 8e-4, 1.6e-3]
 
 [data]
-layer = [13, 17, 21, 23]
+layer = [13, 15, 17, 19, 21, 23]

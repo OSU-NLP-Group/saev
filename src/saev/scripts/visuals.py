@@ -4,7 +4,6 @@ There is some important notation used only in this file to dramatically shorten 
 Variables suffixed with `_im` refer to entire images, and variables suffixed with `_p` refer to patches.
 """
 
-import collections.abc
 import dataclasses
 import json
 import logging
@@ -21,8 +20,8 @@ from PIL import Image
 from torch import Tensor
 
 import saev.data
-import saev.data.images
-from saev import helpers, imaging, nn
+import saev.data.datasets
+from saev import helpers, nn, viz
 
 log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
 logging.basicConfig(level=logging.INFO, format=log_format)
@@ -41,8 +40,8 @@ class Config:
         default_factory=saev.data.OrderedConfig
     )
     """Data configuration"""
-    images: saev.data.images.Config = dataclasses.field(
-        default_factory=saev.data.images.Imagenet
+    images: saev.data.datasets.Config = dataclasses.field(
+        default_factory=saev.data.datasets.Imagenet
     )
     """Which images to use."""
     dump_to: str = os.path.join(".", "data")
@@ -69,7 +68,6 @@ class Config:
     """Maximum number of latents to save images for."""
     sae_batch_size: int = 1024 * 16
     """Batch size for SAE inference."""
-    topk_batch_size: int = 1024 * 16
 
     # Hardware
     device: str = "cuda"
@@ -157,6 +155,7 @@ class GridElement:
 
 @beartype.beartype
 def make_img(elem: GridElement, *, upper: float | None = None) -> Image.Image:
+    breakpoint()
     # Resize to 256x256 and crop to 224x224
     resize_size_px = (512, 512)
     resize_w_px, resize_h_px = resize_size_px
@@ -170,7 +169,7 @@ def make_img(elem: GridElement, *, upper: float | None = None) -> Image.Image:
     )
 
     img = elem.img.resize(resize_size_px).crop(crop_coords_px)
-    img = imaging.add_highlights(img, elem.patches.numpy(), upper=upper)
+    img = viz.add_highlights(img, elem.patches.numpy(), upper=upper)
     return img
 
 
@@ -203,25 +202,6 @@ def get_new_topk(
     return new_values, new_indices
 
 
-@beartype.beartype
-def batched_idx(
-    total_size: int, batch_size: int
-) -> collections.abc.Iterator[tuple[int, int]]:
-    """
-    Iterate over (start, end) indices for total_size examples, where end - start is at most batch_size.
-
-    Args:
-        total_size: total number of examples
-        batch_size: maximum distance between the generated indices.
-
-    Returns:
-        A generator of (int, int) tuples that can slice up a list or a tensor.
-    """
-    for start in range(0, total_size, batch_size):
-        stop = min(start + batch_size, total_size)
-        yield start, stop
-
-
 @jaxtyped(typechecker=beartype.beartype)
 def get_sae_acts(
     vit_acts: Float[Tensor, "n d_vit"], sae: nn.SparseAutoencoder, cfg: Config
@@ -235,7 +215,7 @@ def get_sae_acts(
         cfg: Experimental config.
     """
     sae_acts = []
-    for start, end in batched_idx(len(vit_acts), cfg.sae_batch_size):
+    for start, end in helpers.batched_idx(len(vit_acts), cfg.sae_batch_size):
         _, f_x, *_ = sae(vit_acts[start:end].to(cfg.device))
         sae_acts.append(f_x)
 
@@ -247,14 +227,20 @@ def get_sae_acts(
 @jaxtyped(typechecker=beartype.beartype)
 @dataclasses.dataclass(frozen=True)
 class TopKPatch:
-    ".. todo:: Document this class."
+    """Summary of which images and patches most activate each SAE latent."""
 
     top_values: Float[Tensor, "d_sae k n_patches_per_img"]
+    """For each latent and its top k images, the per-patch activation values over that image's patches. Used for heatmaps/highlighting of contributing regions."""
     top_i: Int[Tensor, "d_sae k"]
+    """Global image indices for those top-`k` images per latent (aligned with the dataset's `image_i` indexing)."""
     mean_values: Float[Tensor, " d_sae"]
+    """Mean positive activation per latent, computed as the sum of activations divided by the count of positives (`> 0`). With nonnegative activations (e.g., ReLU/TopK), this is the average active value."""
     sparsity: Float[Tensor, " d_sae"]
+    """Fraction of samples where each latent is active (`> 0`), i.e., empirical activation rate."""
     distributions: Float[Tensor, "m n"]
+    """For the first `m = cfg.n_distributions` latents, the raw activation values across all `n` samples. Useful for plotting activation histograms."""
     percentiles: Float[Tensor, " d_sae"]
+    """Online estimate of the `cfg.percentile` activation threshold per latent over the dataset (used for outlier detection/thresholding)."""
 
 
 @beartype.beartype
@@ -291,7 +277,7 @@ def get_topk_patch(cfg: Config) -> TopKPatch:
     mean_values_S = torch.zeros((sae.cfg.d_sae,), device=cfg.device)
 
     batch_size = (
-        cfg.topk_batch_size // metadata.n_patches_per_img * metadata.n_patches_per_img
+        cfg.data.batch_size // metadata.n_patches_per_img * metadata.n_patches_per_img
     )
     n_imgs_per_batch = batch_size // metadata.n_patches_per_img
     dataloader = saev.data.OrderedDataLoader(
@@ -307,7 +293,7 @@ def get_topk_patch(cfg: Config) -> TopKPatch:
 
     logger.info("Loaded SAE and data.")
 
-    for batch in helpers.progress(dataloader, desc="picking top-k", every=50):
+    for batch in helpers.progress(dataloader, desc="picking top-k", every=1):
         vit_acts_BD = batch["act"]
         sae_acts_BS = get_sae_acts(vit_acts_BD, sae, cfg)
 
@@ -490,7 +476,7 @@ def dump_imgs(cfg: Config):
         "Saved %d activation distributions to '%s'.", cfg.n_distributions, fig_fpath
     )
 
-    dataset = saev.data.images.get_dataset(cfg.images, img_transform=None)
+    dataset = saev.data.datasets.get_dataset(cfg.images, img_transform=None)
 
     min_log_freq, max_log_freq = cfg.log_freq_range
     min_log_value, max_log_value = cfg.log_value_range

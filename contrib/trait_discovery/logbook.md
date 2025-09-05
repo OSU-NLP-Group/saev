@@ -781,7 +781,7 @@ uv run supervised_fishvista.py --sweep sweeps/fishvista-supervised.toml
 
 1. [done] Evaluate DINOv3-trained SAEs on FishVista.
 2. Try training Matryoshka SAEs on DINOv3+iNat21 if it doesn't work.
-3. Vanilla SAEs on FishVista
+3. [in progress] Vanilla SAEs on FishVista
 4. Subset of ToL-200M for fish - talk to Matt + Net.
 
 Later:
@@ -847,7 +847,7 @@ We could do this for beetles too and go beyond just species label--connect to th
 
 I need to train some STUPID SAES ON MY DATA.
 Let's make it as easy as possible.
-First, train an SAE on FishVista training data.
-Use all the images, not just the segmented ones.
+
+First, train an SAE on FishVista training data. Use all the images, not just the segmented ones. [in progress]
 
 
