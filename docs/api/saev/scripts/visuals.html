@@ -37,43 +37,6 @@ hljs.highlightAll();
 <section>
 <h2 class="section-title" id="header-functions">Functions</h2>
 <dl>
-<dt id="saev.scripts.visuals.batched_idx"><code class="name flex">
-<span>def <span class="ident">batched_idx</span></span>(<span>total_size: int, batch_size: int) ‑> Iterator[tuple[int, int]]</span>
-</code></dt>
-<dd>
-<div class="desc"><p>Iterate over (start, end) indices for total_size examples, where end - start is at most batch_size.</p>
-<h2 id="args">Args</h2>
-<dl>
-<dt><strong><code>total_size</code></strong></dt>
-<dd>total number of examples</dd>
-<dt><strong><code>batch_size</code></strong></dt>
-<dd>maximum distance between the generated indices.</dd>
-</dl>
-<h2 id="returns">Returns</h2>
-<p>A generator of (int, int) tuples that can slice up a list or a tensor.</p></div>
-<details class="source">
-<summary>
-<span>Expand source code</span>
-</summary>
-<pre><code class="python">@beartype.beartype
-def batched_idx(
-    total_size: int, batch_size: int
-) -&gt; collections.abc.Iterator[tuple[int, int]]:
-    &#34;&#34;&#34;
-    Iterate over (start, end) indices for total_size examples, where end - start is at most batch_size.
-
-    Args:
-        total_size: total number of examples
-        batch_size: maximum distance between the generated indices.
-
-    Returns:
-        A generator of (int, int) tuples that can slice up a list or a tensor.
-    &#34;&#34;&#34;
-    for start in range(0, total_size, batch_size):
-        stop = min(start + batch_size, total_size)
-        yield start, stop</code></pre>
-</details>
-</dd>
 <dt id="saev.scripts.visuals.dump_activations"><code class="name flex">
 <span>def <span class="ident">dump_activations</span></span>(<span>cfg: <a title="saev.scripts.visuals.Config" href="#saev.scripts.visuals.Config">Config</a>)</span>
 </code></dt>
@@ -187,7 +150,10 @@ def dump_imgs(cfg: Config):
         &#34;Saved %d activation distributions to &#39;%s&#39;.&#34;, cfg.n_distributions, fig_fpath
     )
 
-    dataset = saev.data.images.get_dataset(cfg.images, img_transform=None)
+    metadata = saev.data.Metadata.load(cfg.data.shard_root)
+    vit_cls = saev.data.models.load_vit_cls(metadata.vit_family)
+    img_transform = vit_cls.make_resize(metadata.vit_ckpt)
+    dataset = saev.data.datasets.get_dataset(cfg.images, img_transform=img_transform)
 
     min_log_freq, max_log_freq = cfg.log_freq_range
     min_log_value, max_log_value = cfg.log_value_range
@@ -352,7 +318,7 @@ def get_sae_acts(
         cfg: Experimental config.
     &#34;&#34;&#34;
     sae_acts = []
-    for start, end in batched_idx(len(vit_acts), cfg.sae_batch_size):
+    for start, end in helpers.batched_idx(len(vit_acts), cfg.sae_batch_size):
         _, f_x, *_ = sae(vit_acts[start:end].to(cfg.device))
         sae_acts.append(f_x)
 
@@ -415,7 +381,7 @@ def get_topk_patch(cfg: Config) -&gt; TopKPatch:
     mean_values_S = torch.zeros((sae.cfg.d_sae,), device=cfg.device)
 
     batch_size = (
-        cfg.topk_batch_size // metadata.n_patches_per_img * metadata.n_patches_per_img
+        cfg.data.batch_size // metadata.n_patches_per_img * metadata.n_patches_per_img
     )
     n_imgs_per_batch = batch_size // metadata.n_patches_per_img
     dataloader = saev.data.OrderedDataLoader(
@@ -431,7 +397,7 @@ def get_topk_patch(cfg: Config) -&gt; TopKPatch:
 
     logger.info(&#34;Loaded SAE and data.&#34;)
 
-    for batch in helpers.progress(dataloader, desc=&#34;picking top-k&#34;, every=50):
+    for batch in helpers.progress(dataloader, desc=&#34;picking top-k&#34;):
         vit_acts_BD = batch[&#34;act&#34;]
         sae_acts_BS = get_sae_acts(vit_acts_BD, sae, cfg)
 
@@ -496,20 +462,7 @@ def get_topk_patch(cfg: Config) -&gt; TopKPatch:
 </summary>
 <pre><code class="python">@beartype.beartype
 def make_img(elem: GridElement, *, upper: float | None = None) -&gt; Image.Image:
-    # Resize to 256x256 and crop to 224x224
-    resize_size_px = (512, 512)
-    resize_w_px, resize_h_px = resize_size_px
-    crop_size_px = (448, 448)
-    crop_w_px, crop_h_px = crop_size_px
-    crop_coords_px = (
-        (resize_w_px - crop_w_px) // 2,
-        (resize_h_px - crop_h_px) // 2,
-        (resize_w_px + crop_w_px) // 2,
-        (resize_h_px + crop_h_px) // 2,
-    )
-
-    img = elem.img.resize(resize_size_px).crop(crop_coords_px)
-    img = imaging.add_highlights(img, elem.patches.numpy(), upper=upper)
+    img = viz.add_highlights(elem.img, elem.patches.numpy(), patch_size=32, upper=upper)
     return img</code></pre>
 </details>
 </dd>
@@ -595,7 +548,7 @@ def safe_load(path: str) -&gt; object:
 <dl>
 <dt id="saev.scripts.visuals.Config"><code class="flex name class">
 <span>class <span class="ident">Config</span></span>
-<span>(</span><span>ckpt: str = './checkpoints/sae.pt',<br>data: <a title="saev.data.ordered.Config" href="../data/ordered.html#saev.data.ordered.Config">Config</a> = &lt;factory&gt;,<br>images: <a title="saev.data.images.Imagenet" href="../data/images.html#saev.data.images.Imagenet">Imagenet</a> | <a title="saev.data.images.ImageFolder" href="../data/images.html#saev.data.images.ImageFolder">ImageFolder</a> | <a title="saev.data.images.SegFolder" href="../data/images.html#saev.data.images.SegFolder">SegFolder</a> | <a title="saev.data.images.Fake" href="../data/images.html#saev.data.images.Fake">Fake</a> = &lt;factory&gt;,<br>dump_to: str = './data',<br>top_k: int = 128,<br>epsilon: float = 1e-09,<br>sort_by: Literal['cls', 'img', 'patch'] = 'patch',<br>log_freq_range: tuple[float, float] = (-6.0, -2.0),<br>log_value_range: tuple[float, float] = (-1.0, 1.0),<br>include_latents: list[int] = &lt;factory&gt;,<br>n_distributions: int = 25,<br>percentile: int = 99,<br>n_latents: int = 400,<br>sae_batch_size: int = 16384,<br>topk_batch_size: int = 16384,<br>device: str = 'cuda',<br>seed: int = 42,<br>slurm_acct: str = '',<br>slurm_partition: str = '',<br>n_hours: float = 4.0,<br>log_to: str = './logs')</span>
+<span>(</span><span>ckpt: str = './checkpoints/sae.pt',<br>data: <a title="saev.data.ordered.Config" href="../data/ordered.html#saev.data.ordered.Config">Config</a> = &lt;factory&gt;,<br>images: <a title="saev.data.datasets.Imagenet" href="../data/datasets.html#saev.data.datasets.Imagenet">Imagenet</a> | <a title="saev.data.datasets.ImageFolder" href="../data/datasets.html#saev.data.datasets.ImageFolder">ImageFolder</a> | <a title="saev.data.datasets.SegFolder" href="../data/datasets.html#saev.data.datasets.SegFolder">SegFolder</a> | <a title="saev.data.datasets.Fake" href="../data/datasets.html#saev.data.datasets.Fake">Fake</a> = &lt;factory&gt;,<br>dump_to: str = './data',<br>top_k: int = 128,<br>epsilon: float = 1e-09,<br>sort_by: Literal['cls', 'img', 'patch'] = 'patch',<br>log_freq_range: tuple[float, float] = (-6.0, -2.0),<br>log_value_range: tuple[float, float] = (-1.0, 1.0),<br>include_latents: list[int] = &lt;factory&gt;,<br>n_distributions: int = 25,<br>percentile: int = 99,<br>n_latents: int = 400,<br>sae_batch_size: int = 16384,<br>device: str = 'cuda',<br>seed: int = 42,<br>slurm_acct: str = '',<br>slurm_partition: str = '',<br>n_hours: float = 4.0,<br>log_to: str = './logs')</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Configuration for generating visuals from trained SAEs.</p></div>
@@ -615,8 +568,8 @@ class Config:
         default_factory=saev.data.OrderedConfig
     )
     &#34;&#34;&#34;Data configuration&#34;&#34;&#34;
-    images: saev.data.images.Config = dataclasses.field(
-        default_factory=saev.data.images.Imagenet
+    images: saev.data.datasets.Config = dataclasses.field(
+        default_factory=saev.data.datasets.Imagenet
     )
     &#34;&#34;&#34;Which images to use.&#34;&#34;&#34;
     dump_to: str = os.path.join(&#34;.&#34;, &#34;data&#34;)
@@ -643,7 +596,6 @@ class Config:
     &#34;&#34;&#34;Maximum number of latents to save images for.&#34;&#34;&#34;
     sae_batch_size: int = 1024 * 16
     &#34;&#34;&#34;Batch size for SAE inference.&#34;&#34;&#34;
-    topk_batch_size: int = 1024 * 16
 
     # Hardware
     device: str = &#34;cuda&#34;
@@ -712,8 +664,8 @@ class Config:
         default_factory=saev.data.OrderedConfig
     )
     &#34;&#34;&#34;Data configuration&#34;&#34;&#34;
-    images: saev.data.images.Config = dataclasses.field(
-        default_factory=saev.data.images.Imagenet
+    images: saev.data.datasets.Config = dataclasses.field(
+        default_factory=saev.data.datasets.Imagenet
     )
     &#34;&#34;&#34;Which images to use.&#34;&#34;&#34;
     dump_to: str = os.path.join(&#34;.&#34;, &#34;data&#34;)
@@ -740,7 +692,6 @@ class Config:
     &#34;&#34;&#34;Maximum number of latents to save images for.&#34;&#34;&#34;
     sae_batch_size: int = 1024 * 16
     &#34;&#34;&#34;Batch size for SAE inference.&#34;&#34;&#34;
-    topk_batch_size: int = 1024 * 16
 
     # Hardware
     device: str = &#34;cuda&#34;
@@ -808,8 +759,8 @@ class Config:
         default_factory=saev.data.OrderedConfig
     )
     &#34;&#34;&#34;Data configuration&#34;&#34;&#34;
-    images: saev.data.images.Config = dataclasses.field(
-        default_factory=saev.data.images.Imagenet
+    images: saev.data.datasets.Config = dataclasses.field(
+        default_factory=saev.data.datasets.Imagenet
     )
     &#34;&#34;&#34;Which images to use.&#34;&#34;&#34;
     dump_to: str = os.path.join(&#34;.&#34;, &#34;data&#34;)
@@ -836,7 +787,6 @@ class Config:
     &#34;&#34;&#34;Maximum number of latents to save images for.&#34;&#34;&#34;
     sae_batch_size: int = 1024 * 16
     &#34;&#34;&#34;Batch size for SAE inference.&#34;&#34;&#34;
-    topk_batch_size: int = 1024 * 16
 
     # Hardware
     device: str = &#34;cuda&#34;
@@ -904,8 +854,8 @@ class Config:
         default_factory=saev.data.OrderedConfig
     )
     &#34;&#34;&#34;Data configuration&#34;&#34;&#34;
-    images: saev.data.images.Config = dataclasses.field(
-        default_factory=saev.data.images.Imagenet
+    images: saev.data.datasets.Config = dataclasses.field(
+        default_factory=saev.data.datasets.Imagenet
     )
     &#34;&#34;&#34;Which images to use.&#34;&#34;&#34;
     dump_to: str = os.path.join(&#34;.&#34;, &#34;data&#34;)
@@ -932,7 +882,6 @@ class Config:
     &#34;&#34;&#34;Maximum number of latents to save images for.&#34;&#34;&#34;
     sae_batch_size: int = 1024 * 16
     &#34;&#34;&#34;Batch size for SAE inference.&#34;&#34;&#34;
-    topk_batch_size: int = 1024 * 16
 
     # Hardware
     device: str = &#34;cuda&#34;
@@ -1012,8 +961,8 @@ class Config:
         default_factory=saev.data.OrderedConfig
     )
     &#34;&#34;&#34;Data configuration&#34;&#34;&#34;
-    images: saev.data.images.Config = dataclasses.field(
-        default_factory=saev.data.images.Imagenet
+    images: saev.data.datasets.Config = dataclasses.field(
+        default_factory=saev.data.datasets.Imagenet
     )
     &#34;&#34;&#34;Which images to use.&#34;&#34;&#34;
     dump_to: str = os.path.join(&#34;.&#34;, &#34;data&#34;)
@@ -1040,7 +989,6 @@ class Config:
     &#34;&#34;&#34;Maximum number of latents to save images for.&#34;&#34;&#34;
     sae_batch_size: int = 1024 * 16
     &#34;&#34;&#34;Batch size for SAE inference.&#34;&#34;&#34;
-    topk_batch_size: int = 1024 * 16
 
     # Hardware
     device: str = &#34;cuda&#34;
@@ -1108,8 +1056,8 @@ class Config:
         default_factory=saev.data.OrderedConfig
     )
     &#34;&#34;&#34;Data configuration&#34;&#34;&#34;
-    images: saev.data.images.Config = dataclasses.field(
-        default_factory=saev.data.images.Imagenet
+    images: saev.data.datasets.Config = dataclasses.field(
+        default_factory=saev.data.datasets.Imagenet
     )
     &#34;&#34;&#34;Which images to use.&#34;&#34;&#34;
     dump_to: str = os.path.join(&#34;.&#34;, &#34;data&#34;)
@@ -1136,7 +1084,6 @@ class Config:
     &#34;&#34;&#34;Maximum number of latents to save images for.&#34;&#34;&#34;
     sae_batch_size: int = 1024 * 16
     &#34;&#34;&#34;Batch size for SAE inference.&#34;&#34;&#34;
-    topk_batch_size: int = 1024 * 16
 
     # Hardware
     device: str = &#34;cuda&#34;
@@ -1185,7 +1132,7 @@ class Config:
         return os.path.join(self.root, f&#34;percentiles_p{self.percentile}.pt&#34;)</code></pre>
 </details>
 </dd>
-<dt id="saev.scripts.visuals.Config.images"><code class="name">var <span class="ident">images</span> : <a title="saev.data.images.Imagenet" href="../data/images.html#saev.data.images.Imagenet">Imagenet</a> | <a title="saev.data.images.ImageFolder" href="../data/images.html#saev.data.images.ImageFolder">ImageFolder</a> | <a title="saev.data.images.SegFolder" href="../data/images.html#saev.data.images.SegFolder">SegFolder</a> | <a title="saev.data.images.Fake" href="../data/images.html#saev.data.images.Fake">Fake</a></code></dt>
+<dt id="saev.scripts.visuals.Config.images"><code class="name">var <span class="ident">images</span> : <a title="saev.data.datasets.Imagenet" href="../data/datasets.html#saev.data.datasets.Imagenet">Imagenet</a> | <a title="saev.data.datasets.ImageFolder" href="../data/datasets.html#saev.data.datasets.ImageFolder">ImageFolder</a> | <a title="saev.data.datasets.SegFolder" href="../data/datasets.html#saev.data.datasets.SegFolder">SegFolder</a> | <a title="saev.data.datasets.Fake" href="../data/datasets.html#saev.data.datasets.Fake">Fake</a></code></dt>
 <dd>
 <div class="desc"><p>Which images to use.</p></div>
 <details class="source">
@@ -1204,8 +1151,8 @@ class Config:
         default_factory=saev.data.OrderedConfig
     )
     &#34;&#34;&#34;Data configuration&#34;&#34;&#34;
-    images: saev.data.images.Config = dataclasses.field(
-        default_factory=saev.data.images.Imagenet
+    images: saev.data.datasets.Config = dataclasses.field(
+        default_factory=saev.data.datasets.Imagenet
     )
     &#34;&#34;&#34;Which images to use.&#34;&#34;&#34;
     dump_to: str = os.path.join(&#34;.&#34;, &#34;data&#34;)
@@ -1232,7 +1179,6 @@ class Config:
     &#34;&#34;&#34;Maximum number of latents to save images for.&#34;&#34;&#34;
     sae_batch_size: int = 1024 * 16
     &#34;&#34;&#34;Batch size for SAE inference.&#34;&#34;&#34;
-    topk_batch_size: int = 1024 * 16
 
     # Hardware
     device: str = &#34;cuda&#34;
@@ -1300,8 +1246,8 @@ class Config:
         default_factory=saev.data.OrderedConfig
     )
     &#34;&#34;&#34;Data configuration&#34;&#34;&#34;
-    images: saev.data.images.Config = dataclasses.field(
-        default_factory=saev.data.images.Imagenet
+    images: saev.data.datasets.Config = dataclasses.field(
+        default_factory=saev.data.datasets.Imagenet
     )
     &#34;&#34;&#34;Which images to use.&#34;&#34;&#34;
     dump_to: str = os.path.join(&#34;.&#34;, &#34;data&#34;)
@@ -1328,7 +1274,6 @@ class Config:
     &#34;&#34;&#34;Maximum number of latents to save images for.&#34;&#34;&#34;
     sae_batch_size: int = 1024 * 16
     &#34;&#34;&#34;Batch size for SAE inference.&#34;&#34;&#34;
-    topk_batch_size: int = 1024 * 16
 
     # Hardware
     device: str = &#34;cuda&#34;
@@ -1396,8 +1341,8 @@ class Config:
         default_factory=saev.data.OrderedConfig
     )
     &#34;&#34;&#34;Data configuration&#34;&#34;&#34;
-    images: saev.data.images.Config = dataclasses.field(
-        default_factory=saev.data.images.Imagenet
+    images: saev.data.datasets.Config = dataclasses.field(
+        default_factory=saev.data.datasets.Imagenet
     )
     &#34;&#34;&#34;Which images to use.&#34;&#34;&#34;
     dump_to: str = os.path.join(&#34;.&#34;, &#34;data&#34;)
@@ -1424,7 +1369,6 @@ class Config:
     &#34;&#34;&#34;Maximum number of latents to save images for.&#34;&#34;&#34;
     sae_batch_size: int = 1024 * 16
     &#34;&#34;&#34;Batch size for SAE inference.&#34;&#34;&#34;
-    topk_batch_size: int = 1024 * 16
 
     # Hardware
     device: str = &#34;cuda&#34;
@@ -1492,8 +1436,8 @@ class Config:
         default_factory=saev.data.OrderedConfig
     )
     &#34;&#34;&#34;Data configuration&#34;&#34;&#34;
-    images: saev.data.images.Config = dataclasses.field(
-        default_factory=saev.data.images.Imagenet
+    images: saev.data.datasets.Config = dataclasses.field(
+        default_factory=saev.data.datasets.Imagenet
     )
     &#34;&#34;&#34;Which images to use.&#34;&#34;&#34;
     dump_to: str = os.path.join(&#34;.&#34;, &#34;data&#34;)
@@ -1520,7 +1464,6 @@ class Config:
     &#34;&#34;&#34;Maximum number of latents to save images for.&#34;&#34;&#34;
     sae_batch_size: int = 1024 * 16
     &#34;&#34;&#34;Batch size for SAE inference.&#34;&#34;&#34;
-    topk_batch_size: int = 1024 * 16
 
     # Hardware
     device: str = &#34;cuda&#34;
@@ -1588,8 +1531,8 @@ class Config:
         default_factory=saev.data.OrderedConfig
     )
     &#34;&#34;&#34;Data configuration&#34;&#34;&#34;
-    images: saev.data.images.Config = dataclasses.field(
-        default_factory=saev.data.images.Imagenet
+    images: saev.data.datasets.Config = dataclasses.field(
+        default_factory=saev.data.datasets.Imagenet
     )
     &#34;&#34;&#34;Which images to use.&#34;&#34;&#34;
     dump_to: str = os.path.join(&#34;.&#34;, &#34;data&#34;)
@@ -1616,7 +1559,6 @@ class Config:
     &#34;&#34;&#34;Maximum number of latents to save images for.&#34;&#34;&#34;
     sae_batch_size: int = 1024 * 16
     &#34;&#34;&#34;Batch size for SAE inference.&#34;&#34;&#34;
-    topk_batch_size: int = 1024 * 16
 
     # Hardware
     device: str = &#34;cuda&#34;
@@ -1696,8 +1638,8 @@ class Config:
         default_factory=saev.data.OrderedConfig
     )
     &#34;&#34;&#34;Data configuration&#34;&#34;&#34;
-    images: saev.data.images.Config = dataclasses.field(
-        default_factory=saev.data.images.Imagenet
+    images: saev.data.datasets.Config = dataclasses.field(
+        default_factory=saev.data.datasets.Imagenet
     )
     &#34;&#34;&#34;Which images to use.&#34;&#34;&#34;
     dump_to: str = os.path.join(&#34;.&#34;, &#34;data&#34;)
@@ -1724,7 +1666,6 @@ class Config:
     &#34;&#34;&#34;Maximum number of latents to save images for.&#34;&#34;&#34;
     sae_batch_size: int = 1024 * 16
     &#34;&#34;&#34;Batch size for SAE inference.&#34;&#34;&#34;
-    topk_batch_size: int = 1024 * 16
 
     # Hardware
     device: str = &#34;cuda&#34;
@@ -1792,8 +1733,8 @@ class Config:
         default_factory=saev.data.OrderedConfig
     )
     &#34;&#34;&#34;Data configuration&#34;&#34;&#34;
-    images: saev.data.images.Config = dataclasses.field(
-        default_factory=saev.data.images.Imagenet
+    images: saev.data.datasets.Config = dataclasses.field(
+        default_factory=saev.data.datasets.Imagenet
     )
     &#34;&#34;&#34;Which images to use.&#34;&#34;&#34;
     dump_to: str = os.path.join(&#34;.&#34;, &#34;data&#34;)
@@ -1820,7 +1761,6 @@ class Config:
     &#34;&#34;&#34;Maximum number of latents to save images for.&#34;&#34;&#34;
     sae_batch_size: int = 1024 * 16
     &#34;&#34;&#34;Batch size for SAE inference.&#34;&#34;&#34;
-    topk_batch_size: int = 1024 * 16
 
     # Hardware
     device: str = &#34;cuda&#34;
@@ -1888,8 +1828,8 @@ class Config:
         default_factory=saev.data.OrderedConfig
     )
     &#34;&#34;&#34;Data configuration&#34;&#34;&#34;
-    images: saev.data.images.Config = dataclasses.field(
-        default_factory=saev.data.images.Imagenet
+    images: saev.data.datasets.Config = dataclasses.field(
+        default_factory=saev.data.datasets.Imagenet
     )
     &#34;&#34;&#34;Which images to use.&#34;&#34;&#34;
     dump_to: str = os.path.join(&#34;.&#34;, &#34;data&#34;)
@@ -1916,7 +1856,6 @@ class Config:
     &#34;&#34;&#34;Maximum number of latents to save images for.&#34;&#34;&#34;
     sae_batch_size: int = 1024 * 16
     &#34;&#34;&#34;Batch size for SAE inference.&#34;&#34;&#34;
-    topk_batch_size: int = 1024 * 16
 
     # Hardware
     device: str = &#34;cuda&#34;
@@ -1984,8 +1923,8 @@ class Config:
         default_factory=saev.data.OrderedConfig
     )
     &#34;&#34;&#34;Data configuration&#34;&#34;&#34;
-    images: saev.data.images.Config = dataclasses.field(
-        default_factory=saev.data.images.Imagenet
+    images: saev.data.datasets.Config = dataclasses.field(
+        default_factory=saev.data.datasets.Imagenet
     )
     &#34;&#34;&#34;Which images to use.&#34;&#34;&#34;
     dump_to: str = os.path.join(&#34;.&#34;, &#34;data&#34;)
@@ -2012,7 +1951,6 @@ class Config:
     &#34;&#34;&#34;Maximum number of latents to save images for.&#34;&#34;&#34;
     sae_batch_size: int = 1024 * 16
     &#34;&#34;&#34;Batch size for SAE inference.&#34;&#34;&#34;
-    topk_batch_size: int = 1024 * 16
 
     # Hardware
     device: str = &#34;cuda&#34;
@@ -2104,8 +2042,8 @@ class Config:
         default_factory=saev.data.OrderedConfig
     )
     &#34;&#34;&#34;Data configuration&#34;&#34;&#34;
-    images: saev.data.images.Config = dataclasses.field(
-        default_factory=saev.data.images.Imagenet
+    images: saev.data.datasets.Config = dataclasses.field(
+        default_factory=saev.data.datasets.Imagenet
     )
     &#34;&#34;&#34;Which images to use.&#34;&#34;&#34;
     dump_to: str = os.path.join(&#34;.&#34;, &#34;data&#34;)
@@ -2132,7 +2070,6 @@ class Config:
     &#34;&#34;&#34;Maximum number of latents to save images for.&#34;&#34;&#34;
     sae_batch_size: int = 1024 * 16
     &#34;&#34;&#34;Batch size for SAE inference.&#34;&#34;&#34;
-    topk_batch_size: int = 1024 * 16
 
     # Hardware
     device: str = &#34;cuda&#34;
@@ -2200,8 +2137,8 @@ class Config:
         default_factory=saev.data.OrderedConfig
     )
     &#34;&#34;&#34;Data configuration&#34;&#34;&#34;
-    images: saev.data.images.Config = dataclasses.field(
-        default_factory=saev.data.images.Imagenet
+    images: saev.data.datasets.Config = dataclasses.field(
+        default_factory=saev.data.datasets.Imagenet
     )
     &#34;&#34;&#34;Which images to use.&#34;&#34;&#34;
     dump_to: str = os.path.join(&#34;.&#34;, &#34;data&#34;)
@@ -2228,7 +2165,6 @@ class Config:
     &#34;&#34;&#34;Maximum number of latents to save images for.&#34;&#34;&#34;
     sae_batch_size: int = 1024 * 16
     &#34;&#34;&#34;Batch size for SAE inference.&#34;&#34;&#34;
-    topk_batch_size: int = 1024 * 16
 
     # Hardware
     device: str = &#34;cuda&#34;
@@ -2296,8 +2232,8 @@ class Config:
         default_factory=saev.data.OrderedConfig
     )
     &#34;&#34;&#34;Data configuration&#34;&#34;&#34;
-    images: saev.data.images.Config = dataclasses.field(
-        default_factory=saev.data.images.Imagenet
+    images: saev.data.datasets.Config = dataclasses.field(
+        default_factory=saev.data.datasets.Imagenet
     )
     &#34;&#34;&#34;Which images to use.&#34;&#34;&#34;
     dump_to: str = os.path.join(&#34;.&#34;, &#34;data&#34;)
@@ -2324,7 +2260,6 @@ class Config:
     &#34;&#34;&#34;Maximum number of latents to save images for.&#34;&#34;&#34;
     sae_batch_size: int = 1024 * 16
     &#34;&#34;&#34;Batch size for SAE inference.&#34;&#34;&#34;
-    topk_batch_size: int = 1024 * 16
 
     # Hardware
     device: str = &#34;cuda&#34;
@@ -2392,8 +2327,8 @@ class Config:
         default_factory=saev.data.OrderedConfig
     )
     &#34;&#34;&#34;Data configuration&#34;&#34;&#34;
-    images: saev.data.images.Config = dataclasses.field(
-        default_factory=saev.data.images.Imagenet
+    images: saev.data.datasets.Config = dataclasses.field(
+        default_factory=saev.data.datasets.Imagenet
     )
     &#34;&#34;&#34;Which images to use.&#34;&#34;&#34;
     dump_to: str = os.path.join(&#34;.&#34;, &#34;data&#34;)
@@ -2420,7 +2355,6 @@ class Config:
     &#34;&#34;&#34;Maximum number of latents to save images for.&#34;&#34;&#34;
     sae_batch_size: int = 1024 * 16
     &#34;&#34;&#34;Batch size for SAE inference.&#34;&#34;&#34;
-    topk_batch_size: int = 1024 * 16
 
     # Hardware
     device: str = &#34;cuda&#34;
@@ -2488,8 +2422,8 @@ class Config:
         default_factory=saev.data.OrderedConfig
     )
     &#34;&#34;&#34;Data configuration&#34;&#34;&#34;
-    images: saev.data.images.Config = dataclasses.field(
-        default_factory=saev.data.images.Imagenet
+    images: saev.data.datasets.Config = dataclasses.field(
+        default_factory=saev.data.datasets.Imagenet
     )
     &#34;&#34;&#34;Which images to use.&#34;&#34;&#34;
     dump_to: str = os.path.join(&#34;.&#34;, &#34;data&#34;)
@@ -2516,7 +2450,6 @@ class Config:
     &#34;&#34;&#34;Maximum number of latents to save images for.&#34;&#34;&#34;
     sae_batch_size: int = 1024 * 16
     &#34;&#34;&#34;Batch size for SAE inference.&#34;&#34;&#34;
-    topk_batch_size: int = 1024 * 16
 
     # Hardware
     device: str = &#34;cuda&#34;
@@ -2608,8 +2541,8 @@ class Config:
         default_factory=saev.data.OrderedConfig
     )
     &#34;&#34;&#34;Data configuration&#34;&#34;&#34;
-    images: saev.data.images.Config = dataclasses.field(
-        default_factory=saev.data.images.Imagenet
+    images: saev.data.datasets.Config = dataclasses.field(
+        default_factory=saev.data.datasets.Imagenet
     )
     &#34;&#34;&#34;Which images to use.&#34;&#34;&#34;
     dump_to: str = os.path.join(&#34;.&#34;, &#34;data&#34;)
@@ -2636,7 +2569,6 @@ class Config:
     &#34;&#34;&#34;Maximum number of latents to save images for.&#34;&#34;&#34;
     sae_batch_size: int = 1024 * 16
     &#34;&#34;&#34;Batch size for SAE inference.&#34;&#34;&#34;
-    topk_batch_size: int = 1024 * 16
 
     # Hardware
     device: str = &#34;cuda&#34;
@@ -2707,102 +2639,6 @@ def top_patch_i_fpath(self) -&gt; str:
 <pre><code class="python">@property
 def top_values_fpath(self) -&gt; str:
     return os.path.join(self.root, &#34;top_values.pt&#34;)</code></pre>
-</details>
-</dd>
-<dt id="saev.scripts.visuals.Config.topk_batch_size"><code class="name">var <span class="ident">topk_batch_size</span> : int</code></dt>
-<dd>
-<div class="desc"></div>
-<details class="source">
-<summary>
-<span>Expand source code</span>
-</summary>
-<pre><code class="python">@beartype.beartype
-@dataclasses.dataclass(frozen=True, slots=True)
-class Config:
-    &#34;&#34;&#34;Configuration for generating visuals from trained SAEs.&#34;&#34;&#34;
-
-    # Disk
-    ckpt: str = os.path.join(&#34;.&#34;, &#34;checkpoints&#34;, &#34;sae.pt&#34;)
-    &#34;&#34;&#34;Path to the sae.pt file.&#34;&#34;&#34;
-    data: saev.data.OrderedConfig = dataclasses.field(
-        default_factory=saev.data.OrderedConfig
-    )
-    &#34;&#34;&#34;Data configuration&#34;&#34;&#34;
-    images: saev.data.images.Config = dataclasses.field(
-        default_factory=saev.data.images.Imagenet
-    )
-    &#34;&#34;&#34;Which images to use.&#34;&#34;&#34;
-    dump_to: str = os.path.join(&#34;.&#34;, &#34;data&#34;)
-    &#34;&#34;&#34;Where to save data.&#34;&#34;&#34;
-
-    # Algorithm
-    top_k: int = 128
-    &#34;&#34;&#34;How many images per SAE feature to store.&#34;&#34;&#34;
-    epsilon: float = 1e-9
-    &#34;&#34;&#34;Value to add to avoid log(0).&#34;&#34;&#34;
-    sort_by: typing.Literal[&#34;cls&#34;, &#34;img&#34;, &#34;patch&#34;] = &#34;patch&#34;
-    &#34;&#34;&#34;How to find the top k images. &#39;cls&#39; picks images where the SAE latents of the ViT&#39;s [CLS] token are maximized without any patch highligting. &#39;img&#39; picks images that maximize the sum of an SAE latent over all patches in the image, highlighting the patches. &#39;patch&#39; pickes images that maximize an SAE latent over all patches (not summed), highlighting the patches and only showing unique images.&#34;&#34;&#34;
-    log_freq_range: tuple[float, float] = (-6.0, -2.0)
-    &#34;&#34;&#34;Log10 frequency range for which to save images.&#34;&#34;&#34;
-    log_value_range: tuple[float, float] = (-1.0, 1.0)
-    &#34;&#34;&#34;Log10 frequency range for which to save images.&#34;&#34;&#34;
-    include_latents: list[int] = dataclasses.field(default_factory=list)
-    &#34;&#34;&#34;Latents to always include, no matter what.&#34;&#34;&#34;
-    n_distributions: int = 25
-    &#34;&#34;&#34;Number of features to save distributions for.&#34;&#34;&#34;
-    percentile: int = 99
-    &#34;&#34;&#34;Percentile to estimate for outlier detection.&#34;&#34;&#34;
-    n_latents: int = 400
-    &#34;&#34;&#34;Maximum number of latents to save images for.&#34;&#34;&#34;
-    sae_batch_size: int = 1024 * 16
-    &#34;&#34;&#34;Batch size for SAE inference.&#34;&#34;&#34;
-    topk_batch_size: int = 1024 * 16
-
-    # Hardware
-    device: str = &#34;cuda&#34;
-    &#34;&#34;&#34;Which accelerator to use.&#34;&#34;&#34;
-    seed: int = 42
-    &#34;&#34;&#34;Random seed.&#34;&#34;&#34;
-    slurm_acct: str = &#34;&#34;
-    &#34;&#34;&#34;Slurm account string. Empty means to not use Slurm.&#34;&#34;&#34;
-    slurm_partition: str = &#34;&#34;
-    &#34;&#34;&#34;Slurm partition.&#34;&#34;&#34;
-    n_hours: float = 4.0
-    &#34;&#34;&#34;Slurm job length in hours.&#34;&#34;&#34;
-    log_to: str = os.path.join(&#34;.&#34;, &#34;logs&#34;)
-    &#34;&#34;&#34;Where to log Slurm job stdout/stderr.&#34;&#34;&#34;
-
-    @property
-    def root(self) -&gt; str:
-        return os.path.join(self.dump_to, f&#34;sort_by_{self.sort_by}&#34;)
-
-    @property
-    def top_values_fpath(self) -&gt; str:
-        return os.path.join(self.root, &#34;top_values.pt&#34;)
-
-    @property
-    def top_img_i_fpath(self) -&gt; str:
-        return os.path.join(self.root, &#34;top_img_i.pt&#34;)
-
-    @property
-    def top_patch_i_fpath(self) -&gt; str:
-        return os.path.join(self.root, &#34;top_patch_i.pt&#34;)
-
-    @property
-    def mean_values_fpath(self) -&gt; str:
-        return os.path.join(self.root, &#34;mean_values.pt&#34;)
-
-    @property
-    def sparsity_fpath(self) -&gt; str:
-        return os.path.join(self.root, &#34;sparsity.pt&#34;)
-
-    @property
-    def distributions_fpath(self) -&gt; str:
-        return os.path.join(self.root, &#34;distributions.pt&#34;)
-
-    @property
-    def percentiles_fpath(self) -&gt; str:
-        return os.path.join(self.root, f&#34;percentiles_p{self.percentile}.pt&#34;)</code></pre>
 </details>
 </dd>
 </dl>
@@ -2952,10 +2788,7 @@ When a new value arrives, it's placed in the appropriate position relative to ex
 <span>(</span><span>top_values: jaxtyping.Float[Tensor, 'd_sae k n_patches_per_img'],<br>top_i: jaxtyping.Int[Tensor, 'd_sae k'],<br>mean_values: jaxtyping.Float[Tensor, 'd_sae'],<br>sparsity: jaxtyping.Float[Tensor, 'd_sae'],<br>distributions: jaxtyping.Float[Tensor, 'm n'],<br>percentiles: jaxtyping.Float[Tensor, 'd_sae'])</span>
 </code></dt>
 <dd>
-<div class="desc"><div class="admonition todo">
-<p class="admonition-title">TODO</p>
-<p>Document this class.</p>
-</div></div>
+<div class="desc"><p>Summary of which images and patches most activate each SAE latent.</p></div>
 <details class="source">
 <summary>
 <span>Expand source code</span>
@@ -2963,40 +2796,46 @@ When a new value arrives, it's placed in the appropriate position relative to ex
 <pre><code class="python">@jaxtyped(typechecker=beartype.beartype)
 @dataclasses.dataclass(frozen=True)
 class TopKPatch:
-    &#34;.. todo:: Document this class.&#34;
+    &#34;&#34;&#34;Summary of which images and patches most activate each SAE latent.&#34;&#34;&#34;
 
     top_values: Float[Tensor, &#34;d_sae k n_patches_per_img&#34;]
+    &#34;&#34;&#34;For each latent and its top k images, the per-patch activation values over that image&#39;s patches. Used for heatmaps/highlighting of contributing regions.&#34;&#34;&#34;
     top_i: Int[Tensor, &#34;d_sae k&#34;]
+    &#34;&#34;&#34;Global image indices for those top-`k` images per latent (aligned with the dataset&#39;s `image_i` indexing).&#34;&#34;&#34;
     mean_values: Float[Tensor, &#34; d_sae&#34;]
+    &#34;&#34;&#34;Mean positive activation per latent, computed as the sum of activations divided by the count of positives (`&gt; 0`). With nonnegative activations (e.g., ReLU/TopK), this is the average active value.&#34;&#34;&#34;
     sparsity: Float[Tensor, &#34; d_sae&#34;]
+    &#34;&#34;&#34;Fraction of samples where each latent is active (`&gt; 0`), i.e., empirical activation rate.&#34;&#34;&#34;
     distributions: Float[Tensor, &#34;m n&#34;]
-    percentiles: Float[Tensor, &#34; d_sae&#34;]</code></pre>
+    &#34;&#34;&#34;For the first `m = cfg.n_distributions` latents, the raw activation values across all `n` samples. Useful for plotting activation histograms.&#34;&#34;&#34;
+    percentiles: Float[Tensor, &#34; d_sae&#34;]
+    &#34;&#34;&#34;Online estimate of the `cfg.percentile` activation threshold per latent over the dataset (used for outlier detection/thresholding).&#34;&#34;&#34;</code></pre>
 </details>
 <h3>Instance variables</h3>
 <dl>
 <dt id="saev.scripts.visuals.TopKPatch.distributions"><code class="name">var <span class="ident">distributions</span> : jaxtyping.Float[Tensor, 'm n']</code></dt>
 <dd>
-<div class="desc"></div>
+<div class="desc"><p>For the first <code>m = cfg.n_distributions</code> latents, the raw activation values across all <code>n</code> samples. Useful for plotting activation histograms.</p></div>
 </dd>
 <dt id="saev.scripts.visuals.TopKPatch.mean_values"><code class="name">var <span class="ident">mean_values</span> : jaxtyping.Float[Tensor, 'd_sae']</code></dt>
 <dd>
-<div class="desc"></div>
+<div class="desc"><p>Mean positive activation per latent, computed as the sum of activations divided by the count of positives (<code>&gt; 0</code>). With nonnegative activations (e.g., ReLU/TopK), this is the average active value.</p></div>
 </dd>
 <dt id="saev.scripts.visuals.TopKPatch.percentiles"><code class="name">var <span class="ident">percentiles</span> : jaxtyping.Float[Tensor, 'd_sae']</code></dt>
 <dd>
-<div class="desc"></div>
+<div class="desc"><p>Online estimate of the <code>cfg.percentile</code> activation threshold per latent over the dataset (used for outlier detection/thresholding).</p></div>
 </dd>
 <dt id="saev.scripts.visuals.TopKPatch.sparsity"><code class="name">var <span class="ident">sparsity</span> : jaxtyping.Float[Tensor, 'd_sae']</code></dt>
 <dd>
-<div class="desc"></div>
+<div class="desc"><p>Fraction of samples where each latent is active (<code>&gt; 0</code>), i.e., empirical activation rate.</p></div>
 </dd>
 <dt id="saev.scripts.visuals.TopKPatch.top_i"><code class="name">var <span class="ident">top_i</span> : jaxtyping.Int[Tensor, 'd_sae k']</code></dt>
 <dd>
-<div class="desc"></div>
+<div class="desc"><p>Global image indices for those top-<code>k</code> images per latent (aligned with the dataset's <code>image_i</code> indexing).</p></div>
 </dd>
 <dt id="saev.scripts.visuals.TopKPatch.top_values"><code class="name">var <span class="ident">top_values</span> : jaxtyping.Float[Tensor, 'd_sae k n_patches_per_img']</code></dt>
 <dd>
-<div class="desc"></div>
+<div class="desc"><p>For each latent and its top k images, the per-patch activation values over that image's patches. Used for heatmaps/highlighting of contributing regions.</p></div>
 </dd>
 </dl>
 </dd>
@@ -3061,7 +2900,6 @@ setTimeout(() => input.focus(), 100);
 </li>
 <li><h3><a href="#header-functions">Functions</a></h3>
 <ul class="">
-<li><code><a title="saev.scripts.visuals.batched_idx" href="#saev.scripts.visuals.batched_idx">batched_idx</a></code></li>
 <li><code><a title="saev.scripts.visuals.dump_activations" href="#saev.scripts.visuals.dump_activations">dump_activations</a></code></li>
 <li><code><a title="saev.scripts.visuals.dump_imgs" href="#saev.scripts.visuals.dump_imgs">dump_imgs</a></code></li>
 <li><code><a title="saev.scripts.visuals.gather_batched" href="#saev.scripts.visuals.gather_batched">gather_batched</a></code></li>
@@ -3106,7 +2944,6 @@ setTimeout(() => input.focus(), 100);
 <li><code><a title="saev.scripts.visuals.Config.top_k" href="#saev.scripts.visuals.Config.top_k">top_k</a></code></li>
 <li><code><a title="saev.scripts.visuals.Config.top_patch_i_fpath" href="#saev.scripts.visuals.Config.top_patch_i_fpath">top_patch_i_fpath</a></code></li>
 <li><code><a title="saev.scripts.visuals.Config.top_values_fpath" href="#saev.scripts.visuals.Config.top_values_fpath">top_values_fpath</a></code></li>
-<li><code><a title="saev.scripts.visuals.Config.topk_batch_size" href="#saev.scripts.visuals.Config.topk_batch_size">topk_batch_size</a></code></li>
 </ul>
 </li>
 <li>

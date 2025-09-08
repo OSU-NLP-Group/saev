@@ -850,4 +850,30 @@ Let's make it as easy as possible.
 
 First, train an SAE on FishVista training data. Use all the images, not just the segmented ones. [in progress]
 
+# 09/05/2025
+
+I trained some SAEs on the FishVista classification images.
+I also trained some Matryoshka SAEs on the FishVista classification images.
+
+What do I still need to do?
+
+I think we might want to do class-level segmentation.
+Even with the best matryoshka SAE to prevent feature splitting, we might not ever get a pure feature across all species.
+But we clearly are getting very nice fish features.
+
+So to get good quantitative results, we might need to break the fishes up a little bit.
+
+# 09/07/2025
+
+Butterflies! Today is all about butterflies!
+
+1. Train Matryoshka SAE on Heliconious images
+2.
+
+
+iNat21 training has
+
+- 374,161 Lepitdoptera images.
+- XX Nymphalidae images
+- 600 Heliconious images
 

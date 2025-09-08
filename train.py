@@ -106,10 +106,7 @@ def make_saes(
 ) -> tuple[torch.nn.ModuleList, torch.nn.ModuleList, list[dict[str, object]]]:
     saes, objectives, param_groups = [], [], []
     for sae_cfg, obj_cfg in cfgs:
-        if isinstance(obj_cfg, nn.objectives.Matryoshka):
-            sae = nn.modeling.MatryoshkaSparseAutoencoder(sae_cfg)
-        else:
-            sae = nn.SparseAutoencoder(sae_cfg)
+        sae = nn.SparseAutoencoder(sae_cfg)
         saes.append(sae)
         # Use an empty LR because our first step is warmup.
         param_groups.append({"params": sae.parameters(), "lr": 0.0})
@@ -232,17 +229,10 @@ def train(
             sae.normalize_w_dec()
         # Forward passes and loss calculations.
         losses = []
-        x_hats = []
-        f_xs = []
         for sae, objective in zip(saes, objectives):
-            if isinstance(objective, nn.objectives.MatryoshkaObjective):
-                # Specific case has to be given for Matryoshka SAEs since we need to decode several times with varying prefix lengths
-                x_hat, f_x = sae.matryoshka_forward(acts_BD, cfg.n_prefixes)
-            else:
-                x_hat, f_x = sae(acts_BD)
-            x_hats.append(x_hat)
-            f_xs.append(f_x)
-            losses.append(objective(acts_BD, f_x, x_hat))
+            # Objective now handles the forward pass internally
+            loss = objective(sae, acts_BD)
+            losses.append(loss)
 
         n_patches_seen += len(acts_BD)
 
@@ -264,8 +254,8 @@ def train(
             grad_norms.append(grad_norm)
 
         # Log metrics after gradient computation
-        with torch.no_grad():
-            if (global_step + 1) % cfg.log_every == 0:
+        if (global_step + 1) % cfg.log_every == 0:
+            with torch.no_grad():
                 now = time.time()
                 # Dataloader stuff
                 loader_metrics = {}
@@ -285,11 +275,16 @@ def train(
                     }
 
                 metrics = []
-                for i, (loss, sae, objective, group, x_hat, f_x) in enumerate(
-                    zip(losses, saes, objectives, optimizer.param_groups, x_hats, f_xs)
+                for i, (loss, sae, objective, group) in enumerate(
+                    zip(losses, saes, objectives, optimizer.param_groups)
                 ):
+                    # Recompute f_x and x_hat for metrics (since we don't have them anymore)
+                    with torch.no_grad():
+                        f_x = sae.encode(acts_BD)
+                        x_hat = sae.decode(f_x)
+
                     # Explained variance: 1 - Var(x - x_hat) / Var(x)
-                    residual = acts_BD - x_hat
+                    residual = acts_BD - x_hat[:, -1, :]
                     explained_var = 1 - residual.var() / acts_BD.var()
 
                     # Dead unit percentage: fraction of units that never activate
@@ -435,14 +430,10 @@ def evaluate(
     for batch in helpers.progress(dataloader, desc="eval", every=cfg.log_every):
         acts_BD = batch["act"].to(cfg.device, non_blocking=True)
         for i, (sae, objective) in enumerate(zip(saes, objectives)):
-            if isinstance(objective, nn.objectives.MatryoshkaObjective):
-                # Specific case has to be given for Matryoshka SAEs since we need to decode several times
-                # with varying prefix lengths
-                prefix_preds, f_x_BS = sae.matryoshka_forward(acts_BD, cfg.n_prefixes)
-                loss = objective(acts_BD, f_x_BS, prefix_preds)
-            else:
-                x_hat, f_x_BS = sae(acts_BD)
-                loss = objective(acts_BD, f_x_BS, x_hat)
+            # Objective now handles the forward pass internally
+            loss = objective(sae, acts_BD)
+            # Get f_x for metrics
+            f_x_BS = sae.encode(acts_BD)
             n_fired[i] += einops.reduce(f_x_BS > 0, "batch d_sae -> d_sae", "sum").cpu()
             values[i] += einops.reduce(f_x_BS, "batch d_sae -> d_sae", "sum").cpu()
             total_l0[i] += loss.l0.cpu()

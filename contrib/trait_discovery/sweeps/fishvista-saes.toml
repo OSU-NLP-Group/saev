@@ -4,12 +4,17 @@ n_hours = 2.0
 
 method = "sae"
 sae_ckpt = [
-  "/fs/ess/PAS2136/samuelstevens/checkpoints/saev/pivxp0yq/sae.pt",
-  "/fs/ess/PAS2136/samuelstevens/checkpoints/saev/jzzq43mp/sae.pt",
+  # Trained on FishVista
+  # "/fs/ess/PAS2136/samuelstevens/checkpoints/saev/pivxp0yq/sae.pt",
+  # "/fs/ess/PAS2136/samuelstevens/checkpoints/saev/jzzq43mp/sae.pt",
   # "/fs/ess/PAS2136/samuelstevens/checkpoints/saev/t9dk274s/sae.pt",
-  "/fs/ess/PAS2136/samuelstevens/checkpoints/saev/9okvhs3u/sae.pt",
+  # "/fs/ess/PAS2136/samuelstevens/checkpoints/saev/9okvhs3u/sae.pt",
   # "/fs/ess/PAS2136/samuelstevens/checkpoints/saev/goztek1c/sae.pt",
-  "/fs/ess/PAS2136/samuelstevens/checkpoints/saev/30k4cbbc/sae.pt",
+  # "/fs/ess/PAS2136/samuelstevens/checkpoints/saev/30k4cbbc/sae.pt",
+  # Matryoshka trained on FishVista
+  "/fs/ess/PAS2136/samuelstevens/checkpoints/saev/6b18jnda/sae.pt",
+  "/fs/ess/PAS2136/samuelstevens/checkpoints/saev/cu5g5zsp/sae.pt",
+  "/fs/ess/PAS2136/samuelstevens/checkpoints/saev/dbo663go/sae.pt",
 ]
 layer = 21
 

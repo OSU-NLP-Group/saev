@@ -1,11 +1,11 @@
 import marimo
 
-__generated_with = "0.9.32"
+__generated_with = "0.15.0"
 app = marimo.App(width="medium")
 
 
 @app.cell
-def __():
+def _():
     import itertools
     import json
     import math
@@ -22,7 +22,6 @@ def __():
     from jaxtyping import Float, jaxtyped
 
     import saev.colors
-
     return (
         Float,
         adjust_text,
@@ -31,7 +30,6 @@ def __():
         itertools,
         jaxtyped,
         json,
-        math,
         mo,
         np,
         os,
@@ -43,54 +41,56 @@ def __():
 
 
 @app.cell
-def __(mo):
+def _(mo):
     mo.md(
         """
-        # SAE Metrics Explorer
+    # SAE Metrics Explorer
 
-        This notebook helps you analyze and compare SAE training runs from WandB.
+    This notebook helps you analyze and compare SAE training runs from WandB.
 
-        ## Setup Instructions
+    ## Setup Instructions
 
-        1. Edit the configuration cell at the top to set your WandB username and project
-        2. Make sure you have access to the original ViT activation shards
-        3. Use the filters to narrow down which models to compare
+    1. Edit the configuration cell at the top to set your WandB username and project
+    2. Make sure you have access to the original ViT activation shards
+    3. Use the filters to narrow down which models to compare
 
-        ## Troubleshooting
+    ## Troubleshooting
 
-        - **Missing data error**: This notebook needs access to the original ViT activation shards
-        - **No runs found**: Check your WandB username, project name, and tag filter
-        """
+    - **Missing data error**: This notebook needs access to the original ViT activation shards
+    - **No runs found**: Check your WandB username, project name, and tag filter
+    """
     )
     return
 
 
 @app.cell
-def __():
+def _():
     WANDB_USERNAME = "samuelstevens"
     WANDB_PROJECT = "saev"
     return WANDB_PROJECT, WANDB_USERNAME
 
 
 @app.cell
-def __(mo):
-    tag_input = mo.ui.text(value="classification-v1.0", label="Sweep Tag:")
+def _(mo):
+    tag_input = mo.ui.text(value="train-v1.0", label="Sweep Tag:")
     return (tag_input,)
 
 
 @app.cell
-def __(WANDB_PROJECT, WANDB_USERNAME, mo, tag_input):
-    mo.vstack([
-        mo.md(
-            f"Look at [{WANDB_USERNAME}/{WANDB_PROJECT} on WandB](https://wandb.ai/{WANDB_USERNAME}/{WANDB_PROJECT}/table) to pick your tag."
-        ),
-        tag_input,
-    ])
+def _(WANDB_PROJECT, WANDB_USERNAME, mo, tag_input):
+    mo.vstack(
+        [
+            mo.md(
+                f"Look at [{WANDB_USERNAME}/{WANDB_PROJECT} on WandB](https://wandb.ai/{WANDB_USERNAME}/{WANDB_PROJECT}/table) to pick your tag."
+            ),
+            tag_input,
+        ]
+    )
     return
 
 
 @app.cell
-def __(df, mo):
+def _(df, mo):
     # All unique (model, layer) pairs
     pairs = (
         df.select(["model_key", "config/data/layer"])
@@ -109,6 +109,7 @@ def __(df, mo):
     show_rest = mo.ui.switch(value=True, label="Show non-frontier points")
     show_ids = mo.ui.switch(value=False, label="Annotate Pareto points")
 
+
     def _make_grid(elems, ncols: int, gap: float):
         return mo.hstack(
             [
@@ -118,14 +119,15 @@ def __(df, mo):
             gap=gap,
         )
 
+
     elems = [*pair_dict.elements.values(), show_rest, show_ids]
     ui_grid = _make_grid(elems, 3, 0.5)
     ui_grid
-    return elems, pair_dict, pair_elems, pairs, show_ids, show_rest, ui_grid
+    return pair_dict, show_ids, show_rest
 
 
 @app.cell
-def __(
+def _(
     adjust_text,
     df,
     itertools,
@@ -186,6 +188,7 @@ def __(
 
                 pareto = group.filter(pl.col(mse_col) == pl.col("cummin_mse"))
                 ids = pareto.get_column("id").to_list()
+                print(ids)
 
                 xs = pareto.get_column(l0_col).to_numpy()
                 ys = pareto.get_column(mse_col).to_numpy()
@@ -240,16 +243,17 @@ def __(
 
         return fig
 
+
     selected_keys = [k for k, v in pair_dict.value.items() if v]
     if selected_keys:
         models, layers = zip(*[k.rsplit("|", 1) for k in selected_keys])
-        pairs_df = pl.DataFrame({
-            "model_key": list(models),
-            "config/data/layer": list(map(int, layers)),
-        })
-        filtered_df = df.join(
-            pairs_df, on=["model_key", "config/data/layer"], how="inner"
+        pairs_df = pl.DataFrame(
+            {
+                "model_key": list(models),
+                "config/data/layer": list(map(int, layers)),
+            }
         )
+        filtered_df = df.join(pairs_df, on=["model_key", "config/data/layer"], how="inner")
     else:
         filtered_df = pl.DataFrame(schema=df.schema)
 
@@ -257,26 +261,18 @@ def __(
 
     fig = plot_layerwise(filtered_df, show_rest.value, show_ids.value)
     fig
-    return (
-        fig,
-        filtered_df,
-        layers,
-        models,
-        pairs_df,
-        plot_layerwise,
-        selected_keys,
-    )
+    return
 
 
 @app.cell
-def __(alt, df, mo, pl):
+def _(alt, df, mo):
     chart = mo.ui.altair_chart(
         alt.Chart(
             df.select(
                 "summary/eval/l0",
-                "summary/losses/mse",
+                "summary/eval/mse",
                 "id",
-                "config/sae/sparsity_coeff",
+                "config/objective/sparsity_coeff",
                 "config/lr",
                 "config/sae/d_sae",
                 "config/data/layer",
@@ -286,7 +282,7 @@ def __(alt, df, mo, pl):
         .mark_point()
         .encode(
             x=alt.X("summary/eval/l0"),
-            y=alt.Y("summary/losses/mse"),
+            y=alt.Y("summary/eval/mse"),
             tooltip=["id", "config/lr"],
             color="config/lr:Q",
             shape="config/data/layer:N",
@@ -300,7 +296,7 @@ def __(alt, df, mo, pl):
 
 
 @app.cell
-def __(chart, df, mo, np, plot_dist, plt):
+def _(chart, df, mo, np, plot_dist, plt):
     mo.stop(
         len(chart.value) < 2,
         mo.md(
@@ -362,36 +358,23 @@ def __(chart, df, mo, np, plot_dist, plt):
 
     scatter_fig.tight_layout()
     hist_fig.tight_layout()
-    return (
-        bins,
-        freq_hist_ax,
-        freqs,
-        hist_axes,
-        hist_fig,
-        id,
-        scatter_ax,
-        scatter_axes,
-        scatter_fig,
-        sub_df,
-        values,
-        values_hist_ax,
-    )
+    return hist_fig, scatter_fig
 
 
 @app.cell
-def __(scatter_fig):
+def _(scatter_fig):
     scatter_fig
     return
 
 
 @app.cell
-def __(hist_fig):
+def _(hist_fig):
     hist_fig
     return
 
 
 @app.cell
-def __(chart, df, pl):
+def _(chart, df, pl):
     df.join(chart.value.select("id"), on="id", how="inner").sort(
         by="summary/eval/l0"
     ).select("id", pl.selectors.starts_with("config/"))
@@ -399,7 +382,7 @@ def __(chart, df, pl):
 
 
 @app.cell
-def __(Float, beartype, jaxtyped, np):
+def _(Float, beartype, jaxtyped, np):
     @jaxtyped(typechecker=beartype.beartype)
     def plot_dist(
         freqs: Float[np.ndarray, " d_sae"],
@@ -445,12 +428,13 @@ def __(Float, beartype, jaxtyped, np):
 
         ax.set_xlabel("Feature Frequency (log10)")
         ax.set_ylabel("Mean Activation Value (log10)")
-
     return (plot_dist,)
 
 
 @app.cell
-def __(
+def _(
+    WANDB_PROJECT,
+    WANDB_USERNAME,
     beartype,
     get_data_key,
     get_model_key,
@@ -468,8 +452,14 @@ def __(
 
         pass
 
+
     @beartype.beartype
-    def find_metadata(shard_root: str):
+    def find_metadata(shard_root: str, wandb_metadata: dict | None = None):
+        # First check if metadata is available from WandB config
+        if wandb_metadata is not None:
+            return wandb_metadata
+
+        # Fall back to reading from file system for backward compatibility
         if not os.path.exists(shard_root):
             msg = f"""
     ERROR: Shard root '{shard_root}' not found. You need to either:
@@ -489,12 +479,18 @@ def __(
         except json.JSONDecodeError:
             raise MetadataAccessError("Malformed metadata.json file")
 
+
     @beartype.beartype
     def make_df(tag: str):
         filters = {}
         if tag:
             filters["config.tag"] = tag
-        runs = wandb.Api().runs(path="samuelstevens/saev", filters=filters)
+            filters["config.data.metadata.n_patches_per_img"] = 640
+            filters["config.data.metadata.data.root"] = (
+                "/fs/scratch/PAS2136/samuelstevens/datasets/fish-vista-imgfolder/*"
+            )
+            filters['config.objective.n_prefixes'] = 10
+        runs = wandb.Api().runs(path=f"{WANDB_USERNAME}/{WANDB_PROJECT}", filters=filters)
 
         rows = []
         for run in mo.status.progress_bar(
@@ -506,9 +502,7 @@ def __(
             row = {}
             row["id"] = run.id
 
-            row.update(**{
-                f"summary/{key}": value for key, value in run.summary.items()
-            })
+            row.update(**{f"summary/{key}": value for key, value in run.summary.items()})
             try:
                 row["summary/eval/freqs"] = load_freqs(run)
             except ValueError:
@@ -527,25 +521,33 @@ def __(
                 continue
 
             # config
-            row.update(**{
-                f"config/data/{key}": value
-                for key, value in run.config.pop("data").items()
-            })
-            row.update(**{
-                f"config/sae/{key}": value
-                for key, value in run.config.pop("sae").items()
-            })
+            row.update(
+                **{
+                    f"config/data/{key}": value
+                    for key, value in run.config.pop("data").items()
+                }
+            )
+            row.update(
+                **{
+                    f"config/sae/{key}": value
+                    for key, value in run.config.pop("sae").items()
+                }
+            )
 
             if "objective" in run.config:
-                row.update(**{
-                    f"config/objective/{key}": value
-                    for key, value in run.config.pop("objective").items()
-                })
+                row.update(
+                    **{
+                        f"config/objective/{key}": value
+                        for key, value in run.config.pop("objective").items()
+                    }
+                )
 
             row.update(**{f"config/{key}": value for key, value in run.config.items()})
 
             try:
-                metadata = find_metadata(row["config/data/shard_root"])
+                # Check if metadata is available in WandB config
+                wandb_metadata = row.get("config/data/metadata")
+                metadata = find_metadata(row["config/data/shard_root"], wandb_metadata)
             except MetadataAccessError as err:
                 print(f"Bad run {run.id}: {err}")
                 continue
@@ -571,53 +573,70 @@ def __(
         )
         return df
 
+
     df = make_df(tag_input.value)
-    return MetadataAccessError, df, find_metadata, make_df
+    return (df,)
 
 
 @app.cell
-def __(beartype):
+def _(beartype):
     @beartype.beartype
     def get_model_key(metadata: dict[str, object]) -> str:
         family = next(
             metadata[key] for key in ("vit_family", "model_family") if key in metadata
         )
 
-        ckpt = next(
-            metadata[key] for key in ("vit_ckpt", "model_ckpt") if key in metadata
-        )
+        ckpt = next(metadata[key] for key in ("vit_ckpt", "model_ckpt") if key in metadata)
 
         if family == "dinov2" and ckpt == "dinov2_vitb14_reg":
             return "DINOv2 ViT-B/14 (reg)"
+        if family == "dinov2" and ckpt == "dinov2_vitl14_reg":
+            return "DINOv2 ViT-L/14 (reg)"
+        if family == "dinov3" and "vitl" in ckpt:
+            return "DINOv3 ViT-L/14"
         if family == "clip" and ckpt == "ViT-B-16/openai":
             return "CLIP ViT-B/16"
         if family == "clip" and ckpt == "hf-hub:imageomics/bioclip":
             return "BioCLIP ViT-B/16"
+        if family == "clip" and ckpt == "hf-hub:imageomics/bioclip-2":
+            return "BioCLIP 2 ViT-L/14"
         if family == "siglip" and ckpt == "hf-hub:timm/ViT-L-16-SigLIP2-256":
             return "SigLIP2 ViT-L/16"
 
         print(f"Unknown model: {(family, ckpt)}")
         return ckpt
 
+
     @beartype.beartype
     def get_data_key(metadata: dict[str, object]) -> str | None:
         if (
-            "train_mini" in metadata["data"]
-            and "ImageFolderDataset" in metadata["data"]
+            "train_mini" in metadata["data"]["root"]
+            and metadata["data"]["__class__"] == "ImageFolder"
         ):
             return "iNat21"
+
+        if (
+            "all-beetles" in metadata["data"]["root"]
+            and metadata["data"]["__class__"] == "ImageFolder"
+        ):
+            return "Beetles"
+
+        if (
+            "fish-vista-imgfolder" in metadata["data"]["root"]
+            and metadata["data"]["__class__"] == "ImageFolder"
+        ):
+            return "FishVista"
 
         if "train" in metadata["data"] and "Imagenet" in metadata["data"]:
             return "ImageNet-1K"
 
         print(f"Unknown data: {metadata['data']}")
         return None
-
     return get_data_key, get_model_key
 
 
 @app.cell
-def __(Float, json, np, os):
+def _(Float, json, np, os):
     def load_freqs(run) -> Float[np.ndarray, " d_sae"]:
         try:
             for artifact in run.logged_artifacts():
@@ -635,6 +654,7 @@ def __(Float, json, np, os):
 
         raise ValueError(f"freqs not found in run '{run.id}'")
 
+
     def load_mean_values(run) -> Float[np.ndarray, " d_sae"]:
         try:
             for artifact in run.logged_artifacts():
@@ -651,23 +671,22 @@ def __(Float, json, np, os):
             raise RuntimeError("Wandb sucks.") from err
 
         raise ValueError(f"mean_values not found in run '{run.id}'")
-
     return load_freqs, load_mean_values
 
 
 @app.cell
-def __(df):
+def _(df):
     df.drop(
         "config/log_every",
         "config/slurm_acct",
         "config/device",
-        "config/n_workers",
         "config/wandb_project",
         "config/track",
-        "config/slurm",
+        "config/slurm_acct",
         "config/log_to",
         "config/ckpt_path",
-        "config/sae/ghost_grads",
+        "summary/eval/freqs",
+        "summary/eval/mean_values",
     )
     return
 

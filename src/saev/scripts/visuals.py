@@ -18,14 +18,48 @@ import torch
 from jaxtyping import Float, Int, jaxtyped
 from PIL import Image
 from torch import Tensor
+from torchvision.transforms import v2
 
 import saev.data
 import saev.data.datasets
+import saev.data.transforms
 from saev import helpers, nn, viz
 
 log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
 logging.basicConfig(level=logging.INFO, format=log_format)
 logger = logging.getLogger("visuals")
+
+
+@beartype.beartype
+def patch_label_ignore_bg_bincount(
+    pixel_labels_nd: torch.Tensor,  # [N, P*P], int
+    *,
+    background_idx: int = 0,
+    num_classes: int | None = None,
+) -> torch.Tensor:  # [N]
+    """
+    Compute patch-level labels from pixel labels, with foreground priority.
+
+    This uses a foreground-prior mode: compute the per-patch histogram,
+    ignore the background count, and pick the most frequent non-background
+    class if any exists; only assign background when the patch is 100% background.
+    """
+    x = pixel_labels_nd.to(torch.long)
+    N, _ = x.shape
+    if num_classes is None:
+        num_classes = int(x.max().item()) + 1
+
+    # counts[i, c] = number of times class c appears in patch i
+    offsets = torch.arange(N, device=x.device).unsqueeze(1) * num_classes
+    flat = (x + offsets).reshape(-1)
+    counts = torch.bincount(flat, minlength=N * num_classes).reshape(N, num_classes)
+
+    nonbg = counts.clone()
+    nonbg[:, background_idx] = 0
+    has_nonbg = nonbg.sum(dim=1) > 0
+    nonbg_arg = nonbg.argmax(dim=1)
+    bg = torch.full_like(nonbg_arg, background_idx)
+    return torch.where(has_nonbg, nonbg_arg, bg)
 
 
 @beartype.beartype
@@ -151,12 +185,8 @@ class GridElement:
     img: Image.Image
     label: str
     patches: Float[Tensor, " n_patches"]
-
-
-@beartype.beartype
-def make_img(elem: GridElement, *, upper: float | None = None) -> Image.Image:
-    img = viz.add_highlights(elem.img, elem.patches.numpy(), patch_size=32, upper=upper)
-    return img
+    segmentation: Int[Tensor, " n_patches"] | None = None
+    image_index: int | None = None
 
 
 @jaxtyped(typechecker=beartype.beartype)
@@ -464,8 +494,32 @@ def dump_imgs(cfg: Config):
 
     metadata = saev.data.Metadata.load(cfg.data.shard_root)
     vit_cls = saev.data.models.load_vit_cls(metadata.vit_family)
-    img_transform = vit_cls.make_resize(metadata.vit_ckpt)
+    img_transform = vit_cls.make_resize(metadata.vit_ckpt, scale=1)
     dataset = saev.data.datasets.get_dataset(cfg.images, img_transform=img_transform)
+
+    # Check if this is a SegFolder dataset and prepare segmentation dataset if so
+    seg_dataset = None
+    is_segfolder = isinstance(cfg.images, saev.data.datasets.SegFolder)
+    if is_segfolder:
+        seg_transform = v2.Compose([
+            saev.data.transforms.FlexResize(
+                patch_size=16,
+                n_patches=metadata.n_patches_per_img,
+                resample=Image.NEAREST,
+            ),
+            v2.ToImage(),
+        ])
+        sample_transform = v2.Compose([
+            saev.data.transforms.Patchify(
+                patch_size=16, n_patches=metadata.n_patches_per_img, key="segmentation"
+            ),
+        ])
+        seg_dataset = saev.data.datasets.SegFolderDataset(
+            cfg.images,
+            img_transform=img_transform,
+            seg_transform=seg_transform,
+            sample_transform=sample_transform,
+        )
 
     min_log_freq, max_log_freq = cfg.log_freq_range
     min_log_value, max_log_value = cfg.log_value_range
@@ -495,10 +549,31 @@ def dump_imgs(cfg: Config):
                 continue
 
             example = dataset[i_im]
+
+            # Get segmentation if available
+            segmentation = None
+            if seg_dataset is not None:
+                seg_example = seg_dataset[i_im]
+                if "segmentation" in seg_example:
+                    # Convert pixel-level to patch-level labels
+                    segmentation = patch_label_ignore_bg_bincount(
+                        seg_example["segmentation"],
+                        background_idx=0,
+                        num_classes=10,  # FishVista has 10 classes
+                    )
+
             if cfg.sort_by == "img":
-                elem = GridElement(example["image"], example["label"], torch.tensor([]))
+                elem = GridElement(
+                    example["image"],
+                    example["label"],
+                    torch.tensor([]),
+                    segmentation,
+                    i_im,
+                )
             elif cfg.sort_by == "patch":
-                elem = GridElement(example["image"], example["label"], values_p)
+                elem = GridElement(
+                    example["image"], example["label"], values_p, segmentation, i_im
+                )
             else:
                 typing.assert_never(cfg.sort_by)
             elems.append(elem)
@@ -511,19 +586,41 @@ def dump_imgs(cfg: Config):
             upper = top_values[i].max().item()
 
         for j, elem in enumerate(elems):
-            img = make_img(elem, upper=upper)
-            img.save(os.path.join(neuron_dir, f"{j}.png"))
-            with open(os.path.join(neuron_dir, f"{j}.txt"), "w") as fd:
-                fd.write(elem.label + "\n")
+            # Save SAE highlighted image
+            img = viz.add_highlights(
+                elem.img, elem.patches.numpy(), patch_size=16, upper=upper
+            )
+            img.save(os.path.join(neuron_dir, f"{j}_sae.png"))
 
-        # Metadata
-        metadata = {
+            # Save segmentation visualization if available
+            if elem.segmentation is not None:
+                seg_img = viz.colorize_segmentation_patches(
+                    elem.segmentation,
+                    patch_size=16,
+                    img_width=elem.img.width,
+                    img_height=elem.img.height,
+                    n_classes=10,  # FishVista has 10 classes
+                    background_idx=0,
+                )
+                seg_img.save(os.path.join(neuron_dir, f"{j}_seg.png"))
+
+            # Save per-image metadata as JSON
+            img_metadata = {
+                "label": elem.label,
+                "dataset_type": "SegFolder" if is_segfolder else "ImageFolder",
+                "image_index": elem.image_index,
+            }
+            with open(os.path.join(neuron_dir, f"{j}.json"), "w") as fd:
+                json.dump(img_metadata, fd)
+
+        # Neuron-level metadata
+        neuron_metadata = {
             "neuron": i,
             "log10_freq": torch.log10(sparsity[i]).item(),
             "log10_value": torch.log10(mean_values[i]).item(),
         }
         with open(os.path.join(neuron_dir, "metadata.json"), "w") as fd:
-            json.dump(metadata, fd)
+            json.dump(neuron_metadata, fd)
 
 
 @beartype.beartype
