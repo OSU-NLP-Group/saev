@@ -1,7 +1,5 @@
 """
-There is some important notation used only in this file to dramatically shorten variable names.
-
-Variables suffixed with `_im` refer to entire images, and variables suffixed with `_p` refer to patches.
+Unified script for computing both top-k visual patches and image-level activations in a single pass over the dataset. This combines functionality from visuals.py and dump.py to avoid redundant computation.
 """
 
 import dataclasses
@@ -13,6 +11,7 @@ import random
 
 import beartype
 import einops
+import polars as pl
 import torch
 from jaxtyping import Float, Int, jaxtyped
 from PIL import Image
@@ -26,45 +25,13 @@ from saev import helpers, nn, viz
 
 log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
 logging.basicConfig(level=logging.INFO, format=log_format)
-logger = logging.getLogger("visuals")
-
-
-@beartype.beartype
-def patch_label_ignore_bg_bincount(
-    pixel_labels_nd: Int[Tensor, "n d"],
-    *,
-    background_idx: int = 0,
-    num_classes: int | None = None,
-) -> Int[Tensor, " n"]:
-    """
-    Compute patch-level labels from pixel labels, with foreground priority.
-
-    This uses a foreground-prior mode: compute the per-patch histogram,
-    ignore the background count, and pick the most frequent non-background
-    class if any exists; only assign background when the patch is 100% background.
-    """
-    x = pixel_labels_nd.to(torch.long)
-    N, _ = x.shape
-    if num_classes is None:
-        num_classes = int(x.max().item()) + 1
-
-    # counts[i, c] = number of times class c appears in patch i
-    offsets = torch.arange(N, device=x.device).unsqueeze(1) * num_classes
-    flat = (x + offsets).reshape(-1)
-    counts = torch.bincount(flat, minlength=N * num_classes).reshape(N, num_classes)
-
-    nonbg = counts.clone()
-    nonbg[:, background_idx] = 0
-    has_nonbg = nonbg.sum(dim=1) > 0
-    nonbg_arg = nonbg.argmax(dim=1)
-    bg = torch.full_like(nonbg_arg, background_idx)
-    return torch.where(has_nonbg, nonbg_arg, bg)
+logger = logging.getLogger("unified_acts")
 
 
 @beartype.beartype
 @dataclasses.dataclass(frozen=True, slots=True)
 class Config:
-    """Configuration for generating visuals from trained SAEs."""
+    """Configuration for unified activation computation."""
 
     # Disk
     ckpt: str = os.path.join(".", "checkpoints", "sae.pt")
@@ -80,10 +47,10 @@ class Config:
     dump_to: str = os.path.join(".", "data")
     """Where to save data."""
 
-    # Algorithm
+    # Algorithm - visuals specific
     top_k: int = 128
     """How many images per SAE feature to store."""
-    epsilon: float = 1e-9
+    epsilon: float = 1e-12
     """Value to add to avoid log(0)."""
     log_freq_range: tuple[float, float] = (-6.0, -2.0)
     """Log10 frequency range for which to save images."""
@@ -97,8 +64,14 @@ class Config:
     """Percentile to estimate for outlier detection."""
     n_latents: int = 400
     """Number of latents to save images for."""
+
+    # Algorithm - shared
     sae_batch_size: int = 1024 * 8
     """Batch size for SAE inference."""
+
+    # Control flags
+    force_recompute: bool = False
+    """Force recomputation even if files exist."""
 
     # Hardware
     device: str = "cuda"
@@ -114,33 +87,47 @@ class Config:
     log_to: str = os.path.join(".", "logs")
     """Where to log Slurm job stdout/stderr."""
 
+    # Properties for file paths
+    @property
+    def root(self) -> str:
+        ckpt_id = os.path.basename(os.path.dirname(self.ckpt))
+        return os.path.join(self.dump_to, ckpt_id)
+
     @property
     def top_values_fpath(self) -> str:
-        return os.path.join(self.dump_to, "top_values.pt")
+        return os.path.join(self.root, "top_values.pt")
 
     @property
     def top_img_i_fpath(self) -> str:
-        return os.path.join(self.dump_to, "top_img_i.pt")
+        return os.path.join(self.root, "top_img_i.pt")
 
     @property
     def top_patch_i_fpath(self) -> str:
-        return os.path.join(self.dump_to, "top_patch_i.pt")
+        return os.path.join(self.root, "top_patch_i.pt")
 
     @property
     def mean_values_fpath(self) -> str:
-        return os.path.join(self.dump_to, "mean_values.pt")
+        return os.path.join(self.root, "mean_values.pt")
 
     @property
     def sparsity_fpath(self) -> str:
-        return os.path.join(self.dump_to, "sparsity.pt")
+        return os.path.join(self.root, "sparsity.pt")
 
     @property
     def distributions_fpath(self) -> str:
-        return os.path.join(self.dump_to, "distributions.pt")
+        return os.path.join(self.root, "distributions.pt")
 
     @property
     def percentiles_fpath(self) -> str:
-        return os.path.join(self.dump_to, f"percentiles_p{self.percentile}.pt")
+        return os.path.join(self.root, f"percentiles_p{self.percentile}.pt")
+
+    @property
+    def img_acts_fpath(self) -> str:
+        return os.path.join(self.root, "img_acts.pt")
+
+    @property
+    def img_obs_fpath(self) -> str:
+        return os.path.join(self.root, "img_obs.parquet")
 
 
 @beartype.beartype
@@ -157,58 +144,6 @@ def gather_batched(
 
     batch_i = torch.arange(batch_size, device=value.device)[:, None].expand(-1, k)
     return value[batch_i, i]
-
-
-# def test_gather_batched_small():
-#     values = torch.arange(0, 64, dtype=torch.float).view(4, 2, 8)
-#     i = torch.tensor([[0], [0], [1], [1]])
-#     actual = gather_batched(values, i)
-#     expected = torch.tensor([
-#         [[0, 1, 2, 3, 4, 5, 6, 7]],
-#         [[16, 17, 18, 19, 20, 21, 22, 23]],
-#         [[40, 41, 42, 43, 44, 45, 46, 47]],
-#         [[56, 57, 58, 59, 60, 61, 62, 63]],
-#     ]).float()
-#     torch.testing.assert_close(actual, expected)
-
-
-@jaxtyped(typechecker=beartype.beartype)
-@dataclasses.dataclass(frozen=True)
-class GridElement:
-    img: Image.Image
-    label: str
-    patches: Float[Tensor, " n_patches"]
-    segmentation: Int[Tensor, " n_patches"] | None = None
-    image_index: int | None = None
-
-
-@jaxtyped(typechecker=beartype.beartype)
-def get_new_topk(
-    val1: Float[Tensor, "d_sae k"],
-    i1: Int[Tensor, "d_sae k"],
-    val2: Float[Tensor, "d_sae k"],
-    i2: Int[Tensor, "d_sae k"],
-    k: int,
-) -> tuple[Float[Tensor, "d_sae k"], Int[Tensor, "d_sae k"]]:
-    """
-    Picks out the new top k values among val1 and val2. Also keeps track of i1 and i2, then indices of the values in the original dataset.
-
-    Args:
-        val1: top k original SAE values.
-        i1: the patch indices of those original top k values.
-        val2: top k incoming SAE values.
-        i2: the patch indices of those incoming top k values.
-        k: k.
-
-    Returns:
-        The new top k values and their patch indices.
-    """
-    all_val = torch.cat([val1, val2], dim=1)
-    new_values, top_i = torch.topk(all_val, k=k, dim=1)
-
-    all_i = torch.cat([i1, i2], dim=1)
-    new_indices = torch.gather(all_i, 1, top_i)
-    return new_values, new_indices
 
 
 @jaxtyped(typechecker=beartype.beartype)
@@ -233,66 +168,114 @@ def get_sae_acts(
     return sae_acts
 
 
+@beartype.beartype
+class PercentileEstimator:
+    def __init__(
+        self,
+        percentile: float | int,
+        total: int,
+        lr: float = 1e-3,
+        shape: tuple[int, ...] = (),
+    ):
+        self.percentile = percentile
+        self.total = total
+        self.lr = lr
+
+        self._estimate = torch.zeros(shape)
+        self._step = 0
+
+    def update(self, x):
+        """
+        Update the estimator with a new value.
+
+        This method maintains the marker positions using the P2 algorithm rules. When a new value arrives, it's placed in the appropriate position relative to existing markers, and marker positions are adjusted to maintain their desired percentile positions.
+
+        Arguments:
+            x: The new value to incorporate into the estimation
+        """
+        self._step += 1
+
+        step_size = self.lr * (self.total - self._step) / self.total
+
+        # Is a no-op if it's already on the same device.
+        if isinstance(x, Tensor):
+            self._estimate = self._estimate.to(x.device)
+
+        self._estimate += step_size * (
+            torch.sign(x - self._estimate) + 2 * self.percentile / 100 - 1.0
+        )
+
+    @property
+    def estimate(self):
+        return self._estimate
+
+
 @jaxtyped(typechecker=beartype.beartype)
 @dataclasses.dataclass(frozen=True)
-class TopKPatch:
-    """Summary of which images and patches most activate each SAE latent."""
+class Results:
+    """Results from activation computation."""
 
+    # Top-k visual results
     top_values: Float[Tensor, "d_sae k n_patches_per_img"]
-    """For each latent and its top k images, the per-patch activation values over that image's patches. Used for heatmaps/highlighting of contributing regions."""
+    """For each latent and its top k images, the per-patch activation values."""
     top_i: Int[Tensor, "d_sae k"]
-    """Global image indices for those top-`k` images per latent (aligned with the dataset's `image_i` indexing)."""
+    """Global image indices for those top-`k` images per latent."""
     mean_values: Float[Tensor, " d_sae"]
-    """Mean positive activation per latent, computed as the sum of activations divided by the count of positives (`> 0`). With nonnegative activations (e.g., ReLU/TopK), this is the average active value."""
+    """Mean positive activation per latent."""
     sparsity: Float[Tensor, " d_sae"]
-    """Fraction of samples where each latent is active (`> 0`), i.e., empirical activation rate."""
+    """Fraction of samples where each latent is active."""
     distributions: Float[Tensor, "m n"]
-    """For the first `m = cfg.n_distributions` latents, the raw activation values across all `n` samples. Useful for plotting activation histograms."""
+    """Activation distributions for first m latents."""
     percentiles: Float[Tensor, " d_sae"]
-    """Online estimate of the `cfg.percentile` activation threshold per latent over the dataset (used for outlier detection/thresholding)."""
+    """Percentile estimates per latent."""
+
+    # Image-level activations
+    img_acts: Float[Tensor, "n_imgs d_sae"]
+    """Image-level activations (n_imgs, d_sae)."""
+    obs: list[dict]
+    """Image metadata."""
 
 
 @beartype.beartype
 @torch.inference_mode()
-def get_topk_patch(cfg: Config) -> TopKPatch:
+def dump_activations(cfg: Config):
     """
-    Gets the top k images for each latent in the SAE.
-    The top k images are for latent i are sorted by
+    Compute both top-k visual patches and image-level activations in a single pass.
 
-        max over all patches: f_x(patch)[i]
-
-    Thus, we could end up with duplicate images in the top k, if an image has more than one patch that maximally activates an SAE latent.
+    This function combines the functionality of get_topk_patch() from visuals.py and worker_fn() from dump.py, avoiding redundant computation of SAE activations.
 
     Args:
-        cfg: Config.
+        cfg: Configuration object.
 
     Returns:
-        A tuple of TopKPatch and m randomly sampled activation distributions.
+        UnifiedResults containing both top-k and image-level data.
     """
     assert cfg.data.patches == "image"
 
     sae = nn.load(cfg.ckpt).to(cfg.device)
-    metadata = saev.data.Metadata.load(cfg.data.shard_root)
+    md = saev.data.Metadata.load(cfg.data.shard_root)
 
+    # Initialize top-k tracking (from visuals.py)
     top_values_p = torch.full(
-        (sae.cfg.d_sae, cfg.top_k, metadata.n_patches_per_img), -1.0, device=cfg.device
+        (sae.cfg.d_sae, cfg.top_k, md.n_patches_per_img), -1.0, device=cfg.device
     )
     top_i_im = torch.zeros(
         (sae.cfg.d_sae, cfg.top_k), dtype=torch.int, device=cfg.device
     )
 
-    sparsity_S = torch.zeros((sae.cfg.d_sae,), device=cfg.device)
-    mean_values_S = torch.zeros((sae.cfg.d_sae,), device=cfg.device)
+    sparsity_s = torch.zeros((sae.cfg.d_sae,), device=cfg.device)
+    mean_values_s = torch.zeros((sae.cfg.d_sae,), device=cfg.device)
 
-    batch_size = (
-        cfg.data.batch_size // metadata.n_patches_per_img * metadata.n_patches_per_img
-    )
-    n_imgs_per_batch = batch_size // metadata.n_patches_per_img
+    # Initialize image-level activations (from dump.py)
+    img_acts_ns = torch.zeros((md.n_imgs, sae.cfg.d_sae))
+
+    batch_size = cfg.data.batch_size // md.n_patches_per_img * md.n_patches_per_img
+    n_imgs_per_batch = batch_size // md.n_patches_per_img
     dataloader = saev.data.OrderedDataLoader(
         dataclasses.replace(cfg.data, batch_size=batch_size),
     )
 
-    distributions_MN = torch.zeros(
+    distributions_mn = torch.zeros(
         (cfg.n_distributions, dataloader.n_samples), device="cpu"
     )
     estimator = PercentileEstimator(
@@ -301,27 +284,30 @@ def get_topk_patch(cfg: Config) -> TopKPatch:
 
     logger.info("Loaded SAE and data.")
 
-    for batch in helpers.progress(dataloader, desc="picking top-k"):
-        vit_acts_BD = batch["act"]
-        sae_acts_BS = get_sae_acts(vit_acts_BD, sae, cfg)
+    for batch in helpers.progress(dataloader, desc="activations"):
+        # Get SAE activations (shared computation)
+        vit_acts_bd = batch["act"]
+        sae_acts_bs = get_sae_acts(vit_acts_bd, sae, cfg)
 
-        for sae_act_S in sae_acts_BS:
-            estimator.update(sae_act_S)
+        # Update percentile estimator
+        for sae_act_s in sae_acts_bs:
+            estimator.update(sae_act_s)
 
-        sae_acts_SB = einops.rearrange(sae_acts_BS, "batch d_sae -> d_sae batch")
-        distributions_MN[:, batch["image_i"]] = sae_acts_SB[: cfg.n_distributions].to(
+        # Reshape for per-image processing
+        sae_acts_sb = einops.rearrange(sae_acts_bs, "batch d_sae -> d_sae batch")
+        distributions_mn[:, batch["image_i"]] = sae_acts_sb[: cfg.n_distributions].to(
             "cpu"
         )
 
-        mean_values_S += einops.reduce(sae_acts_SB, "d_sae batch -> d_sae", "sum")
-        sparsity_S += einops.reduce((sae_acts_SB > 0), "d_sae batch -> d_sae", "sum")
+        # Update statistics
+        mean_values_s += einops.reduce(sae_acts_sb, "d_sae batch -> d_sae", "sum")
+        sparsity_s += einops.reduce((sae_acts_sb > 0), "d_sae batch -> d_sae", "sum")
 
+        # Get unique image indices in this batch
         i_im = torch.sort(torch.unique(batch["image_i"])).values
-        values_p = sae_acts_SB.view(
-            sae.cfg.d_sae, len(i_im), metadata.n_patches_per_img
-        )
+        values_p = sae_acts_sb.view(sae.cfg.d_sae, len(i_im), md.n_patches_per_img)
 
-        # Checks that I did my reshaping correctly.
+        # Validation
         assert values_p.shape[1] == i_im.shape[0]
         if not len(i_im) == n_imgs_per_batch:
             logger.warning(
@@ -330,52 +316,88 @@ def get_topk_patch(cfg: Config) -> TopKPatch:
                 n_imgs_per_batch,
             )
 
-        _, k = torch.topk(sae_acts_SB, k=cfg.top_k, dim=1)
-        k_im = k // metadata.n_patches_per_img
+        # Update top-k tracking (from visuals.py)
+        _, k = torch.topk(sae_acts_sb, k=cfg.top_k, dim=1)
+        k_im = k // md.n_patches_per_img
 
-        values_p = gather_batched(values_p, k_im)
-        i_im = i_im.to(cfg.device)[k_im]
+        values_p_topk = gather_batched(values_p, k_im)
+        i_im_device = i_im.to(cfg.device)[k_im]
 
-        all_values_p = torch.cat((top_values_p, values_p), axis=1)
-        _, k = torch.topk(all_values_p.max(axis=-1).values, k=cfg.top_k, axis=1)
+        all_values_p = torch.cat((top_values_p, values_p_topk), dim=1)
+        _, k = torch.topk(all_values_p.max(dim=-1).values, k=cfg.top_k, dim=1)
 
         top_values_p = gather_batched(all_values_p, k)
-        top_i_im = torch.gather(torch.cat((top_i_im, i_im), axis=1), 1, k)
+        top_i_im = torch.gather(torch.cat((top_i_im, i_im_device), dim=1), 1, k)
 
-    mean_values_S /= sparsity_S
-    sparsity_S /= dataloader.n_samples
+        acts_sb = torch.topk(values_p, 3, dim=-1).values.mean(dim=-1)
+        img_acts_ns[i_im] = acts_sb.cpu().T
 
-    return TopKPatch(
-        top_values_p,
-        top_i_im,
-        mean_values_S,
-        sparsity_S,
-        distributions_MN,
-        estimator.estimate.cpu(),
-    )
+    # Finalize statistics
+    mean_values_s /= sparsity_s
+    sparsity_s /= dataloader.n_samples
+
+    # Get image metadata
+    vit_cls = saev.data.models.load_vit_cls(md.vit_family)
+    img_transform = vit_cls.make_resize(md.vit_ckpt, scale=1)
+    img_ds = saev.data.datasets.get_dataset(cfg.images, img_transform=img_transform)
+    if hasattr(img_ds, "samples") and hasattr(img_ds, "classes"):
+        obs = [
+            {"path": path, "target": target, "label": img_ds.classes[target]}
+            for path, target in img_ds.samples
+        ]
+    else:
+        logger.warning("Can't save .obs without '.samples'.")
+        obs = []
+
+    # Save top-k visual results
+    torch.save(top_values_p, cfg.top_values_fpath)
+    torch.save(top_i_im, cfg.top_img_i_fpath)
+    torch.save(mean_values_s, cfg.mean_values_fpath)
+    torch.save(sparsity_s, cfg.sparsity_fpath)
+    torch.save(distributions_mn, cfg.distributions_fpath)
+    torch.save(estimator.estimate.cpu(), cfg.percentiles_fpath)
+    torch.save(img_acts_ns, cfg.img_acts_fpath)
+    pl.DataFrame(obs).write_parquet(cfg.img_obs_fpath)
 
 
 @beartype.beartype
-@torch.inference_mode()
-def dump_activations(cfg: Config):
-    """Dump ViT activation statistics for later use.
-
-    The dataset described by ``cfg`` is processed to find the images or patches that maximally activate each SAE latent.  Various tensors summarising these activations are then written to ``cfg.dump_to`` so they can be loaded by other tools.
-
-    Args:
-        cfg: options controlling which activations are processed and where the resulting files are saved.
-
-    Returns:
-        None. All data is saved to disk.
+def patch_label_ignore_bg_bincount(
+    pixel_labels_nd: Int[Tensor, "n d"],
+    *,
+    background_idx: int = 0,
+    num_classes: int | None = None,
+) -> Int[Tensor, " n"]:
     """
-    topk = get_topk_patch(cfg)
-    os.makedirs(cfg.dump_to, exist_ok=True)
-    torch.save(topk.top_values, cfg.top_values_fpath)
-    torch.save(topk.top_i, cfg.top_img_i_fpath)
-    torch.save(topk.mean_values, cfg.mean_values_fpath)
-    torch.save(topk.sparsity, cfg.sparsity_fpath)
-    torch.save(topk.distributions, cfg.distributions_fpath)
-    torch.save(topk.percentiles, cfg.percentiles_fpath)
+    Compute patch-level labels from pixel labels, with foreground priority.
+
+    This uses a foreground-prior mode: compute the per-patch histogram, ignore the background count, and pick the most frequent non-background class if any exists; only assign background when the patch is 100% background.
+    """
+    x = pixel_labels_nd.to(torch.long)
+    N, _ = x.shape
+    if num_classes is None:
+        num_classes = int(x.max().item()) + 1
+
+    # counts[i, c] = number of times class c appears in patch i
+    offsets = torch.arange(N, device=x.device).unsqueeze(1) * num_classes
+    flat = (x + offsets).reshape(-1)
+    counts = torch.bincount(flat, minlength=N * num_classes).reshape(N, num_classes)
+
+    nonbg = counts.clone()
+    nonbg[:, background_idx] = 0
+    has_nonbg = nonbg.sum(dim=1) > 0
+    nonbg_arg = nonbg.argmax(dim=1)
+    bg = torch.full_like(nonbg_arg, background_idx)
+    return torch.where(has_nonbg, nonbg_arg, bg)
+
+
+@jaxtyped(typechecker=beartype.beartype)
+@dataclasses.dataclass(frozen=True)
+class GridElement:
+    img: Image.Image
+    label: str
+    patches: Float[Tensor, " n_patches"]
+    segmentation: Int[Tensor, " n_patches"] | None = None
+    image_index: int | None = None
 
 
 @jaxtyped(typechecker=beartype.beartype)
@@ -432,16 +454,12 @@ def plot_activation_distributions(cfg: Config, distributions: Float[Tensor, "m n
 
 @beartype.beartype
 @torch.inference_mode()
-def dump_imgs(cfg: Config):
+def generate_visuals(cfg: Config):
     """
-    .. todo:: document this function.
+    Generate visual outputs from computed activations.
 
-    Dump top-k images to a directory.
-
-    Args:
-        cfg: Configuration object.
+    This is equivalent to dump_imgs() from visuals.py but uses pre-computed results.
     """
-
     try:
         top_values = safe_load(cfg.top_values_fpath)
         sparsity = safe_load(cfg.sparsity_fpath)
@@ -450,12 +468,11 @@ def dump_imgs(cfg: Config):
         distributions = safe_load(cfg.distributions_fpath)
         _ = safe_load(cfg.percentiles_fpath)
     except FileNotFoundError as err:
-        logger.warning("Need to dump files: %s", err)
-        dump_activations(cfg)
-        return dump_imgs(cfg)
+        logger.error("Required activation files not found: %s", err)
+        logger.error("Please run the script first to compute activations.")
+        return
 
     d_sae, cached_topk, *rest = top_values.shape
-    # Check that the data is at least shaped correctly.
     assert cfg.top_k == cached_topk
     assert len(rest) == 1
     n_patches = rest[0]
@@ -463,9 +480,8 @@ def dump_imgs(cfg: Config):
 
     logger.info("Loaded sorted data.")
 
-    os.makedirs(cfg.dump_to, exist_ok=True)
     fig_fpath = os.path.join(
-        cfg.dump_to, f"{cfg.n_distributions}_activation_distributions.png"
+        cfg.root, f"{cfg.n_distributions}_activation_distributions.png"
     )
     plot_activation_distributions(cfg, distributions).savefig(fig_fpath, dpi=300)
     logger.info(
@@ -518,7 +534,7 @@ def dump_imgs(cfg: Config):
     neurons += random_neurons[: cfg.n_latents]
 
     for i in helpers.progress(neurons, desc="saving visuals"):
-        neuron_dir = os.path.join(cfg.dump_to, "neurons", str(i))
+        neuron_dir = os.path.join(cfg.root, "neurons", str(i))
         os.makedirs(neuron_dir, exist_ok=True)
 
         # Image grid
@@ -593,43 +609,34 @@ def dump_imgs(cfg: Config):
 
 
 @beartype.beartype
-class PercentileEstimator:
-    def __init__(
-        self,
-        percentile: float | int,
-        total: int,
-        lr: float = 1e-3,
-        shape: tuple[int, ...] = (),
-    ):
-        self.percentile = percentile
-        self.total = total
-        self.lr = lr
+@torch.inference_mode()
+def worker_fn(cfg: Config):
+    """Main entry point for unified activation computation."""
+    os.makedirs(cfg.root, exist_ok=True)
 
-        self._estimate = torch.zeros(shape)
-        self._step = 0
+    # Check if we need to compute activations
+    fpaths = [
+        cfg.top_values_fpath,
+        cfg.top_img_i_fpath,
+        cfg.mean_values_fpath,
+        cfg.sparsity_fpath,
+        cfg.distributions_fpath,
+        cfg.percentiles_fpath,
+        cfg.img_acts_fpath,
+        cfg.img_obs_fpath,
+    ]
+    missing = [fpath for fpath in fpaths if not os.path.exists(fpath)]
+    need_compute = cfg.force_recompute or bool(missing)
 
-    def update(self, x):
-        """
-        Update the estimator with a new value.
+    if need_compute:
+        if cfg.force_recompute:
+            logger.info("Force recompute flag set; computing activations.")
+        else:
+            logger.info("Missing files %s; computing activations.", ", ".join(missing))
+        dump_activations(cfg)
+    else:
+        logger.info("Found existing activation files, skipping computation.")
 
-        This method maintains the marker positions using the P2 algorithm rules.
-        When a new value arrives, it's placed in the appropriate position relative to existing markers, and marker positions are adjusted to maintain their desired percentile positions.
+    generate_visuals(cfg)
 
-        Arguments:
-            x: The new value to incorporate into the estimation
-        """
-        self._step += 1
-
-        step_size = self.lr * (self.total - self._step) / self.total
-
-        # Is a no-op if it's already on the same device.
-        if isinstance(x, Tensor):
-            self._estimate = self._estimate.to(x.device)
-
-        self._estimate += step_size * (
-            torch.sign(x - self._estimate) + 2 * self.percentile / 100 - 1.0
-        )
-
-    @property
-    def estimate(self):
-        return self._estimate
+    logger.info("Complete.")

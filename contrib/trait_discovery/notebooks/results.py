@@ -7,6 +7,7 @@ app = marimo.App(width="medium")
 @app.cell
 def _():
     import marimo as mo
+
     return (mo,)
 
 
@@ -21,7 +22,6 @@ def _():
                 sys.path.insert(0, os.path.dirname(path))
                 return
 
-
     add_src_to_path()
 
     import dataclasses
@@ -34,6 +34,7 @@ def _():
     import matplotlib.pyplot as plt
     import numpy as np
     import polars as pl
+
     return beartype, dataclasses, json, math, np, os, pl, plt, re
 
 
@@ -41,13 +42,11 @@ def _():
 def _(dataclasses):
     attributes_fpath = "/fs/ess/PAS2136/cub2011/CUB_200_2011_ImageFolder/metadata/attributes/attributes.txt"
 
-
     @dataclasses.dataclass(frozen=True)
     class CubAttribute:
         idx: int
         name: str
         value: str
-
 
     def load_cub_attributes():
         attributes = []
@@ -59,7 +58,6 @@ def _(dataclasses):
                 attributes.append(attribute)
 
         return attributes
-
 
     attributes = load_cub_attributes()
 
@@ -82,31 +80,118 @@ def _(json, mo, os, pl):
 
         return pl.DataFrame(rows, infer_schema_length=None).unnest("extra")
 
-
     df = load_df(
         "/users/PAS1576/samuelstevens/projects/saev/contrib/trait_discovery/results",
         prefix="fishvista",
     ).filter(pl.col("layer") > 11)
 
-    df.group_by(
-        [
-            "n_prototypes",
-            "n_train",
-            "seed",
-            "vit_family",
-            "vit_ckpt",
-            "layer",
-            "method",
-            "class_idx",
-        ]
-    ).agg(pl.col("average_precision").mean().alias("mAP")).sort(by="mAP", descending=True)
+    df.group_by([
+        "n_prototypes",
+        "n_train",
+        "seed",
+        "vit_family",
+        "vit_ckpt",
+        "layer",
+        "method",
+        "class_idx",
+        "sae_ckpt",
+    ]).agg(pl.col("average_precision").mean().alias("mAP")).sort(
+        by="mAP", descending=True
+    )
     # df
     return (df,)
 
 
 @app.cell
-def _(df):
-    df.head()
+def _(df, pl):
+    df.filter(
+        (
+            pl.col("sae_ckpt")
+            == "/fs/ess/PAS2136/samuelstevens/checkpoints/saev/dbo663go/sae.pt"
+        )
+        & (pl.col("class_idx") == 2)
+        & (pl.col("n_train") >= 300)
+    ).sort(by="average_precision", descending=True)
+    return
+
+
+@app.cell
+def _(df, pl):
+    df.filter(
+        (
+            pl.col("sae_ckpt")
+            == "/fs/ess/PAS2136/samuelstevens/checkpoints/saev/6b18jnda/sae.pt"
+        )
+        & (pl.col("class_idx") == 9)
+        & (pl.col("n_train") >= 300)
+    ).sort(by="average_precision", descending=True)
+    return
+
+
+@app.cell
+def _(mo):
+    mo.md(
+        r"""
+    | Segmentation Class | Segmentation Name | Best Latent | mAP | Notes |
+    |---|---|---|---|---|
+    | 0 | Background/Body |
+    | 1 | Head | 4 | 0.828 |
+    | 2 | Eye | 24 | 0.814 |
+    | 3 | Dorsal Fin | 5, 98 | ~0.55 | 98 looks good to me. 5 also hits the anal fin. |
+    | 4 | Pectoral Fin | 13 | 0.747 |
+    | 5 | Pelvic Fin | 32, 267 | ~0.44 | 32 sometimes hits the dorsal fin. 267 is only for fish with really "shallow" pelvic fins. |
+    | 6 | Anal Fin | 26, 67, 112 | ~0.42 | 26 looks good to me. 67 sometimes fires for the dorsal fin. Same thing for 112. |
+    | 7 | Caudal Fin (Tail) | 7 | 0.794 | 
+    | 8 | Adipose Fin | | | 728, 406 (not listed) seem good to me. Why? |
+    | 9 | Barbel | 990 | 0.112
+
+    - 1635 looks like a great pelvic fin, but only for fish with really weak/small pelvic fins.
+    """
+    )
+    return
+
+
+@app.cell
+def _(df, pl):
+    df.filter(
+        (pl.col("method") == "random")
+        & (pl.col("class_idx") == 7)
+        & (pl.col("n_train") == 30_000)
+        & (pl.col("n_prototypes") > 6000)
+    )
+    return
+
+
+@app.cell
+def _(df, pl):
+    df.filter(
+        (
+            (
+                pl.col("sae_ckpt")
+                == "/fs/ess/PAS2136/samuelstevens/checkpoints/saev/6b18jnda/sae.pt"
+            )
+            | ((pl.col("method") == "random") & (pl.col("n_prototypes") == 8224))
+        )
+        & (pl.col("class_idx") == 1)
+        & (pl.col("n_train") == 300)
+    ).sort(by="average_precision", descending=True)
+    return
+
+
+@app.cell
+def _(df, pl):
+    print(
+        " ".join(
+            f"{i}"
+            for i in df.filter(
+                pl.col("sae_ckpt")
+                == "/fs/ess/PAS2136/samuelstevens/checkpoints/saev/6b18jnda/sae.pt"
+            )
+            .get_column("best_prototype_idx")
+            .unique()
+            .to_list()
+        )
+    )
     return
 
 
@@ -232,7 +317,9 @@ def _(beartype, df, math, np, pl, plt, re):
             )
 
             sae_ckpts = sorted(
-                df.filter(pl.col("sae_ckpt").is_not_null()).get_column("sae_ckpt").unique()
+                df.filter(pl.col("sae_ckpt").is_not_null())
+                .get_column("sae_ckpt")
+                .unique()
             )
             if not sae_ckpts:
                 return
@@ -262,7 +349,7 @@ def _(beartype, df, math, np, pl, plt, re):
                         alpha=0.8,
                     )
 
-            ax.legend()
+            # ax.legend()
 
         def _parse_sae_ckpt(self, sae_ckpt: str) -> str:
             """/fs/ess/PAS2136/samuelstevens/checkpoints/saev/goztek1c/sae.pt -> goztek1c"""
@@ -304,7 +391,6 @@ def _(beartype, df, math, np, pl, plt, re):
                     label=f"{method}({n_prototypes})",
                     alpha=0.5,
                 )
-
 
     fig, axes = Plotter(df).plot()
     fig
@@ -396,7 +482,6 @@ def _(df, np, pl, plt):
                     ax.legend(frameon=True)
 
         return fig
-
 
     grid_by_ntrain_nproto(df)
     return

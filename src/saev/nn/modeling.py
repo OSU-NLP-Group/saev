@@ -10,7 +10,7 @@ import typing
 import beartype
 import einops
 import torch
-from jaxtyping import Float, Int, jaxtyped
+from jaxtyping import Float, Int32, jaxtyped
 from torch import Tensor
 
 from .. import __version__, helpers
@@ -114,7 +114,7 @@ class SparseAutoencoder(torch.nn.Module):
         self,
         f_x: Float[Tensor, "batch d_sae"],
         *,
-        prefixes: Int[Tensor, " n_prefixes"] | None = None,
+        prefixes: Int32[Tensor, " n_prefixes"] | None = None,
     ) -> Float[Tensor, "batch n_prefixes d_model"]:
         """
         Decode latent features to reconstructions.
@@ -124,18 +124,23 @@ class SparseAutoencoder(torch.nn.Module):
             prefixes: Optional tensor of prefix lengths for Matryoshka decoding.
 
         Returns:
-            Matryoshka reconstructions (n_prefixes, batch, d_model).
+            Matryoshka reconstructions (batch, n_prefixes, d_model).
         """
         b, d_sae = f_x.shape
 
         # Matryoshka cumulative decode
         device = f_x.device
         if prefixes is None:
-            prefixes = torch.tensor([d_sae], dtype=int)
+            prefixes = torch.tensor([d_sae], dtype=torch.int32)
+        assert torch.all(prefixes[1:] > prefixes[:-1])
+        assert 1 <= int(prefixes[0]) and int(prefixes[-1]) == d_sae
         prefixes = prefixes.to(device)
 
         # Build blocks from prefix cuts: [0, cut1), [cut1, cut2), ...
-        block_indices = torch.cat([torch.tensor([0], device=device), prefixes])
+        block_indices = torch.cat([
+            torch.tensor([0], dtype=prefixes.dtype, device=device),
+            prefixes,
+        ])
         blocks = list(zip(block_indices[:-1], block_indices[1:]))
 
         # Compute block outputs

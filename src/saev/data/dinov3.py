@@ -618,8 +618,12 @@ class Vit(torch.nn.Module, models.VisionTransformer):
         name = self._parse_name(ckpt)
         self.model = load(name, ckpt)
 
-        self.ckpt = name
+        self._ckpt = name
         self.logger = logging.getLogger(f"dinov3/{name}")
+
+    @property
+    def ckpt(self) -> str:
+        return self._ckpt
 
     def get_residuals(self) -> list[torch.nn.Module]:
         return self.model.blocks

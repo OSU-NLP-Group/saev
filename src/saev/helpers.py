@@ -8,7 +8,8 @@ import pathlib
 import re
 import subprocess
 import time
-import typing
+import types
+import typing as tp
 
 import beartype
 
@@ -196,7 +197,7 @@ class batched_idx:
 #################
 
 
-T = typing.TypeVar("T")
+T = tp.TypeVar("T")
 
 
 @beartype.beartype
@@ -282,6 +283,93 @@ def grid(cfg: T, sweep_dct: dict[str, object]) -> tuple[list[T], list[str]]:
             errs.append(str(err))
 
     return cfgs, errs
+
+
+@beartype.beartype
+def dict_to_dataclass(data: dict, cls: type[T]) -> T:
+    """Recursively convert a dictionary to a dataclass instance."""
+    if not dataclasses.is_dataclass(cls):
+        return data
+
+    field_types = {f.name: f.type for f in dataclasses.fields(cls)}
+    kwargs = {}
+
+    for field_name, field_type in field_types.items():
+        if field_name not in data:
+            continue
+
+        value = data[field_name]
+
+        # Handle Optional types
+        origin = tp.get_origin(field_type)
+        args = tp.get_args(field_type)
+
+        # Handle tuple[str, ...]
+        if origin is tuple and args:
+            kwargs[field_name] = tuple(value) if isinstance(value, list) else value
+        # Handle list[DataclassType]
+        elif origin is list and args and dataclasses.is_dataclass(args[0]):
+            kwargs[field_name] = [dict_to_dataclass(item, args[0]) for item in value]
+        # Handle regular dataclass fields
+        elif dataclasses.is_dataclass(field_type):
+            kwargs[field_name] = dict_to_dataclass(value, field_type)
+        # Handle pathlib.Path
+        elif field_type is pathlib.Path:
+            # Required Path field - always convert
+            kwargs[field_name] = pathlib.Path(value) if value is not None else value
+        elif origin is tp.Union and pathlib.Path in args:
+            # Optional Path field (typing.Union style)
+            kwargs[field_name] = pathlib.Path(value) if value is not None else value
+        elif origin is types.UnionType and pathlib.Path in args:
+            # Optional Path field (Python 3.10+ union style with |)
+            kwargs[field_name] = pathlib.Path(value) if value is not None else value
+        else:
+            kwargs[field_name] = value
+
+    return cls(**kwargs)
+
+
+@beartype.beartype
+def get_non_default_values(obj: T, default_obj: T) -> dict:
+    """Recursively find fields that differ from defaults."""
+    # Check that obj and default_obj are instances of a dataclass.
+    assert dataclasses.is_dataclass(obj) and not isinstance(obj, type)
+    assert dataclasses.is_dataclass(default_obj) and not isinstance(default_obj, type)
+
+    obj_dict = dataclasses.asdict(obj)
+    default_dict = dataclasses.asdict(default_obj)
+
+    diff = {}
+    for key, value in obj_dict.items():
+        default_value = default_dict.get(key)
+        if value != default_value:
+            diff[key] = value
+
+    return diff
+
+
+@beartype.beartype
+def merge_configs(base: T, overrides: dict) -> T:
+    """Recursively merge override values into a base config."""
+    if not overrides:
+        return base
+
+    # Check that base is an instance of a dataclass.
+    assert dataclasses.is_dataclass(base) and not isinstance(base, type)
+
+    base_dict = dataclasses.asdict(base)
+
+    for key, value in overrides.items():
+        if key in base_dict:
+            # For nested dataclasses, merge recursively
+            if isinstance(value, dict) and dataclasses.is_dataclass(getattr(base, key)):
+                base_dict[key] = dataclasses.asdict(
+                    merge_configs(getattr(base, key), value)
+                )
+            else:
+                base_dict[key] = value
+
+    return dict_to_dataclass(base_dict, type(base))
 
 
 @beartype.beartype

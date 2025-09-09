@@ -47,6 +47,13 @@ def test_safe_mse_large_x():
     assert not safe.isnan().any()
 
 
+def test_mse_norm_keyword_works():
+    x = torch.randn(3, 4)
+    y = x.clone()
+    m = objectives.mean_squared_err(y, x, norm=True)
+    assert torch.isfinite(m).all()
+
+
 def test_factories():
     assert isinstance(
         objectives.get_objective(objectives.Vanilla()), objectives.VanillaObjective
@@ -484,3 +491,12 @@ def test_decode_prefixes_device_handling():
 
     assert x_hats.device == f_x.device
     assert x_hats.shape == (3, 2, 16)
+
+
+def test_decode_default_prefix_is_long_and_does_not_crash():
+    cfg = saev.nn.SparseAutoencoderConfig(d_vit=8, exp_factor=1)
+    sae = saev.nn.SparseAutoencoder(cfg)
+    x = torch.randn(2, 8)
+    f = sae.encode(x)
+    out = sae.decode(f)  # should not raise
+    assert out.shape == (2, 1, 8)

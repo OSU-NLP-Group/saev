@@ -14,22 +14,20 @@ def _():
     import numpy as np
     import torch
     import tqdm
-
-    return json, mo, np, os, plt, torch, tqdm
+    return json, mo, np, os, plt, torch
 
 
 @app.cell
 def _(mo, os):
     def make_ckpt_dropdown():
         try:
-            choices = sorted(
-                os.listdir("/fs/scratch/PAS2136/samuelstevens/saev/visuals/")
-            )
+            choices = sorted(os.listdir("/fs/scratch/PAS2136/samuelstevens/saev/visuals/"))
 
         except FileNotFoundError:
             choices = []
 
         return mo.ui.dropdown(choices, label="Checkpoint:")
+
 
     ckpt_dropdown = make_ckpt_dropdown()
     return (ckpt_dropdown,)
@@ -45,12 +43,10 @@ def _(ckpt_dropdown, mo):
 def _(ckpt_dropdown, mo):
     mo.stop(
         ckpt_dropdown.value is None,
-        mo.md(
-            "Run `uv run main.py webapp --help` to fill out at least one checkpoint."
-        ),
+        mo.md("Run `uv run main.py webapp --help` to fill out at least one checkpoint."),
     )
 
-    webapp_dir = f"/fs/scratch/PAS2136/samuelstevens/saev/visuals/{ckpt_dropdown.value}/sort_by_patch"
+    webapp_dir = f"/fs/scratch/PAS2136/samuelstevens/saev/visuals/{ckpt_dropdown.value}"
 
     get_i, set_i = mo.state(0)
     return get_i, set_i, webapp_dir
@@ -68,9 +64,7 @@ def _(mo):
 
 @app.cell
 def _(mo, sort_by_freq_btn, sort_by_latent_btn, sort_by_value_btn):
-    mo.hstack(
-        [sort_by_freq_btn, sort_by_value_btn, sort_by_latent_btn], justify="start"
-    )
+    mo.hstack([sort_by_freq_btn, sort_by_value_btn, sort_by_latent_btn], justify="start")
     return
 
 
@@ -82,12 +76,11 @@ def _(
     sort_by_freq_btn,
     sort_by_latent_btn,
     sort_by_value_btn,
-    tqdm,
     webapp_dir,
 ):
     def get_neurons() -> list[dict]:
         rows = []
-        for name in tqdm.tqdm(list(os.listdir(f"{webapp_dir}/neurons"))):
+        for name in mo.status.progress_bar(list(os.listdir(f"{webapp_dir}/neurons"))):
             if not name.isdigit():
                 continue
             try:
@@ -98,6 +91,7 @@ def _(
                 continue
             # rows.append({"neuron": int(name)})
         return rows
+
 
     neurons = get_neurons()
 
@@ -173,7 +167,6 @@ def _(get_i, mo, neurons):
         return mo.md(
             f"Neuron {neuron} ({get_i()}/{len(neurons)}; {get_i() / len(neurons) * 100:.1f}%) | Frequency: {10**log10_freq * 100:.5f}% of inputs | Mean Value: {10**log10_value:.3f}"
         )
-
     return (display_info,)
 
 
@@ -213,9 +206,7 @@ def _(json, mo, os, webapp_dir):
 
         # Try new SAE image first, fall back to old format
         if os.path.exists(sae_path):
-            images_to_show.append(
-                mo.vstack([mo.image(sae_path), mo.md("SAE Activations")])
-            )
+            images_to_show.append(mo.vstack([mo.image(sae_path), mo.md(label)]))
         elif os.path.exists(old_path):
             images_to_show.append(mo.vstack([mo.image(old_path), mo.md(label)]))
         else:
@@ -223,25 +214,20 @@ def _(json, mo, os, webapp_dir):
 
         # Add segmentation if it exists
         if os.path.exists(seg_path):
-            images_to_show.append(
-                mo.vstack([mo.image(seg_path), mo.md("Segmentation")])
-            )
+            images_to_show.append(mo.vstack([mo.image(seg_path), mo.md("Segmentation")]))
 
         # If we have both images, show side-by-side; otherwise just show what we have
         if len(images_to_show) == 2:
             return mo.vstack([mo.md(label), mo.hstack(images_to_show, widths="equal")])
         else:
             return images_to_show[0]
-
     return (show_img,)
 
 
 @app.cell
 def _(mo):
     # Add a slider to control number of columns
-    cols_slider = mo.ui.slider(
-        1, 10, value=5, label="Number of columns:", full_width=False
-    )
+    cols_slider = mo.ui.slider(1, 10, value=5, label="Number of columns:", full_width=False)
     return (cols_slider,)
 
 
@@ -285,6 +271,7 @@ def _(mo, np, plt, sparsity):
         fig, ax = plt.subplots()
         ax.hist(np.log10(counts.numpy() + 1e-9), bins=100)
         return fig
+
 
     mo.md(f"""
     Sparsity Log10
@@ -354,7 +341,6 @@ def _(np, plt, sparsity, values):
         ax.legend(loc="upper right")
 
         return fig
-
     return (plot_dist,)
 
 

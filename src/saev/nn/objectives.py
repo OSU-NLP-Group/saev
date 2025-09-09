@@ -4,7 +4,7 @@ import typing
 import beartype
 import einops
 import torch
-from jaxtyping import Float, jaxtyped
+from jaxtyping import Float, Int32, jaxtyped
 from torch import Tensor
 
 from . import modeling
@@ -105,7 +105,7 @@ class VanillaObjective(Objective):
 
         mse_loss = mse_loss.mean()
         l0 = (f_x > 0).float().sum(axis=1).mean(axis=0)
-        l1 = f_x.sum(axis=1).mean(axis=0)
+        l1 = f_x.abs().sum(dim=1).mean(dim=0)
         sparsity_loss = self.sparsity_coeff * l1
 
         return VanillaLoss(mse_loss, sparsity_loss, l0, l1)
@@ -166,7 +166,7 @@ class MatryoshkaObjective(Objective):
         mse_loss = mean_squared_err(
             x_hats,
             einops.repeat(
-                x, "b d_sae -> b prefixes d_sae", prefixes=self.cfg.n_prefixes
+                x, "b d_model -> b prefixes d_model", prefixes=self.cfg.n_prefixes
             ),
         ).mean()
 
@@ -179,9 +179,10 @@ class MatryoshkaObjective(Objective):
 
 
 @torch.no_grad()
+@jaxtyped(typechecker=beartype.beartype)
 def sample_prefixes(
     d_sae: int, n_prefixes: int, min_prefix_length: int = 1, pareto_power: float = 0.5
-) -> torch.Tensor:
+) -> Int32[Tensor, " n_prefixes"]:
     """
     Samples prefix lengths using a Pareto distribution. Derived from "Learning Multi-Level Features with
     Matryoshka Sparse Autoencoders" (https://doi.org/10.48550/arXiv.2503.17547)
@@ -244,14 +245,14 @@ def ref_mean_squared_err(
 def mean_squared_err(
     x_hat: Float[Tensor, "*batch d"], x: Float[Tensor, "*batch d"], norm: bool = False
 ) -> Float[Tensor, "*batch d"]:
-    upper = x.abs().max()
+    upper = x.abs().max().clamp(min=1e-12)
     x = x / upper
     x_hat = x_hat / upper
 
     mse = (x_hat - x) ** 2
     # (sam): I am now realizing that we normalize by the L2 norm of x.
     if norm:
-        mse /= torch.linalg.norm(x, axis=-1, keepdim=True) + 1e-12
+        mse /= torch.linalg.norm(x, dim=-1, keepdim=True) + 1e-12
         return mse * upper
 
     return mse * upper * upper

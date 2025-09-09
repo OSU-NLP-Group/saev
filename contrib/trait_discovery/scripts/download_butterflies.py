@@ -219,7 +219,7 @@ def download_images(jiggins_data, image_folder, log_filepath, error_log_filepath
                 )
 
 
-@beartype
+@beartype.beartype
 def main(cfg: Config):
     # log file location (folder of source CSV)
     log_filepath = cfg.csv.split(".")[0] + "_log.json"

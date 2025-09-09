@@ -261,14 +261,14 @@ def _(
 
     fig = plot_layerwise(filtered_df, show_rest.value, show_ids.value)
     fig
-    return
+    return (layers,)
 
 
 @app.cell
-def _(alt, df, mo):
+def _(alt, df, layers, mo, pl):
     chart = mo.ui.altair_chart(
         alt.Chart(
-            df.select(
+            df.filter(pl.col("config/data/layer").is_in([int(l) for l in layers])).select(
                 "summary/eval/l0",
                 "summary/eval/mse",
                 "id",
@@ -487,9 +487,9 @@ def _(
             filters["config.tag"] = tag
             filters["config.data.metadata.n_patches_per_img"] = 640
             filters["config.data.metadata.data.root"] = (
-                "/fs/scratch/PAS2136/samuelstevens/datasets/fish-vista-imgfolder/*"
+                "/fs/scratch/PAS2136/samuelstevens/datasets/butterflies/"
             )
-            filters['config.objective.n_prefixes'] = 10
+            filters["config.objective.n_prefixes"] = 10
         runs = wandb.Api().runs(path=f"{WANDB_USERNAME}/{WANDB_PROJECT}", filters=filters)
 
         rows = []
@@ -626,6 +626,12 @@ def _(beartype):
             and metadata["data"]["__class__"] == "ImageFolder"
         ):
             return "FishVista"
+
+        if (
+            "butterflies" in metadata["data"]["root"]
+            and metadata["data"]["__class__"] == "ImageFolder"
+        ):
+            return "Heliconius"
 
         if "train" in metadata["data"] and "Imagenet" in metadata["data"]:
             return "ImageNet-1K"

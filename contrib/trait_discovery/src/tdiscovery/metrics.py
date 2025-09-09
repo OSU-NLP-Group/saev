@@ -19,6 +19,7 @@ def calc_avg_prec(
 
     Args:
         scores_NC: Scores for n images and c prototypes (where c << k to batch this calculation).
+        y_true_NT: True binary labels for n images and t different classes.
     """
     n, c = scores_NC.shape
     _, t = y_true_NT.shape

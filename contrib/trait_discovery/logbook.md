@@ -874,6 +874,31 @@ Butterflies! Today is all about butterflies!
 iNat21 training has
 
 - 374,161 Lepitdoptera images.
-- XX Nymphalidae images
-- 600 Heliconious images
+- 63980 Nymphalidae images
+- 600 Heliconious images 
+
+Even if we just train on the Nymphalidae images, that triples our 21.9K in the Jiggins dataset.
+
+| Dataset | Images  | Patches |
+|---------|---------|---------|
+| Jiggins |  21,298 |   13.6M |
+| Lepit.  | 374,161 |  239.4M |
+| Nymphs  |  63,980 |   40.9M |
+
+But I think even just 50M patches will be sufficient (Jiggins + Nymphs).
+We can train for multiple epochs.
+
+Experimental plan:
+
+1. [done] Train Matryoshka on Jiggins images
+2. Train Matryoshka on Jiggins+Nymphs
+
+- Validation split??
+- Visuals??
+- Heatmap??
+
+What do I want? I want to train an SAE on the Jiggins images and measure the validation accuracy. Do I? Is it worth the missing training data?
+
+# 09/09/2025
+
 

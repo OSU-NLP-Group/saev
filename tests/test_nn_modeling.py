@@ -688,3 +688,21 @@ def test_load_local_checkpoint(request):
     print(f"Activation: {type(model.cfg.activation).__name__}")
     if hasattr(model.cfg.activation, "top_k"):
         print(f"Top-k value: {model.cfg.activation.top_k}")
+
+
+def test_remove_parallel_grads_handles_non_normalized_rows():
+    cfg = modeling.SparseAutoencoderConfig(
+        d_vit=4, exp_factor=1, normalize_w_dec=False, remove_parallel_grads=True
+    )
+    # Disable automatic normalization but keep removal on
+    sae = modeling.SparseAutoencoder(cfg)
+
+    # Artificial W_dec and grad
+    with torch.no_grad():
+        sae.W_dec.copy_(torch.randn_like(sae.W_dec))
+    sae.W_dec.grad = torch.randn_like(sae.W_dec)
+
+    # After removal, each row grad should be orthogonal to its row of W_dec
+    sae.remove_parallel_grads()
+    row_dots = (sae.W_dec.grad * sae.W_dec).sum(dim=1)
+    assert torch.allclose(row_dots, torch.zeros_like(row_dots), atol=1e-6)
