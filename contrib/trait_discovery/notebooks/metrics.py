@@ -28,7 +28,7 @@ def _(pathlib):
 
 @app.cell
 def _(pl, root, torch):
-    obs = pl.read_parquet(root / "img_obs.pt").with_columns(
+    obs = pl.read_parquet(root / "img_obs.parquet").with_columns(
         i=pl.int_range(pl.len()).alias("index")
     )
 

@@ -1,5 +1,5 @@
 ckpt = [
-  "/fs/ess/PAS2136/samuelstevens/checkpoints/saev/g49kbj2j/sae.pt",
+  # "/fs/ess/PAS2136/samuelstevens/checkpoints/saev/g49kbj2j/sae.pt",
   "/fs/ess/PAS2136/samuelstevens/checkpoints/saev/vde7lady/sae.pt",
 ]
 

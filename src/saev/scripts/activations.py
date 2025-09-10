@@ -3,25 +3,18 @@ Unified script for computing both top-k visual patches and image-level activatio
 """
 
 import dataclasses
-import json
 import logging
-import math
 import os
-import random
 
 import beartype
 import einops
-import polars as pl
 import torch
 from jaxtyping import Float, Int, jaxtyped
-from PIL import Image
 from torch import Tensor
-from torchvision.transforms import v2
 
 import saev.data
-import saev.data.datasets
-import saev.data.transforms
-from saev import helpers, nn, viz
+from saev import helpers, nn
+from saev.utils import statistics
 
 log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
 logging.basicConfig(level=logging.INFO, format=log_format)
@@ -40,10 +33,6 @@ class Config:
         default_factory=saev.data.OrderedConfig
     )
     """Data configuration"""
-    images: saev.data.datasets.Config = dataclasses.field(
-        default_factory=saev.data.datasets.Imagenet
-    )
-    """Which images to use."""
     dump_to: str = os.path.join(".", "data")
     """Where to save data."""
 
@@ -76,8 +65,6 @@ class Config:
     # Hardware
     device: str = "cuda"
     """Which accelerator to use."""
-    seed: int = 42
-    """Random seed."""
     slurm_acct: str = ""
     """Slurm account string. Empty means to not use Slurm."""
     slurm_partition: str = ""
@@ -125,15 +112,6 @@ class Config:
     def img_acts_fpath(self) -> str:
         return os.path.join(self.root, "img_acts.pt")
 
-    @property
-    def img_obs_fpath(self) -> str:
-        return os.path.join(self.root, "img_obs.parquet")
-
-
-@beartype.beartype
-def safe_load(path: str) -> object:
-    return torch.load(path, map_location="cpu", weights_only=True)
-
 
 @jaxtyped(typechecker=beartype.beartype)
 def gather_batched(
@@ -166,74 +144,6 @@ def get_sae_acts(
     sae_acts = torch.cat(sae_acts, dim=0)
     sae_acts = sae_acts.to(cfg.device)
     return sae_acts
-
-
-@beartype.beartype
-class PercentileEstimator:
-    def __init__(
-        self,
-        percentile: float | int,
-        total: int,
-        lr: float = 1e-3,
-        shape: tuple[int, ...] = (),
-    ):
-        self.percentile = percentile
-        self.total = total
-        self.lr = lr
-
-        self._estimate = torch.zeros(shape)
-        self._step = 0
-
-    def update(self, x):
-        """
-        Update the estimator with a new value.
-
-        This method maintains the marker positions using the P2 algorithm rules. When a new value arrives, it's placed in the appropriate position relative to existing markers, and marker positions are adjusted to maintain their desired percentile positions.
-
-        Arguments:
-            x: The new value to incorporate into the estimation
-        """
-        self._step += 1
-
-        step_size = self.lr * (self.total - self._step) / self.total
-
-        # Is a no-op if it's already on the same device.
-        if isinstance(x, Tensor):
-            self._estimate = self._estimate.to(x.device)
-
-        self._estimate += step_size * (
-            torch.sign(x - self._estimate) + 2 * self.percentile / 100 - 1.0
-        )
-
-    @property
-    def estimate(self):
-        return self._estimate
-
-
-@jaxtyped(typechecker=beartype.beartype)
-@dataclasses.dataclass(frozen=True)
-class Results:
-    """Results from activation computation."""
-
-    # Top-k visual results
-    top_values: Float[Tensor, "d_sae k n_patches_per_img"]
-    """For each latent and its top k images, the per-patch activation values."""
-    top_i: Int[Tensor, "d_sae k"]
-    """Global image indices for those top-`k` images per latent."""
-    mean_values: Float[Tensor, " d_sae"]
-    """Mean positive activation per latent."""
-    sparsity: Float[Tensor, " d_sae"]
-    """Fraction of samples where each latent is active."""
-    distributions: Float[Tensor, "m n"]
-    """Activation distributions for first m latents."""
-    percentiles: Float[Tensor, " d_sae"]
-    """Percentile estimates per latent."""
-
-    # Image-level activations
-    img_acts: Float[Tensor, "n_imgs d_sae"]
-    """Image-level activations (n_imgs, d_sae)."""
-    obs: list[dict]
-    """Image metadata."""
 
 
 @beartype.beartype
@@ -278,7 +188,7 @@ def dump_activations(cfg: Config):
     distributions_mn = torch.zeros(
         (cfg.n_distributions, dataloader.n_samples), device="cpu"
     )
-    estimator = PercentileEstimator(
+    estimator = statistics.PercentileEstimator(
         cfg.percentile, dataloader.n_samples, shape=(sae.cfg.d_sae,)
     )
 
@@ -336,19 +246,6 @@ def dump_activations(cfg: Config):
     mean_values_s /= sparsity_s
     sparsity_s /= dataloader.n_samples
 
-    # Get image metadata
-    vit_cls = saev.data.models.load_vit_cls(md.vit_family)
-    img_transform = vit_cls.make_resize(md.vit_ckpt, scale=1)
-    img_ds = saev.data.datasets.get_dataset(cfg.images, img_transform=img_transform)
-    if hasattr(img_ds, "samples") and hasattr(img_ds, "classes"):
-        obs = [
-            {"path": path, "target": target, "label": img_ds.classes[target]}
-            for path, target in img_ds.samples
-        ]
-    else:
-        logger.warning("Can't save .obs without '.samples'.")
-        obs = []
-
     # Save top-k visual results
     torch.save(top_values_p, cfg.top_values_fpath)
     torch.save(top_i_im, cfg.top_img_i_fpath)
@@ -357,255 +254,6 @@ def dump_activations(cfg: Config):
     torch.save(distributions_mn, cfg.distributions_fpath)
     torch.save(estimator.estimate.cpu(), cfg.percentiles_fpath)
     torch.save(img_acts_ns, cfg.img_acts_fpath)
-    pl.DataFrame(obs).write_parquet(cfg.img_obs_fpath)
-
-
-@beartype.beartype
-def patch_label_ignore_bg_bincount(
-    pixel_labels_nd: Int[Tensor, "n d"],
-    *,
-    background_idx: int = 0,
-    num_classes: int | None = None,
-) -> Int[Tensor, " n"]:
-    """
-    Compute patch-level labels from pixel labels, with foreground priority.
-
-    This uses a foreground-prior mode: compute the per-patch histogram, ignore the background count, and pick the most frequent non-background class if any exists; only assign background when the patch is 100% background.
-    """
-    x = pixel_labels_nd.to(torch.long)
-    N, _ = x.shape
-    if num_classes is None:
-        num_classes = int(x.max().item()) + 1
-
-    # counts[i, c] = number of times class c appears in patch i
-    offsets = torch.arange(N, device=x.device).unsqueeze(1) * num_classes
-    flat = (x + offsets).reshape(-1)
-    counts = torch.bincount(flat, minlength=N * num_classes).reshape(N, num_classes)
-
-    nonbg = counts.clone()
-    nonbg[:, background_idx] = 0
-    has_nonbg = nonbg.sum(dim=1) > 0
-    nonbg_arg = nonbg.argmax(dim=1)
-    bg = torch.full_like(nonbg_arg, background_idx)
-    return torch.where(has_nonbg, nonbg_arg, bg)
-
-
-@jaxtyped(typechecker=beartype.beartype)
-@dataclasses.dataclass(frozen=True)
-class GridElement:
-    img: Image.Image
-    label: str
-    patches: Float[Tensor, " n_patches"]
-    segmentation: Int[Tensor, " n_patches"] | None = None
-    image_index: int | None = None
-
-
-@jaxtyped(typechecker=beartype.beartype)
-def plot_activation_distributions(cfg: Config, distributions: Float[Tensor, "m n"]):
-    import matplotlib.pyplot as plt
-    import numpy as np
-
-    m, _ = distributions.shape
-
-    n_rows = int(math.sqrt(m))
-    n_cols = n_rows
-    fig, axes = plt.subplots(
-        figsize=(4 * n_cols, 4 * n_rows),
-        nrows=n_rows,
-        ncols=n_cols,
-        sharex=True,
-        sharey=True,
-    )
-
-    _, bins = np.histogram(np.log10(distributions[distributions > 0].numpy()), bins=100)
-
-    percentiles = [90, 95, 99, 100]
-    colors = ("red", "darkorange", "gold", "lime")
-
-    for dist, ax in zip(distributions, axes.reshape(-1)):
-        vals = np.log10(dist[dist > 0].numpy())
-
-        ax.hist(vals, bins=bins)
-
-        if vals.size == 0:
-            continue
-
-        for i, (percentile, color) in enumerate(
-            zip(np.percentile(vals, percentiles), colors)
-        ):
-            ax.axvline(percentile, color=color, label=f"{percentiles[i]}th %-ile")
-
-        for i, (percentile, color) in enumerate(zip(percentiles, colors)):
-            estimator = PercentileEstimator(percentile, len(vals))
-            for v in vals:
-                estimator.update(v)
-            ax.axvline(
-                estimator.estimate,
-                color=color,
-                linestyle="--",
-                label=f"Est. {percentiles[i]}th %-ile",
-            )
-
-    ax.legend()
-
-    fig.tight_layout()
-    return fig
-
-
-@beartype.beartype
-@torch.inference_mode()
-def generate_visuals(cfg: Config):
-    """
-    Generate visual outputs from computed activations.
-
-    This is equivalent to dump_imgs() from visuals.py but uses pre-computed results.
-    """
-    try:
-        top_values = safe_load(cfg.top_values_fpath)
-        sparsity = safe_load(cfg.sparsity_fpath)
-        mean_values = safe_load(cfg.mean_values_fpath)
-        top_i = safe_load(cfg.top_img_i_fpath)
-        distributions = safe_load(cfg.distributions_fpath)
-        _ = safe_load(cfg.percentiles_fpath)
-    except FileNotFoundError as err:
-        logger.error("Required activation files not found: %s", err)
-        logger.error("Please run the script first to compute activations.")
-        return
-
-    d_sae, cached_topk, *rest = top_values.shape
-    assert cfg.top_k == cached_topk
-    assert len(rest) == 1
-    n_patches = rest[0]
-    assert n_patches > 0
-
-    logger.info("Loaded sorted data.")
-
-    fig_fpath = os.path.join(
-        cfg.root, f"{cfg.n_distributions}_activation_distributions.png"
-    )
-    plot_activation_distributions(cfg, distributions).savefig(fig_fpath, dpi=300)
-    logger.info(
-        "Saved %d activation distributions to '%s'.", cfg.n_distributions, fig_fpath
-    )
-
-    metadata = saev.data.Metadata.load(cfg.data.shard_root)
-    vit_cls = saev.data.models.load_vit_cls(metadata.vit_family)
-    img_transform = vit_cls.make_resize(metadata.vit_ckpt, scale=1)
-    dataset = saev.data.datasets.get_dataset(cfg.images, img_transform=img_transform)
-
-    # Check if this is a SegFolder dataset and prepare segmentation dataset if so
-    seg_dataset = None
-    is_segfolder = isinstance(cfg.images, saev.data.datasets.SegFolder)
-    if is_segfolder:
-        seg_transform = v2.Compose([
-            saev.data.transforms.FlexResize(
-                patch_size=16,
-                n_patches=metadata.n_patches_per_img,
-                resample=Image.NEAREST,
-            ),
-            v2.ToImage(),
-        ])
-        sample_transform = v2.Compose([
-            saev.data.transforms.Patchify(
-                patch_size=16, n_patches=metadata.n_patches_per_img, key="segmentation"
-            ),
-        ])
-        seg_dataset = saev.data.datasets.SegFolderDataset(
-            cfg.images,
-            img_transform=img_transform,
-            seg_transform=seg_transform,
-            sample_transform=sample_transform,
-        )
-
-    min_log_freq, max_log_freq = cfg.log_freq_range
-    min_log_value, max_log_value = cfg.log_value_range
-
-    mask = (
-        (min_log_freq < torch.log10(sparsity))
-        & (torch.log10(sparsity) < max_log_freq)
-        & (min_log_value < torch.log10(mean_values))
-        & (torch.log10(mean_values) < max_log_value)
-    )
-
-    neurons = cfg.include_latents
-    random_neurons = torch.arange(d_sae)[mask.cpu()].tolist()
-    random.seed(cfg.seed)
-    random.shuffle(random_neurons)
-    neurons += random_neurons[: cfg.n_latents]
-
-    for i in helpers.progress(neurons, desc="saving visuals"):
-        neuron_dir = os.path.join(cfg.root, "neurons", str(i))
-        os.makedirs(neuron_dir, exist_ok=True)
-
-        # Image grid
-        elems = []
-        seen_i_im = set()
-        for i_im, values_p in zip(top_i[i].tolist(), top_values[i]):
-            if i_im in seen_i_im:
-                continue
-
-            example = dataset[i_im]
-
-            # Get segmentation if available
-            segmentation = None
-            if seg_dataset is not None:
-                seg_example = seg_dataset[i_im]
-                if "segmentation" in seg_example:
-                    # Convert pixel-level to patch-level labels
-                    segmentation = patch_label_ignore_bg_bincount(
-                        seg_example["segmentation"],
-                        background_idx=0,
-                        num_classes=10,  # FishVista has 10 classes
-                    )
-
-            elem = GridElement(
-                example["image"], example["label"], values_p, segmentation, i_im
-            )
-            elems.append(elem)
-
-            seen_i_im.add(i_im)
-
-        # How to scale values.
-        upper = None
-        if top_values[i].numel() > 0:
-            upper = top_values[i].max().item()
-
-        for j, elem in enumerate(elems):
-            # Save SAE highlighted image
-            img = viz.add_highlights(
-                elem.img, elem.patches.numpy(), patch_size=16, upper=upper
-            )
-            img.save(os.path.join(neuron_dir, f"{j}_sae.png"))
-
-            # Save segmentation visualization if available
-            if elem.segmentation is not None:
-                seg_img = viz.colorize_segmentation_patches(
-                    elem.segmentation,
-                    patch_size=16,
-                    img_width=elem.img.width,
-                    img_height=elem.img.height,
-                    n_classes=10,  # FishVista has 10 classes
-                    background_idx=0,
-                )
-                seg_img.save(os.path.join(neuron_dir, f"{j}_seg.png"))
-
-            # Save per-image metadata as JSON
-            img_metadata = {
-                "label": elem.label,
-                "dataset_type": "SegFolder" if is_segfolder else "ImageFolder",
-                "image_index": elem.image_index,
-            }
-            with open(os.path.join(neuron_dir, f"{j}.json"), "w") as fd:
-                json.dump(img_metadata, fd)
-
-        # Neuron-level metadata
-        neuron_metadata = {
-            "neuron": i,
-            "log10_freq": torch.log10(sparsity[i]).item(),
-            "log10_value": torch.log10(mean_values[i]).item(),
-        }
-        with open(os.path.join(neuron_dir, "metadata.json"), "w") as fd:
-            json.dump(neuron_metadata, fd)
 
 
 @beartype.beartype
@@ -623,7 +271,6 @@ def worker_fn(cfg: Config):
         cfg.distributions_fpath,
         cfg.percentiles_fpath,
         cfg.img_acts_fpath,
-        cfg.img_obs_fpath,
     ]
     missing = [fpath for fpath in fpaths if not os.path.exists(fpath)]
     need_compute = cfg.force_recompute or bool(missing)
@@ -635,8 +282,4 @@ def worker_fn(cfg: Config):
             logger.info("Missing files %s; computing activations.", ", ".join(missing))
         dump_activations(cfg)
     else:
-        logger.info("Found existing activation files, skipping computation.")
-
-    generate_visuals(cfg)
-
-    logger.info("Complete.")
+        logger.info("Found existing activation files.")

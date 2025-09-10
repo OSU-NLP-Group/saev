@@ -8,7 +8,6 @@ app = marimo.App(width="medium")
 def _():
     import itertools
     import json
-    import math
     import os
 
     import altair as alt
@@ -22,6 +21,7 @@ def _():
     from jaxtyping import Float, jaxtyped
 
     import saev.colors
+
     return (
         Float,
         adjust_text,
@@ -78,14 +78,12 @@ def _(mo):
 
 @app.cell
 def _(WANDB_PROJECT, WANDB_USERNAME, mo, tag_input):
-    mo.vstack(
-        [
-            mo.md(
-                f"Look at [{WANDB_USERNAME}/{WANDB_PROJECT} on WandB](https://wandb.ai/{WANDB_USERNAME}/{WANDB_PROJECT}/table) to pick your tag."
-            ),
-            tag_input,
-        ]
-    )
+    mo.vstack([
+        mo.md(
+            f"Look at [{WANDB_USERNAME}/{WANDB_PROJECT} on WandB](https://wandb.ai/{WANDB_USERNAME}/{WANDB_PROJECT}/table) to pick your tag."
+        ),
+        tag_input,
+    ])
     return
 
 
@@ -109,7 +107,6 @@ def _(df, mo):
     show_rest = mo.ui.switch(value=True, label="Show non-frontier points")
     show_ids = mo.ui.switch(value=False, label="Annotate Pareto points")
 
-
     def _make_grid(elems, ncols: int, gap: float):
         return mo.hstack(
             [
@@ -118,7 +115,6 @@ def _(df, mo):
             ],
             gap=gap,
         )
-
 
     elems = [*pair_dict.elements.values(), show_rest, show_ids]
     ui_grid = _make_grid(elems, 3, 0.5)
@@ -243,17 +239,16 @@ def _(
 
         return fig
 
-
     selected_keys = [k for k, v in pair_dict.value.items() if v]
     if selected_keys:
         models, layers = zip(*[k.rsplit("|", 1) for k in selected_keys])
-        pairs_df = pl.DataFrame(
-            {
-                "model_key": list(models),
-                "config/data/layer": list(map(int, layers)),
-            }
+        pairs_df = pl.DataFrame({
+            "model_key": list(models),
+            "config/data/layer": list(map(int, layers)),
+        })
+        filtered_df = df.join(
+            pairs_df, on=["model_key", "config/data/layer"], how="inner"
         )
-        filtered_df = df.join(pairs_df, on=["model_key", "config/data/layer"], how="inner")
     else:
         filtered_df = pl.DataFrame(schema=df.schema)
 
@@ -268,7 +263,9 @@ def _(
 def _(alt, df, layers, mo, pl):
     chart = mo.ui.altair_chart(
         alt.Chart(
-            df.filter(pl.col("config/data/layer").is_in([int(l) for l in layers])).select(
+            df.filter(
+                pl.col("config/data/layer").is_in([int(l) for l in layers])
+            ).select(
                 "summary/eval/l0",
                 "summary/eval/mse",
                 "id",
@@ -428,6 +425,7 @@ def _(Float, beartype, jaxtyped, np):
 
         ax.set_xlabel("Feature Frequency (log10)")
         ax.set_ylabel("Mean Activation Value (log10)")
+
     return (plot_dist,)
 
 
@@ -451,7 +449,6 @@ def _(
         """Exception raised when metadata cannot be accessed or parsed."""
 
         pass
-
 
     @beartype.beartype
     def find_metadata(shard_root: str, wandb_metadata: dict | None = None):
@@ -479,7 +476,6 @@ def _(
         except json.JSONDecodeError:
             raise MetadataAccessError("Malformed metadata.json file")
 
-
     @beartype.beartype
     def make_df(tag: str):
         filters = {}
@@ -490,7 +486,9 @@ def _(
                 "/fs/scratch/PAS2136/samuelstevens/datasets/butterflies/"
             )
             filters["config.objective.n_prefixes"] = 10
-        runs = wandb.Api().runs(path=f"{WANDB_USERNAME}/{WANDB_PROJECT}", filters=filters)
+        runs = wandb.Api().runs(
+            path=f"{WANDB_USERNAME}/{WANDB_PROJECT}", filters=filters
+        )
 
         rows = []
         for run in mo.status.progress_bar(
@@ -502,7 +500,9 @@ def _(
             row = {}
             row["id"] = run.id
 
-            row.update(**{f"summary/{key}": value for key, value in run.summary.items()})
+            row.update(**{
+                f"summary/{key}": value for key, value in run.summary.items()
+            })
             try:
                 row["summary/eval/freqs"] = load_freqs(run)
             except ValueError:
@@ -521,26 +521,20 @@ def _(
                 continue
 
             # config
-            row.update(
-                **{
-                    f"config/data/{key}": value
-                    for key, value in run.config.pop("data").items()
-                }
-            )
-            row.update(
-                **{
-                    f"config/sae/{key}": value
-                    for key, value in run.config.pop("sae").items()
-                }
-            )
+            row.update(**{
+                f"config/data/{key}": value
+                for key, value in run.config.pop("data").items()
+            })
+            row.update(**{
+                f"config/sae/{key}": value
+                for key, value in run.config.pop("sae").items()
+            })
 
             if "objective" in run.config:
-                row.update(
-                    **{
-                        f"config/objective/{key}": value
-                        for key, value in run.config.pop("objective").items()
-                    }
-                )
+                row.update(**{
+                    f"config/objective/{key}": value
+                    for key, value in run.config.pop("objective").items()
+                })
 
             row.update(**{f"config/{key}": value for key, value in run.config.items()})
 
@@ -573,7 +567,6 @@ def _(
         )
         return df
 
-
     df = make_df(tag_input.value)
     return (df,)
 
@@ -586,7 +579,9 @@ def _(beartype):
             metadata[key] for key in ("vit_family", "model_family") if key in metadata
         )
 
-        ckpt = next(metadata[key] for key in ("vit_ckpt", "model_ckpt") if key in metadata)
+        ckpt = next(
+            metadata[key] for key in ("vit_ckpt", "model_ckpt") if key in metadata
+        )
 
         if family == "dinov2" and ckpt == "dinov2_vitb14_reg":
             return "DINOv2 ViT-B/14 (reg)"
@@ -605,7 +600,6 @@ def _(beartype):
 
         print(f"Unknown model: {(family, ckpt)}")
         return ckpt
-
 
     @beartype.beartype
     def get_data_key(metadata: dict[str, object]) -> str | None:
@@ -638,6 +632,7 @@ def _(beartype):
 
         print(f"Unknown data: {metadata['data']}")
         return None
+
     return get_data_key, get_model_key
 
 
@@ -660,7 +655,6 @@ def _(Float, json, np, os):
 
         raise ValueError(f"freqs not found in run '{run.id}'")
 
-
     def load_mean_values(run) -> Float[np.ndarray, " d_sae"]:
         try:
             for artifact in run.logged_artifacts():
@@ -677,6 +671,7 @@ def _(Float, json, np, os):
             raise RuntimeError("Wandb sucks.") from err
 
         raise ValueError(f"mean_values not found in run '{run.id}'")
+
     return load_freqs, load_mean_values
 
 

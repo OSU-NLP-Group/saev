@@ -899,6 +899,76 @@ Experimental plan:
 
 What do I want? I want to train an SAE on the Jiggins images and measure the validation accuracy. Do I? Is it worth the missing training data?
 
+
 # 09/09/2025
 
+1. Save activations for butterfly datasets.
+2. Sort features by image activations measures.
 
+Here are some thoughts:
+
+1. F1 is not perfect, because we typically want classes with at least 5 examples.
+2. We end up with a lot of spurious correlations. For example,
+
+I think we need even smaller patches, so higher resolution images.
+
+Additional metrics:
+
+- Classification accuracy/F1 for mimic *pairs*.
+- AP?
+- SAE latent entropy doesn't seem to work well either. Maybe we need to filter based on the number of unique images in a latent's top-k?
+
+I think we need a separate visuals script + notebook for trait discovery.
+Show:
+
+- Mimic pair comparison
+- Ventral vs dorsal?
+
+
+# 09/10/2025
+
+I have a lot of different experiments in different stages.
+
+1. FishVista
+2. Butterflies
+3. Beetles
+
+For each of them, I'll lay out the progress, the blockers, and potential ways to get around the blockers. Then I need to decide which experiment to prioritize.
+
+FishVista
+
+- I trained Matryoshka SAEs on DINOv3 FishVista classification images (56.3K images) with 640 patches per image.
+- Then I measured whether we could find SAE features/latents that reliably detected the 9 different traits in FishVista (head, eye, tail, pelvic fin, pectoral fin, etc).
+- I compared this to just picking random vectors and then filtering those random vectors using a training set to pick out the 9 best vectors.
+- The SAEs underperform the random vectors. I probably could do more detailed error analysis to figure out why, but my impression is that we get good SAE features, but they might be specific to a given subnode in the tree of life. So maybe not a pelvic fin for all fish in FishVista, but a pelvic fin for all sunfish.
+- However, breaking up the classes is complex and makes the experiment harder to explain, which is bad for reviews. Furthermore, FishVista is just a quantitative experiment to satisfy reviewers. It's not the main goal of this paper, but it can be used as a method to measure SAE progress.
+
+Butterflies
+
+- I trained Matryoshka SAEs on DINOv3 Jiggins images (21.8K images) with 640 patches per image.
+- Then I looked at SAE features to see if we could find features that reliably trigger on one mimic pair but not another. I used thresholded SAE values (>= 95th percentile per SAE feature = positive) to pick out features that maximized F1, precision and recall for each of the below pairs, and inspected example feature images from an SAE from layer 14/24 and an SAE from layer 22/24.
+- I found a couple (~3-4) possible new discoveries, but I need to talk to Dan/Neil (our subject matter experts).
+- Mostly I found a lot of spurious correlations that could be removed by only training on butterfly patches. Unfortunately, I would have to use [SST](https://github.com/DavidCarlyn/SST) to do that, and I don't think it will be trivial.
+- I need to measure average precision, which is a threshold-free.
+- I need to measure F1/precision/recall on the binary task of mimic A vs mimic B.
+
+| A | # of A | B | # of B |
+|---|---|---|---|
+| lativitta | 2640 | malleti | 1620  |
+| cyrbia | 1397 | cythera | 110  |
+| notabilis | 573 | plesseni | 337  |
+| hydara | 280 | melpomene | 462  |
+| venus | 237 | vulcanus | 158  |
+| demophoon | 222 | rosina | 132  |
+| phyllis | 194 | nanna | 77  |
+| erato | 67 | thelxiopeia | 2  |
+
+Beetles
+
+In addition to fish and butterflies, I have ~40K images of ground beetles that I could train SAEs on.
+These beetles DO have segmentation masks already, so I could train SAEs specifically on the beetles themselves, not the background.
+I could then use the part of body segmentations to do something similar to FishVista.
+However, we lack a good ecological context for finding something *new* about the beetles. Mimics are a straightforward, obvious context.
+I'm not sure about beetles.
+
+What should I do, if I want to submit to ICLR (10 days)?

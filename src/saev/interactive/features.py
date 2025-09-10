@@ -8,26 +8,31 @@ app = marimo.App(width="full")
 def _():
     import json
     import os
+    import pathlib
 
+    import beartype
     import marimo as mo
     import matplotlib.pyplot as plt
     import numpy as np
+    import polars as pl
     import torch
-    import tqdm
-    return json, mo, np, os, plt, torch
+    from jaxtyping import Float, jaxtyped
+
+    return Float, beartype, jaxtyped, json, mo, np, os, pathlib, pl, plt, torch
 
 
 @app.cell
 def _(mo, os):
     def make_ckpt_dropdown():
         try:
-            choices = sorted(os.listdir("/fs/scratch/PAS2136/samuelstevens/saev/visuals/"))
+            choices = sorted(
+                os.listdir("/fs/scratch/PAS2136/samuelstevens/saev/acts/butterflies/")
+            )
 
         except FileNotFoundError:
             choices = []
 
         return mo.ui.dropdown(choices, label="Checkpoint:")
-
 
     ckpt_dropdown = make_ckpt_dropdown()
     return (ckpt_dropdown,)
@@ -43,10 +48,14 @@ def _(ckpt_dropdown, mo):
 def _(ckpt_dropdown, mo):
     mo.stop(
         ckpt_dropdown.value is None,
-        mo.md("Run `uv run main.py webapp --help` to fill out at least one checkpoint."),
+        mo.md(
+            "Run `uv run main.py webapp --help` to fill out at least one checkpoint."
+        ),
     )
 
-    webapp_dir = f"/fs/scratch/PAS2136/samuelstevens/saev/visuals/{ckpt_dropdown.value}"
+    webapp_dir = (
+        f"/fs/scratch/PAS2136/samuelstevens/saev/acts/butterflies/{ckpt_dropdown.value}"
+    )
 
     get_i, set_i = mo.state(0)
     return get_i, set_i, webapp_dir
@@ -64,7 +73,9 @@ def _(mo):
 
 @app.cell
 def _(mo, sort_by_freq_btn, sort_by_latent_btn, sort_by_value_btn):
-    mo.hstack([sort_by_freq_btn, sort_by_value_btn, sort_by_latent_btn], justify="start")
+    mo.hstack(
+        [sort_by_freq_btn, sort_by_value_btn, sort_by_latent_btn], justify="start"
+    )
     return
 
 
@@ -91,7 +102,6 @@ def _(
                 continue
             # rows.append({"neuron": int(name)})
         return rows
-
 
     neurons = get_neurons()
 
@@ -167,6 +177,7 @@ def _(get_i, mo, neurons):
         return mo.md(
             f"Neuron {neuron} ({get_i()}/{len(neurons)}; {get_i() / len(neurons) * 100:.1f}%) | Frequency: {10**log10_freq * 100:.5f}% of inputs | Mean Value: {10**log10_value:.3f}"
         )
+
     return (display_info,)
 
 
@@ -214,20 +225,25 @@ def _(json, mo, os, webapp_dir):
 
         # Add segmentation if it exists
         if os.path.exists(seg_path):
-            images_to_show.append(mo.vstack([mo.image(seg_path), mo.md("Segmentation")]))
+            images_to_show.append(
+                mo.vstack([mo.image(seg_path), mo.md("Segmentation")])
+            )
 
         # If we have both images, show side-by-side; otherwise just show what we have
         if len(images_to_show) == 2:
             return mo.vstack([mo.md(label), mo.hstack(images_to_show, widths="equal")])
         else:
             return images_to_show[0]
+
     return (show_img,)
 
 
 @app.cell
 def _(mo):
     # Add a slider to control number of columns
-    cols_slider = mo.ui.slider(1, 10, value=5, label="Number of columns:", full_width=False)
+    cols_slider = mo.ui.slider(
+        1, 10, value=5, label="Number of columns:", full_width=False
+    )
     return (cols_slider,)
 
 
@@ -271,7 +287,6 @@ def _(mo, np, plt, sparsity):
         fig, ax = plt.subplots()
         ax.hist(np.log10(counts.numpy() + 1e-9), bins=100)
         return fig
-
 
     mo.md(f"""
     Sparsity Log10
@@ -341,6 +356,7 @@ def _(np, plt, sparsity, values):
         ax.legend(loc="upper right")
 
         return fig
+
     return (plot_dist,)
 
 
@@ -373,27 +389,269 @@ def _(mo):
 
 
 @app.cell
-def _():
+def _(ckpt_dropdown, pathlib):
+    root = pathlib.Path(
+        f"/fs/scratch/PAS2136/samuelstevens/saev/acts/butterflies/{ckpt_dropdown.value}"
+    )
+    return (root,)
+
+
+@app.cell
+def _(np, root, torch):
+    x = torch.load(root / "img_acts.pt").numpy()
+
+    percentiles = np.quantile(x, 0.95, axis=0)
+    return percentiles, x
+
+
+@app.cell
+def _(pl, root):
+    obs = pl.read_parquet(root / "img_obs.parquet").with_columns(
+        i=pl.int_range(pl.len()).alias("index")
+    )
+
+    target_map = {
+        target: label
+        for target, label in obs.select("target", "label").unique().iter_rows()
+    }
+    return obs, target_map
+
+
+@app.cell
+def _(Float, beartype, jaxtyped, mo, np, obs, percentiles, pl, x):
+    @jaxtyped(typechecker=beartype.beartype)
+    def get_f1(x_ns: Float[np.ndarray, "n_imgs d_sae"], obs: pl.DataFrame):
+        n_imgs, d_sae = x_ns.shape
+        n_classes = obs.select("target").unique().height
+
+        preds_ns = (x_ns > percentiles[None, :]).astype(np.int32)
+        n_pos_s = (preds_ns == 1).sum(axis=0)
+
+        labels_n = obs.get_column("target").to_numpy()
+
+        prec_cs = np.ones((n_classes, d_sae), dtype=np.float32)
+        recall_cs = np.ones((n_classes, d_sae), dtype=np.float32)
+
+        for c_idx in mo.status.progress_bar(range(n_classes)):
+            mask = labels_n == c_idx
+            assert mask.sum() > 0
+            with np.errstate(divide="ignore", invalid="ignore"):
+                prec_cs[c_idx, :] = preds_ns[mask].sum(axis=0) / n_pos_s
+
+            recall_cs[c_idx, :] = preds_ns[mask].sum(axis=0) / mask.sum()
+
+        prec_cs[:, n_pos_s == 0] = 0
+        with np.errstate(divide="ignore", invalid="ignore"):
+            f1 = (2 * prec_cs * recall_cs) / (prec_cs + recall_cs)
+
+        f1 = np.nan_to_num(f1, 0.0)
+        return f1, prec_cs, recall_cs
+
+    f1, prec, recall = get_f1(x, obs)
+    return f1, prec, recall
+
+
+@app.cell
+def _(obs, pl):
+    target_counts = {
+        i: count
+        for i, count in obs.group_by("target").agg(pl.len().alias("count")).iter_rows()
+    }
+    return (target_counts,)
+
+
+@app.cell
+def _(f1, pl, prec, recall, target_counts, target_map):
+    df = pl.DataFrame([
+        {
+            "species": target_map[i],
+            "f1": f1[i, latent],
+            "prec": prec[i, latent],
+            "recall": recall[i, latent],
+            "latent": latent,
+            "n": target_counts[i],
+        }
+        for i, latent in set(
+            []
+            + list(enumerate(f1.argmax(axis=1)))
+            + list(enumerate(prec.argmax(axis=1)))
+            + list(enumerate(recall.argmax(axis=1)))
+        )
+    ]).unique()
+
+    df.filter(
+        ~pl.col("species").str.contains(" x ")
+        & (
+            (pl.col("species").str.contains("lativitta"))
+            | (pl.col("species").str.contains("malleti"))
+        )
+    ).sort(by="f1", descending=True)
+    return (df,)
+
+
+@app.cell
+def _(df, pl):
+    df.filter(
+        ~pl.col("species").str.contains(" x ")
+        & (
+            (pl.col("species").str.contains("cyrbia"))
+            | (pl.col("species").str.contains("cythera"))
+        )
+    ).sort(by="f1", descending=True)
     return
 
 
 @app.cell
-def _():
+def _(df, pl):
+    df.filter(
+        ~pl.col("species").str.contains(" x ")
+        & (
+            (pl.col("species").str.contains("notabilis"))
+            | (pl.col("species").str.contains("plesseni"))
+        )
+    ).sort(by="f1", descending=True)
     return
 
 
 @app.cell
-def _():
+def _(df, pl):
+    df.filter(
+        ~pl.col("species").str.contains(" x ")
+        & (
+            (pl.col("species").str.contains("hydara"))
+            | (pl.col("species").str.contains("ssp. melpomene"))
+        )
+    ).sort(by="f1", descending=True)
     return
 
 
 @app.cell
-def _():
+def _(df, pl):
+    df.filter(
+        ~pl.col("species").str.contains(" x ")
+        & (
+            (pl.col("species").str.contains("venus"))
+            | (pl.col("species").str.contains("ssp. vulcanus"))
+        )
+    ).sort(by="f1", descending=True)
     return
 
 
 @app.cell
-def _():
+def _(df, pl):
+    df.filter(
+        ~pl.col("species").str.contains(" x ")
+        & (
+            (pl.col("species").str.contains("ssp. phyllis"))
+            | (pl.col("species").str.contains("ssp. nanna"))
+        )
+    ).sort(by="f1", descending=True)
+    return
+
+
+@app.cell
+def _(df, pl):
+    df.filter(
+        ~pl.col("species").str.contains(" x ")
+        & (
+            (pl.col("species").str.contains("ssp. demophoon"))
+            | (pl.col("species").str.contains("ssp. rosina"))
+        )
+    ).sort(by="f1", descending=True)
+    return
+
+
+@app.cell
+def _(df):
+    print("--include-latents", " ".join(map(str, df.get_column("latent").to_list())))
+    return
+
+
+@app.cell
+def _(Float, beartype, jaxtyped, np, obs, percentiles, pl, x):
+    @jaxtyped(typechecker=beartype.beartype)
+    def get_entropy(x_ns: Float[np.ndarray, "n_imgs d_sae"], obs: pl.DataFrame):
+        """
+        Entropy over labels among images where each latent is ON (x > τ_q),
+        plus normalized entropy and concentration (1 - normalized entropy).
+
+        Returns:
+          H_d:          Float[np.ndarray, "d_sae"]        # entropy per latent
+          H_norm_d:     Float[np.ndarray, "d_sae"]        # H / ln(C)
+          concentration_d: Float[np.ndarray, "d_sae"]     # 1 - H_norm
+          p_cd:         Float[np.ndarray, "n_classes d_sae"]  # label distribution within ON set
+          support_d:    Int[np.ndarray,   "d_sae"]        # #(images ON) per latent
+        """
+        n_imgs, d_sae = x_ns.shape
+        n_classes = obs.select("target").unique().height
+
+        labels_n = obs.get_column("target").to_numpy()
+
+        # Thresholds τ_f per latent and ON mask
+        on_ns = x_ns > percentiles[None, :]  # (n,d) bool
+        support_s = on_ns.sum(axis=0)
+
+        counts_cs = np.zeros((n_classes, d_sae), dtype=np.int64)
+        for c_idx in range(n_classes):
+            mask = labels_n == c_idx
+            if not np.any(mask):
+                continue
+            counts_cs[c_idx, :] = on_ns[mask, :].sum(axis=0)
+
+        # Convert to probabilities within the ON set: p[c,d] = counts[c,d] / support[d]
+        with np.errstate(divide="ignore", invalid="ignore"):
+            p_cs = counts_cs / np.clip(support_s[None, :], 1, None)
+        p_cs[:, support_s == 0] = 0.0  # undefined ON → set to 0; we’ll mark NaN later
+
+        # Entropy per latent: H_d = -Σ_c p * ln p, treating 0 * ln 0 = 0
+        H_terms = np.where(p_cs > 0, p_cs * np.log(p_cs), 0.0)
+        H_s = -H_terms.sum(axis=0).astype(np.float32)  # (d,)
+
+        # Normalization by ln(C) and concentration
+        if n_classes > 1:
+            H_norm_d = H_s / np.log(n_classes)
+            concentration_d = 1.0 - H_norm_d
+        else:
+            H_norm_d = np.zeros_like(H_s)
+            concentration_d = np.ones_like(H_s)
+
+        # For latents with no ON images, mark as NaN
+        H_s[support_s == 0] = np.nan
+        H_norm_d[support_s == 0] = np.nan
+        concentration_d[support_s == 0] = np.nan
+
+        return H_s, H_norm_d, concentration_d, p_cs, support_s
+
+    H_s, *_ = get_entropy(x, obs)
+    return (H_s,)
+
+
+@app.cell
+def _(root, torch):
+    top_img_i = torch.load(root / "top_img_i.pt", map_location="cpu").numpy()
+    return (top_img_i,)
+
+
+@app.cell
+def _(H_s, np, pl, top_img_i):
+    var = pl.DataFrame([
+        {"i": i, "entropy": entropy, "n_imgs": np.unique(top_img_i[i]).size}
+        for i, entropy in enumerate(H_s.tolist())
+    ])
+    return (var,)
+
+
+@app.cell
+def _(pl, var):
+    low_entropy_latents = (
+        var.filter(~pl.col("entropy").is_nan() & (pl.col("n_imgs") >= 6))
+        .sort(by="entropy")
+        .head(100)
+        .get_column("i")
+        .to_list()
+    )
+    print("--include-latents", " ".join(map(str, low_entropy_latents)))
+    var.filter(~pl.col("entropy").is_nan() & (pl.col("n_imgs") >= 5)).sort(by="entropy")
     return
 
 
