@@ -3,13 +3,13 @@ Only has to work for butterflies, beetles and fish. And let's start with just bu
 """
 
 import dataclasses
-import json
 import logging
 import math
 import os
 import random
 
 import beartype
+import polars as pl
 import torch
 import tyro
 from jaxtyping import Float, Int, jaxtyped
@@ -26,7 +26,7 @@ import saev.viz
 
 log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
 logging.basicConfig(level=logging.INFO, format=log_format)
-logger = logging.getLogger("unified_acts")
+logger = logging.getLogger("visuals")
 
 
 @beartype.beartype
@@ -36,17 +36,17 @@ class Config:
 
     # Disk
     root: str = os.path.join(".", "acts", "butterflies", "abcdefg")
-    """Path to the sae.pt file."""
+    """Path to the activations directory."""
     shard_root: str = os.path.join(".", "shards")
     """Directory with .bin shards and a metadata.json file."""
     imgs: datasets.Config = dataclasses.field(default_factory=datasets.Butterflies)
     """Which image dataset to use."""
-    dump_to: str = os.path.join(".", "data")
-    """Where to save images."""
+    img_scale: float = 1.0
+    """How much to scale images by (use higher numbers for high-res visuals)."""
 
-    log_freq_range: tuple[float, float] = (-6.0, -2.0)
+    log_freq_range: tuple[float, float] = (-6.0, 1.0)
     """Log10 frequency range for which to save images."""
-    log_value_range: tuple[float, float] = (-1.0, 1.0)
+    log_value_range: tuple[float, float] = (-3.0, 3.0)
     """Log10 frequency range for which to save images."""
     include_latents: list[int] = dataclasses.field(default_factory=list)
     """Latents to always include, no matter what."""
@@ -95,7 +95,7 @@ class Example:
     img: Image.Image
     patches: Float[Tensor, " n_patches"]
     # Metadata
-    index: int
+    img_i: int
     target: int
     label: str
     extra: dict[str, object] = dataclasses.field(default_factory=dict)
@@ -189,6 +189,20 @@ def safe_load(path: str) -> object:
 
 
 @beartype.beartype
+def unique_no_sort(lst: list[int]) -> list[int]:
+    unique = []
+    seen = set()
+    for x in lst:
+        if x in seen:
+            continue
+
+        unique.append(x)
+        seen.add(x)
+
+    return unique
+
+
+@beartype.beartype
 @torch.inference_mode()
 def main(cfg: Config):
     """
@@ -214,6 +228,38 @@ def main(cfg: Config):
 
     logger.info("Loaded sorted data.")
 
+    metadata = saev.data.Metadata.load(cfg.shard_root)
+    vit_cls = saev.data.models.load_vit_cls(metadata.vit_family)
+    img_transform = vit_cls.make_resize(metadata.vit_ckpt, scale=cfg.img_scale)
+    dataset = datasets.get_dataset(cfg.imgs, img_transform=img_transform)
+
+    # Create img_obs.parquet with metadata for all images
+    n_imgs = len(dataset)
+    metadata_rows = []
+
+    for i in range(n_imgs):
+        metadata_dict = dataset.get_metadata(i)
+        metadata_dict["index"] = i
+        metadata_rows.append(metadata_dict)
+
+    # Create DataFrame with metadata
+    obs_df = pl.DataFrame(metadata_rows, infer_schema_length=None)
+
+    # Save to parquet
+    img_obs_fpath = os.path.join(cfg.root, "img_obs.parquet")
+    obs_df.write_parquet(img_obs_fpath)
+    logger.info("Saved img_obs.parquet with %d rows to '%s'.", n_imgs, img_obs_fpath)
+
+    sae_var_df = pl.DataFrame({
+        "feature": range(d_sae),
+        "log10_freq": torch.log10(sparsity).tolist(),
+        "log10_value": torch.log10(mean_values).tolist(),
+        "top_i_im": [unique_no_sort(ims.tolist()) for ims in top_i],
+    })
+    sae_var_fpath = os.path.join(cfg.root, "sae_var.parquet")
+    sae_var_df.write_parquet(sae_var_fpath)
+    logger.info("Saved sae_var.parquet with %d rows to '%s'.", d_sae, sae_var_fpath)
+
     fig_fpath = os.path.join(
         cfg.root, f"{cfg.n_distributions}_activation_distributions.png"
     )
@@ -221,11 +267,6 @@ def main(cfg: Config):
     logger.info(
         "Saved %d activation distributions to '%s'.", cfg.n_distributions, fig_fpath
     )
-
-    metadata = saev.data.Metadata.load(cfg.shard_root)
-    vit_cls = saev.data.models.load_vit_cls(metadata.vit_family)
-    img_transform = vit_cls.make_resize(metadata.vit_ckpt, scale=1)
-    dataset = datasets.get_dataset(cfg.imgs, img_transform=img_transform)
 
     min_log_freq, max_log_freq = cfg.log_freq_range
     min_log_value, max_log_value = cfg.log_value_range
@@ -237,27 +278,33 @@ def main(cfg: Config):
         & (torch.log10(mean_values) < max_log_value)
     )
 
-    neurons = cfg.include_latents
-    random_neurons = torch.arange(d_sae)[mask.cpu()].tolist()
+    features = cfg.include_latents
+    random_features = torch.arange(d_sae)[mask.cpu()].tolist()
     random.seed(cfg.seed)
-    random.shuffle(random_neurons)
-    neurons += random_neurons[: cfg.n_latents]
+    random.shuffle(random_features)
+    features += random_features[: cfg.n_latents]
 
-    for i in saev.helpers.progress(neurons, desc="saving visuals"):
-        neuron_dir = os.path.join(cfg.root, "neurons", str(i))
-        os.makedirs(neuron_dir, exist_ok=True)
+    for i in saev.helpers.progress(features, desc="saving visuals"):
+        feature_dir = os.path.join(cfg.root, "features", str(i))
+        os.makedirs(feature_dir, exist_ok=True)
 
         # Image grid
-        elems = []
+        examples = []
         seen_i_im = set()
         for i_im, values_p in zip(top_i[i].tolist(), top_values[i]):
             if i_im in seen_i_im:
                 continue
 
-            example = dataset[i_im]
+            sample = dataset[i_im]
 
-            elem = GridElement(example["image"], example["label"], values_p, i_im)
-            elems.append(elem)
+            example = Example(
+                img=sample["image"],
+                patches=values_p,
+                img_i=i_im,
+                target=sample["target"],
+                label=sample["label"],
+            )
+            examples.append(example)
 
             seen_i_im.add(i_im)
 
@@ -266,30 +313,12 @@ def main(cfg: Config):
         if top_values[i].numel() > 0:
             upper = top_values[i].max().item()
 
-        for j, elem in enumerate(elems):
+        for j, example in enumerate(examples):
             # Save SAE highlighted image
             img = saev.viz.add_highlights(
-                elem.img, elem.patches.numpy(), patch_size=16, upper=upper
+                example.img, example.patches.numpy(), patch_size=16, upper=upper
             )
-            img.save(os.path.join(neuron_dir, f"{j}_sae.png"))
-
-            # Save per-image metadata as JSON
-            img_metadata = {
-                "label": elem.label,
-                "dataset_type": dataset.__class__.__name__,
-                "image_index": elem.image_index,
-            }
-            with open(os.path.join(neuron_dir, f"{j}.json"), "w") as fd:
-                json.dump(img_metadata, fd)
-
-        # Neuron-level metadata
-        neuron_metadata = {
-            "neuron": i,
-            "log10_freq": torch.log10(sparsity[i]).item(),
-            "log10_value": torch.log10(mean_values[i]).item(),
-        }
-        with open(os.path.join(neuron_dir, "metadata.json"), "w") as fd:
-            json.dump(neuron_metadata, fd)
+            img.save(os.path.join(feature_dir, f"{j}_sae.png"))
 
 
 if __name__ == "__main__":

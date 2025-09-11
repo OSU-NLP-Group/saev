@@ -17,20 +17,7 @@ def _():
     import polars as pl
     import torch
     from jaxtyping import Float, jaxtyped
-
-    return (
-        Float,
-        beartype,
-        bisect,
-        dataclasses,
-        jaxtyped,
-        json,
-        mo,
-        np,
-        pathlib,
-        pl,
-        torch,
-    )
+    return Float, beartype, bisect, jaxtyped, mo, np, pathlib, pl, torch
 
 
 @app.cell
@@ -50,6 +37,7 @@ def _(mo, root):
 
         return mo.ui.dropdown(choices, label="Checkpoint")
 
+
     ckpt_dropdown = make_ckpt_dropdown()
     return (ckpt_dropdown,)
 
@@ -61,6 +49,40 @@ def _(ckpt_dropdown):
 
 
 @app.cell
+def _(pl):
+    def add_target(obs: pl.DataFrame, fields: list[str]) -> pl.DataFrame:
+        # If fields can be nulls, give them a bucket so factorization is well-defined
+        obs = obs.with_columns([pl.col(field).fill_null("unknown") for field in fields])
+
+        combos = (
+            obs.select(fields)
+            .unique(maintain_order=True)  # first-seen ordering
+            .with_columns(pl.arange(0, pl.len(), dtype=pl.Int32).alias("target"))
+        )
+
+        obs = obs.join(combos, on=fields, how="inner")
+
+        target2fields = {
+            target: tuple(rest)
+            for target, *rest in obs.unique(pl.col("target"))
+            .select("target", *fields)
+            .iter_rows()
+        }
+
+        return obs, target2fields
+    return (add_target,)
+
+
+@app.cell
+def _(add_target, ckpt_dropdown, pl, root):
+    img_obs, target2fields = add_target(
+        pl.read_parquet(root / ckpt_dropdown.value / "img_obs.parquet"), ["Taxonomic_Name", "View"]
+    )
+    sae_var = pl.read_parquet(root / ckpt_dropdown.value / "sae_var.parquet")
+    return img_obs, sae_var, target2fields
+
+
+@app.cell
 def _(ckpt_dropdown, mo):
     mo.stop(ckpt_dropdown.value is None, mo.md("You must select a checkpoint."))
 
@@ -69,40 +91,19 @@ def _(ckpt_dropdown, mo):
 
 
 @app.cell
-def _(beartype, dataclasses):
-    @beartype.beartype
-    @dataclasses.dataclass(frozen=True)
-    class Feature:
-        f: int
-        log10_freq: float
-        log10_value: float
+def _(bisect, ckpt_dropdown, mo, root):
+    features = sorted(
+        [
+            int(path.name)
+            for path in (root / ckpt_dropdown.value / "features").iterdir()
+            if path.name.isdigit()
+        ]
+    )
 
-    return (Feature,)
-
-
-@app.cell
-def _(Feature, bisect, ckpt_dropdown, json, mo, name, root):
-    def get_features() -> list[dict]:
-        rows = []
-        for path in mo.status.progress_bar(
-            list((root / ckpt_dropdown.value / "neurons").iterdir())
-        ):
-            if not path.name.isdigit():
-                continue
-            try:
-                with open(path / "metadata.json") as fd:
-                    dct = json.load(fd)
-                    dct["f"] = dct.pop("neuron")
-                    rows.append(Feature(**dct))
-            except FileNotFoundError:
-                print(f"Missing metadata.json for feature {name}.")
-                continue
-        return sorted(rows, key=lambda f: f.f)
-
-    features = get_features()
 
     def find_i(f: int):
-        return bisect.bisect_left(features, f, key=lambda feature: feature.f)
+        return bisect.bisect_left(features, f)
+
 
     mo.md(f"Found {len(features)} saved features.")
     return features, find_i
@@ -130,9 +131,7 @@ def _(features, get_i, mo, set_i):
 
 @app.cell
 def _(features, get_i, mo):
-    feature_picker_text = mo.ui.text(
-        value=str(features[get_i()].f),
-    )
+    feature_picker_text = mo.ui.text(value=str(features[get_i()]))
 
     feature_picker_button = mo.ui.run_button(label="Search")
     return feature_picker_button, feature_picker_text
@@ -147,12 +146,12 @@ def _(feature_picker_button, feature_picker_text, find_i, mo, set_i):
 
 
 @app.cell
-def _(Feature, features, get_i, mo):
-    def display_info(feature: Feature):
+def _(features, get_i, mo, sae_var):
+    def display_info(f: int):
+        feature = sae_var.row(f, named=True)
         return mo.md(
-            f"Feature {feature.f} ({get_i()}/{len(features)}; {get_i() / len(features) * 100:.1f}%) | Frequency: {10**feature.log10_freq * 100:.5f}% of inputs | Mean Value: {10**feature.log10_value:.3f}"
+            f"Feature {f} ({get_i()}/{len(features)}; {get_i() / len(features) * 100:.1f}%) | Frequency: {10 ** feature['log10_freq'] * 100:.5f}% of inputs | Mean Value: {10 ** feature['log10_value']:.3f}"
         )
-
     return (display_info,)
 
 
@@ -178,46 +177,21 @@ def _(
 
 
 @app.cell
-def _(ckpt_dropdown, json, mo, root):
-    def show_img(n: int, i: int):
-        neuron_dir = root / ckpt_dropdown.value / "neurons" / str(n)
+def _(ckpt_dropdown, img_obs, mo, root, sae_var):
+    def show_img(feature: int, i: int):
+        neuron_dir = root / ckpt_dropdown.value / "features" / str(feature)
 
-        # Try to load metadata from JSON first
-        metadata = {}
-        label = "No label found."
-
-        try:
-            with open(neuron_dir / f"{i}.json") as fd:
-                metadata = json.load(fd)
-                label = metadata.get("label", "No label found.")
-                label = " ".join(label.split("_"))
-        except:
-            pass
-
-        # Check which image files exist
         sae_path = neuron_dir / f"{i}_sae.png"
-        seg_path = neuron_dir / f"{i}_seg.png"
-
-        # Determine which images to show
-        images_to_show = []
-
         if not sae_path.exists():
             return mo.md(f"*Missing image {i}*")
 
-        images_to_show.append(mo.vstack([mo.image(sae_path), mo.md(label)]))
+        feature = sae_var.row(feature, named=True)
+        md = img_obs.row(feature["top_i_im"][i], named=True)
 
-        # Add segmentation if it exists
-        if seg_path.exists():
-            images_to_show.append(
-                mo.vstack([mo.image(seg_path), mo.md("Segmentation")])
-            )
-
-        # If we have both images, show side-by-side; otherwise just show what we have
-        if len(images_to_show) == 2:
-            return mo.vstack([mo.md(label), mo.hstack(images_to_show, widths="equal")])
-        else:
-            return images_to_show[0]
-
+        return mo.vstack(
+            [mo.image(sae_path), mo.md(md["Taxonomic_Name"]), mo.md(md["View"])],
+            align="center",
+        )
     return (show_img,)
 
 
@@ -235,7 +209,7 @@ def _(cols_slider, mo):
 
 @app.cell
 def _(cols_slider, features, get_i, mo, show_img):
-    n = features[get_i()].f
+    feature = features[get_i()]
     n_cols = cols_slider.value
     n_images = 25  # Always show 25 images
 
@@ -243,7 +217,7 @@ def _(cols_slider, features, get_i, mo, show_img):
     rows = []
     for row_start in range(0, n_images, n_cols):
         row_end = min(row_start + n_cols, n_images)
-        row_images = [show_img(n, i) for i in range(row_start, row_end)]
+        row_images = [show_img(feature, i) for i in range(row_start, row_end)]
         if row_images:  # Only add non-empty rows
             rows.append(mo.hstack(row_images, widths="equal"))
 
@@ -255,30 +229,12 @@ def _(cols_slider, features, get_i, mo, show_img):
 def _(ckpt_dropdown, np, root, torch):
     x = torch.load(root / ckpt_dropdown.value / "img_acts.pt").numpy()
 
-    percentiles = np.quantile(x, 0.98, axis=0)
+    percentiles = np.quantile(x, 0.95, axis=0)
     return percentiles, x
 
 
 @app.cell
-def _(ckpt_dropdown, pl, root):
-    obs = pl.read_parquet(root / ckpt_dropdown.value / "img_obs.parquet").with_columns(
-        i=pl.int_range(pl.len()).alias("index")
-    )
-
-    target_map = {
-        target: label
-        for target, label in obs.select("target", "label").unique().iter_rows()
-    }
-
-    target_counts = {
-        i: count
-        for i, count in obs.group_by("target").agg(pl.len().alias("count")).iter_rows()
-    }
-    return obs, target_counts, target_map
-
-
-@app.cell
-def _(Float, beartype, jaxtyped, mo, np, obs, percentiles, pl, x):
+def _(Float, beartype, img_obs, jaxtyped, mo, np, percentiles, pl, x):
     @jaxtyped(typechecker=beartype.beartype)
     def get_f1(x_ns: Float[np.ndarray, "n_imgs d_sae"], obs: pl.DataFrame):
         n_imgs, d_sae = x_ns.shape
@@ -307,29 +263,61 @@ def _(Float, beartype, jaxtyped, mo, np, obs, percentiles, pl, x):
         f1 = np.nan_to_num(f1, 0.0)
         return f1, prec_cs, recall_cs
 
-    f1, prec, recall = get_f1(x, obs)
+
+    f1, prec, recall = get_f1(x, img_obs)
     return f1, prec, recall
 
 
 @app.cell
-def _(f1, pl, prec, recall, target_counts, target_map):
-    df = pl.DataFrame([
-        {
-            "species": target_map[i],
-            "f1": f1[i, latent],
-            "prec": prec[i, latent],
-            "recall": recall[i, latent],
-            "latent": latent,
-            "n": target_counts[i],
-        }
-        for i, latent in set(
-            []
-            + list(enumerate(f1.argmax(axis=1)))
-            + list(enumerate(prec.argmax(axis=1)))
-            + list(enumerate(recall.argmax(axis=1)))
+def _(f1, img_obs, pl, prec, recall, target2fields):
+    class_counts = dict(img_obs.group_by("target").len().iter_rows())
+
+    df = (
+        pl.DataFrame(
+            [
+                {
+                    "species": target2fields[i][0],
+                    "view": target2fields[i][1],
+                    "f1": f1[i, feature],
+                    "prec": prec[i, feature],
+                    "recall": recall[i, feature],
+                    "feature": feature,
+                    "n_imgs": class_counts[i],
+                    "target": i,
+                }
+                for i, feature in set(
+                    []
+                    + list(enumerate(f1.argmax(axis=1)))
+                    + list(enumerate(prec.argmax(axis=1)))
+                    + list(enumerate(recall.argmax(axis=1)))
+                )
+            ]
         )
-    ]).unique()
-    return (df,)
+        .unique()
+        .sort(by="f1", descending=True)
+        .filter(pl.col("n_imgs") >= 5)
+    )
+    return class_counts, df
+
+
+@app.cell
+def _(class_counts, img_obs, pl):
+    for key, value in sorted(class_counts.items()):
+        if value == 2640:
+            print(
+                key,
+                img_obs.filter(pl.col("target") == key).item(
+                    row=0, column="Taxonomic_Name"
+                ),
+                value,
+            )
+    return
+
+
+@app.cell
+def _(df):
+    df
+    return
 
 
 @app.cell
@@ -353,16 +341,18 @@ def _():
 
 @app.cell
 def _(df, mo, pairs, pl):
-    mo.vstack([
-        df.filter(
-            ~pl.col("species").str.contains(" x ")
-            & (
-                (pl.col("species").str.contains(f"ssp. {a}"))
-                | (pl.col("species").str.contains(f"ssp. {b}"))
-            )
-        ).sort(by="f1", descending=True)
-        for a, b in pairs
-    ])
+    mo.vstack(
+        [
+            df.filter(
+                ~pl.col("species").str.contains(" x ")
+                & (
+                    (pl.col("species").str.contains(f"ssp. {a}"))
+                    | (pl.col("species").str.contains(f"ssp. {b}"))
+                )
+            ).sort(by="f1", descending=True)
+            for a, b in pairs
+        ]
+    )
     return
 
 
@@ -375,7 +365,7 @@ def _(df, pairs, pl):
                     ~pl.col("species").str.contains(" x ")
                     & (pl.col("species").str.contains(f"ssp. {ssp}"))
                 )
-                .get_column("n")
+                .get_column("n_imgs")
                 .unique()
             )
             if count_series.len() == 1:
@@ -392,6 +382,14 @@ def _(df, pairs, pl):
 @app.cell
 def _(df):
     df.select("species", "n").unique().sort(by="species")
+    return
+
+
+@app.cell
+def _(df, mo):
+    latents_str = " ".join(map(str, df.get_column("feature").to_list()))
+
+    mo.md(f"`--include-latents {latents_str}`")
     return
 
 
