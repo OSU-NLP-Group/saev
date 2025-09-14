@@ -356,7 +356,7 @@ class AuxiliaryLossActivation(torch.nn.Module):
 
             # Find top k of dead latents
             k_vals, k_inds = torch.topk(
-                masked_dead_latents, self.cfg.top_k, dim=1, sorted=False
+                masked_dead_latents, min(self.cfg.top_k, masked_dead_latents.shape[1]), dim=1, sorted=False
             )
             top_k_mask = torch.zeros_like(masked_dead_latents).scatter_(
                 dim=-1, index=k_inds, src=torch.ones_like(masked_dead_latents)

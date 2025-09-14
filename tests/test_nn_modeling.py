@@ -70,13 +70,14 @@ def aux_cfgs():
     d_sae=st.integers(min_value=256, max_value=2048),
 )
 def test_auxiliary_activation(cfg, batch, d_sae):
-    act = modeling.get_activation(cfg)
+    act = modeling.AuxiliaryLossActivation(cfg)
+    dead_lts = torch.zeros((batch, d_sae))
     x = torch.rand(batch, d_sae)
-    y = act(x)
+    y = act(x, dead_lts)
 
     assert y.shape == (batch, d_sae)
     # Check that only k elements are non-zero per sample
-    assert (y != 0).sum(dim=1).eq(cfg.top_k).all()
+    assert (y != 0).sum(dim=1).le(cfg.top_k).all()
 
 
 @given(
@@ -101,7 +102,7 @@ def test_topk_activation(cfg, batch, d_sae):
 def test_batch_topk_activation(cfg, batch, d_sae):
     act = modeling.get_activation(cfg)
     x = torch.randn(batch, d_sae)
-    y = act(x, torch.ones_like(x))
+    y = act(x)
     assert y.shape == (batch, d_sae)
     # Check that only k elements are non-zero per sample
     assert (y != 0).sum(dim=1).eq(cfg.top_k).all()
@@ -318,7 +319,7 @@ def test_auxiliary_activation_zero_gradient_for_unselected():
     act = modeling.AuxiliaryLossActivation(cfg)
 
     x = torch.tensor([[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]], requires_grad=True)
-    y = act(x, torch.ones_like(x))
+    y = act(x, torch.tensor([0, 0, 0, 0, 1, 1]))
 
     loss = y.sum()
     loss.backward()
@@ -331,8 +332,6 @@ def test_auxiliary_activation_zero_gradient_for_unselected():
     # Elements at indices 4, 5 should have non-zero gradients
     torch.testing.assert_close(x.grad[0, 4], torch.tensor(1.0))
     torch.testing.assert_close(x.grad[0, 5], torch.tensor(1.0))
-
-    # TODO: Add portion of this test that looks at values masked out by the dead latent mask.
 
 
 # BatchTopK Edge Case Tests

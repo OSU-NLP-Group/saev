@@ -274,7 +274,7 @@ def train(
             if cfg.auxiliary_loss:
                 # Auxiliary loss is a separate term from the main objective, so we add it separately.
                 aux_f_x = aux_activation(f_x, dead_latents=dead_lts)
-                aux_x_hat = sae.decode(aux_f_x)
+                aux_x_hat = torch.matmul(sae.W_dec, aux_f_x)
 
                 losses.append(
                     objective(acts_BD, f_x, x_hat) + aux_objective(acts_BD, aux_x_hat)

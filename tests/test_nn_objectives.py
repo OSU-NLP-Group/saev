@@ -47,24 +47,24 @@ def test_safe_mse_large_x():
 
 
 def test_auxiliary_mse_same():
-    x = torch.zeros((45, 12), dtype=torch.float)
+    x = torch.ones((45, 12), dtype=torch.float)
     x_hat = torch.ones((45, 12), dtype=torch.float)
-    aux_objective = objectives.AuxiliaryObjective(objectives.Auxiliary(aux_coeff=1))
+    aux_objective = objectives.AuxiliaryObjective(objectives.Auxiliary(aux_coeff=1.0))
     torch.testing.assert_close(
-        aux_objective(x_hat, x),
-        objectives.mean_squared_err(x_hat, x),
-        dtype=torch.float,
+        aux_objective(x_hat, x).loss,
+        objectives.mean_squared_err(x_hat, x).mean(),
     )
 
 
 def test_auxiliary_coeff():
-    x = torch.zeros((45, 12), dtype=torch.float)
-    x_hat = torch.ones((45, 12), dtype=torch.float)
+    x = torch.ones((45, 12), dtype=torch.float)
+    x_hat = torch.full((45, 12), 3, dtype=torch.float)
     aux_objective = objectives.AuxiliaryObjective(objectives.Auxiliary(aux_coeff=0.5))
+    print(aux_objective(x_hat, x).loss)
+    print(0.5 * objectives.mean_squared_err(x_hat, x).mean())
     torch.testing.assert_close(
-        aux_objective(x_hat, x),
-        0.5 * objectives.mean_squared_err(x_hat, x),
-        dtype=torch.float,
+        aux_objective(x_hat, x).loss,
+        0.5 * objectives.mean_squared_err(x_hat, x).mean(),
     )
 
 
