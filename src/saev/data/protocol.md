@@ -19,12 +19,13 @@ This document is the single normative source. Any divergence in code is a **bug*
 
 ```
 <dump_to>/<HASH>/
-    metadata.json              # UTF-8 JSON, human-readable, describes data-generating config
-    shards.json                # UTF-8 JSON, human-readable, describes shards.
-    acts000000.bin             # shard 0
-    acts000001.bin             # shard 1
+    metadata.json    # UTF-8 JSON, human-readable, describes data-generating config
+    shards.json      # UTF-8 JSON, human-readable, describes shards.
+    acts000000.bin   # shard 0
+    acts000001.bin   # shard 1
     ...
-    actsNNNNNN.bin             # shard NNNNNN  (zero-padded width=6)
+    actsNNNNNN.bin   # shard NNNNNN  (zero-padded width=6)
+    patch-labels.bin       # patch labels (optional)
 ```
 
 *`HASH` = `sha256(json.dumps(metadata, sort_keys=True, separators=(',', ':')).encode('utf-8'))`*
@@ -48,7 +49,7 @@ Guards against silent config drift.
 | `max_patches_per_shard` | int    | **logical** activations per shard (see #3) |
 | `data`                  | object | opaque dataset description                 |
 | `dtype`                 | string | numpy dtype. Fixed `"float32"` for now.    |
-| `protocol`              | string | `"1.0.0"` for now.                         |
+| `protocol`              | string | `"1.1"` (shards with a labels.bin)         |
 
 The `data` object is `dataclasses.asdict(cfg.data)`, with an additional `__class__` field with `cfg.data.__class__.__name__` as the value.
 
@@ -146,7 +147,5 @@ The relative order of patch tokens is preserved exactly as produced by the upstr
 
 ---
 
-That's the whole deal.
-No hidden invariants.
-Anything else you find in code that contradicts this sheet, fix the code or update the spec.
-
+That's it.
+Anything else you find in code that contradicts this document, fix the code or update the spec.

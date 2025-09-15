@@ -83,7 +83,9 @@ def test_dataloader_batches(tmp_path):
         dump_to=str(tmp_path),
     )
     vit_cls = models.load_vit_cls(cfg.vit_family)
-    img_transform, sample_transform = vit_cls.make_transforms(cfg.vit_ckpt)
+    img_transform, sample_transform = vit_cls.make_transforms(
+        cfg.vit_ckpt, cfg.n_patches_per_img
+    )
     dataloader = get_dataloader(
         cfg, img_transform=img_transform, sample_transform=sample_transform
     )
@@ -111,7 +113,9 @@ def test_shard_writer_and_dataset_e2e(tmp_path):
         dump_to=str(tmp_path),
     )
     vit_cls = models.load_vit_cls(cfg.vit_family)
-    img_transform, sample_transform = vit_cls.make_transforms(cfg.vit_ckpt)
+    img_transform, sample_transform = vit_cls.make_transforms(
+        cfg.vit_ckpt, cfg.n_patches_per_img
+    )
     vit = RecordedVisionTransformer(
         vit_cls(cfg.vit_ckpt),
         cfg.n_patches_per_img,
@@ -328,7 +332,7 @@ def test_metadata_json_has_required_keys(cfg):
 
         # dtype & protocol must be fixed strings
         assert md["dtype"] == "float32"
-        assert md["protocol"] == "1.0.0"
+        assert md["protocol"] == "1.1"
 
         # data must be a dict with a __class__ key
         assert isinstance(md["data"], dict)

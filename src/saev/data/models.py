@@ -25,12 +25,14 @@ class VisionTransformer(abc.ABC):
 
     @staticmethod
     @abc.abstractmethod
-    def make_transforms(ckpt: str) -> tuple[Callable, Callable | None]: ...
+    def make_transforms(
+        ckpt: str, n_patches_per_img: int
+    ) -> tuple[Callable, Callable | None]: ...
 
     @staticmethod
     @abc.abstractmethod
     def make_resize(
-        ckpt: str, *, scale: float = 2.0
+        ckpt: str, n_patches_per_img: int, *, scale: float = 2.0
     ) -> Callable[[Image.Image], Image.Image]:
         """How to resize images for patch visualizations."""
 

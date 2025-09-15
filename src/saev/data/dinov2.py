@@ -15,7 +15,9 @@ class Vit(torch.nn.Module, models.VisionTransformer):
     family: str = "dinov2"
 
     @staticmethod
-    def make_transforms(ckpt: str) -> tuple[Callable, Callable | None]:
+    def make_transforms(
+        ckpt: str, n_patches_per_img: int = -1
+    ) -> tuple[Callable, Callable | None]:
         img_transform = v2.Compose([
             v2.Resize(size=(256, 256)),
             v2.CenterCrop(size=(224, 224)),
@@ -53,7 +55,7 @@ class Vit(torch.nn.Module, models.VisionTransformer):
 
     @staticmethod
     def make_resize(
-        ckpt: str, *, scale: float = 2.0
+        ckpt: str, n_patches_per_img: int = -1, *, scale: float = 2.0
     ) -> Callable[[Image.Image], Image.Image]:
         def resize(img: Image.Image) -> Image.Image:
             resize_size_px = (int(256 * scale), int(256 * scale))

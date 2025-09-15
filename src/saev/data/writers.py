@@ -5,7 +5,7 @@ import json
 import logging
 import math
 import os
-import typing
+import typing as tp
 from collections.abc import Callable
 
 import beartype
@@ -23,6 +23,12 @@ logger = logging.getLogger(__name__)
 
 @beartype.beartype
 @dataclasses.dataclass(frozen=True)
+class LabelsConfig:
+    """Configuration for how to turn pixel-level segmentation labels into patch-level labels."""
+
+
+@beartype.beartype
+@dataclasses.dataclass(frozen=True)
 class Config:
     """Configuration for calculating and saving ViT activations."""
 
@@ -30,7 +36,7 @@ class Config:
     """Which dataset to use."""
     dump_to: str = os.path.join(".", "shards")
     """Where to write shards."""
-    vit_family: typing.Literal["clip", "siglip", "dinov2", "dinov3"] = "clip"
+    vit_family: tp.Literal["clip", "siglip", "dinov2", "dinov3"] = "clip"
     """Which model family."""
     vit_ckpt: str = "ViT-L-14/openai"
     """Specific model checkpoint."""
@@ -46,6 +52,7 @@ class Config:
     """Number of ViT patches per image (depends on model)."""
     cls_token: bool = True
     """Whether the model has a [CLS] token."""
+    label_transform: tp.Literal["mode", "no-bg"] = "mode"
     max_patches_per_shard: int = 2_400_000
     """Maximum number of activations per shard; 2.4M is approximately 10GB for 1024-dimensional 4-byte activations."""
 
@@ -260,7 +267,7 @@ def get_acts_dir(cfg: Config) -> str:
 @beartype.beartype
 @dataclasses.dataclass(frozen=True)
 class Metadata:
-    vit_family: typing.Literal["clip", "siglip", "dinov2", "dinov3"]
+    vit_family: tp.Literal["clip", "siglip", "dinov2", "dinov3"]
     vit_ckpt: str
     layers: tuple[int, ...]
     n_patches_per_img: int
@@ -269,8 +276,8 @@ class Metadata:
     n_imgs: int
     max_patches_per_shard: int
     data: dict[str, object]
-    dtype: typing.Literal["float32"] = "float32"
-    protocol: typing.Literal["1.0.0"] = "1.0.0"
+    dtype: tp.Literal["float32"] = "float32"
+    protocol: tp.Literal["1.0.0", "1.1"] = "1.1"
 
     def __post_init__(self):
         # Check that at least one image per shard can fit.
@@ -444,7 +451,7 @@ def worker_fn(cfg: Config):
     vit = RecordedVisionTransformer(
         vit, cfg.n_patches_per_img, cfg.cls_token, cfg.vit_layers
     )
-    img_tr, sample_tr = vit_cls.make_transforms(cfg.vit_ckpt)
+    img_tr, sample_tr = vit_cls.make_transforms(cfg.vit_ckpt, cfg.n_patches_per_img)
     dataloader = get_dataloader(cfg, img_transform=img_tr, sample_transform=sample_tr)
 
     writer = ShardWriter(cfg)
@@ -494,8 +501,8 @@ class IndexLookup:
     def __init__(
         self,
         metadata: Metadata,
-        patches: typing.Literal["cls", "image", "all"],
-        layer: int | typing.Literal["all"],
+        patches: tp.Literal["cls", "image", "all"],
+        layer: int | tp.Literal["all"],
     ):
         if not metadata.cls_token and patches == "cls":
             raise ValueError("Cannot return [CLS] token if one isn't present.")
@@ -567,7 +574,7 @@ class IndexLookup:
                 return shard_i, (img_i_in_shard, layer_idx, token_i)
 
             case _:
-                typing.assert_never((self.patches, self.layer))
+                tp.assert_never((self.patches, self.layer))
 
     def map_img(self, img_i: int) -> tuple[int, int]:
         """
@@ -616,4 +623,4 @@ class IndexLookup:
                     * (self.metadata.n_patches_per_img + int(self.metadata.cls_token))
                 )
             case _:
-                typing.assert_never((self.patches, self.layer))
+                tp.assert_never((self.patches, self.layer))

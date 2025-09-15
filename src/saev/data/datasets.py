@@ -58,14 +58,14 @@ class ImageFolder:
 @beartype.beartype
 @dataclasses.dataclass(frozen=True)
 class SegFolder:
-    """ """
-
     root: str = os.path.join(".", "data", "segdataset")
     """Where the class folders with images are stored."""
     split: typing.Literal["training", "validation"] = "training"
     """Data split."""
     img_label_fname: str = "sceneCategories.txt"
     """Image labels filename."""
+    bg_label: int = 0
+    """Background label."""
 
     @property
     def n_imgs(self) -> int:
@@ -91,7 +91,26 @@ class Fake:
     n_imgs: int = 10
 
 
-Config = Imagenet | ImageFolder | SegFolder | Fake
+@beartype.beartype
+@dataclasses.dataclass(frozen=True)
+class FakeSeg:
+    """Tiny synthetic segmentation dataset for tests.
+
+    Generates dummy RGB images and per-image patch-level labels directly,
+    avoiding any dependency on real segmentation masks or transforms.
+    """
+
+    n_imgs: int = 10
+    """Number of images."""
+    n_patches_per_img: int = 16
+    """Number of patches per image (used to size the patch_labels)."""
+    n_classes: int = 3
+    """Number of segmentation classes."""
+    bg_label: int = 0
+    """Which class index is considered background."""
+
+
+Config = Imagenet | ImageFolder | SegFolder | Fake | FakeSeg
 
 
 @beartype.beartype
@@ -128,6 +147,10 @@ def get_dataset(cfg: Config, *, img_transform, sample_transform=None):
             return torch.utils.data.ConcatDataset(ds)
     elif isinstance(cfg, Fake):
         return FakeDataset(
+            cfg, img_transform=img_transform, sample_transform=sample_transform
+        )
+    elif isinstance(cfg, FakeSeg):
+        return FakeSegDataset(
             cfg, img_transform=img_transform, sample_transform=sample_transform
         )
     else:
@@ -342,6 +365,66 @@ class FakeDataset(torch.utils.data.Dataset):
             img = self.img_transform(img)
 
         sample = {"image": img, "index": i, "target": 0, "label": "dummy"}
+        if self.sample_transform is not None:
+            sample = self.sample_transform(sample)
+
+        return sample
+
+
+@beartype.beartype
+class FakeSegDataset(torch.utils.data.Dataset):
+    """Synthetic segmentation dataset providing patch-level labels.
+
+    Each example includes:
+      - image: a dummy RGB PIL image
+      - patch_labels: LongTensor[n_patches_per_img] with deterministic values
+      - index, target, label
+    """
+
+    def __init__(
+        self,
+        cfg: FakeSeg,
+        *,
+        img_transform=None,
+        sample_transform=None,
+    ):
+        self.cfg = cfg
+
+        self.img_transform = img_transform
+        self.sample_transform = sample_transform
+
+    def __len__(self) -> int:
+        return self.cfg.n_imgs
+
+    def __getitem__(self, i: int) -> dict[str, object]:
+        # Create a dummy RGB image; writers' label generation does not depend on pixels
+        img = Image.new("RGB", (64, 64), color=(127, 127, 127))
+        if self.img_transform is not None:
+            img = self.img_transform(img)
+
+        # Deterministic patch labels cycling over classes; ensure some background present
+        import torch
+
+        labels = torch.tensor(
+            [
+                (j + i) % max(1, self.cfg.n_classes)
+                for j in range(self.cfg.n_patches_per_img)
+            ],
+            dtype=torch.long,
+        )
+        # Force a few background patches for variety
+        if self.cfg.bg_label < self.cfg.n_classes:
+            labels[: max(1, self.cfg.n_patches_per_img // 8)] = self.cfg.bg_label
+
+        sample: dict[str, object] = {
+            "image": img,
+            "index": i,
+            "target": 0,
+            "label": "dummy",
+            # Direct patch-level labels for tests; shape [n_patches]
+            "patch_labels": labels,
+        }
+
         if self.sample_transform is not None:
             sample = self.sample_transform(sample)
 

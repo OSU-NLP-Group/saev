@@ -655,22 +655,26 @@ class Vit(torch.nn.Module, models.VisionTransformer):
         return features
 
     @staticmethod
-    def make_transforms(ckpt: str) -> tuple[Callable, Callable | None]:
+    def make_transforms(
+        ckpt: str, n_patches_per_img: int
+    ) -> tuple[Callable, Callable | None]:
         img_transform = v2.Compose([
-            transforms.FlexResize(patch_size=16, n_patches=640),
+            transforms.FlexResize(patch_size=16, n_patches=n_patches_per_img),
             v2.ToImage(),
             v2.ToDtype(torch.float32, scale=True),
             v2.Normalize(mean=[0.4850, 0.4560, 0.4060], std=[0.2290, 0.2240, 0.2250]),
         ])
-        sample_transform = transforms.Patchify(patch_size=16, n_patches=640)
+        sample_transform = transforms.Patchify(
+            patch_size=16, n_patches=n_patches_per_img
+        )
         return img_transform, sample_transform
 
     @staticmethod
     def make_resize(
-        ckpt: str, *, scale: float = 2.0
+        ckpt: str, n_patches_per_img: int, *, scale: float = 2.0
     ) -> Callable[[Image.Image], Image.Image]:
         import functools
 
         return functools.partial(
-            transforms.resize_to_patch_grid, p=int(16 * scale), n=640
+            transforms.resize_to_patch_grid, p=int(16 * scale), n=n_patches_per_img
         )
