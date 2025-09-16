@@ -12,28 +12,29 @@ def _():
     import matplotlib.pyplot as plt
     import numpy as np
     import polars as pl
+    import torch
 
-    return mo, np, pathlib, pl, plt
+    return mo, np, pathlib, pl, plt, torch
 
 
 @app.cell
 def _(pathlib):
     root = pathlib.Path(
-        "/fs/scratch/PAS2136/samuelstevens/saev/acts/butterflies/vde7lady.h5pl/"
+        "/fs/scratch/PAS2136/samuelstevens/saev/acts/butterflies/g49kbj2j/"
     )
     return (root,)
 
 
 @app.cell
 def _(pl, root):
-    obs = pl.read_parquet(root / "obs.parquet").with_columns(
+    obs = pl.read_parquet(root / "img_obs.parquet").with_columns(
         i=pl.int_range(pl.len()).alias("index")
     )
     return (obs,)
 
 
 @app.cell
-def _(np, root):
+def _(np, root, torch):
     def minmax_scale_cols(x, *, ignore_nan=False, clip=True):
         """
         Linearly scale each column of X to [0, 1].
@@ -60,19 +61,32 @@ def _(np, root):
 
         return scaled
 
-    x = np.load(root / "acts.npz")["arr_0"]
+    x = torch.load(root / "img_acts.pt").numpy()
     # Scale each column so that it's 0-1.
     x = minmax_scale_cols(x)
     return (x,)
 
 
 @app.cell
-def _(mo, np, obs, plt):
+def _(mo, np, obs, pl, plt):
     def show_heatmap(x, query: str = "", n_latents: int = 800):
-        imgs = obs.sql(query).get_column("i").to_numpy()
+        # imgs = obs.sql(query).get_column("i").to_numpy()
+        imgs = (
+            pl.concat([
+                obs.filter(pl.col("label").str.contains("cyrbia")).head(150),
+                obs.filter(pl.col("label").str.contains("cythera")).head(150),
+            ])
+            .get_column("i")
+            .to_numpy()
+        )
+
+        print(imgs.shape)
+
         if len(imgs) == 0:
             return mo.md("No imgs found for query.")
-        latents = np.flip(np.argsort(x[imgs].sum(axis=0)))[:n_latents]
+        latents = np.sort(np.flip(np.argsort(x[imgs].sum(axis=0)))[:n_latents])
+        latents = list(range(600)) + [1281, 1731]
+        print(x[imgs][:, latents].shape)
 
         fig, ax = plt.subplots(dpi=300, figsize=(8, 8))
         ax.imshow(x[imgs][:, latents])

@@ -18,10 +18,10 @@ import typing as tp
 import beartype
 import einops
 import numpy as np
+import saev.data.images
 import sklearn.metrics
 import torch.utils.data
 
-import saev.data.images
 import saev.data.models
 import saev.data.transforms
 import saev.helpers

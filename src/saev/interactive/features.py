@@ -26,7 +26,7 @@ def _(mo, os):
     def make_ckpt_dropdown():
         try:
             choices = sorted(
-                os.listdir("/fs/scratch/PAS2136/samuelstevens/saev/acts/butterflies/")
+                os.listdir("/fs/scratch/PAS2136/samuelstevens/saev/visuals/")
             )
 
         except FileNotFoundError:
@@ -53,9 +53,7 @@ def _(ckpt_dropdown, mo):
         ),
     )
 
-    webapp_dir = (
-        f"/fs/scratch/PAS2136/samuelstevens/saev/acts/butterflies/{ckpt_dropdown.value}"
-    )
+    webapp_dir = f"/fs/scratch/PAS2136/samuelstevens/saev/visuals/{ckpt_dropdown.value}"
 
     get_i, set_i = mo.state(0)
     return get_i, set_i, webapp_dir
@@ -91,11 +89,15 @@ def _(
 ):
     def get_neurons() -> list[dict]:
         rows = []
-        for name in mo.status.progress_bar(list(os.listdir(f"{webapp_dir}/neurons"))):
+        for name in mo.status.progress_bar(
+            list(os.listdir(f"{webapp_dir}/sort_by_patch/neurons"))
+        ):
             if not name.isdigit():
                 continue
             try:
-                with open(f"{webapp_dir}/neurons/{name}/metadata.json") as fd:
+                with open(
+                    f"{webapp_dir}/sort_by_patch/neurons/{name}/metadata.json"
+                ) as fd:
                     rows.append(json.load(fd))
             except FileNotFoundError:
                 print(f"Missing metadata.json for neuron {name}.")
@@ -184,7 +186,7 @@ def _(get_i, mo, neurons):
 @app.cell
 def _(json, mo, os, webapp_dir):
     def show_img(n: int, i: int):
-        neuron_dir = f"{webapp_dir}/neurons/{n}"
+        neuron_dir = f"{webapp_dir}/sort_by_patch/neurons/{n}"
 
         # Try to load metadata from JSON first
         metadata = {}
@@ -418,6 +420,12 @@ def _(pl, root):
 
 
 @app.cell
+def _(obs):
+    obs
+    return
+
+
+@app.cell
 def _(Float, beartype, jaxtyped, mo, np, obs, percentiles, pl, x):
     @jaxtyped(typechecker=beartype.beartype)
     def get_f1(x_ns: Float[np.ndarray, "n_imgs d_sae"], obs: pl.DataFrame):
@@ -461,17 +469,35 @@ def _(obs, pl):
 
 
 @app.cell
+def _(obs, pl, target_counts):
+    for key, value in sorted(target_counts.items()):
+        if value == 2640:
+            print(
+                key,
+                obs.filter(pl.col("target") == key).item(row=0, column="label"),
+                value,
+            )
+    return
+
+
+@app.cell
+def _(obs, pl):
+    obs.filter(pl.col("target") == 50)
+    return
+
+
+@app.cell
 def _(f1, pl, prec, recall, target_counts, target_map):
     df = pl.DataFrame([
         {
             "species": target_map[i],
-            "f1": f1[i, latent],
-            "prec": prec[i, latent],
-            "recall": recall[i, latent],
-            "latent": latent,
+            "f1": f1[i, feature],
+            "prec": prec[i, feature],
+            "recall": recall[i, feature],
+            "feature": feature,
             "n": target_counts[i],
         }
-        for i, latent in set(
+        for i, feature in set(
             []
             + list(enumerate(f1.argmax(axis=1)))
             + list(enumerate(prec.argmax(axis=1)))

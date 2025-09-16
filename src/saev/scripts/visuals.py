@@ -474,6 +474,7 @@ def dump_imgs(cfg: Config):
 
     metadata = saev.data.Metadata.load(cfg.data.shard_root)
     vit_cls = saev.data.models.load_vit_cls(metadata.vit_family)
+    patch_size = vit_cls.patch_size
     img_transform = vit_cls.make_resize(metadata.vit_ckpt, scale=1)
     dataset = saev.data.datasets.get_dataset(cfg.images, img_transform=img_transform)
 
@@ -483,7 +484,7 @@ def dump_imgs(cfg: Config):
     if is_segfolder:
         seg_transform = v2.Compose([
             saev.data.transforms.FlexResize(
-                patch_size=16,
+                patch_size=patch_size,
                 n_patches=metadata.n_patches_per_img,
                 resample=Image.NEAREST,
             ),
@@ -491,7 +492,9 @@ def dump_imgs(cfg: Config):
         ])
         sample_transform = v2.Compose([
             saev.data.transforms.Patchify(
-                patch_size=16, n_patches=metadata.n_patches_per_img, key="segmentation"
+                patch_size=patch_size,
+                n_patches=metadata.n_patches_per_img,
+                key="segmentation",
             ),
         ])
         seg_dataset = saev.data.datasets.SegFolderDataset(
@@ -557,7 +560,7 @@ def dump_imgs(cfg: Config):
         for j, elem in enumerate(elems):
             # Save SAE highlighted image
             img = viz.add_highlights(
-                elem.img, elem.patches.numpy(), patch_size=16, upper=upper
+                elem.img, elem.patches.numpy(), patch_size=patch_size, upper=upper
             )
             img.save(os.path.join(neuron_dir, f"{j}_sae.png"))
 
@@ -565,7 +568,7 @@ def dump_imgs(cfg: Config):
             if elem.segmentation is not None:
                 seg_img = viz.colorize_segmentation_patches(
                     elem.segmentation,
-                    patch_size=16,
+                    patch_size=patch_size,
                     img_width=elem.img.width,
                     img_height=elem.img.height,
                     n_classes=10,  # FishVista has 10 classes

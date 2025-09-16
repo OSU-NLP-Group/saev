@@ -14,11 +14,10 @@ import altair as alt
 import beartype
 import einops
 import polars as pl
+import saev.activations
 import torch
 from jaxtyping import Float, Int, jaxtyped
 from torch import Tensor
-
-import saev.activations
 
 from . import config, transforms
 

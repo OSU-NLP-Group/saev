@@ -10,7 +10,6 @@ import os.path
 import typing
 
 import beartype
-
 import saev.config
 
 

@@ -74,7 +74,7 @@ def _(Image, df, mo, resize_to_patch_grid, root):
         for i, (img_fname,) in enumerate(
             mo.status.progress_bar(df.select("filename").iter_rows(), total=df.height)
         ):
-            if i % 600 != 1:
+            if i % 1200 != 1:
                 continue
 
             img_fpath = root / "Images" / img_fname
@@ -82,7 +82,7 @@ def _(Image, df, mo, resize_to_patch_grid, root):
             w, h = img.size
 
             content.append(img.resize((w // 4, h // 4)))
-            resized = resize_to_patch_grid(img, p=16, n=640)
+            resized = resize_to_patch_grid(img, p=16, n=1920)
             content.append(resized)
 
             n_patches = resized.size[0] // 16, resized.size[1] // 16

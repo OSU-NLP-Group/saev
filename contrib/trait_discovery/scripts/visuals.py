@@ -290,23 +290,23 @@ def main(cfg: Config):
 
         # Image grid
         examples = []
-        seen_i_im = set()
-        for i_im, values_p in zip(top_i[i].tolist(), top_values[i]):
-            if i_im in seen_i_im:
+        seen_img_i = set()
+        for img_i, values_p in zip(top_i[i].tolist(), top_values[i]):
+            if img_i in seen_img_i:
                 continue
 
-            sample = dataset[i_im]
+            sample = dataset[img_i]
 
             example = Example(
                 img=sample["image"],
                 patches=values_p,
-                img_i=i_im,
+                img_i=img_i,
                 target=sample["target"],
                 label=sample["label"],
             )
             examples.append(example)
 
-            seen_i_im.add(i_im)
+            seen_img_i.add(img_i)
 
         # How to scale values.
         upper = None
@@ -315,8 +315,11 @@ def main(cfg: Config):
 
         for j, example in enumerate(examples):
             # Save SAE highlighted image
+            # Get patch size from the VIT model
+            vit_cls = saev.data.models.load_vit_cls(metadata.vit_family)
+            patch_size = vit_cls.patch_size
             img = saev.viz.add_highlights(
-                example.img, example.patches.numpy(), patch_size=16, upper=upper
+                example.img, example.patches.numpy(), patch_size=patch_size, upper=upper
             )
             img.save(os.path.join(feature_dir, f"{j}_sae.png"))
 

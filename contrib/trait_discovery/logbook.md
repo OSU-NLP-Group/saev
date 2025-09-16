@@ -972,3 +972,19 @@ However, we lack a good ecological context for finding something *new* about the
 I'm not sure about beetles.
 
 What should I do, if I want to submit to ICLR (10 days)?
+
+# 09/11/2025
+
+Ideas:
+
+- SAEs on segmented butterflies.
+- SAEs on segmented beetles
+- Track mimic a vs b accuracy for SAE features
+- Higher resolution SAEs
+- Better optimization techniques
+- More images (in situ vs specimen)
+
+So I need to do the segmentation myself.
+There are 130 different classes, and I feel like many of the classes have mostly consistent imaging protocols.
+Maybe actually I can use some of the other metadata to figure out the imaging protocol, then use that to cluster the images.
+Then I can do SST inference for each group within a given imaging protocol.

@@ -656,18 +656,17 @@ def __():
     import random
 
     import beartype
+    import contrib.semseg.training
     import einops
     import einops.layers.torch
     import marimo as mo
     import numpy as np
+    import saev.activations
+    import saev.config
     import torch
     from jaxtyping import Bool, Float, Int, UInt8, jaxtyped
     from PIL import Image
     from torchvision.transforms import v2
-
-    import contrib.semseg.training
-    import saev.activations
-    import saev.config
 
     return (
         Bool,

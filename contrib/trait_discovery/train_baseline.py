@@ -9,7 +9,7 @@ import typing
 import beartype
 import submitit
 import tyro
-from lib import baselines
+from tdiscovery import baselines
 
 import saev.data
 from saev import helpers
@@ -28,8 +28,8 @@ class Config:
     """Which method we are evaluating."""
     n_prototypes: int = 1024 * 32
     """Number of prototypes."""
-    data: saev.data.IterableConfig = dataclasses.field(
-        default_factory=saev.data.IterableConfig
+    data: saev.data.ShuffledConfig = dataclasses.field(
+        default_factory=saev.data.ShuffledConfig
     )
     """Train activations."""
     dump_to: str = os.path.join(".", "checkpoints")
@@ -70,7 +70,7 @@ def worker_fn(cfg: Config):
     logger = logging.getLogger("worker")
 
     try:
-        dataloader = saev.data.iterable.DataLoader(cfg.data)
+        dataloader = saev.data.ShuffledDataLoader(cfg.data)
     except Exception:
         logger.exception(
             "Could not create dataloader. Please create a dataset using saev.data first. See src/saev/guide.md for more details."

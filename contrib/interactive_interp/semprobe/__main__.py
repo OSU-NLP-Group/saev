@@ -5,10 +5,10 @@ import typing
 
 import beartype
 import einops
+import saev.activations
 import torch
 import tyro
 
-import saev.activations
 import saev.nn
 
 from . import config

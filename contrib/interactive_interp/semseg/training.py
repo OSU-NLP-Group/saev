@@ -12,15 +12,15 @@ import re
 
 import beartype
 import einops
+import saev.activations
+import saev.config
+import saev.training
 import torch
 from jaxtyping import Float, Int, jaxtyped
 from torch import Tensor
 from torchvision.transforms import v2
 
-import saev.activations
-import saev.config
 import saev.helpers
-import saev.training
 
 from . import config
 

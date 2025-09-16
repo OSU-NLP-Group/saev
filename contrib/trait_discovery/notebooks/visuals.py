@@ -7,8 +7,6 @@ app = marimo.App(width="full")
 @app.cell
 def _():
     import bisect
-    import dataclasses
-    import json
     import pathlib
 
     import beartype
@@ -17,6 +15,7 @@ def _():
     import polars as pl
     import torch
     from jaxtyping import Float, jaxtyped
+
     return Float, beartype, bisect, jaxtyped, mo, np, pathlib, pl, torch
 
 
@@ -36,7 +35,6 @@ def _(mo, root):
             choices = []
 
         return mo.ui.dropdown(choices, label="Checkpoint")
-
 
     ckpt_dropdown = make_ckpt_dropdown()
     return (ckpt_dropdown,)
@@ -70,13 +68,15 @@ def _(pl):
         }
 
         return obs, target2fields
+
     return (add_target,)
 
 
 @app.cell
 def _(add_target, ckpt_dropdown, pl, root):
     img_obs, target2fields = add_target(
-        pl.read_parquet(root / ckpt_dropdown.value / "img_obs.parquet"), ["Taxonomic_Name", "View"]
+        pl.read_parquet(root / ckpt_dropdown.value / "img_obs.parquet"),
+        ["Taxonomic_Name", "View"],
     )
     sae_var = pl.read_parquet(root / ckpt_dropdown.value / "sae_var.parquet")
     return img_obs, sae_var, target2fields
@@ -92,18 +92,14 @@ def _(ckpt_dropdown, mo):
 
 @app.cell
 def _(bisect, ckpt_dropdown, mo, root):
-    features = sorted(
-        [
-            int(path.name)
-            for path in (root / ckpt_dropdown.value / "features").iterdir()
-            if path.name.isdigit()
-        ]
-    )
-
+    features = sorted([
+        int(path.name)
+        for path in (root / ckpt_dropdown.value / "features").iterdir()
+        if path.name.isdigit()
+    ])
 
     def find_i(f: int):
         return bisect.bisect_left(features, f)
-
 
     mo.md(f"Found {len(features)} saved features.")
     return features, find_i
@@ -152,6 +148,7 @@ def _(features, get_i, mo, sae_var):
         return mo.md(
             f"Feature {f} ({get_i()}/{len(features)}; {get_i() / len(features) * 100:.1f}%) | Frequency: {10 ** feature['log10_freq'] * 100:.5f}% of inputs | Mean Value: {10 ** feature['log10_value']:.3f}"
         )
+
     return (display_info,)
 
 
@@ -192,6 +189,7 @@ def _(ckpt_dropdown, img_obs, mo, root, sae_var):
             [mo.image(sae_path), mo.md(md["Taxonomic_Name"]), mo.md(md["View"])],
             align="center",
         )
+
     return (show_img,)
 
 
@@ -237,6 +235,8 @@ def _(ckpt_dropdown, np, root, torch):
 def _(Float, beartype, img_obs, jaxtyped, mo, np, percentiles, pl, x):
     @jaxtyped(typechecker=beartype.beartype)
     def get_f1(x_ns: Float[np.ndarray, "n_imgs d_sae"], obs: pl.DataFrame):
+        obs = obs.filter(pl.col("hybrid_stat") == "non-hybrid")
+        x_ns = x_ns[obs.get_column("index").to_numpy()]
         n_imgs, d_sae = x_ns.shape
         n_classes = obs.select("target").unique().height
 
@@ -248,13 +248,13 @@ def _(Float, beartype, img_obs, jaxtyped, mo, np, percentiles, pl, x):
         prec_cs = np.ones((n_classes, d_sae), dtype=np.float32)
         recall_cs = np.ones((n_classes, d_sae), dtype=np.float32)
 
-        for c_idx in mo.status.progress_bar(range(n_classes)):
+        for i, c_idx in enumerate(mo.status.progress_bar(sorted(np.unique(labels_n)))):
             mask = labels_n == c_idx
             assert mask.sum() > 0
             with np.errstate(divide="ignore", invalid="ignore"):
-                prec_cs[c_idx, :] = preds_ns[mask].sum(axis=0) / n_pos_s
+                prec_cs[i, :] = preds_ns[mask].sum(axis=0) / n_pos_s
 
-            recall_cs[c_idx, :] = preds_ns[mask].sum(axis=0) / mask.sum()
+            recall_cs[i, :] = preds_ns[mask].sum(axis=0) / mask.sum()
 
         prec_cs[:, n_pos_s == 0] = 0
         with np.errstate(divide="ignore", invalid="ignore"):
@@ -263,36 +263,51 @@ def _(Float, beartype, img_obs, jaxtyped, mo, np, percentiles, pl, x):
         f1 = np.nan_to_num(f1, 0.0)
         return f1, prec_cs, recall_cs
 
-
     f1, prec, recall = get_f1(x, img_obs)
     return f1, prec, recall
 
 
 @app.cell
-def _(f1, img_obs, pl, prec, recall, target2fields):
+def _(img_obs, pl):
+    img_obs.filter(pl.col("hybrid_stat") == "non-hybrid").select(
+        "target"
+    ).unique().max()
+    return
+
+
+@app.cell
+def _(f1, img_obs, np, pl, prec, recall, sae_var, target2fields):
     class_counts = dict(img_obs.group_by("target").len().iter_rows())
 
+    i2c = sorted(
+        np.unique(
+            img_obs.filter(pl.col("hybrid_stat") == "non-hybrid")
+            .get_column("target")
+            .to_numpy()
+        ).tolist()
+    )
+    print(i2c)
+
     df = (
-        pl.DataFrame(
-            [
-                {
-                    "species": target2fields[i][0],
-                    "view": target2fields[i][1],
-                    "f1": f1[i, feature],
-                    "prec": prec[i, feature],
-                    "recall": recall[i, feature],
-                    "feature": feature,
-                    "n_imgs": class_counts[i],
-                    "target": i,
-                }
-                for i, feature in set(
-                    []
-                    + list(enumerate(f1.argmax(axis=1)))
-                    + list(enumerate(prec.argmax(axis=1)))
-                    + list(enumerate(recall.argmax(axis=1)))
-                )
-            ]
-        )
+        pl.DataFrame([
+            {
+                "species": target2fields[i2c[i]][0],
+                "view": target2fields[i2c[i]][1],
+                "f1": f1[i, feature],
+                "prec": prec[i, feature],
+                "recall": recall[i, feature],
+                "feature": feature,
+                "n_imgs": class_counts[i2c[i]],
+                "target": i2c[i],
+                "log10_freq": sae_var.row(feature, named=True)["log10_freq"],
+            }
+            for i, feature in set(
+                []
+                + list(enumerate(f1.argmax(axis=1)))
+                + list(enumerate(prec.argmax(axis=1)))
+                + list(enumerate(recall.argmax(axis=1)))
+            )
+        ])
         .unique()
         .sort(by="f1", descending=True)
         .filter(pl.col("n_imgs") >= 5)
@@ -341,18 +356,16 @@ def _():
 
 @app.cell
 def _(df, mo, pairs, pl):
-    mo.vstack(
-        [
-            df.filter(
-                ~pl.col("species").str.contains(" x ")
-                & (
-                    (pl.col("species").str.contains(f"ssp. {a}"))
-                    | (pl.col("species").str.contains(f"ssp. {b}"))
-                )
-            ).sort(by="f1", descending=True)
-            for a, b in pairs
-        ]
-    )
+    mo.vstack([
+        df.filter(
+            ~pl.col("species").str.contains(" x ")
+            & (
+                (pl.col("species").str.contains(f"ssp. {a}"))
+                | (pl.col("species").str.contains(f"ssp. {b}"))
+            )
+        ).sort(by="f1", descending=True)
+        for a, b in pairs
+    ])
     return
 
 

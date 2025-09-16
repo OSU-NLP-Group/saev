@@ -143,10 +143,9 @@ def make_figure_semseg(
     os.makedirs(out, exist_ok=True)
 
     import einops.layers.torch
-    from torchvision.transforms import v2
-
     import saev.activations
     import saev.config
+    from torchvision.transforms import v2
 
     to_array = v2.Compose([
         v2.Resize((512, 512), interpolation=v2.InterpolationMode.NEAREST),
