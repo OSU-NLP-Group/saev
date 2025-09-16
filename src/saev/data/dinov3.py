@@ -610,8 +610,8 @@ def load(name: str, fpath: str | pathlib.Path, device="cpu") -> Encoder:
 
 @jaxtyped(typechecker=beartype.beartype)
 class Vit(torch.nn.Module, models.VisionTransformer):
-    patch_size: int = 16
     family: str = "dinov3"
+    patch_size: int = 16
 
     def __init__(self, ckpt: str):
         super().__init__()
@@ -658,6 +658,7 @@ class Vit(torch.nn.Module, models.VisionTransformer):
     def make_transforms(
         ckpt: str, n_patches_per_img: int
     ) -> tuple[Callable, Callable | None]:
+        """Create transforms for preprocessing: (img_transform, sample_transform | None)."""
         img_transform = v2.Compose([
             transforms.FlexResize(patch_size=16, n_patches=n_patches_per_img),
             v2.ToImage(),
@@ -671,10 +672,18 @@ class Vit(torch.nn.Module, models.VisionTransformer):
 
     @staticmethod
     def make_resize(
-        ckpt: str, n_patches_per_img: int, *, scale: float = 2.0
+        ckpt: str,
+        n_patches_per_img: int,
+        *,
+        scale: float = 1.0,
+        resample: Image.Resampling = Image.LANCZOS,
     ) -> Callable[[Image.Image], Image.Image]:
+        """Create resize transform for visualization. Use resample=Image.NEAREST for segmentation masks."""
         import functools
 
         return functools.partial(
-            transforms.resize_to_patch_grid, p=int(16 * scale), n=n_patches_per_img
+            transforms.resize_to_patch_grid,
+            p=int(16 * scale),
+            n=n_patches_per_img,
+            resample=resample,
         )

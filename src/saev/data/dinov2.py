@@ -13,10 +13,11 @@ from . import models
 @jaxtyped(typechecker=beartype.beartype)
 class Vit(torch.nn.Module, models.VisionTransformer):
     family: str = "dinov2"
+    patch_size: int = 14
 
     @staticmethod
     def make_transforms(
-        ckpt: str, n_patches_per_img: int = -1
+        ckpt: str, n_patches_per_img: int
     ) -> tuple[Callable, Callable | None]:
         img_transform = v2.Compose([
             v2.Resize(size=(256, 256)),
@@ -29,8 +30,12 @@ class Vit(torch.nn.Module, models.VisionTransformer):
 
     def __init__(self, ckpt: str):
         super().__init__()
-        self.ckpt = ckpt
+        self._ckpt = ckpt
         self.model = torch.hub.load("facebookresearch/dinov2", ckpt)
+
+    @property
+    def ckpt(self) -> str:
+        return self._ckpt
 
     def get_residuals(self) -> list[torch.nn.Module]:
         return self.model.blocks
@@ -55,7 +60,11 @@ class Vit(torch.nn.Module, models.VisionTransformer):
 
     @staticmethod
     def make_resize(
-        ckpt: str, n_patches_per_img: int = -1, *, scale: float = 2.0
+        ckpt: str,
+        n_patches_per_img: int = -1,
+        *,
+        scale: float = 1.0,
+        resample: Image.Resampling = Image.LANCZOS,
     ) -> Callable[[Image.Image], Image.Image]:
         def resize(img: Image.Image) -> Image.Image:
             resize_size_px = (int(256 * scale), int(256 * scale))
@@ -69,6 +78,6 @@ class Vit(torch.nn.Module, models.VisionTransformer):
                 (resize_w_px + crop_w_px) // 2,
                 (resize_h_px + crop_h_px) // 2,
             )
-            return img.resize(resize_size_px).crop(crop_coords_px)
+            return img.resize(resize_size_px, resample=resample).crop(crop_coords_px)
 
         return resize

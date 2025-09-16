@@ -23,18 +23,32 @@ class VisionTransformer(abc.ABC):
     @abc.abstractmethod
     def ckpt(self) -> str: ...
 
+    @property
+    @abc.abstractmethod
+    def patch_size(self) -> int:
+        """Patch size in pixels (e.g., 14 or 16)."""
+
+    @property
+    def name(self) -> str:
+        return f"{self.family}/{self.ckpt}"
+
     @staticmethod
     @abc.abstractmethod
     def make_transforms(
         ckpt: str, n_patches_per_img: int
-    ) -> tuple[Callable, Callable | None]: ...
+    ) -> tuple[Callable, Callable | None]:
+        """Create transforms for preprocessing: (img_transform, sample_transform | None)."""
 
     @staticmethod
     @abc.abstractmethod
     def make_resize(
-        ckpt: str, n_patches_per_img: int, *, scale: float = 2.0
+        ckpt: str,
+        n_patches_per_img: int,
+        *,
+        scale: float = 1.0,
+        resample: Image.Resampling = Image.LANCZOS,
     ) -> Callable[[Image.Image], Image.Image]:
-        """How to resize images for patch visualizations."""
+        """Create resize transform for visualization. Use resample=Image.NEAREST for segmentation masks."""
 
     @abc.abstractmethod
     def get_residuals(self) -> list[torch.nn.Module]:
@@ -49,10 +63,6 @@ class VisionTransformer(abc.ABC):
         self, batch: Float[Tensor, "batch 3 width height"]
     ) -> Float[Tensor, "batch patches dim"]:
         """Run forward pass on batch of images."""
-
-    @property
-    def name(self) -> str:
-        return f"{self.family}/{self.ckpt}"
 
 
 _global_vit_registry: dict[str, type[VisionTransformer]] = {}

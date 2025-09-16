@@ -9,9 +9,11 @@ import typing as tp
 from collections.abc import Callable
 
 import beartype
+import einops
 import numpy as np
 import torch
-from jaxtyping import Float, jaxtyped
+from jaxtyping import Float, UInt8, jaxtyped
+from PIL import Image
 from torch import Tensor
 
 from saev import helpers
@@ -21,10 +23,75 @@ from . import datasets
 logger = logging.getLogger(__name__)
 
 
-@beartype.beartype
-@dataclasses.dataclass(frozen=True)
-class LabelsConfig:
-    """Configuration for how to turn pixel-level segmentation labels into patch-level labels."""
+@jaxtyped(typechecker=beartype.beartype)
+def pixel_to_patch_labels(
+    seg: Image.Image,
+    n_patches: int,
+    patch_size: int,
+    label_transform: tp.Literal["mode", "no-bg"] = "mode",
+    bg_label: int = 0,
+    max_classes: int = 256,
+) -> UInt8[Tensor, " n_patches"]:
+    """
+    Convert pixel-level segmentation to patch-level labels using vectorized operations.
+
+    Args:
+        seg: Pixel-level segmentation mask as PIL Image
+        n_patches: Total number of patches expected
+        patch_size: Size of each patch in pixels
+        label_transform: How to aggregate pixel labels into patch labels
+        bg_label: Background label index
+        max_classes: Maximum number of classes (for bincount)
+
+    Returns:
+        Patch labels as uint8 tensor of shape (n_patches,)
+    """
+    # Convert to torch tensor for vectorized operations
+    seg_tensor = torch.from_numpy(np.array(seg, dtype=np.uint8))
+    assert seg_tensor.ndim == 2
+
+    h, w = seg_tensor.shape
+
+    # Calculate patch grid dimensions
+    patch_grid_h = h // patch_size
+    patch_grid_w = w // patch_size
+    assert patch_grid_w * patch_grid_h == n_patches, (
+        f"Image size {w}x{h} with patch_size {patch_size} gives {patch_grid_w}x{patch_grid_h} = {patch_grid_w * patch_grid_h} patches, expected {n_patches}"
+    )
+
+    # Reshape into patches using einops: (n_patches, patch_size * patch_size)
+    patches = einops.rearrange(
+        seg_tensor,
+        "(h p1) (w p2) -> (h w) (p1 p2)",
+        p1=patch_size,
+        p2=patch_size,
+        h=patch_grid_h,
+        w=patch_grid_w,
+    )
+
+    # Use vectorized bincount approach to get class counts for all patches at once
+    # counts[i, c] = number of times class c appears in patch i
+    offsets = torch.arange(n_patches, device=patches.device).unsqueeze(1) * max_classes
+    flat = (patches + offsets).reshape(-1)
+    counts = torch.bincount(flat, minlength=n_patches * max_classes).reshape(
+        n_patches, max_classes
+    )
+
+    if label_transform == "mode":
+        # Take the most common label in each patch
+        patch_labels = counts.argmax(dim=1)
+    elif label_transform == "no-bg":
+        # Take the most common non-background label, or background if all background
+        nonbg = counts.clone()
+        nonbg[:, bg_label] = 0
+        has_nonbg = nonbg.sum(dim=1) > 0
+        nonbg_arg = nonbg.argmax(dim=1)
+        bg_tensor = torch.full_like(nonbg_arg, bg_label)
+        patch_labels = torch.where(has_nonbg, nonbg_arg, bg_tensor)
+    else:
+        tp.assert_never(label_transform)
+
+    return patch_labels.to(torch.uint8)
 
 
 @beartype.beartype
@@ -36,7 +103,7 @@ class Config:
     """Which dataset to use."""
     dump_to: str = os.path.join(".", "shards")
     """Where to write shards."""
-    vit_family: tp.Literal["clip", "siglip", "dinov2", "dinov3"] = "clip"
+    vit_family: tp.Literal["clip", "siglip", "dinov2", "dinov3", "fake-clip"] = "clip"
     """Which model family."""
     vit_ckpt: str = "ViT-L-14/openai"
     """Specific model checkpoint."""
@@ -118,7 +185,16 @@ class RecordedVisionTransformer(torch.nn.Module):
 
             self._storage = self._empty_storage(batch, dim, output.device)
 
-        self._storage[:, self._i] = output[:, self.patches, :].detach()
+        # Select patches based on cls_token setting
+        selected_output = output[:, self.patches, :]
+        if (
+            not self.cls_token
+            and selected_output.shape[1] == self.n_patches_per_img + 1
+        ):
+            # Model has CLS token but we don't want to store it - skip first token
+            selected_output = selected_output[:, 1:, :]
+
+        self._storage[:, self._i] = selected_output.detach()
         self._i += 1
 
     def _empty_storage(self, batch: int, dim: int, device: torch.device):
@@ -151,6 +227,83 @@ class RecordedVisionTransformer(torch.nn.Module):
 
 
 @beartype.beartype
+@jaxtyped(typechecker=beartype.beartype)
+class LabelsWriter:
+    """
+    LabelsWriter handles writing patch-level segmentation labels to a single binary file.
+    """
+
+    labels: UInt8[np.ndarray, "n_imgs n_patches"] | None
+    labels_path: str
+    n_patches_per_img: int
+    n_imgs: int
+    current_idx: int
+    has_written: bool
+
+    def __init__(self, cfg: Config):
+        self.logger = logging.getLogger("labels-writer")
+        self.root = get_acts_dir(cfg)
+        self.n_patches_per_img = cfg.n_patches_per_img
+        self.n_imgs = cfg.data.n_imgs
+        self.has_written = False
+        self.current_idx = 0
+
+        # Always create memory-mapped file for labels
+        # If nothing is written, it will be deleted in flush()
+        self.labels_path = os.path.join(self.root, "labels.bin")
+        self.labels = np.memmap(
+            self.labels_path,
+            mode="w+",
+            dtype=np.uint8,
+            shape=(self.n_imgs, self.n_patches_per_img),
+        )
+        self.logger.info("Opened labels file '%s'.", self.labels_path)
+
+    @beartype.beartype
+    def write_batch(self, batch_labels: np.ndarray | Tensor, start_idx: int):
+        """
+        Write a batch of labels to the memory-mapped file.
+
+        Args:
+            batch_labels: Array of shape (batch_size, n_patches_per_img) with uint8 dtype
+            start_idx: Starting index in the global labels array
+        """
+        # Convert to numpy if needed
+        if isinstance(batch_labels, torch.Tensor):
+            batch_labels = batch_labels.cpu().numpy()
+
+        batch_size = len(batch_labels)
+        assert start_idx + batch_size <= self.n_imgs
+        assert batch_labels.shape == (batch_size, self.n_patches_per_img)
+        assert batch_labels.dtype == np.uint8
+
+        self.labels[start_idx : start_idx + batch_size] = batch_labels
+        self.current_idx = start_idx + batch_size
+        self.has_written = True
+
+    def flush(self) -> None:
+        """Flush the memory-mapped file to disk if anything was written."""
+        if self.labels is not None and self.has_written:
+            self.labels.flush()
+            self.logger.info("Flushed labels to '%s'.", self.labels_path)
+
+
+@beartype.beartype
+def _is_segmentation_dataset(data_cfg: datasets.Config) -> bool:
+    """
+    Check if a dataset configuration is for a segmentation dataset.
+
+    Args:
+        data_cfg: Dataset configuration
+
+    Returns:
+        True if this is a segmentation dataset that should have labels.bin
+    """
+    # Check if it's FakeSeg or SegFolder
+    return isinstance(data_cfg, (datasets.FakeSeg, datasets.SegFolder))
+
+
+@jaxtyped(typechecker=beartype.beartype)
 class ShardWriter:
     """
     ShardWriter is a stateful object that handles sharded activation writing to disk.
@@ -162,6 +315,7 @@ class ShardWriter:
     acts_path: str
     acts: Float[np.ndarray, "n_imgs_per_shard n_layers all_patches d_vit"] | None
     filled: int
+    labels_writer: LabelsWriter
 
     def __init__(self, cfg: Config):
         self.logger = logging.getLogger("shard-writer")
@@ -184,37 +338,80 @@ class ShardWriter:
         # builder for shard manifest
         self._shards: ShardInfo = ShardInfo()
 
+        # Always initialize labels writer (it handles non-seg datasets internally)
+        self.labels_writer = LabelsWriter(cfg)
+
         self.shard = -1
         self.acts = None
         self.next_shard()
 
-    @jaxtyped(typechecker=beartype.beartype)
-    def __setitem__(
-        self, i: slice, val: Float[Tensor, "_ n_layers all_patches d_vit"]
+    def write_batch(
+        self,
+        activations: Float[Tensor, "batch n_layers all_patches d_vit"],
+        start_idx: int,
+        patch_labels: UInt8[Tensor, "batch n_patches"] | None = None,
     ) -> None:
-        assert i.step is None
-        a, b = i.start, i.stop
-        assert len(val) == b - a
+        """Write a batch of activations and optionally patch labels.
 
+        Args:
+            activations: Batch of activations to write.
+            start_idx: Starting index for this batch.
+            patch_labels: Optional patch labels for segmentation datasets.
+        """
+        batch_size = len(activations)
+        end_idx = start_idx + batch_size
+
+        # Write activations (handling sharding)
         offset = self.n_imgs_per_shard * self.shard
 
-        if b >= offset + self.n_imgs_per_shard:
+        if end_idx >= offset + self.n_imgs_per_shard:
             # We have run out of space in this mmap'ed file. Let's fill it as much as we can.
-            n_fit = offset + self.n_imgs_per_shard - a
-            self.acts[a - offset : a - offset + n_fit] = val[:n_fit]
-            self.filled = a - offset + n_fit
+            n_fit = offset + self.n_imgs_per_shard - start_idx
+            self.acts[start_idx - offset : start_idx - offset + n_fit] = activations[
+                :n_fit
+            ]
+            self.filled = start_idx - offset + n_fit
+
+            # Write labels for the portion that fits
+            if patch_labels is not None:
+                # Convert to numpy uint8 if needed
+                if isinstance(patch_labels, torch.Tensor):
+                    labels_to_write = (
+                        patch_labels[:n_fit].cpu().numpy().astype(np.uint8)
+                    )
+                elif not isinstance(patch_labels, np.ndarray):
+                    labels_to_write = np.array(patch_labels[:n_fit], dtype=np.uint8)
+                else:
+                    labels_to_write = patch_labels[:n_fit]
+
+                self.labels_writer.write_batch(labels_to_write, start_idx)
 
             self.next_shard()
 
-            # Recursively call __setitem__ in case we need *another* shard
-            self[a + n_fit : b] = val[n_fit:]
+            # Recursively call write_batch for remaining data
+            if n_fit < batch_size:
+                self.write_batch(
+                    activations[n_fit:],
+                    start_idx + n_fit,
+                    patch_labels[n_fit:] if patch_labels is not None else None,
+                )
         else:
-            msg = f"0 <= {a} - {offset} <= {offset} + {self.n_imgs_per_shard}"
-            assert 0 <= a - offset <= offset + self.n_imgs_per_shard, msg
-            msg = f"0 <= {b} - {offset} <= {offset} + {self.n_imgs_per_shard}"
-            assert 0 <= b - offset <= offset + self.n_imgs_per_shard, msg
-            self.acts[a - offset : b - offset] = val
-            self.filled = b - offset
+            msg = f"0 <= {start_idx} - {offset} <= {offset} + {self.n_imgs_per_shard}"
+            assert 0 <= start_idx - offset <= offset + self.n_imgs_per_shard, msg
+            msg = f"0 <= {end_idx} - {offset} <= {offset} + {self.n_imgs_per_shard}"
+            assert 0 <= end_idx - offset <= offset + self.n_imgs_per_shard, msg
+            self.acts[start_idx - offset : end_idx - offset] = activations
+            self.filled = end_idx - offset
+
+            # Write labels if provided
+            if patch_labels is not None:
+                # Convert to numpy uint8 if needed
+                if isinstance(patch_labels, torch.Tensor):
+                    patch_labels = patch_labels.cpu().numpy().astype(np.uint8)
+                elif not isinstance(patch_labels, np.ndarray):
+                    patch_labels = np.array(patch_labels, dtype=np.uint8)
+
+                self.labels_writer.write_batch(patch_labels, start_idx)
 
     def flush(self) -> None:
         if self.acts is not None:
@@ -227,6 +424,25 @@ class ShardWriter:
             self._shards.dump(self.root)
 
         self.acts = None
+
+        # Flush labels to disk
+        self.labels_writer.flush()
+
+    def __enter__(self):
+        """Context manager entry."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Context manager exit - handle cleanup."""
+        self.flush()
+
+        # Delete empty labels file if nothing was written
+        if not self.labels_writer.has_written:
+            if os.path.exists(self.labels_writer.labels_path):
+                os.remove(self.labels_writer.labels_path)
+                self.logger.info(
+                    "Removed empty labels file '%s'.", self.labels_writer.labels_path
+                )
 
     def next_shard(self) -> None:
         self.flush()
@@ -267,7 +483,7 @@ def get_acts_dir(cfg: Config) -> str:
 @beartype.beartype
 @dataclasses.dataclass(frozen=True)
 class Metadata:
-    vit_family: tp.Literal["clip", "siglip", "dinov2", "dinov3"]
+    vit_family: tp.Literal["clip", "siglip", "dinov2", "dinov3", "fake-clip"]
     vit_ckpt: str
     layers: tuple[int, ...]
     n_patches_per_img: int
@@ -393,21 +609,24 @@ class ShardInfo:
 def get_dataloader(
     cfg: Config,
     *,
-    img_transform: Callable | None = None,
-    sample_transform: Callable | None = None,
+    img_tr: Callable | None = None,
+    seg_tr: Callable | None = None,
+    sample_tr: Callable | None = None,
 ) -> torch.utils.data.DataLoader:
     """
     Get a dataloader for a default map-style dataset.
 
     Args:
         cfg: Config.
-        img_transform: Image transform to be applied to each image.
+        img_tr: Image transform to be applied to each image.
+        seg_tr: Segmentation transform to be applied to masks.
+        sample_tr: Transform to be applied to sample dicts.
 
     Returns:
         A PyTorch Dataloader that yields dictionaries with `'image'` keys containing image batches, `'index'` keys containing original dataset indices and `'label'` keys containing label batches.
     """
     dataset = datasets.get_dataset(
-        cfg.data, img_transform=img_transform, sample_transform=sample_transform
+        cfg.data, img_transform=img_tr, seg_transform=seg_tr, sample_transform=sample_tr
     )
 
     dataloader = torch.utils.data.DataLoader(
@@ -447,39 +666,73 @@ def worker_fn(cfg: Config):
         cfg = dataclasses.replace(cfg, device="cpu")
 
     vit_cls = models.load_vit_cls(cfg.vit_family)
-    vit = vit_cls(cfg.vit_ckpt).to(cfg.device)
+    vit_instance = vit_cls(cfg.vit_ckpt).to(cfg.device)
     vit = RecordedVisionTransformer(
-        vit, cfg.n_patches_per_img, cfg.cls_token, cfg.vit_layers
+        vit_instance, cfg.n_patches_per_img, cfg.cls_token, cfg.vit_layers
     )
+
     img_tr, sample_tr = vit_cls.make_transforms(cfg.vit_ckpt, cfg.n_patches_per_img)
-    dataloader = get_dataloader(cfg, img_transform=img_tr, sample_transform=sample_tr)
 
-    writer = ShardWriter(cfg)
+    seg_tr = None
+    if _is_segmentation_dataset(cfg.data):
+        # For segmentation datasets, create a transform that converts pixels to patches
+        # Use make_resize with NEAREST interpolation for segmentation masks
+        seg_resize_tr = vit_cls.make_resize(
+            cfg.vit_ckpt, cfg.n_patches_per_img, scale=1.0, resample=Image.NEAREST
+        )
 
-    n_batches = cfg.data.n_imgs // cfg.vit_batch_size + 1
+        def seg_to_patches(seg):
+            """Transform that resizes segmentation and converts to patch labels."""
+
+            # Convert to patch labels
+            return pixel_to_patch_labels(
+                seg_resize_tr(seg),
+                cfg.n_patches_per_img,
+                patch_size=vit_instance.patch_size,
+                label_transform=cfg.label_transform,
+                bg_label=cfg.data.bg_label,
+            )
+
+        seg_tr = seg_to_patches
+
+    dataloader = get_dataloader(cfg, img_tr=img_tr, seg_tr=seg_tr, sample_tr=sample_tr)
+
+    n_batches = math.ceil(cfg.data.n_imgs / cfg.vit_batch_size)
     logger.info("Dumping %d batches of %d examples.", n_batches, cfg.vit_batch_size)
 
     vit = vit.to(cfg.device)
     # vit = torch.compile(vit)
 
-    i = 0
-    # Calculate and write ViT activations.
-    with torch.inference_mode():
-        for batch in helpers.progress(dataloader, total=n_batches):
-            imgs = batch.get("image").to(cfg.device)
-            grid = batch.get("grid")
-            if grid is not None:
-                grid = grid.to(cfg.device)
-                out, cache = vit(imgs, grid=grid)
-            else:
-                out, cache = vit(imgs)
-            # cache has shape [batch size, n layers, n patches + 1, d vit]
-            del out
+    # Use context manager for proper cleanup
+    with ShardWriter(cfg) as writer:
+        i = 0
+        # Calculate and write ViT activations.
+        with torch.inference_mode():
+            for batch in helpers.progress(dataloader, total=n_batches):
+                imgs = batch.get("image").to(cfg.device)
+                grid = batch.get("grid")
+                if grid is not None:
+                    grid = grid.to(cfg.device)
+                    out, cache = vit(imgs, grid=grid)
+                else:
+                    out, cache = vit(imgs)
+                # cache has shape [batch size, n layers, n patches + 1, d vit]
+                del out
 
-            writer[i : i + len(cache)] = cache
-            i += len(cache)
+                # Write activations and labels (if present) in one call
+                patch_labels = batch.get("patch_labels")
+                if patch_labels is not None:
+                    logger.debug(
+                        f"Found patch_labels in batch: shape={patch_labels.shape if hasattr(patch_labels, 'shape') else 'unknown'}"
+                    )
+                    # Ensure correct shape
+                    assert patch_labels.shape == (len(cache), cfg.n_patches_per_img)
+                else:
+                    logger.debug(f"No patch_labels in batch. Keys: {batch.keys()}")
 
-    writer.flush()
+                writer.write_batch(cache, i, patch_labels=patch_labels)
+
+                i += len(cache)
 
 
 @beartype.beartype
@@ -530,6 +783,14 @@ class IndexLookup:
             raise IndexError(f"{i=} out of range [0, {n})")
 
         match (self.patches, self.layer):
+            case ("cls", "all"):
+                # For CLS token with all layers, i represents (img_idx * n_layers + layer_idx)
+                n_layers = len(self.metadata.layers)
+                img_i = i // n_layers
+                layer_idx = i % n_layers
+                shard_i, img_i_in_shard = self.map_img(img_i)
+                # CLS token is at position 0
+                return shard_i, (img_i_in_shard, layer_idx, 0)
             case ("cls", int()):
                 # For CLS token with specific layer, i is the image index
                 img_i = i
@@ -544,7 +805,22 @@ class IndexLookup:
                 shard_i, img_i_in_shard = self.map_img(img_i)
                 return shard_i, (img_i_in_shard, self.layer_to_idx[self.layer], token_i)
             case ("image", "all"):
-                raise NotImplementedError()
+                # For image patches with all layers
+                # Total patches per image across all layers
+                total_patches_per_img = self.metadata.n_patches_per_img * len(
+                    self.metadata.layers
+                )
+
+                # Calculate which image and which patch within that image across all layers
+                img_i = i // total_patches_per_img
+                remainder = i % total_patches_per_img
+
+                # Calculate which layer and which patch within that layer
+                layer_idx = remainder // self.metadata.n_patches_per_img
+                token_i = remainder % self.metadata.n_patches_per_img
+
+                shard_i, img_i_in_shard = self.map_img(img_i)
+                return shard_i, (img_i_in_shard, layer_idx, token_i)
             case ("all", int()):
                 n_tokens_per_img = self.metadata.n_patches_per_img + (
                     1 if self.metadata.cls_token else 0

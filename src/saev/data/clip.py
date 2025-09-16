@@ -40,6 +40,13 @@ class Vit(models.VisionTransformer, torch.nn.Module):
     def ckpt(self) -> str:
         return self._ckpt
 
+    @property
+    def patch_size(self) -> int:
+        """Get patch size for CLIP models."""
+        # Standard CLIP models all use 16x16 patches
+        # The tiny test model uses 2x2 but that's not a real model
+        return 16
+
     def get_residuals(self) -> list[torch.nn.Module]:
         return self.model.transformer.resblocks
 
@@ -55,6 +62,7 @@ class Vit(models.VisionTransformer, torch.nn.Module):
     def make_transforms(
         ckpt: str, n_patches_per_img: int
     ) -> tuple[Callable, Callable | None]:
+        """Create transforms for preprocessing: (img_transform, sample_transform | None)."""
         if ckpt.startswith("hf-hub:"):
             _, img_transform = open_clip.create_model_from_pretrained(
                 ckpt, cache_dir=helpers.get_cache_dir()
@@ -68,7 +76,11 @@ class Vit(models.VisionTransformer, torch.nn.Module):
 
     @staticmethod
     def make_resize(
-        ckpt: str, n_patches_per_img: int = -1, *, scale: float = 2.0
+        ckpt: str,
+        n_patches_per_img: int = -1,
+        *,
+        scale: float = 2.0,
+        resample: Image.Resampling = Image.LANCZOS,
     ) -> Callable[[Image.Image], Image.Image]:
         def resize(img: Image.Image) -> Image.Image:
             resize_size_px = (int(256 * scale), int(256 * scale))
@@ -82,6 +94,6 @@ class Vit(models.VisionTransformer, torch.nn.Module):
                 (resize_w_px + crop_w_px) // 2,
                 (resize_h_px + crop_h_px) // 2,
             )
-            return img.resize(resize_size_px).crop(crop_coords_px)
+            return img.resize(resize_size_px, resample=resample).crop(crop_coords_px)
 
         return resize

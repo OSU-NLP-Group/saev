@@ -83,12 +83,8 @@ def test_dataloader_batches(tmp_path):
         dump_to=str(tmp_path),
     )
     vit_cls = models.load_vit_cls(cfg.vit_family)
-    img_transform, sample_transform = vit_cls.make_transforms(
-        cfg.vit_ckpt, cfg.n_patches_per_img
-    )
-    dataloader = get_dataloader(
-        cfg, img_transform=img_transform, sample_transform=sample_transform
-    )
+    img_tr, sample_tr = vit_cls.make_transforms(cfg.vit_ckpt, cfg.n_patches_per_img)
+    dataloader = get_dataloader(cfg, img_tr=img_tr, sample_tr=sample_tr)
     batch = next(iter(dataloader))
 
     assert isinstance(batch, dict)
@@ -113,18 +109,14 @@ def test_shard_writer_and_dataset_e2e(tmp_path):
         dump_to=str(tmp_path),
     )
     vit_cls = models.load_vit_cls(cfg.vit_family)
-    img_transform, sample_transform = vit_cls.make_transforms(
-        cfg.vit_ckpt, cfg.n_patches_per_img
-    )
+    img_tr, sample_tr = vit_cls.make_transforms(cfg.vit_ckpt, cfg.n_patches_per_img)
     vit = RecordedVisionTransformer(
         vit_cls(cfg.vit_ckpt),
         cfg.n_patches_per_img,
         cfg.cls_token,
         cfg.vit_layers,
     )
-    dataloader = get_dataloader(
-        cfg, img_transform=img_transform, sample_transform=sample_transform
-    )
+    dataloader = get_dataloader(cfg, img_tr=img_tr, sample_tr=sample_tr)
     writer = ShardWriter(cfg)
     dataset = Dataset(
         IndexedConfig(shard_root=get_acts_dir(cfg), patches="cls", layer=-1)
@@ -136,7 +128,7 @@ def test_shard_writer_and_dataset_e2e(tmp_path):
         out, cache = vit(batch["image"])
         del out
 
-        writer[i : i + len(cache)] = cache
+        writer.write_batch(cache, i)
         i += len(cache)
         assert cache.shape == (cfg.vit_batch_size, len(cfg.vit_layers), 17, cfg.d_vit)
 
@@ -363,8 +355,8 @@ def test_shard_size_consistency(max_patches, n_patches, n_layers, cls_token):
             data={"__class__": "Fake"},
         )
         # compute _spec_ value
-        T = n_patches + (1 if cls_token else 0)
-        spec_nv = max_patches // (T * n_layers)
+        n_tokens = n_patches + (1 if cls_token else 0)
+        spec_nv = max_patches // (n_tokens * n_layers)
         # via Metadata property
         assert md.n_imgs_per_shard == spec_nv
         # via ShardWriter logic

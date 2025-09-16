@@ -96,14 +96,14 @@ class Fake:
 class FakeSeg:
     """Tiny synthetic segmentation dataset for tests.
 
-    Generates dummy RGB images and per-image patch-level labels directly,
-    avoiding any dependency on real segmentation masks or transforms.
+    Generates dummy RGB images and pixel-level segmentation masks,
+    mimicking the behavior of real segmentation datasets like SegFolder.
     """
 
     n_imgs: int = 10
     """Number of images."""
     n_patches_per_img: int = 16
-    """Number of patches per image (used to size the patch_labels)."""
+    """Number of patches per image."""
     n_classes: int = 3
     """Number of segmentation classes."""
     bg_label: int = 0
@@ -114,13 +114,16 @@ Config = Imagenet | ImageFolder | SegFolder | Fake | FakeSeg
 
 
 @beartype.beartype
-def get_dataset(cfg: Config, *, img_transform, sample_transform=None):
+def get_dataset(
+    cfg: Config, *, img_transform, seg_transform=None, sample_transform=None
+):
     """
     Gets the dataset for the current experiment; delegates construction to dataset-specific functions.
 
     Args:
         cfg: Experiment config.
         img_transform: Image transform to be applied to each image.
+        seg_transform: Segmentation transform to be applied to masks (for segmentation datasets).
         sample_transform: Transform to be applied to each sample dict.
     Returns:
         A dataset that has dictionaries with `'image'`, `'index'`, `'target'`, and `'label'` keys containing examples.
@@ -132,7 +135,10 @@ def get_dataset(cfg: Config, *, img_transform, sample_transform=None):
         )
     elif isinstance(cfg, SegFolder):
         return SegFolderDataset(
-            cfg, img_transform=img_transform, sample_transform=sample_transform
+            cfg,
+            img_transform=img_transform,
+            seg_transform=seg_transform,
+            sample_transform=sample_transform,
         )
     elif isinstance(cfg, ImageFolder):
         ds = [
@@ -151,7 +157,10 @@ def get_dataset(cfg: Config, *, img_transform, sample_transform=None):
         )
     elif isinstance(cfg, FakeSeg):
         return FakeSegDataset(
-            cfg, img_transform=img_transform, sample_transform=sample_transform
+            cfg,
+            img_transform=img_transform,
+            seg_transform=seg_transform,
+            sample_transform=sample_transform,
         )
     else:
         typing.assert_never(cfg)
@@ -333,11 +342,13 @@ class SegFolderDataset(torch.utils.data.Dataset):
             if image is not None:
                 sample["image"] = image
 
-        sample["segmentation"] = Image.open(sample.pop("seg_path"))
+        segmentation = Image.open(sample.pop("seg_path"))
+
+        # Apply segmentation transform to get patch labels
         if self.seg_transform is not None:
-            segmentation = self.seg_transform(sample.pop("segmentation"))
-            if segmentation is not None:
-                sample["segmentation"] = segmentation
+            patch_labels = self.seg_transform(segmentation)
+            if patch_labels is not None:
+                sample["patch_labels"] = patch_labels
 
         sample["index"] = index
 
@@ -373,11 +384,11 @@ class FakeDataset(torch.utils.data.Dataset):
 
 @beartype.beartype
 class FakeSegDataset(torch.utils.data.Dataset):
-    """Synthetic segmentation dataset providing patch-level labels.
+    """Synthetic segmentation dataset providing pixel-level segmentation masks.
 
-    Each example includes:
+    Mimics SegFolderDataset by providing:
       - image: a dummy RGB PIL image
-      - patch_labels: LongTensor[n_patches_per_img] with deterministic values
+      - segmentation: a PIL image with pixel-level class labels
       - index, target, label
     """
 
@@ -386,44 +397,64 @@ class FakeSegDataset(torch.utils.data.Dataset):
         cfg: FakeSeg,
         *,
         img_transform=None,
+        seg_transform=None,
         sample_transform=None,
     ):
         self.cfg = cfg
-
         self.img_transform = img_transform
+        self.seg_transform = seg_transform
         self.sample_transform = sample_transform
 
     def __len__(self) -> int:
         return self.cfg.n_imgs
 
     def __getitem__(self, i: int) -> dict[str, object]:
-        # Create a dummy RGB image; writers' label generation does not depend on pixels
-        img = Image.new("RGB", (64, 64), color=(127, 127, 127))
+        import numpy as np
+
+        # Create a dummy RGB image
+        img_size = 64  # Will be resized by transforms
+        img = Image.new("RGB", (img_size, img_size), color=(127, 127, 127))
+
+        # Create a deterministic segmentation mask with pixel-level labels
+        # Use mode "L" for grayscale (0-255 values)
+        seg_array = np.zeros((img_size, img_size), dtype=np.uint8)
+
+        # Create a pattern that will result in different labels per patch
+        # Assuming patches are created by dividing the image into a grid
+        patch_grid_size = int(np.sqrt(self.cfg.n_patches_per_img))
+        patch_size = img_size // patch_grid_size
+
+        for y in range(0, img_size, patch_size):
+            for x in range(0, img_size, patch_size):
+                patch_idx = (y // patch_size) * patch_grid_size + (x // patch_size)
+                # Deterministic label based on patch index and image index
+                label = (patch_idx + i) % self.cfg.n_classes
+                seg_array[y : y + patch_size, x : x + patch_size] = label
+
+        # Set some patches to background
+        if self.cfg.bg_label < self.cfg.n_classes:
+            seg_array[:patch_size, :] = self.cfg.bg_label
+
+        segmentation = Image.fromarray(seg_array)
+
         if self.img_transform is not None:
             img = self.img_transform(img)
 
-        # Deterministic patch labels cycling over classes; ensure some background present
-        import torch
-
-        labels = torch.tensor(
-            [
-                (j + i) % max(1, self.cfg.n_classes)
-                for j in range(self.cfg.n_patches_per_img)
-            ],
-            dtype=torch.long,
-        )
-        # Force a few background patches for variety
-        if self.cfg.bg_label < self.cfg.n_classes:
-            labels[: max(1, self.cfg.n_patches_per_img // 8)] = self.cfg.bg_label
+        # Apply segmentation transform to get patch labels
+        patch_labels = None
+        if self.seg_transform is not None:
+            patch_labels = self.seg_transform(segmentation)
 
         sample: dict[str, object] = {
             "image": img,
             "index": i,
             "target": 0,
             "label": "dummy",
-            # Direct patch-level labels for tests; shape [n_patches]
-            "patch_labels": labels,
         }
+
+        # Add patch_labels if we have them
+        if patch_labels is not None:
+            sample["patch_labels"] = patch_labels
 
         if self.sample_transform is not None:
             sample = self.sample_transform(sample)
