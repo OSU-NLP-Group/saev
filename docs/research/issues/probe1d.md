@@ -103,7 +103,7 @@ Runtime sanity: Parameters per class = `Fx2` ~= 32K floats ⇒ tiny. The heavy p
 ```
 contrib/trait_discovery/
   src/tdiscovery/
-    probe1d.py    # trainer (GPU)
+    probe1d.py    # training (GPU)
   scripts/
     probe1d.py    # Tyro CLI entrypoint
 ```
