@@ -42,6 +42,9 @@ class Config:
     """Whether to drop the last batch if it's smaller than the others."""
     scale_norm: bool = False
     """Whether to scale norms to sqrt(D)."""
+    # Patch filtering
+    ignore_labels: list[int] = dataclasses.field(default_factory=list)
+    """If provided, exclude patches with these label values. None means no filtering. Common use: ignore_labels=[0] to exclude background."""
     # Performance
     n_threads: int = 4
     """Number of dataloading threads."""
@@ -78,6 +81,7 @@ def _io_worker(
     reservoir: buffers.ReservoirBuffer,
     stop_event: threading.Event,
     err_queue: Queue[tuple[str, str]],
+    labels_mmap: np.memmap | None = None,
 ):
     """
     Pulls work items from the queue, loads data, and pushes it to the ready queue.
@@ -94,6 +98,10 @@ def _io_worker(
     # Pre-conditions
     assert cfg.patches == "image"
     assert isinstance(cfg.layer, int)
+
+    # If we need to filter by labels, ensure we have the labels
+    if cfg.ignore_labels and labels_mmap is None:
+        raise ValueError("ignore_labels specified but no labels.bin found")
 
     bytes_sent = 0
     n_reads = 0
@@ -122,18 +130,49 @@ def _io_worker(
             for start, end in helpers.batched_idx(shard_info[shard_i].n_imgs, 1024):
                 for p in range(metadata.n_patches_per_img):
                     patch_i = p + int(metadata.cls_token)
-                    t0 = time.perf_counter()
-                    acts = torch.from_numpy(mmap[start:end, layer_i, patch_i])
-                    t1 = time.perf_counter()
 
-                    last_img_i = img_i_offset + (end - 1)
+                    # If filtering by labels, check which samples to keep
+                    if cfg.ignore_labels:
+                        # Get the labels for this batch of images and patch
+                        img_indices = np.arange(
+                            img_i_offset + start, img_i_offset + end
+                        )
+                        patch_labels = labels_mmap[img_indices, p]
+
+                        # Find which samples to keep (NOT in ignore list)
+                        mask = ~np.isin(patch_labels, cfg.ignore_labels)
+                        valid_indices = np.where(mask)[0]
+
+                        # Skip this batch if no samples match
+                        if len(valid_indices) == 0:
+                            continue
+
+                        # Only load the matching activations
+                        t0 = time.perf_counter()
+                        acts = torch.from_numpy(
+                            mmap[start + valid_indices, layer_i, patch_i]
+                        )
+                        t1 = time.perf_counter()
+
+                        # Create metadata for valid samples only
+                        meta = torch.full((len(valid_indices), 2), p, dtype=torch.int32)
+                        meta[:, 0] = (
+                            img_i_offset + start + torch.from_numpy(valid_indices)
+                        )
+                    else:
+                        # No filtering, load all
+                        t0 = time.perf_counter()
+                        acts = torch.from_numpy(mmap[start:end, layer_i, patch_i])
+                        t1 = time.perf_counter()
+
+                        meta = torch.full((end - start, 2), p, dtype=torch.int32)
+                        meta[:, 0] = img_i_offset + torch.arange(start, end)
+
+                    last_img_i = meta[:, 0].max().item()
                     if last_img_i >= metadata.n_imgs:
                         err = ImageOutOfBoundsError(metadata, last_img_i)
                         logger.warning(err.message)
                         raise err
-
-                    meta = torch.full((end - start, 2), p, dtype=torch.int32)
-                    meta[:, 0] = img_i_offset + torch.arange(start, end)
 
                     fill_before = reservoir.fill()
                     reservoir.put(acts, meta)
@@ -176,6 +215,7 @@ def _manager_main(
     reservoir: buffers.ReservoirBuffer,
     stop_event: Event,
     err_queue: Queue[tuple[str, str]],
+    labels_mmap: np.memmap | None = None,
 ):
     """
     The main function for the data loader manager process.
@@ -198,7 +238,7 @@ def _manager_main(
     logger.info("Shuffling shards.")
     rng = np.random.default_rng(cfg.seed)
     work_items = rng.permutation(metadata.n_shards)
-    logger.debug("First 10 shards: %s", work_items[:10])
+    logger.info("First 10 shards: %s", work_items[:10])
 
     try:
         # 2. SETUP WORK QUEUE & I/O THREADS
@@ -222,6 +262,7 @@ def _manager_main(
                 reservoir,
                 thread_stop_event,
                 err_queue,
+                labels_mmap,
             )
             thread = threading.Thread(target=_io_worker, args=args, daemon=True)
             thread.start()
@@ -277,7 +318,25 @@ class DataLoader:
             raise NotImplementedError("scale_norm not implemented.")
 
         self.metadata = writers.Metadata.load(self.cfg.shard_root)
+
+        # Validate shard files exist
+        shard_info = writers.ShardInfo.load(self.cfg.shard_root)
+        for shard in shard_info:
+            shard_path = os.path.join(self.cfg.shard_root, shard.name)
+            if not os.path.exists(shard_path):
+                raise FileNotFoundError(f"Shard file not found: {shard_path}")
+
         self._n_samples = self._calculate_n_samples()
+
+        # Check if labels.bin exists for filtering
+        self.labels_mmap = None
+        if self.cfg.ignore_labels:
+            labels_path = os.path.join(self.cfg.shard_root, "labels.bin")
+            if not os.path.exists(labels_path):
+                raise FileNotFoundError(
+                    f"ignore_labels filtering requested but labels.bin not found at {labels_path}"
+                )
+            # We'll create the memmap when starting the manager process
 
     @property
     def n_batches(self) -> int:
@@ -315,10 +374,22 @@ class DataLoader:
             dtype=torch.float32,
             meta_shape=(2,),
             meta_dtype=torch.int32,
+            seed=self.cfg.seed,
             collate_fn=torch.utils.data.default_collate,
         )
         self.stop_event = self.ctx.Event()
         self.err_queue = self.ctx.Queue(maxsize=self.cfg.n_threads + 1)
+
+        # Create labels memmap if needed
+        labels_mmap = None
+        if self.cfg.ignore_labels:
+            labels_path = os.path.join(self.cfg.shard_root, "labels.bin")
+            labels_mmap = np.memmap(
+                labels_path,
+                mode="r",
+                dtype=np.uint8,
+                shape=(self.metadata.n_imgs, self.metadata.n_patches_per_img),
+            )
 
         self.manager_proc = self.ctx.Process(
             target=_manager_main,
@@ -328,6 +399,7 @@ class DataLoader:
                 self.reservoir,
                 self.stop_event,
                 self.err_queue,
+                labels_mmap,
             ),
             daemon=True,
         )
@@ -342,7 +414,7 @@ class DataLoader:
             while n < self.n_samples:
                 need = min(self.cfg.batch_size, self.n_samples - n)
                 if not self.err_queue.empty():
-                    who, tb = self.err_q.get_nowait()
+                    who, tb = self.err_queue.get_nowait()
                     raise RuntimeError(f"{who} crashed:\n{tb}")
 
                 try:
@@ -355,11 +427,18 @@ class DataLoader:
                     yield self.ExampleBatch(act=act, image_i=image_i, patch_i=patch_i)
                     continue
                 except TimeoutError:
-                    self.logger.info(
-                        "Did not get a batch from %d worker threads in %.1fs seconds.",
-                        self.cfg.n_threads,
-                        self.cfg.batch_timeout_s,
-                    )
+                    if self.cfg.ignore_labels:
+                        self.logger.info(
+                            "Did not get a batch from %d worker threads in %.1fs seconds. This can happen when filtering out many labels.",
+                            self.cfg.n_threads,
+                            self.cfg.batch_timeout_s,
+                        )
+                    else:
+                        self.logger.info(
+                            "Did not get a batch from %d worker threads in %.1fs seconds.",
+                            self.cfg.n_threads,
+                            self.cfg.batch_timeout_s,
+                        )
 
                 # If we don't continue, then we should check on the manager process.
                 if not self.manager_proc.is_alive():
@@ -401,22 +480,61 @@ class DataLoader:
         self.shutdown()
 
     def _calculate_n_samples(self) -> int:
-        """Helper to calculate total number of examples based on config."""
+        """Helper to calculate total number of examples based on config.
+
+        When ignore_labels is specified, this counts the actual number of patches
+        that remain after filtering out the ignored labels.
+        """
+        # First calculate the maximum possible samples
+        max_samples = 0
         match (self.cfg.patches, self.cfg.layer):
             case ("cls", "all"):
-                return self.metadata.n_imgs * len(self.metadata.layers)
+                max_samples = self.metadata.n_imgs * len(self.metadata.layers)
             case ("cls", int()):
-                return self.metadata.n_imgs
+                max_samples = self.metadata.n_imgs
             case ("image", int()):
-                return self.metadata.n_imgs * self.metadata.n_patches_per_img
+                max_samples = self.metadata.n_imgs * self.metadata.n_patches_per_img
             case ("image", "all"):
-                return (
+                max_samples = (
                     self.metadata.n_imgs
                     * len(self.metadata.layers)
                     * self.metadata.n_patches_per_img
                 )
             case _:
                 typing.assert_never((self.cfg.patches, self.cfg.layer))
+
+        # If no filtering, return max samples
+        if not self.cfg.ignore_labels:
+            return max_samples
+
+        # For patch filtering, count actual remaining patches
+        # Note: This only works for "image" patches with fixed layer
+        if self.cfg.patches != "image" or not isinstance(self.cfg.layer, int):
+            raise NotImplementedError(
+                "Patch label filtering only supports 'image' patches with fixed layer"
+            )
+
+        # Load labels and count remaining patches
+        labels_path = os.path.join(self.cfg.shard_root, "labels.bin")
+        if not os.path.exists(labels_path):
+            raise FileNotFoundError(f"labels.bin not found at {labels_path}")
+
+        # Memory-map the labels file
+        labels = np.memmap(
+            labels_path,
+            mode="r",
+            dtype=np.uint8,
+            shape=(self.metadata.n_imgs, self.metadata.n_patches_per_img),
+        )
+
+        # Count patches that are NOT in the ignore list
+        mask = ~np.isin(labels, self.cfg.ignore_labels)
+        n_remaining = int(np.sum(mask))
+
+        # Clean up the memmap
+        del labels
+
+        return n_remaining
 
     def __len__(self) -> int:
         """Returns the number of batches in an epoch."""

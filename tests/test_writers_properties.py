@@ -315,6 +315,7 @@ def test_metadata_json_has_required_keys(cfg):
             "n_imgs",
             "max_patches_per_shard",
             "data",
+            "pixel_agg",
             "dtype",
             "protocol",
         }

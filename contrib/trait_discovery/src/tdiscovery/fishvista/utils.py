@@ -36,7 +36,7 @@ class ImageDataset(torch.utils.data.Dataset):
     def __init__(
         self,
         cfg: saev.data.datasets.SegFolder,
-        patch_labeling: tp.Literal["mode", "no-bg"],
+        patch_labeling: tp.Literal["majority", "prefer-fg"],
     ):
         self.cfg = cfg
         self.patch_labeling = patch_labeling
@@ -74,10 +74,10 @@ class ImageDataset(torch.utils.data.Dataset):
         # Get patch and pixel level semantic labels.
         sample = self.samples[i]
         pixel_labels = sample["segmentation"].squeeze()
-        if self.patch_labeling == "mode":
+        if self.patch_labeling == "majority":
             patch_labels = pixel_labels.mode(axis=1).values
-        elif self.patch_labeling == "no-bg":
-            patch_labels = patch_label_no_bg(pixel_labels, bg=0, n_classes=10)
+        elif self.patch_labeling == "prefer-fg":
+            patch_labels = patch_label_prefer_fg(pixel_labels, bg=0, n_classes=10)
         else:
             tp.assert_never(self.cfg.patch_labeling)
 
@@ -94,7 +94,7 @@ class ImageDataset(torch.utils.data.Dataset):
 
 
 @jaxtyped(typechecker=beartype.beartype)
-def patch_label_no_bg(
+def patch_label_prefer_fg(
     pixel_labels_nd: Shaped[Tensor, "n k"], *, n_classes: int, bg: int = 0
 ) -> Shaped[Tensor, " n"]:
     x = pixel_labels_nd.to(torch.long)

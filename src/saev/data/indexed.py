@@ -58,6 +58,13 @@ class Dataset(torch.utils.data.Dataset):
 
         self.metadata = writers.Metadata.load(self.cfg.shard_root)
 
+        # Validate shard files exist
+        shard_info = writers.ShardInfo.load(self.cfg.shard_root)
+        for shard in shard_info:
+            shard_path = os.path.join(self.cfg.shard_root, shard.name)
+            if not os.path.exists(shard_path):
+                raise FileNotFoundError(f"Shard file not found: {shard_path}")
+
         # Pick a really big number so that if you accidentally use this when you shouldn't, you get an out of bounds IndexError.
         self.layer_index = 1_000_000
         if isinstance(self.cfg.layer, int):

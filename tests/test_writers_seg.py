@@ -194,8 +194,8 @@ def test_no_labels_bin_for_non_seg_dataset(tmp_path):
     )
 
 
-def test_pixel_to_patch_labels_mode():
-    """Test pixel_to_patch_labels with mode transformation."""
+def test_pixel_to_patch_labels_majority():
+    """Test pixel_to_patch_labels with majority transformation."""
 
     # Create a 4x4 image with 4 2x2 patches
     # Patch layout:
@@ -210,24 +210,24 @@ def test_pixel_to_patch_labels_mode():
     segmentation = Image.fromarray(seg_array)
 
     patch_labels = writers.pixel_to_patch_labels(
-        segmentation, n_patches=4, patch_size=2, label_transform="mode"
+        segmentation, n_patches=4, patch_size=2, pixel_agg="majority"
     )
 
     expected = torch.tensor([0, 1, 2, 3], dtype=torch.uint8)
     torch.testing.assert_close(patch_labels, expected)
 
 
-def test_pixel_to_patch_labels_no_bg():
-    """Test pixel_to_patch_labels with no-bg transformation."""
+def test_pixel_to_patch_labels_prefer_fg():
+    """Test pixel_to_patch_labels with prefer-fg transformation."""
 
     # Create a 4x4 image with 4 2x2 patches
     # Use 0 as background
     # Patch layout:
     # [0, 0, 1, 1]
-    # [0, 2, 1, 1]  -> Patch 0 has [0,0,0,2], no-bg mode=2 (ignores bg=0)
-    # [0, 0, 3, 3]  -> Patch 1 has [1,1,1,1], no-bg mode=1
-    # [0, 0, 3, 3]  -> Patch 2 has [0,0,0,0], no-bg mode=0 (all bg)
-    #                  Patch 3 has [3,3,3,3], no-bg mode=3
+    # [0, 2, 1, 1]  -> Patch 0 has [0,0,0,2], prefer-fg=2 (ignores bg=0)
+    # [0, 0, 3, 3]  -> Patch 1 has [1,1,1,1], prefer-fg=1
+    # [0, 0, 3, 3]  -> Patch 2 has [0,0,0,0], prefer-fg=0 (all bg)
+    #                  Patch 3 has [3,3,3,3], prefer-fg=3
     seg_array = np.array(
         [[0, 0, 1, 1], [0, 2, 1, 1], [0, 0, 3, 3], [0, 0, 3, 3]], dtype=np.uint8
     )
@@ -237,7 +237,7 @@ def test_pixel_to_patch_labels_no_bg():
         segmentation,
         n_patches=4,
         patch_size=2,
-        label_transform="no-bg",
+        pixel_agg="prefer-fg",
         bg_label=0,
     )
 

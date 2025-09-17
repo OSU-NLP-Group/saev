@@ -201,7 +201,7 @@ def _manager_main(
         logger.info("Manager process finished.")
 
     logger.info("Manager process sleeping.")
-    #
+    # Sleep a little longer, otherwise the tensors will be released and garbage collected, then we get a memory error in the parent process..
     time.sleep(60.0)
     logger.info("Manager process finished.")
 
@@ -226,6 +226,13 @@ class DataLoader:
             raise RuntimeError(f"Activations are not saved at '{self.cfg.shard_root}'.")
 
         self.metadata = writers.Metadata.load(self.cfg.shard_root)
+
+        # Validate shard files exist
+        shard_info = writers.ShardInfo.load(self.cfg.shard_root)
+        for shard in shard_info:
+            shard_path = os.path.join(self.cfg.shard_root, shard.name)
+            if not os.path.exists(shard_path):
+                raise FileNotFoundError(f"Shard file not found: {shard_path}")
 
         self.logger = logging.getLogger("ordered.DataLoader")
         self.ctx = mp.get_context()

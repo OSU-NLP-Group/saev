@@ -10,7 +10,7 @@ import typing
 import beartype
 import einops
 import torch
-from jaxtyping import Float, Int32, jaxtyped
+from jaxtyping import Float, Int64, jaxtyped
 from torch import Tensor
 
 from .. import __version__, helpers
@@ -114,7 +114,7 @@ class SparseAutoencoder(torch.nn.Module):
         self,
         f_x: Float[Tensor, "batch d_sae"],
         *,
-        prefixes: Int32[Tensor, " n_prefixes"] | None = None,
+        prefixes: Int64[Tensor, " n_prefixes"] | None = None,
     ) -> Float[Tensor, "batch n_prefixes d_model"]:
         """
         Decode latent features to reconstructions.
@@ -131,7 +131,7 @@ class SparseAutoencoder(torch.nn.Module):
         # Matryoshka cumulative decode
         device = f_x.device
         if prefixes is None:
-            prefixes = torch.tensor([d_sae], dtype=torch.int32)
+            prefixes = torch.tensor([d_sae], dtype=torch.int64)
         assert torch.all(prefixes[1:] > prefixes[:-1])
         assert 1 <= int(prefixes[0]) and int(prefixes[-1]) == d_sae
         prefixes = prefixes.to(device)

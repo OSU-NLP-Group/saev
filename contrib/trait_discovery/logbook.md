@@ -753,7 +753,7 @@ I need to measure mAP for these linear probes.
 
 Okay, since working on all these tasks in parallel will probably make me lose my mind, let's simply organize them sequentially and work on them one at a time.
 
-1. [done] Use the no-bg patch mode on FishVista.
+1. [done] Use the prefer-fg pixel aggregation on FishVista.
 2. [done] Include patch-level validation accuracy on FishVista (re-train).
 3. [done] Include validation mAP on FishVista (re-train).
 4. Save linear checkpoints
@@ -988,3 +988,20 @@ So I need to do the segmentation myself.
 There are 130 different classes, and I feel like many of the classes have mostly consistent imaging protocols.
 Maybe actually I can use some of the other metadata to figure out the imaging protocol, then use that to cluster the images.
 Then I can do SST inference for each group within a given imaging protocol.
+
+# 09/16/2025
+
+I think I have segmentations working for butterflies.
+So I want to train some Matryoshka SAEs on just the butterfly images.
+
+Some additional metrics:
+
+- Randomness of each batch, as measured by entropy over image indices and patch indices
+
+1. Get all activations
+2. Train SAEs on the different datasets. Use Matryoshka. We have been getting okay results so far.
+3. Visualize some experiments. Specifically, it needs to be the butterflies and fish. We should compare against high res butterflies and high res butterflies with filtering.
+
+Quality of life improvements:
+
+- Include an optional validation split (ADE20K)

@@ -4,7 +4,7 @@ import typing
 import beartype
 import einops
 import torch
-from jaxtyping import Float, Int32, jaxtyped
+from jaxtyping import Float, Int64, jaxtyped
 from torch import Tensor
 
 from . import modeling
@@ -182,7 +182,7 @@ class MatryoshkaObjective(Objective):
 @jaxtyped(typechecker=beartype.beartype)
 def sample_prefixes(
     d_sae: int, n_prefixes: int, min_prefix_length: int = 1, pareto_power: float = 0.5
-) -> Int32[Tensor, " n_prefixes"]:
+) -> Int64[Tensor, " n_prefixes"]:
     """
     Samples prefix lengths using a Pareto distribution. Derived from "Learning Multi-Level Features with
     Matryoshka Sparse Autoencoders" (https://doi.org/10.48550/arXiv.2503.17547)
@@ -197,7 +197,7 @@ def sample_prefixes(
         torch.Tensor: Sorted prefix lengths
     """
     if n_prefixes <= 1:
-        return torch.tensor([d_sae])
+        return torch.tensor([d_sae], dtype=torch.int64)
 
     assert n_prefixes <= d_sae
 
@@ -208,16 +208,19 @@ def sample_prefixes(
     probability_dist = pareto_pdf / pareto_pdf.sum()
 
     # Sample and sort prefix lengths
-    prefixes = torch.multinomial(
+    sampled_indices = torch.multinomial(
         probability_dist, num_samples=n_prefixes - 1, replacement=False
     )
+
+    # Convert indices to actual prefix lengths
+    prefixes = lengths[sampled_indices]
 
     # Add n_latents as the final prefix
     prefixes = torch.cat((prefixes.detach().clone(), torch.tensor([d_sae])))
 
     prefixes, _ = torch.sort(prefixes, descending=False)
 
-    return prefixes
+    return prefixes.to(torch.int64)
 
 
 @beartype.beartype

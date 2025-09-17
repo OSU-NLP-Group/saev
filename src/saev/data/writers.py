@@ -28,7 +28,7 @@ def pixel_to_patch_labels(
     seg: Image.Image,
     n_patches: int,
     patch_size: int,
-    label_transform: tp.Literal["mode", "no-bg"] = "mode",
+    pixel_agg: tp.Literal["majority", "prefer-fg"] = "majority",
     bg_label: int = 0,
     max_classes: int = 256,
 ) -> UInt8[Tensor, " n_patches"]:
@@ -39,7 +39,7 @@ def pixel_to_patch_labels(
         seg: Pixel-level segmentation mask as PIL Image
         n_patches: Total number of patches expected
         patch_size: Size of each patch in pixels
-        label_transform: How to aggregate pixel labels into patch labels
+        pixel_agg: How to aggregate pixel labels into patch labels
         bg_label: Background label index
         max_classes: Maximum number of classes (for bincount)
 
@@ -77,10 +77,10 @@ def pixel_to_patch_labels(
         n_patches, max_classes
     )
 
-    if label_transform == "mode":
+    if pixel_agg == "majority":
         # Take the most common label in each patch
         patch_labels = counts.argmax(dim=1)
-    elif label_transform == "no-bg":
+    elif pixel_agg == "prefer-fg":
         # Take the most common non-background label, or background if all background
         nonbg = counts.clone()
         nonbg[:, bg_label] = 0
@@ -89,7 +89,7 @@ def pixel_to_patch_labels(
         bg_tensor = torch.full_like(nonbg_arg, bg_label)
         patch_labels = torch.where(has_nonbg, nonbg_arg, bg_tensor)
     else:
-        tp.assert_never(label_transform)
+        tp.assert_never(pixel_agg)
 
     return patch_labels.to(torch.uint8)
 
@@ -119,7 +119,7 @@ class Config:
     """Number of ViT patches per image (depends on model)."""
     cls_token: bool = True
     """Whether the model has a [CLS] token."""
-    label_transform: tp.Literal["mode", "no-bg"] = "mode"
+    pixel_agg: tp.Literal["majority", "prefer-fg"] = "majority"
     max_patches_per_shard: int = 2_400_000
     """Maximum number of activations per shard; 2.4M is approximately 10GB for 1024-dimensional 4-byte activations."""
 
@@ -492,6 +492,7 @@ class Metadata:
     n_imgs: int
     max_patches_per_shard: int
     data: dict[str, object]
+    pixel_agg: tp.Literal["majority", "prefer-fg", None] = None
     dtype: tp.Literal["float32"] = "float32"
     protocol: tp.Literal["1.0.0", "1.1"] = "1.1"
 
@@ -503,6 +504,11 @@ class Metadata:
 
     @classmethod
     def from_cfg(cls, cfg: Config) -> "Metadata":
+        # Only include pixel_agg for segmentation datasets
+        pixel_agg = None
+        if _is_segmentation_dataset(cfg.data):
+            pixel_agg = cfg.pixel_agg
+
         return cls(
             cfg.vit_family,
             cfg.vit_ckpt,
@@ -513,6 +519,7 @@ class Metadata:
             cfg.data.n_imgs,
             cfg.max_patches_per_shard,
             {**dataclasses.asdict(cfg.data), "__class__": cfg.data.__class__.__name__},
+            pixel_agg,
         )
 
     @classmethod
@@ -689,7 +696,7 @@ def worker_fn(cfg: Config):
                 seg_resize_tr(seg),
                 cfg.n_patches_per_img,
                 patch_size=vit_instance.patch_size,
-                label_transform=cfg.label_transform,
+                pixel_agg=cfg.pixel_agg,
                 bg_label=cfg.data.bg_label,
             )
 
