@@ -134,7 +134,7 @@ def benchmark_fn(
     if profile:
         from viztracer import VizTracer
 
-        tracer = VizTracer(output_file=f"{kind}_profile.json")
+        tracer = VizTracer(output_file=f"{kind}_profile.json", log_torch=True)
         tracer.start()
         logger.info("Started VizTracer profiling for %s", kind)
 
@@ -173,6 +173,8 @@ def benchmark_fn(
     true_end = time.perf_counter()
 
     bps = n_batches / (true_end - start)
+
+    del dl
 
     # Stop profiling if enabled
     if profile:
