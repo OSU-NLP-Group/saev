@@ -1005,3 +1005,6 @@ Some additional metrics:
 Quality of life improvements:
 
 - Include an optional validation split (ADE20K)
+
+Prior work on later layers being harder to model?
+Is 16x enough?

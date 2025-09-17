@@ -45,14 +45,10 @@ class Config:
     """Log10 frequency range for which to save images."""
     log_value_range: tuple[float, float] = (-1.0, 1.0)
     """Log10 frequency range for which to save images."""
-    include_latents: list[int] = dataclasses.field(default_factory=list)
-    """Latents to always include, no matter what."""
     n_distributions: int = 25
     """Number of features to save distributions for."""
     percentile: int = 99
     """Percentile to estimate for outlier detection."""
-    n_latents: int = 400
-    """Number of latents to save images for."""
 
     # Algorithm - shared
     sae_batch_size: int = 1024 * 8
@@ -165,19 +161,19 @@ def dump_activations(cfg: Config):
     sae = nn.load(cfg.ckpt).to(cfg.device)
     md = saev.data.Metadata.load(cfg.data.shard_root)
 
-    # Initialize top-k tracking (from visuals.py)
-    top_values_p = torch.full(
-        (sae.cfg.d_sae, cfg.top_k, md.n_patches_per_img), -1.0, device=cfg.device
+    # Initialize top-k tracking with only top values and image indices (memory efficient)
+    top_values_sk = torch.full(
+        (sae.cfg.d_sae, cfg.top_k), -torch.inf, device=cfg.device
     )
-    top_i_im = torch.zeros(
-        (sae.cfg.d_sae, cfg.top_k), dtype=torch.int, device=cfg.device
+    top_img_i_sk = torch.zeros(
+        (sae.cfg.d_sae, cfg.top_k), dtype=torch.int64, device=cfg.device
     )
 
     sparsity_s = torch.zeros((sae.cfg.d_sae,), device=cfg.device)
     mean_values_s = torch.zeros((sae.cfg.d_sae,), device=cfg.device)
 
     # Initialize image-level activations (from dump.py)
-    img_acts_ns = torch.zeros((md.n_imgs, sae.cfg.d_sae))
+    img_acts_ns = torch.zeros((md.n_imgs, sae.cfg.d_sae), device=cfg.device)
 
     batch_size = cfg.data.batch_size // md.n_patches_per_img * md.n_patches_per_img
     n_imgs_per_batch = batch_size // md.n_patches_per_img
@@ -186,7 +182,7 @@ def dump_activations(cfg: Config):
     )
 
     distributions_mn = torch.zeros(
-        (cfg.n_distributions, dataloader.n_samples), device="cpu"
+        (cfg.n_distributions, dataloader.n_samples), device=cfg.device
     )
     estimator = statistics.PercentileEstimator(
         cfg.percentile, dataloader.n_samples, shape=(sae.cfg.d_sae,)
@@ -197,7 +193,7 @@ def dump_activations(cfg: Config):
     for batch in helpers.progress(dataloader, desc="activations"):
         # Get SAE activations (shared computation)
         vit_acts_bd = batch["act"]
-        sae_acts_bs = get_sae_acts(vit_acts_bd, sae, cfg)
+        sae_acts_bs = get_sae_acts(vit_acts_bd, sae, cfg).to(cfg.device)
 
         # Update percentile estimator
         for sae_act_s in sae_acts_bs:
@@ -205,16 +201,14 @@ def dump_activations(cfg: Config):
 
         # Reshape for per-image processing
         sae_acts_sb = einops.rearrange(sae_acts_bs, "batch d_sae -> d_sae batch")
-        distributions_mn[:, batch["image_i"]] = sae_acts_sb[: cfg.n_distributions].to(
-            "cpu"
-        )
+        distributions_mn[:, batch["image_i"]] = sae_acts_sb[: cfg.n_distributions]
 
         # Update statistics
         mean_values_s += einops.reduce(sae_acts_sb, "d_sae batch -> d_sae", "sum")
         sparsity_s += einops.reduce((sae_acts_sb > 0), "d_sae batch -> d_sae", "sum")
 
         # Get unique image indices in this batch
-        i_im = torch.sort(torch.unique(batch["image_i"])).values
+        i_im = torch.sort(torch.unique(batch["image_i"])).values.to(cfg.device)
         values_p = sae_acts_sb.view(sae.cfg.d_sae, len(i_im), md.n_patches_per_img)
 
         # Validation
@@ -226,34 +220,40 @@ def dump_activations(cfg: Config):
                 n_imgs_per_batch,
             )
 
-        # Update top-k tracking (from visuals.py)
-        _, k = torch.topk(sae_acts_sb, k=cfg.top_k, dim=1)
-        k_im = k // md.n_patches_per_img
+        # Update top-k tracking with memory-efficient approach
+        # Get top-k candidates from current batch
+        candidate_values, flat_indices = torch.topk(sae_acts_sb, k=cfg.top_k, dim=1)
 
-        values_p_topk = gather_batched(values_p, k_im)
-        i_im_device = i_im.to(cfg.device)[k_im]
+        # Derive candidate image indices from flat indices
+        candidate_img_i = i_im[flat_indices // md.n_patches_per_img]
 
-        all_values_p = torch.cat((top_values_p, values_p_topk), dim=1)
-        _, k = torch.topk(all_values_p.max(dim=-1).values, k=cfg.top_k, dim=1)
+        # Merge candidates with existing top-k buffers
+        # Concatenate current top-k with candidates
+        all_values = torch.cat((top_values_sk, candidate_values), dim=1)
+        all_img_i = torch.cat((top_img_i_sk, candidate_img_i), dim=1)
 
-        top_values_p = gather_batched(all_values_p, k)
-        top_i_im = torch.gather(torch.cat((top_i_im, i_im_device), dim=1), 1, k)
+        # Keep only the best top-k
+        _, keep_indices = torch.topk(all_values, k=cfg.top_k, dim=1)
+
+        # Update the buffers using the keep indices
+        top_values_sk = torch.gather(all_values, 1, keep_indices)
+        top_img_i_sk = torch.gather(all_img_i, 1, keep_indices)
 
         acts_sb = torch.topk(values_p, 3, dim=-1).values.mean(dim=-1)
-        img_acts_ns[i_im] = acts_sb.cpu().T
+        img_acts_ns[i_im] = acts_sb.T
 
     # Finalize statistics
     mean_values_s /= sparsity_s
     sparsity_s /= dataloader.n_samples
 
-    # Save top-k visual results
-    torch.save(top_values_p, cfg.top_values_fpath)
-    torch.save(top_i_im, cfg.top_img_i_fpath)
-    torch.save(mean_values_s, cfg.mean_values_fpath)
-    torch.save(sparsity_s, cfg.sparsity_fpath)
-    torch.save(distributions_mn, cfg.distributions_fpath)
+    # Save top-k visual results (compact format) - move to CPU for saving
+    torch.save(top_values_sk.cpu(), cfg.top_values_fpath)
+    torch.save(top_img_i_sk.cpu(), cfg.top_img_i_fpath)
+    torch.save(mean_values_s.cpu(), cfg.mean_values_fpath)
+    torch.save(sparsity_s.cpu(), cfg.sparsity_fpath)
+    torch.save(distributions_mn.cpu(), cfg.distributions_fpath)
     torch.save(estimator.estimate.cpu(), cfg.percentiles_fpath)
-    torch.save(img_acts_ns, cfg.img_acts_fpath)
+    torch.save(img_acts_ns.cpu(), cfg.img_acts_fpath)
 
 
 @beartype.beartype

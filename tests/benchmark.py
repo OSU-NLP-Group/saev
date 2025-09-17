@@ -79,6 +79,7 @@ def benchmark_fn(
     n_workers: int,
     warmup_min: int,
     run_min: int,
+    profile: bool = False,
 ) -> Result:
     import psutil
     import torch
@@ -129,6 +130,14 @@ def benchmark_fn(
 
     logger.info("kind: %s, cfg: %s", kind, cfg)
 
+    # Start profiling if enabled
+    if profile:
+        from viztracer import VizTracer
+
+        tracer = VizTracer(output_file=f"{kind}_profile.json")
+        tracer.start()
+        logger.info("Started VizTracer profiling for %s", kind)
+
     # warm-up
     logger.info("Warming up for %d minutes.", warmup_min)
     start = time.perf_counter()
@@ -164,6 +173,13 @@ def benchmark_fn(
     true_end = time.perf_counter()
 
     bps = n_batches / (true_end - start)
+
+    # Stop profiling if enabled
+    if profile:
+        tracer.stop()
+        tracer.save()
+        logger.info("Saved VizTracer profile to %s_profile.json", kind)
+
     return Result(
         kind=kind,
         n_workers=n_workers,
@@ -184,6 +200,7 @@ def benchmark(
     slurm_partition: str = "gpu",
     slurm_acct: str = "",
     n_iter: int = 8,
+    profile: bool = False,
 ):
     import saev.data.writers
     import saev.helpers
@@ -208,22 +225,46 @@ def benchmark(
     jobs = []
     with ex.batch():
         for kind in ["indexed", "ordered", "shuffled"]:
-            for n_workers in [2, 4, 8, 16, 32]:
-                for batch_size in [2, 4, 8, 16]:
-                    for _ in range(n_iter):
-                        job = ex.submit(
-                            benchmark_fn,
-                            kind,
-                            shard_root=shards,
-                            layer=layer,
-                            n_workers=n_workers,
-                            batch_size=batch_size * 1024,
-                            warmup_min=warmup_min,
-                            run_min=run_min,
-                        )
-                        jobs.append(job)
+            if profile:
+                # When profiling, submit just 3 jobs with fixed parameters
+                logger.info("Profiling mode: submitting 3 jobs for profiling")
+                job = ex.submit(
+                    benchmark_fn,
+                    kind,
+                    shard_root=shards,
+                    layer=layer,
+                    n_workers=4,  # Fixed for profiling
+                    batch_size=16 * 1024,  # Fixed 16k for profiling
+                    warmup_min=warmup_min,
+                    run_min=run_min,
+                    profile=True,
+                )
+                jobs.append(job)
+            else:
+                # Normal benchmarking mode with full grid
+                for n_workers in [2, 4, 8, 16, 32]:
+                    for batch_size in [2, 4, 8, 16]:
+                        for _ in range(n_iter):
+                            job = ex.submit(
+                                benchmark_fn,
+                                kind,
+                                shard_root=shards,
+                                layer=layer,
+                                n_workers=n_workers,
+                                batch_size=batch_size * 1024,
+                                warmup_min=warmup_min,
+                                run_min=run_min,
+                                profile=False,
+                            )
+                            jobs.append(job)
 
     logger.info("Submitted %d jobs.", len(jobs))
+
+    if profile:
+        logger.info("Profile files will be saved to %s/", out / commit)
+        logger.info("Monitor jobs with: squeue --me")
+        logger.info("View profiles with: vizviewer <profile>.json")
+
     results = []
     for j, job in enumerate(saev.helpers.progress(jobs)):
         try:
@@ -231,12 +272,14 @@ def benchmark(
         except submitit.core.utils.UncompletedJobError:
             logger.warning("Job %d did not finish.", j)
 
-    meta = saev.data.writers.Metadata.load(shards)
-    payload = dict(
-        meta=dataclasses.asdict(meta), results=[dataclasses.asdict(r) for r in results]
-    )
-    with open(out / "results.json", "w") as f:
-        json.dump(payload, f, indent=4)
+    if not profile:  # Only save results.json for non-profile runs
+        meta = saev.data.writers.Metadata.load(shards)
+        payload = dict(
+            meta=dataclasses.asdict(meta),
+            results=[dataclasses.asdict(r) for r in results],
+        )
+        with open(out / "results.json", "w") as f:
+            json.dump(payload, f, indent=4)
 
 
 @beartype.beartype

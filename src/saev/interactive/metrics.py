@@ -48,15 +48,11 @@ def _(mo):
 
     This notebook helps you analyze and compare SAE training runs from WandB.
 
-    ## Setup Instructions
-
     1. Edit the configuration cell at the top to set your WandB username and project
-    2. Make sure you have access to the original ViT activation shards
-    3. Use the filters to narrow down which models to compare
+    2. Use the filters to narrow down which models to compare
 
     ## Troubleshooting
 
-    - **Missing data error**: This notebook needs access to the original ViT activation shards
     - **No runs found**: Check your WandB username, project name, and tag filter
     """
     )
@@ -184,7 +180,6 @@ def _(
 
                 pareto = group.filter(pl.col(mse_col) == pl.col("cummin_mse"))
                 ids = pareto.get_column("id").to_list()
-                print(ids)
 
                 xs = pareto.get_column(l0_col).to_numpy()
                 ys = pareto.get_column(mse_col).to_numpy()
@@ -264,7 +259,7 @@ def _(alt, df, layers, mo, pl):
     chart = mo.ui.altair_chart(
         alt.Chart(
             df.filter(
-                pl.col("config/data/layer").is_in([int(l) for l in layers])
+                pl.col("config/data/layer").is_in([int(layer) for layer in layers])
             ).select(
                 "summary/eval/l0",
                 "summary/eval/mse",
@@ -481,11 +476,10 @@ def _(
         filters = {}
         if tag:
             filters["config.tag"] = tag
-            filters["config.data.metadata.n_patches_per_img"] = 640
-            filters["config.data.metadata.data.root"] = (
-                "/fs/scratch/PAS2136/samuelstevens/datasets/butterflies/"
-            )
-            filters["config.objective.n_prefixes"] = 10
+            # filters["config.data.metadata.n_patches_per_img"] = 1920
+            # filters["config.data.metadata.data.root"] = (
+            #     "/fs/scratch/PAS2136/samuelstevens/datasets/butterflies-segfolder/"
+            # )
         runs = wandb.Api().runs(
             path=f"{WANDB_USERNAME}/{WANDB_PROJECT}", filters=filters
         )
@@ -626,6 +620,18 @@ def _(beartype):
             and metadata["data"]["__class__"] == "ImageFolder"
         ):
             return "Heliconius"
+
+        if (
+            "butterflies-segfolder" in metadata["data"]["root"]
+            and metadata["data"]["__class__"] == "SegFolder"
+        ):
+            return "Heliconius"
+
+        if (
+            "ADE" in metadata["data"]["root"]
+            and metadata["data"]["__class__"] == "SegFolder"
+        ):
+            return "ADE20K"
 
         if "train" in metadata["data"] and "Imagenet" in metadata["data"]:
             return "ImageNet-1K"

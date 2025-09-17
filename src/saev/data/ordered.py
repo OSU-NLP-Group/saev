@@ -2,10 +2,9 @@
 """
 Ordered (sequential) dataloader for activation data.
 
-This module provides a high-throughput dataloader that reads activation data
-from disk shards in sequential order, without shuffling. The implementation uses
-a single-threaded manager process to ensure data is delivered in the exact order
-it appears on disk.
+This module provides a high-throughput dataloader that reads activation data from disk shards in sequential order, without shuffling. The implementation uses a single-threaded manager process to ensure data is delivered in the exact order it appears on disk.
+
+Patch labels are provided if there is a labels.bin file on disk.
 
 See the design decisions in src/saev/data/performance.md.
 
@@ -16,6 +15,7 @@ Usage:
     ...     activations = batch["act"]  # [batch_size, d_vit]
     ...     image_indices = batch["image_i"]  # [batch_size]
     ...     patch_indices = batch["patch_i"]  # [batch_size]
+    ...     patch_labels = batch["patch_labels"]  # [batch_size]
 """
 
 import collections.abc
@@ -109,6 +109,18 @@ def _manager_main(
         shard_info = writers.ShardInfo.load(cfg.shard_root)
         layer_i = metadata.layers.index(cfg.layer)
 
+        # Check if labels.bin exists
+        labels_path = os.path.join(cfg.shard_root, "labels.bin")
+        labels_mmap = None
+        if os.path.exists(labels_path):
+            labels_mmap = np.memmap(
+                labels_path,
+                mode="r",
+                dtype=np.uint8,
+                shape=(metadata.n_imgs, metadata.n_patches_per_img),
+            )
+            logger.debug("Found labels.bin, will include patch labels in batches")
+
         # Calculate cumulative image offsets for each shard
         cumulative_imgs = [0]
         for shard in shard_info:
@@ -135,6 +147,7 @@ def _manager_main(
             batch_acts = []
             batch_image_is = []
             batch_patch_is = []
+            batch_patch_labels: list[int] | None = [] if labels_mmap is not None else None
 
             # Process samples in this batch range
             for idx in range(current_idx, batch_end_idx):
@@ -182,6 +195,11 @@ def _manager_main(
                 batch_image_is.append(global_image_i)
                 batch_patch_is.append(patch_i)
 
+                # Add patch label if available
+                if labels_mmap is not None and batch_patch_labels is not None:
+                    label = labels_mmap[global_image_i, patch_i]
+                    batch_patch_labels.append(label)
+
             # Send batch if we have data
             if batch_acts:
                 batch = {
@@ -189,6 +207,13 @@ def _manager_main(
                     "image_i": torch.tensor(batch_image_is, dtype=torch.long),
                     "patch_i": torch.tensor(batch_patch_is, dtype=torch.long),
                 }
+
+                # Add labels if available
+                if labels_mmap is not None:
+                    batch["patch_labels"] = torch.tensor(
+                        batch_patch_labels, dtype=torch.long
+                    )
+
                 batch_queue.put(batch)
                 logger.debug(f"Sent batch with {len(batch_acts)} samples")
 
@@ -213,12 +238,15 @@ class DataLoader:
     """
 
     @jaxtyped(typechecker=beartype.beartype)
-    class ExampleBatch(typing.TypedDict):
+    class ExampleBatch(typing.TypedDict, total=False):
         """Individual example."""
 
         act: Float[Tensor, "batch d_vit"]
         image_i: Int[Tensor, " batch"]
         patch_i: Int[Tensor, " batch"]
+        patch_labels: Int[
+            Tensor, " batch"
+        ]  # Optional, only present if labels.bin exists
 
     def __init__(self, cfg: Config):
         self.cfg = cfg

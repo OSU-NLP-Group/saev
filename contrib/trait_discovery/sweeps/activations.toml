@@ -1,14 +1,15 @@
 ckpt = [
-  # "/fs/ess/PAS2136/samuelstevens/checkpoints/saev/g49kbj2j/sae.pt",
-  "/fs/ess/PAS2136/samuelstevens/checkpoints/saev/vde7lady/sae.pt",
+  # Layer 13
+  "/fs/ess/PAS2136/samuelstevens/checkpoints/saev/xvalja9y/sae.pt",
+  "/fs/ess/PAS2136/samuelstevens/checkpoints/saev/6wnspewc/sae.pt",
+  # Layer 21
+  # "/fs/ess/PAS2136/samuelstevens/checkpoints/saev/v4h952lx/sae.pt",
+  # "/fs/ess/PAS2136/samuelstevens/checkpoints/saev/k61ivi9z/sae.pt",
 ]
 
-dump_to = "/fs/scratch/PAS2136/samuelstevens/saev/acts/butterflies"
+top_k = 48
+dump_to = "/fs/scratch/PAS2136/samuelstevens/saev/acts/bfly-fg-v0"
 
 [data]
-shard_root = "/fs/scratch/PAS2136/samuelstevens/cache/saev/94aef9fc4ded2ce6d62ca904a721a6ef7ca6419054b34da6c349b97d7e7d2723"
-layer = 13
-batch_size = 8_192
-
-[images]
-root = "/fs/scratch/PAS2136/samuelstevens/datasets/butterflies"
+shard_root = "/fs/scratch/PAS2136/samuelstevens/cache/saev/b080ce05fb55e051a9154a8c132c52554c7d3334e953c5c0509ffd29576f06d7"
+layer = 21

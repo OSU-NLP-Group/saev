@@ -19,8 +19,10 @@ from torch import Tensor
 
 import saev.data
 import saev.data.datasets
+import saev.data.indexed
 import saev.data.transforms
 import saev.helpers
+import saev.nn
 import saev.utils.statistics
 import saev.viz
 
@@ -39,10 +41,18 @@ class Config:
     """Path to the activations directory."""
     shard_root: str = os.path.join(".", "shards")
     """Directory with .bin shards and a metadata.json file."""
+    ckpt: str = os.path.join(".", "checkpoints", "sae.pt")
+    """Path to the sae.pt file."""
     imgs: datasets.Config = dataclasses.field(default_factory=datasets.Butterflies)
     """Which image dataset to use."""
     img_scale: float = 1.0
     """How much to scale images by (use higher numbers for high-res visuals)."""
+
+    # Hardware
+    device: str = "cuda" if torch.cuda.is_available() else "cpu"
+    """Which accelerator to use."""
+    sae_batch_size: int = 1024 * 8
+    """Batch size for SAE inference."""
 
     log_freq_range: tuple[float, float] = (-6.0, 1.0)
     """Log10 frequency range for which to save images."""
@@ -184,7 +194,7 @@ def plot_activation_distributions(cfg: Config, distributions: Float[Tensor, "m n
 
 
 @beartype.beartype
-def safe_load(path: str) -> object:
+def safe_load(path: str) -> torch.Tensor:
     return torch.load(path, map_location="cpu", weights_only=True)
 
 
@@ -202,6 +212,28 @@ def unique_no_sort(lst: list[int]) -> list[int]:
     return unique
 
 
+@jaxtyped(typechecker=beartype.beartype)
+def get_sae_acts(
+    vit_acts: Float[Tensor, "n d_vit"], sae: saev.nn.SparseAutoencoder, cfg: Config
+) -> Float[Tensor, "n d_sae"]:
+    """
+    Get SAE hidden layer activations for a batch of ViT activations.
+
+    Args:
+        vit_acts: Batch of ViT activations
+        sae: Sparse autoencoder.
+        cfg: Experimental config.
+    """
+    sae_acts = []
+    for start, end in saev.helpers.batched_idx(len(vit_acts), cfg.sae_batch_size):
+        _, f_x, *_ = sae(vit_acts[start:end].to(cfg.device))
+        sae_acts.append(f_x)
+
+    sae_acts = torch.cat(sae_acts, dim=0)
+    sae_acts = sae_acts.to(cfg.device)
+    return sae_acts
+
+
 @beartype.beartype
 @torch.inference_mode()
 def main(cfg: Config):
@@ -214,24 +246,37 @@ def main(cfg: Config):
         top_values = safe_load(cfg.top_values_fpath)
         sparsity = safe_load(cfg.sparsity_fpath)
         mean_values = safe_load(cfg.mean_values_fpath)
-        top_i = safe_load(cfg.top_img_i_fpath)
+        top_img_i = safe_load(cfg.top_img_i_fpath)
         distributions = safe_load(cfg.distributions_fpath)
     except FileNotFoundError as err:
         logger.error("Required activation files not found: %s", err)
         logger.error("Please first compute activations.")
         return
 
-    d_sae, cached_topk, *rest = top_values.shape
-    assert len(rest) == 1
-    n_patches = rest[0]
-    assert n_patches > 0
+    d_sae, cached_topk = top_values.shape
 
     logger.info("Loaded sorted data.")
 
     metadata = saev.data.Metadata.load(cfg.shard_root)
     vit_cls = saev.data.models.load_vit_cls(metadata.vit_family)
-    img_transform = vit_cls.make_resize(metadata.vit_ckpt, scale=cfg.img_scale)
+    img_transform = vit_cls.make_resize(
+        metadata.vit_ckpt, metadata.n_patches_per_img, scale=cfg.img_scale
+    )
     dataset = datasets.get_dataset(cfg.imgs, img_transform=img_transform)
+
+    # Load SAE model for on-demand reconstruction
+    sae = saev.nn.load(cfg.ckpt).to(cfg.device)
+
+    # Create indexed activations dataset for efficient patch retrieval
+    indexed_cfg = saev.data.indexed.Config(
+        shard_root=cfg.shard_root,
+        patches="image",
+        layer=-2,  # Use second-to-last layer by default
+    )
+    indexed_dataset = saev.data.indexed.Dataset(indexed_cfg)
+
+    # Cache for SAE activations to avoid recomputation
+    sae_acts_cache = {}
 
     # Create img_obs.parquet with metadata for all images
     n_imgs = len(dataset)
@@ -254,7 +299,7 @@ def main(cfg: Config):
         "feature": range(d_sae),
         "log10_freq": torch.log10(sparsity).tolist(),
         "log10_value": torch.log10(mean_values).tolist(),
-        "top_i_im": [unique_no_sort(ims.tolist()) for ims in top_i],
+        "top_i_im": [unique_no_sort(ims.tolist()) for ims in top_img_i],
     })
     sae_var_fpath = os.path.join(cfg.root, "sae_var.parquet")
     sae_var_df.write_parquet(sae_var_fpath)
@@ -291,15 +336,39 @@ def main(cfg: Config):
         # Image grid
         examples = []
         seen_img_i = set()
-        for img_i, values_p in zip(top_i[i].tolist(), top_values[i]):
+
+        # Get unique image indices for this feature
+        unique_img_indices = unique_no_sort(top_img_i[i].tolist())
+
+        for img_i in unique_img_indices:
             if img_i in seen_img_i:
                 continue
+
+            # Get cached SAE activations or compute them
+            if img_i not in sae_acts_cache:
+                # Fetch all patches for this image from indexed dataset
+                # get_img_patches returns numpy array with shape [n_layers, n_patches, d_vit]
+                img_patches_np = indexed_dataset.get_img_patches(img_i)
+                # Select the appropriate layer (using layer_index from indexed dataset config)
+                vit_acts_np = img_patches_np[indexed_dataset.layer_index]
+                # Skip CLS token if present (first patch)
+                if metadata.cls_token:
+                    vit_acts_np = vit_acts_np[1:]
+                # Convert to tensor and reshape to [n_patches, d_vit]
+                vit_acts = torch.from_numpy(vit_acts_np.copy())
+                # Run SAE forward pass to get activations
+                sae_acts = get_sae_acts(vit_acts, sae, cfg)
+                # Cache the result (keep on device for faster access)
+                sae_acts_cache[img_i] = sae_acts
+
+            # Get activations for this specific feature and move to CPU for visualization
+            patches = sae_acts_cache[img_i][:, i].cpu()
 
             sample = dataset[img_i]
 
             example = Example(
                 img=sample["image"],
-                patches=values_p,
+                patches=patches,
                 img_i=img_i,
                 target=sample["target"],
                 label=sample["label"],
