@@ -147,7 +147,9 @@ def _manager_main(
             batch_acts = []
             batch_image_is = []
             batch_patch_is = []
-            batch_patch_labels: list[int] | None = [] if labels_mmap is not None else None
+            batch_patch_labels: list[int] | None = (
+                [] if labels_mmap is not None else None
+            )
 
             # Process samples in this batch range
             for idx in range(current_idx, batch_end_idx):
@@ -244,9 +246,8 @@ class DataLoader:
         act: Float[Tensor, "batch d_vit"]
         image_i: Int[Tensor, " batch"]
         patch_i: Int[Tensor, " batch"]
-        patch_labels: Int[
-            Tensor, " batch"
-        ]  # Optional, only present if labels.bin exists
+        # Optional, only present if labels.bin exists
+        patch_labels: Int[Tensor, " batch"]
 
     def __init__(self, cfg: Config):
         self.cfg = cfg

@@ -1008,3 +1008,14 @@ Quality of life improvements:
 
 Prior work on later layers being harder to model?
 Is 16x enough?
+
+# 09/18/2025
+
+- Repo usability
+- Repo code quality
+- More unit tests
+- Code structure: can you do jaxtyping + submitit in same file? different file?
+
+
+1. Save .X data for each SAE.
+2. Use that to pick out images for top k images per latent

@@ -7,9 +7,11 @@ ckpt = [
   # "/fs/ess/PAS2136/samuelstevens/checkpoints/saev/k61ivi9z/sae.pt",
 ]
 
-top_k = 48
+top_k = 1
 dump_to = "/fs/scratch/PAS2136/samuelstevens/saev/acts/bfly-fg-v0"
+slurm_acct = "PAS2136"
+slurm_partition = "nextgen"
 
 [data]
 shard_root = "/fs/scratch/PAS2136/samuelstevens/cache/saev/b080ce05fb55e051a9154a8c132c52554c7d3334e953c5c0509ffd29576f06d7"
-layer = 21
+layer = 13
