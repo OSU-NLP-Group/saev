@@ -19,7 +19,7 @@ def test_fit_smoke():
     y = ((x @ true_w + true_b) > 0).float()
 
     # Initialize optimizer
-    clf = Sparse1DProbe(n_latents=n_latents, n_classes=1, device="cpu")
+    clf = Sparse1DProbe(n_latents=n_latents, n_classes=n_classes, device="cpu")
 
     clf.fit(x, y)
     clf.loss_matrix(x, y)
@@ -30,8 +30,10 @@ def test_fit_against_sklearn():
     n_samples, n_latents, n_classes = 128, 8, 4
     x = torch.randn(n_samples, n_latents)
     # make it sparse k=3 per sample
-    keep = torch.topk(x.abs(), k=3, dim=1).indices
-    x[~keep] = 0
+    topk = torch.topk(x.abs(), k=3, dim=1)
+    mask = torch.zeros_like(x, dtype=torch.bool)
+    mask.scatter_(1, topk.indices, True)
+    x[~mask] = 0
 
     # one "true" latent per class + noise
     true_w = torch.zeros(n_latents, n_classes)
@@ -58,4 +60,6 @@ def test_fit_against_sklearn():
     probe = Sparse1DProbe(n_latents=n_latents, n_classes=n_classes, device="cpu")
     probe.fit(x.to_sparse_csr(), y)
     loss_sparse = probe.loss_matrix(x.to_sparse_csr(), y)
-    assert torch.allclose(loss_sparse, loss_ref, rtol=5e-3, atol=5e-4)
+    assert torch.allclose(
+        loss_sparse, torch.tensor(loss_ref, dtype=torch.float32), rtol=5e-3, atol=5e-4
+    )

@@ -36,7 +36,7 @@ So we will have 2 parameters + 5 scalars + 2 parameter updates + 1 loss + 1 accu
 Again, this can be stored on the GPU trivially.
 Thus, we calculate some sums over the sparse feature matrix, calculating the 5 scalars per (feature, class) pair, and update our estimates for each parameter.
 
-One challenge will be calculating these sums quickly; due to the sparse layout of the feature matrix, it might require some tricks. I'm not sure.
+One challenge will be calculating these sums quickly; due to the sparse layout of the feature matrix, it might require some tricks. I'm not sure. Don't use torch.nn or torch's autograd for anything; calculate all these terms by hand.
 
 ## Math
 
