@@ -1,0 +1,61 @@
+"""Unit tests for 1D probe training."""
+
+import numpy as np
+import torch
+from sklearn.linear_model import LogisticRegression
+from tdiscovery.probe1d import Sparse1DProbe
+
+
+def test_fit_smoke():
+    """Test that optimizer converges on linearly separable data with L2 regularization."""
+    torch.manual_seed(42)
+    n_samples = 128
+    n_latents, n_classes = 5, 3
+
+    # Generate linearly separable data
+    x = torch.randn(n_samples, n_latents).to_sparse_csr()
+    true_w = torch.randn((n_latents, n_classes))
+    true_b = torch.randn((1, n_classes))
+    y = ((x @ true_w + true_b) > 0).float()
+
+    # Initialize optimizer
+    clf = Sparse1DProbe(n_latents=n_latents, n_classes=1, device="cpu")
+
+    clf.fit(x, y)
+    clf.loss_matrix(x, y)
+
+
+def test_fit_against_sklearn():
+    torch.manual_seed(1)
+    n_samples, n_latents, n_classes = 128, 8, 4
+    x = torch.randn(n_samples, n_latents)
+    # make it sparse k=3 per sample
+    keep = torch.topk(x.abs(), k=3, dim=1).indices
+    x[~keep] = 0
+
+    # one "true" latent per class + noise
+    true_w = torch.zeros(n_latents, n_classes)
+    for c in range(n_classes):
+        true_w[c, c] = torch.randn(())
+    true_b = torch.randn((1, n_classes))
+    logits = (x @ true_w) + true_b
+    y = torch.bernoulli(torch.sigmoid(logits))
+
+    loss_ref = np.zeros((n_latents, n_classes))
+    for i in range(n_latents):
+        xi = x[:, i : i + 1].numpy()
+        for c in range(n_classes):
+            yc = y[:, c].numpy()
+
+            lr = LogisticRegression(fit_intercept=True, solver="lbfgs")
+            lr.fit(xi, yc)
+
+            # compute mean NLL on (xi, yc)
+            z = lr.intercept_[0] + lr.coef_[0, 0] * xi.squeeze()
+            mu = 1 / (1 + np.exp(-z))
+            loss_ref[i, c] = -(yc * np.log(mu) + (1 - yc) * np.log(1 - mu)).mean()
+
+    probe = Sparse1DProbe(n_latents=n_latents, n_classes=n_classes, device="cpu")
+    probe.fit(x.to_sparse_csr(), y)
+    loss_sparse = probe.loss_matrix(x.to_sparse_csr(), y)
+    assert torch.allclose(loss_sparse, loss_ref, rtol=5e-3, atol=5e-4)

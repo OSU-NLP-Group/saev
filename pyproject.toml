@@ -11,6 +11,7 @@ dependencies = [
     "datasets>=3.0.1",
     "duckdb>=1.3.2",
     "einops>=0.8.0",
+    "glasbey>=0.3.0",
     "invoke>=2.2.0",
     "jaxtyping>=0.3.2",
     "marimo>=0.9.10",

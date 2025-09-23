@@ -82,7 +82,7 @@ class progress:
             total: If non-zero, how long the iterable is.
         """
         self.it = it
-        self.every = every
+        self.every = max(every, 1)
         self.logger = logging.getLogger(desc)
         self.total = total
 

@@ -7,9 +7,7 @@ import numpy as np
 import pytest
 import torch.multiprocessing as mp
 
-from saev.data import (
-    Dataset as IndexedDataset,
-)
+from saev.data import Dataset as IndexedDataset
 from saev.data import (
     IndexedConfig,
     ShuffledConfig,
@@ -333,6 +331,15 @@ def test_indexed_vs_shuffled_filtering(segmentation_shards):
                 f"Global index {global_idx}: expected patch_i={patch_i}, got {example['patch_i']}"
             )
 
+            # Verify patch_label is included and correct
+            assert "patch_label" in example, (
+                "patch_label should be included when labels.bin exists"
+            )
+            assert example["patch_label"] == labels[img_i, patch_i], (
+                f"patch_label mismatch for ({img_i}, {patch_i}): "
+                f"expected {labels[img_i, patch_i]}, got {example['patch_label']}"
+            )
+
             # Also verify we can look up the correct label using returned indices
             returned_label = labels[example["image_i"], example["patch_i"]]
             expected_label = labels[img_i, patch_i]
@@ -396,6 +403,112 @@ def test_indexed_vs_shuffled_filtering(segmentation_shards):
     assert shuffled_seen.issubset(valid_patches), (
         "Shuffled loader should only return non-filtered patches"
     )
+
+
+def test_indexed_dataset_patch_labels(segmentation_shards):
+    """Test that indexed dataset correctly returns patch_label field when labels.bin exists."""
+    shard_root, n_imgs, n_patches_per_img, n_classes = segmentation_shards
+
+    # Load labels for verification
+    labels_path = os.path.join(shard_root, "labels.bin")
+    labels = np.memmap(labels_path, mode="r", dtype=np.uint8).reshape(
+        n_imgs, n_patches_per_img
+    )
+
+    # Test with image patches
+    indexed_cfg = IndexedConfig(
+        shard_root=shard_root,
+        patches="image",
+        layer=-2,
+    )
+    indexed_ds = IndexedDataset(indexed_cfg)
+
+    # Test a few random indices
+    test_indices = [0, 10, 50, 100, 150]  # Various indices across the dataset
+    for global_idx in test_indices:
+        if global_idx >= len(indexed_ds):
+            continue
+
+        example = indexed_ds[global_idx]
+
+        # Verify patch_label is present
+        assert "patch_label" in example, (
+            f"patch_label should be present for index {global_idx}"
+        )
+
+        # Verify the label value is correct
+        img_i = example["image_i"]
+        patch_i = example["patch_i"]
+        expected_label = labels[img_i, patch_i]
+        assert example["patch_label"] == expected_label, (
+            f"Label mismatch at index {global_idx}: "
+            f"expected {expected_label}, got {example['patch_label']}"
+        )
+
+    # Test CLS token mode (should not have patch_label)
+    cls_cfg = IndexedConfig(
+        shard_root=shard_root,
+        patches="cls",
+        layer=-2,
+    )
+    cls_ds = IndexedDataset(cls_cfg)
+
+    # CLS tokens don't have patch labels
+    cls_example = cls_ds[0]
+    assert "patch_label" not in cls_example, (
+        "CLS tokens should not have patch_label field"
+    )
+
+
+def test_indexed_dataset_no_labels_file():
+    """Test that indexed dataset works without labels.bin (patch_label not included)."""
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        # Create a minimal shard setup WITHOUT labels.bin
+        metadata = {
+            "vit_family": "fake-clip",
+            "vit_ckpt": "test",
+            "layers": [-2],
+            "n_patches_per_img": 16,
+            "cls_token": False,
+            "d_vit": 128,
+            "n_imgs": 10,
+            "max_patches_per_shard": 160,
+            "data": {"n_imgs": 10},
+            "dtype": "float32",
+            "protocol": "1.1",
+        }
+
+        # Write metadata
+        import json
+
+        with open(os.path.join(tmp_dir, "metadata.json"), "w") as f:
+            json.dump(metadata, f)
+
+        # Write shards.json
+        shards = [{"name": f"acts{i:06d}.bin", "n_imgs": 10} for i in range(1)]
+        with open(os.path.join(tmp_dir, "shards.json"), "w") as f:
+            json.dump(shards, f)
+
+        # Create a dummy acts file
+        acts = np.zeros((10, 1, 16, 128), dtype=np.float32)
+        acts.tofile(os.path.join(tmp_dir, "acts000000.bin"))
+
+        # Create indexed dataset without labels.bin
+        indexed_cfg = IndexedConfig(
+            shard_root=tmp_dir,
+            patches="image",
+            layer=-2,
+        )
+        indexed_ds = IndexedDataset(indexed_cfg)
+
+        # Get an example - should work but not have patch_label
+        example = indexed_ds[0]
+        assert "act" in example
+        assert "image_i" in example
+        assert "patch_i" in example
+        assert "patch_label" not in example, (
+            "patch_label should not be present when labels.bin doesn't exist"
+        )
 
 
 def test_patch_filtering_sees_all_valid_patches(segmentation_shards):

@@ -1019,3 +1019,69 @@ Is 16x enough?
 
 1. Save .X data for each SAE.
 2. Use that to pick out images for top k images per latent
+
+# 09/19/2025
+
+To get the visuals right for butterflies, we have to debug every step.
+Something still isn't working because my visuals are firing on non-bg patches.
+
+# 09/20/2025
+
+To evaluate semantic segmentation, we need to measure class-level mIoU.
+There are two problems with that:
+
+1. We need to tune the classification value for each combination of segmentation class and latent. For ADE20K, that's 150 x 16K = 2.4M tuned classification values.
+2. Sparse autoencoders are not evaluated by their ability to do segmentation! Instead, we use probing tasks like from Gao et al.
+
+Alternatively, we can use the probing evaluation from Gao et al.
+That doesn't require manually tuning the activation level; instead, it requires a LGBFS search (which I've never done before).
+
+---
+
+I think we need some tests for dataloaders and patch filtering.
+Then we also need a test for loading shards from huggingface and making sure they still work.
+We can use ADE20K.
+
+# 09/22/2025
+
+I am going to put the butterfly visualizations on hold for a bit and focus on quantitative probing evaluation of ADE20K and FishVista.
+
+1. Check compute feasibility of a sparse Newton-Raphson for both ADE20K and FishVista
+2. Implement a sparse Newton-Raphson
+3. Compare my implementation against scipy.optimize and torch.optim.LBFGS via unit tests.
+4. Evaluate a random baseline on both ADE20K and FishVista.
+5. Evaluate a sparse autoencoder.
+
+How would I define success?
+I think I want a probe1d.py script that reports a loss and accuracy for a given SAE evaluated on a given dataset.
+It should be trivial to sweep a lot of different sparse autoencoders for a given dataset/layer using a `--sweep` arg.
+
+
+## Compute Feasibility
+
+Layer 21 has L0 from 100 to 350.
+Layer 13 is 30 to 200.
+Layer 23 is 50 to 100.
+
+I think a max L0 of 400 is super reasonable for estimating compute.
+
+So I think it's possible.
+
+For ADE20K:
+
+22K images x 256 patches/img x 400 non-zero values per patch x (8 byte int64 index + 4 byte fp32 float value) = 27GB.
+Then we will have 32K latents x 151 classes x (2 params + ~12 numbers per param) x 4 bytes = 270.6 MB.
+
+For FishVista:
+
+6.1K images x 640 patches/image x 400 non-zero values per patch x (8 byte int64 index + 4 byte fp32 float value) = 18.7 GB.
+Then we will have 32K latents x 10 classes x (2 params + ~12 numbers per param) x 4 bytes = 17.9 MB.
+
+This all fits on a 40GB GPU.
+Thus, we will be able to fit probes on every combination of (latent x semantic class) in parallel on a single 40GB A100.
+
+
+## Implement a Sparse Newton Raphson
+
+Time to write a spec for my coding buddy! I hate math! :)
+

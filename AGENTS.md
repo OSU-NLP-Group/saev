@@ -12,6 +12,7 @@
 - Only use `setup` for naming functions that don't return anything.
 - You can use `gh` to access issues and PRs on GitHub to gather more context. We use GitHub issues a lot to share ideas and communicate about problems, so you should almost always check to see if there's a relevant GitHub issue for whatever you're working on.
 - submitit and jaxtyping don't work in the same file. See [this issue]. To solve this, all jaxtyped functions/classes need to be in a different file to the submitit launcher script.
+- Consider the [style guidelines for TigerBeetle](https://github.com/tigerbeetle/tigerbeetle/blob/main/docs/TIGER_STYLE.md) and adapt it to Python.
 
 # Tensor Variables
 
@@ -19,12 +20,12 @@ Throughout the code, variables are annotated with shape suffixes, as [recommende
 
 The key for these suffixes:
 
-* B: batch size
-* W: width in patches (typically 14 or 16)
-* H: height in patches (typically 14 or 16)
-* D: ViT activation dimension (typically 768 or 1024)
-* S: SAE latent dimension (768 x 16, etc)
-* L: Number of latents being manipulated at once (typically 1-5 at a time)
-* C: Number of classes in ADE20K (151)
+* b: batch size
+* w: width in patches (typically 14 or 16)
+* h: height in patches (typically 14 or 16)
+* d: ViT activation dimension (typically 768 or 1024)
+* s: SAE latent dimension (1024 x 16, etc)
+* l: Number of latents being manipulated at once (typically 1-5 at a time)
+* c: Number of classes
 
-For example, an activation tensor with shape (batch, width, height d_vit) is `acts_BWHD`.
+For example, an activation tensor with shape (batch, width, height d_vit) is `acts_bwhd`.

@@ -14,8 +14,8 @@ colormap = matplotlib.colormaps.get_cmap("plasma")
 def add_highlights(
     img: Image.Image,
     patches: Float[np.ndarray, " n_patches"],
-    *,
     patch_size: int,
+    *,
     upper: float | None = None,
     opacity: float = 0.9,
 ) -> Image.Image:
@@ -69,7 +69,6 @@ def colorize_segmentation_patches(
     patch_size: int,
     img_width: int,
     img_height: int,
-    n_classes: int | None = None,
     background_idx: int = 0,
 ) -> Image.Image:
     """

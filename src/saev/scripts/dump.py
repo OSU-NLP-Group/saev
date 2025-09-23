@@ -39,18 +39,18 @@ class Config:
     # Disk
     ckpt: str = os.path.join(".", "checkpoints", "sae.pt")
     """Path to the sae.pt file."""
-    data: OrderedConfig = dataclasses.field(default_factory=OrderedConfig)
+    data: OrderedConfig = OrderedConfig()
     """Data configuration"""
     dump_to: str = os.path.join(".", "data")
     """Where to save data."""
 
-    n_distributions: int = 25
+    n_dists: int = 25
     """Number of features to save distributions for."""
     percentile: int = 99
     """Percentile to estimate for outlier detection."""
     top_k: int = 1
     """How many patches per image to use to compute the maximum image activation per latent."""
-    ignore_labels: list[int] = dataclasses.field(default_factory=OrderedConfig)
+    ignore_labels: list[int] = dataclasses.field(default_factory=list)
     """Which patch labels to ignore when calculating summarized image activations."""
 
     # Control flags
@@ -118,7 +118,8 @@ def worker_fn(cfg: Config):
     mean_values_s = torch.zeros((sae.cfg.d_sae,), device=cfg.device)
 
     # Initialize image-level activations
-    img_acts_ns = torch.zeros((md.n_imgs, sae.cfg.d_sae), device=cfg.device)
+    INIT = -1.0
+    img_acts_ns = torch.full((md.n_imgs, sae.cfg.d_sae), INIT, device=cfg.device)
 
     batch_size = cfg.data.batch_size // md.n_patches_per_img * md.n_patches_per_img
     n_imgs_per_batch = batch_size // md.n_patches_per_img
@@ -127,38 +128,45 @@ def worker_fn(cfg: Config):
     )
 
     distributions_nm = torch.zeros(
-        (dataloader.n_samples, cfg.n_distributions), device=cfg.device
+        (dataloader.n_samples, cfg.n_dists), device=cfg.device
     )
     estimator = statistics.PercentileEstimator(
         cfg.percentile, dataloader.n_samples, shape=(sae.cfg.d_sae,)
     )
+
+    ignore = torch.tensor(cfg.ignore_labels)
 
     logger.info("Loaded SAE and data.")
 
     for batch in helpers.progress(dataloader, desc="activations"):
         # Get SAE activations (shared computation)
         vit_acts_bd = batch["act"].to(cfg.device)
-        _, sae_acts_bs, *_ = sae(vit_acts_bd)
+        _, f_x, *_ = sae(vit_acts_bd)
+        bsz, d_sae = f_x.shape
+
+        mask_b = torch.isin(batch["patch_labels"], ignore, invert=True)
 
         # Update percentile estimator
-        # TODO/BUG: ignore samples that have patch labels in cfg.ignore_labels
-        keep_b = batch["patch_labels"].isin(cfg.ignore_labels, invert=True)
-        for sae_act_s in sae_acts_bs[keep_b]:
+        for sae_act_s in f_x[mask_b]:
             estimator.update(sae_act_s)
 
         # Update statistics
-        distributions_nm[batch["image_i"][keep_b], :] = sae_acts_bs[
-            keep_b, : cfg.n_distributions
-        ]
-        mean_values_s += einops.reduce(sae_acts_bs, "batch d_sae -> d_sae", "sum")
-        sparsity_s += einops.reduce((sae_acts_bs > 0), "batch d_sae -> d_sae", "sum")
+        distributions_nm[batch["image_i"][mask_b], :] = f_x[mask_b, : cfg.n_dists]
+        mean_values_s += einops.reduce(f_x[mask_b], "batch d_sae -> d_sae", "sum")
+        sparsity_s += einops.reduce((f_x[mask_b] > 0), "batch d_sae -> d_sae", "sum")
 
         # Get unique image indices in this batch
         img_i = torch.sort(torch.unique(batch["image_i"])).values.to(cfg.device)
 
         values_ips = einops.rearrange(
-            sae_acts_bs,
+            f_x,
             "(n_img n_patches) d_sae -> n_img n_patches d_sae",
+            n_img=len(img_i),
+            n_patches=md.n_patches_per_img,
+        )
+        mask_ip = einops.rearrange(
+            mask_b,
+            "(n_img n_patches) -> n_img n_patches",
             n_img=len(img_i),
             n_patches=md.n_patches_per_img,
         )
@@ -172,11 +180,14 @@ def worker_fn(cfg: Config):
                 n_imgs_per_batch,
             )
 
+        # All masked patches can have at most no activation.
+        values_ips[~mask_ip] = 0.0
         # Take the mean of the top k patches as our image-level summary.
-        acts_iks = torch.topk(values_ips, cfg.top_k, dim=1).values
-        acts_is = einops.reduce(acts_iks, "n_img k d_sae -> n_img d_sae", "mean")
-        assert (img_acts_ns[img_i] == 0).all(), "overwriting non-zero activations"
-        img_acts_ns[img_i, :] = acts_is
+        values_iks = torch.topk(values_ips, cfg.top_k, dim=1).values
+        assert (values_iks >= 0).all()
+        values_is = einops.reduce(values_iks, "n_img k d_sae -> n_img d_sae", "mean")
+        assert (img_acts_ns[img_i] == INIT).all(), "overwriting existing activations"
+        img_acts_ns[img_i, :] = values_is
 
     # Finalize statistics
     mean_values_s /= sparsity_s

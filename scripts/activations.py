@@ -6,10 +6,10 @@ import tomllib
 import typing as tp
 
 import beartype
+import saev.scripts.activations
 import tyro
 
 import saev.helpers
-import saev.scripts.activations
 
 
 @beartype.beartype
