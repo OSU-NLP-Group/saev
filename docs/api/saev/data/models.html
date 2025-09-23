@@ -110,16 +110,32 @@ class VisionTransformer(abc.ABC):
     @abc.abstractmethod
     def ckpt(self) -&gt; str: ...
 
+    @property
+    @abc.abstractmethod
+    def patch_size(self) -&gt; int:
+        &#34;&#34;&#34;Patch size in pixels (e.g., 14 or 16).&#34;&#34;&#34;
+
+    @property
+    def name(self) -&gt; str:
+        return f&#34;{self.family}/{self.ckpt}&#34;
+
     @staticmethod
     @abc.abstractmethod
-    def make_transforms(ckpt: str) -&gt; tuple[Callable, Callable | None]: ...
+    def make_transforms(
+        ckpt: str, n_patches_per_img: int
+    ) -&gt; tuple[Callable, Callable | None]:
+        &#34;&#34;&#34;Create transforms for preprocessing: (img_transform, sample_transform | None).&#34;&#34;&#34;
 
     @staticmethod
     @abc.abstractmethod
     def make_resize(
-        ckpt: str, *, scale: float = 2.0
+        ckpt: str,
+        n_patches_per_img: int,
+        *,
+        scale: float = 1.0,
+        resample: Image.Resampling = Image.LANCZOS,
     ) -&gt; Callable[[Image.Image], Image.Image]:
-        &#34;&#34;&#34;How to resize images for patch visualizations.&#34;&#34;&#34;
+        &#34;&#34;&#34;Create resize transform for visualization. Use resample=Image.NEAREST for segmentation masks.&#34;&#34;&#34;
 
     @abc.abstractmethod
     def get_residuals(self) -&gt; list[torch.nn.Module]:
@@ -133,11 +149,7 @@ class VisionTransformer(abc.ABC):
     def forward(
         self, batch: Float[Tensor, &#34;batch 3 width height&#34;]
     ) -&gt; Float[Tensor, &#34;batch patches dim&#34;]:
-        &#34;&#34;&#34;Run forward pass on batch of images.&#34;&#34;&#34;
-
-    @property
-    def name(self) -&gt; str:
-        return f&#34;{self.family}/{self.ckpt}&#34;</code></pre>
+        &#34;&#34;&#34;Run forward pass on batch of images.&#34;&#34;&#34;</code></pre>
 </details>
 <h3>Ancestors</h3>
 <ul class="hlist">
@@ -148,15 +160,16 @@ class VisionTransformer(abc.ABC):
 <li><a title="saev.data.clip.Vit" href="clip.html#saev.data.clip.Vit">Vit</a></li>
 <li><a title="saev.data.dinov2.Vit" href="dinov2.html#saev.data.dinov2.Vit">Vit</a></li>
 <li><a title="saev.data.dinov3.Vit" href="dinov3.html#saev.data.dinov3.Vit">Vit</a></li>
+<li><a title="saev.data.fake_clip.Vit" href="fake_clip.html#saev.data.fake_clip.Vit">Vit</a></li>
 <li><a title="saev.data.siglip.Vit" href="siglip.html#saev.data.siglip.Vit">Vit</a></li>
 </ul>
 <h3>Static methods</h3>
 <dl>
 <dt id="saev.data.models.VisionTransformer.make_resize"><code class="name flex">
-<span>def <span class="ident">make_resize</span></span>(<span>ckpt: str, *, scale: float = 2.0) ‑> Callable[[PIL.Image.Image], PIL.Image.Image]</span>
+<span>def <span class="ident">make_resize</span></span>(<span>ckpt: str,<br>n_patches_per_img: int,<br>*,<br>scale: float = 1.0,<br>resample: PIL.Image.Resampling = 1) ‑> Callable[[PIL.Image.Image], PIL.Image.Image]</span>
 </code></dt>
 <dd>
-<div class="desc"><p>How to resize images for patch visualizations.</p></div>
+<div class="desc"><p>Create resize transform for visualization. Use resample=Image.NEAREST for segmentation masks.</p></div>
 <details class="source">
 <summary>
 <span>Expand source code</span>
@@ -164,23 +177,30 @@ class VisionTransformer(abc.ABC):
 <pre><code class="python">@staticmethod
 @abc.abstractmethod
 def make_resize(
-    ckpt: str, *, scale: float = 2.0
+    ckpt: str,
+    n_patches_per_img: int,
+    *,
+    scale: float = 1.0,
+    resample: Image.Resampling = Image.LANCZOS,
 ) -&gt; Callable[[Image.Image], Image.Image]:
-    &#34;&#34;&#34;How to resize images for patch visualizations.&#34;&#34;&#34;</code></pre>
+    &#34;&#34;&#34;Create resize transform for visualization. Use resample=Image.NEAREST for segmentation masks.&#34;&#34;&#34;</code></pre>
 </details>
 </dd>
 <dt id="saev.data.models.VisionTransformer.make_transforms"><code class="name flex">
-<span>def <span class="ident">make_transforms</span></span>(<span>ckpt: str) ‑> tuple[<class 'collections.abc.Callable'>, collections.abc.Callable | None]</span>
+<span>def <span class="ident">make_transforms</span></span>(<span>ckpt: str, n_patches_per_img: int) ‑> tuple[<class 'collections.abc.Callable'>, collections.abc.Callable | None]</span>
 </code></dt>
 <dd>
-<div class="desc"></div>
+<div class="desc"><p>Create transforms for preprocessing: (img_transform, sample_transform | None).</p></div>
 <details class="source">
 <summary>
 <span>Expand source code</span>
 </summary>
 <pre><code class="python">@staticmethod
 @abc.abstractmethod
-def make_transforms(ckpt: str) -&gt; tuple[Callable, Callable | None]: ...</code></pre>
+def make_transforms(
+    ckpt: str, n_patches_per_img: int
+) -&gt; tuple[Callable, Callable | None]:
+    &#34;&#34;&#34;Create transforms for preprocessing: (img_transform, sample_transform | None).&#34;&#34;&#34;</code></pre>
 </details>
 </dd>
 </dl>
@@ -220,6 +240,19 @@ def family(self) -&gt; str: ...</code></pre>
 <pre><code class="python">@property
 def name(self) -&gt; str:
     return f&#34;{self.family}/{self.ckpt}&#34;</code></pre>
+</details>
+</dd>
+<dt id="saev.data.models.VisionTransformer.patch_size"><code class="name">prop <span class="ident">patch_size</span> : int</code></dt>
+<dd>
+<div class="desc"><p>Patch size in pixels (e.g., 14 or 16).</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+@abc.abstractmethod
+def patch_size(self) -&gt; int:
+    &#34;&#34;&#34;Patch size in pixels (e.g., 14 or 16).&#34;&#34;&#34;</code></pre>
 </details>
 </dd>
 </dl>
@@ -350,6 +383,7 @@ setTimeout(() => input.focus(), 100);
 <li><code><a title="saev.data.models.VisionTransformer.make_resize" href="#saev.data.models.VisionTransformer.make_resize">make_resize</a></code></li>
 <li><code><a title="saev.data.models.VisionTransformer.make_transforms" href="#saev.data.models.VisionTransformer.make_transforms">make_transforms</a></code></li>
 <li><code><a title="saev.data.models.VisionTransformer.name" href="#saev.data.models.VisionTransformer.name">name</a></code></li>
+<li><code><a title="saev.data.models.VisionTransformer.patch_size" href="#saev.data.models.VisionTransformer.patch_size">patch_size</a></code></li>
 </ul>
 </li>
 </ul>

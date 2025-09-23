@@ -28,10 +28,8 @@ hljs.highlightAll();
 </header>
 <section id="section-intro">
 <p>Ordered (sequential) dataloader for activation data.</p>
-<p>This module provides a high-throughput dataloader that reads activation data
-from disk shards in sequential order, without shuffling. The implementation uses
-a single-threaded manager process to ensure data is delivered in the exact order
-it appears on disk.</p>
+<p>This module provides a high-throughput dataloader that reads activation data from disk shards in sequential order, without shuffling. The implementation uses a single-threaded manager process to ensure data is delivered in the exact order it appears on disk.</p>
+<p>Patch labels are provided if there is a labels.bin file on disk.</p>
 <p>See the design decisions in src/saev/data/performance.md.</p>
 <h2 id="usage">Usage</h2>
 <pre><code class="language-python-repl">&gt;&gt;&gt; cfg = Config(shard_root=&quot;./shards&quot;, layer=13, batch_size=4096)
@@ -40,6 +38,7 @@ it appears on disk.</p>
 ...     activations = batch[&quot;act&quot;]  # [batch_size, d_vit]
 ...     image_indices = batch[&quot;image_i&quot;]  # [batch_size]
 ...     patch_indices = batch[&quot;patch_i&quot;]  # [batch_size]
+...     patch_labels = batch[&quot;patch_labels&quot;]  # [batch_size]
 </code></pre>
 </section>
 <section>
@@ -136,12 +135,14 @@ class DataLoader:
     &#34;&#34;&#34;
 
     @jaxtyped(typechecker=beartype.beartype)
-    class ExampleBatch(typing.TypedDict):
+    class ExampleBatch(typing.TypedDict, total=False):
         &#34;&#34;&#34;Individual example.&#34;&#34;&#34;
 
         act: Float[Tensor, &#34;batch d_vit&#34;]
         image_i: Int[Tensor, &#34; batch&#34;]
         patch_i: Int[Tensor, &#34; batch&#34;]
+        # Optional, only present if labels.bin exists
+        patch_labels: Int[Tensor, &#34; batch&#34;]
 
     def __init__(self, cfg: Config):
         self.cfg = cfg
@@ -149,6 +150,13 @@ class DataLoader:
             raise RuntimeError(f&#34;Activations are not saved at &#39;{self.cfg.shard_root}&#39;.&#34;)
 
         self.metadata = writers.Metadata.load(self.cfg.shard_root)
+
+        # Validate shard files exist
+        shard_info = writers.ShardInfo.load(self.cfg.shard_root)
+        for shard in shard_info:
+            shard_path = os.path.join(self.cfg.shard_root, shard.name)
+            if not os.path.exists(shard_path):
+                raise FileNotFoundError(f&#34;Shard file not found: {shard_path}&#34;)
 
         self.logger = logging.getLogger(&#34;ordered.DataLoader&#34;)
         self.ctx = mp.get_context()

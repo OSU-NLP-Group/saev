@@ -13,6 +13,7 @@
 - Only use `setup` for naming functions that don't return anything.
 - You can use `gh` to access issues and PRs on GitHub to gather more context. We use GitHub issues a lot to share ideas and communicate about problems, so you should almost always check to see if there's a relevant GitHub issue for whatever you're working on.
 - submitit and jaxtyping don't work in the same file. See [this issue]. To solve this, all jaxtyped functions/classes need to be in a different file to the submitit launcher script.
+- Consider the [style guidelines for TigerBeetle](https://github.com/tigerbeetle/tigerbeetle/blob/main/docs/TIGER_STYLE.md) and adapt it to Python.
 
 # Tensor Variables
 
@@ -20,15 +21,15 @@ Throughout the code, variables are annotated with shape suffixes, as [recommende
 
 The key for these suffixes:
 
-* B: batch size
-* W: width in patches (typically 14 or 16)
-* H: height in patches (typically 14 or 16)
-* D: ViT activation dimension (typically 768 or 1024)
-* S: SAE latent dimension (768 x 16, etc)
-* L: Number of latents being manipulated at once (typically 1-5 at a time)
-* C: Number of classes in ADE20K (151)
+* b: batch size
+* w: width in patches (typically 14 or 16)
+* h: height in patches (typically 14 or 16)
+* d: ViT activation dimension (typically 768 or 1024)
+* s: SAE latent dimension (1024 x 16, etc)
+* l: Number of latents being manipulated at once (typically 1-5 at a time)
+* c: Number of classes
 
-For example, an activation tensor with shape (batch, width, height d_vit) is `acts_BWHD`.
+For example, an activation tensor with shape (batch, width, height d_vit) is `acts_bwhd`.
 
 >>>> README.md
 # saev - Sparse Auto-Encoders for Vision
@@ -415,7 +416,7 @@ import dataclasses
 
 import beartype
 
-from . import clip, dinov2, dinov3, models, siglip
+from . import clip, dinov2, dinov3, fake_clip, models, siglip
 from .indexed import Config as IndexedConfig
 from .indexed import Dataset
 from .ordered import Config as OrderedConfig
@@ -439,6 +440,7 @@ models.register_family(siglip.Vit)
 models.register_family(clip.Vit)
 models.register_family(dinov2.Vit)
 models.register_family(dinov3.Vit)
+models.register_family(fake_clip.Vit)
 
 
 @beartype.beartype
@@ -758,6 +760,7 @@ import beartype
 import open_clip
 import torch
 from jaxtyping import Float, jaxtyped
+from PIL import Image
 from torch import Tensor
 
 from .. import helpers
@@ -767,19 +770,6 @@ from . import models
 @jaxtyped(typechecker=beartype.beartype)
 class Vit(models.VisionTransformer, torch.nn.Module):
     family: str = "clip"
-
-    @staticmethod
-    def make_transforms(ckpt: str) -> tuple[Callable, Callable | None]:
-        if ckpt.startswith("hf-hub:"):
-            _, img_transform = open_clip.create_model_from_pretrained(
-                ckpt, cache_dir=helpers.get_cache_dir()
-            )
-        else:
-            arch, ckpt = ckpt.split("/")
-            _, img_transform = open_clip.create_model_from_pretrained(
-                arch, pretrained=ckpt, cache_dir=helpers.get_cache_dir()
-            )
-        return img_transform, None
 
     def __init__(self, ckpt: str):
         super().__init__()
@@ -806,6 +796,13 @@ class Vit(models.VisionTransformer, torch.nn.Module):
     def ckpt(self) -> str:
         return self._ckpt
 
+    @property
+    def patch_size(self) -> int:
+        """Get patch size for CLIP models."""
+        # Standard CLIP models all use 16x16 patches
+        # The tiny test model uses 2x2 but that's not a real model
+        return 16
+
     def get_residuals(self) -> list[torch.nn.Module]:
         return self.model.transformer.resblocks
 
@@ -817,35 +814,45 @@ class Vit(models.VisionTransformer, torch.nn.Module):
     ) -> Float[Tensor, "batch patches dim"]:
         return self.model(batch)
 
->>>> data/config.py
-import dataclasses
-import os.path
-import typing
+    @staticmethod
+    def make_transforms(
+        ckpt: str, n_patches_per_img: int
+    ) -> tuple[Callable, Callable | None]:
+        """Create transforms for preprocessing: (img_transform, sample_transform | None)."""
+        if ckpt.startswith("hf-hub:"):
+            _, img_transform = open_clip.create_model_from_pretrained(
+                ckpt, cache_dir=helpers.get_cache_dir()
+            )
+        else:
+            arch, ckpt = ckpt.split("/")
+            _, img_transform = open_clip.create_model_from_pretrained(
+                arch, pretrained=ckpt, cache_dir=helpers.get_cache_dir()
+            )
+        return img_transform, None
 
-import beartype
+    @staticmethod
+    def make_resize(
+        ckpt: str,
+        n_patches_per_img: int = -1,
+        *,
+        scale: float = 2.0,
+        resample: Image.Resampling = Image.LANCZOS,
+    ) -> Callable[[Image.Image], Image.Image]:
+        def resize(img: Image.Image) -> Image.Image:
+            resize_size_px = (int(256 * scale), int(256 * scale))
+            crop_size_px = (int(224 * scale), int(224 * scale))
 
+            resize_w_px, resize_h_px = resize_size_px
+            crop_w_px, crop_h_px = crop_size_px
+            crop_coords_px = (
+                (resize_w_px - crop_w_px) // 2,
+                (resize_h_px - crop_h_px) // 2,
+                (resize_w_px + crop_w_px) // 2,
+                (resize_h_px + crop_h_px) // 2,
+            )
+            return img.resize(resize_size_px, resample=resample).crop(crop_coords_px)
 
-@beartype.beartype
-@dataclasses.dataclass(frozen=True)
-class Activations:
-    """
-    Configuration for loading activation data from disk.
-    """
-
-    shard_root: str = os.path.join(".", "shards")
-    """Directory with .bin shards and a metadata.json file."""
-    patches: typing.Literal["cls", "image", "all"] = "patches"
-    """Which kinds of patches to use."""
-    layer: int | typing.Literal["all"] = "all"
-    """Which ViT layer(s) to read from disk. ``-2`` selects the second-to-last layer. ``"all"`` enumerates every recorded layer, and ``"meanpool"`` averages activations across layers."""
-    clamp: float = 1e5
-    """Maximum value for activations; activations will be clamped to within [-clamp, clamp]`."""
-    n_random_samples: int = 2**19
-    """Number of random samples used to calculate approximate dataset means at startup."""
-    scale_mean: bool | str = True
-    """Whether to subtract approximate dataset means from examples. If a string, manually load from the filepath."""
-    scale_norm: bool | str = True
-    """Whether to scale average dataset norm to sqrt(d_vit). If a string, manually load from the filepath."""
+        return resize
 
 >>>> data/datasets.py
 import dataclasses
@@ -908,14 +915,14 @@ class ImageFolder:
 @beartype.beartype
 @dataclasses.dataclass(frozen=True)
 class SegFolder:
-    """ """
-
     root: str = os.path.join(".", "data", "segdataset")
     """Where the class folders with images are stored."""
     split: typing.Literal["training", "validation"] = "training"
     """Data split."""
     img_label_fname: str = "sceneCategories.txt"
     """Image labels filename."""
+    bg_label: int = 0
+    """Background label."""
 
     @property
     def n_imgs(self) -> int:
@@ -941,17 +948,39 @@ class Fake:
     n_imgs: int = 10
 
 
-Config = Imagenet | ImageFolder | SegFolder | Fake
+@beartype.beartype
+@dataclasses.dataclass(frozen=True)
+class FakeSeg:
+    """Tiny synthetic segmentation dataset for tests.
+
+    Generates dummy RGB images and pixel-level segmentation masks,
+    mimicking the behavior of real segmentation datasets like SegFolder.
+    """
+
+    n_imgs: int = 10
+    """Number of images."""
+    n_patches_per_img: int = 16
+    """Number of patches per image."""
+    n_classes: int = 3
+    """Number of segmentation classes."""
+    bg_label: int = 0
+    """Which class index is considered background."""
+
+
+Config = Imagenet | ImageFolder | SegFolder | Fake | FakeSeg
 
 
 @beartype.beartype
-def get_dataset(cfg: Config, *, img_transform, sample_transform=None):
+def get_dataset(
+    cfg: Config, *, img_transform, seg_transform=None, sample_transform=None
+):
     """
     Gets the dataset for the current experiment; delegates construction to dataset-specific functions.
 
     Args:
         cfg: Experiment config.
         img_transform: Image transform to be applied to each image.
+        seg_transform: Segmentation transform to be applied to masks (for segmentation datasets).
         sample_transform: Transform to be applied to each sample dict.
     Returns:
         A dataset that has dictionaries with `'image'`, `'index'`, `'target'`, and `'label'` keys containing examples.
@@ -963,7 +992,10 @@ def get_dataset(cfg: Config, *, img_transform, sample_transform=None):
         )
     elif isinstance(cfg, SegFolder):
         return SegFolderDataset(
-            cfg, img_transform=img_transform, sample_transform=sample_transform
+            cfg,
+            img_transform=img_transform,
+            seg_transform=seg_transform,
+            sample_transform=sample_transform,
         )
     elif isinstance(cfg, ImageFolder):
         ds = [
@@ -979,6 +1011,13 @@ def get_dataset(cfg: Config, *, img_transform, sample_transform=None):
     elif isinstance(cfg, Fake):
         return FakeDataset(
             cfg, img_transform=img_transform, sample_transform=sample_transform
+        )
+    elif isinstance(cfg, FakeSeg):
+        return FakeSegDataset(
+            cfg,
+            img_transform=img_transform,
+            seg_transform=seg_transform,
+            sample_transform=sample_transform,
         )
     else:
         typing.assert_never(cfg)
@@ -1160,11 +1199,13 @@ class SegFolderDataset(torch.utils.data.Dataset):
             if image is not None:
                 sample["image"] = image
 
-        sample["segmentation"] = Image.open(sample.pop("seg_path"))
+        segmentation = Image.open(sample.pop("seg_path"))
+
+        # Apply segmentation transform to get patch labels
         if self.seg_transform is not None:
-            segmentation = self.seg_transform(sample.pop("segmentation"))
-            if segmentation is not None:
-                sample["segmentation"] = segmentation
+            patch_labels = self.seg_transform(segmentation)
+            if patch_labels is not None:
+                sample["patch_labels"] = patch_labels
 
         sample["index"] = index
 
@@ -1197,6 +1238,86 @@ class FakeDataset(torch.utils.data.Dataset):
 
         return sample
 
+
+@beartype.beartype
+class FakeSegDataset(torch.utils.data.Dataset):
+    """Synthetic segmentation dataset providing pixel-level segmentation masks.
+
+    Mimics SegFolderDataset by providing:
+      - image: a dummy RGB PIL image
+      - segmentation: a PIL image with pixel-level class labels
+      - index, target, label
+    """
+
+    def __init__(
+        self,
+        cfg: FakeSeg,
+        *,
+        img_transform=None,
+        seg_transform=None,
+        sample_transform=None,
+    ):
+        self.cfg = cfg
+        self.img_transform = img_transform
+        self.seg_transform = seg_transform
+        self.sample_transform = sample_transform
+
+    def __len__(self) -> int:
+        return self.cfg.n_imgs
+
+    def __getitem__(self, i: int) -> dict[str, object]:
+        import numpy as np
+
+        # Create a dummy RGB image
+        img_size = 64  # Will be resized by transforms
+        img = Image.new("RGB", (img_size, img_size), color=(127, 127, 127))
+
+        # Create a deterministic segmentation mask with pixel-level labels
+        # Use mode "L" for grayscale (0-255 values)
+        seg_array = np.zeros((img_size, img_size), dtype=np.uint8)
+
+        # Create a pattern that will result in different labels per patch
+        # Assuming patches are created by dividing the image into a grid
+        patch_grid_size = int(np.sqrt(self.cfg.n_patches_per_img))
+        patch_size = img_size // patch_grid_size
+
+        for y in range(0, img_size, patch_size):
+            for x in range(0, img_size, patch_size):
+                patch_idx = (y // patch_size) * patch_grid_size + (x // patch_size)
+                # Deterministic label based on patch index and image index
+                label = (patch_idx + i) % self.cfg.n_classes
+                seg_array[y : y + patch_size, x : x + patch_size] = label
+
+        # Set some patches to background
+        if self.cfg.bg_label < self.cfg.n_classes:
+            seg_array[:patch_size, :] = self.cfg.bg_label
+
+        segmentation = Image.fromarray(seg_array)
+
+        if self.img_transform is not None:
+            img = self.img_transform(img)
+
+        # Apply segmentation transform to get patch labels
+        patch_labels = None
+        if self.seg_transform is not None:
+            patch_labels = self.seg_transform(segmentation)
+
+        sample: dict[str, object] = {
+            "image": img,
+            "index": i,
+            "target": 0,
+            "label": "dummy",
+        }
+
+        # Add patch_labels if we have them
+        if patch_labels is not None:
+            sample["patch_labels"] = patch_labels
+
+        if self.sample_transform is not None:
+            sample = self.sample_transform(sample)
+
+        return sample
+
 >>>> data/dinov2.py
 from collections.abc import Callable
 
@@ -1213,9 +1334,12 @@ from . import models
 @jaxtyped(typechecker=beartype.beartype)
 class Vit(torch.nn.Module, models.VisionTransformer):
     family: str = "dinov2"
+    patch_size: int = 14
 
     @staticmethod
-    def make_transforms(ckpt: str) -> tuple[Callable, Callable | None]:
+    def make_transforms(
+        ckpt: str, n_patches_per_img: int
+    ) -> tuple[Callable, Callable | None]:
         img_transform = v2.Compose([
             v2.Resize(size=(256, 256)),
             v2.CenterCrop(size=(224, 224)),
@@ -1227,8 +1351,12 @@ class Vit(torch.nn.Module, models.VisionTransformer):
 
     def __init__(self, ckpt: str):
         super().__init__()
-        self.ckpt = ckpt
+        self._ckpt = ckpt
         self.model = torch.hub.load("facebookresearch/dinov2", ckpt)
+
+    @property
+    def ckpt(self) -> str:
+        return self._ckpt
 
     def get_residuals(self) -> list[torch.nn.Module]:
         return self.model.blocks
@@ -1253,7 +1381,11 @@ class Vit(torch.nn.Module, models.VisionTransformer):
 
     @staticmethod
     def make_resize(
-        ckpt: str, *, scale: float = 2.0
+        ckpt: str,
+        n_patches_per_img: int = -1,
+        *,
+        scale: float = 1.0,
+        resample: Image.Resampling = Image.LANCZOS,
     ) -> Callable[[Image.Image], Image.Image]:
         def resize(img: Image.Image) -> Image.Image:
             resize_size_px = (int(256 * scale), int(256 * scale))
@@ -1267,7 +1399,7 @@ class Vit(torch.nn.Module, models.VisionTransformer):
                 (resize_w_px + crop_w_px) // 2,
                 (resize_h_px + crop_h_px) // 2,
             )
-            return img.resize(resize_size_px).crop(crop_coords_px)
+            return img.resize(resize_size_px, resample=resample).crop(crop_coords_px)
 
         return resize
 
@@ -1884,16 +2016,20 @@ def load(name: str, fpath: str | pathlib.Path, device="cpu") -> Encoder:
 
 @jaxtyped(typechecker=beartype.beartype)
 class Vit(torch.nn.Module, models.VisionTransformer):
-    patch_size: int = 16
     family: str = "dinov3"
+    patch_size: int = 16
 
     def __init__(self, ckpt: str):
         super().__init__()
         name = self._parse_name(ckpt)
         self.model = load(name, ckpt)
 
-        self.ckpt = name
+        self._ckpt = name
         self.logger = logging.getLogger(f"dinov3/{name}")
+
+    @property
+    def ckpt(self) -> str:
+        return self._ckpt
 
     def get_residuals(self) -> list[torch.nn.Module]:
         return self.model.blocks
@@ -1925,25 +2061,127 @@ class Vit(torch.nn.Module, models.VisionTransformer):
         return features
 
     @staticmethod
-    def make_transforms(ckpt: str) -> tuple[Callable, Callable | None]:
+    def make_transforms(
+        ckpt: str, n_patches_per_img: int
+    ) -> tuple[Callable, Callable | None]:
+        """Create transforms for preprocessing: (img_transform, sample_transform | None)."""
         img_transform = v2.Compose([
-            transforms.FlexResize(patch_size=16, n_patches=640),
+            transforms.FlexResize(patch_size=16, n_patches=n_patches_per_img),
             v2.ToImage(),
             v2.ToDtype(torch.float32, scale=True),
             v2.Normalize(mean=[0.4850, 0.4560, 0.4060], std=[0.2290, 0.2240, 0.2250]),
         ])
-        sample_transform = transforms.Patchify(patch_size=16, n_patches=640)
+        sample_transform = transforms.Patchify(
+            patch_size=16, n_patches=n_patches_per_img
+        )
         return img_transform, sample_transform
 
     @staticmethod
     def make_resize(
-        ckpt: str, *, scale: float = 2.0
+        ckpt: str,
+        n_patches_per_img: int,
+        *,
+        scale: float = 1.0,
+        resample: Image.Resampling = Image.LANCZOS,
     ) -> Callable[[Image.Image], Image.Image]:
+        """Create resize transform for visualization. Use resample=Image.NEAREST for segmentation masks."""
         import functools
 
         return functools.partial(
-            transforms.resize_to_patch_grid, p=int(16 * scale), n=640
+            transforms.resize_to_patch_grid,
+            p=int(16 * scale),
+            n=n_patches_per_img,
+            resample=resample,
         )
+
+>>>> data/fake_clip.py
+"""Fake CLIP model for testing with tiny-open-clip-model.
+
+This module provides a test-only vision transformer that works with
+the tiny-open-clip-model from HuggingFace, which uses 8x8 images
+and 2x2 patches instead of the standard 224x224 images with 16x16 patches.
+"""
+
+from collections.abc import Callable
+
+import beartype
+import open_clip
+import torch
+from jaxtyping import Float, jaxtyped
+from PIL import Image
+from torch import Tensor
+
+from .. import helpers
+from . import models
+
+
+@jaxtyped(typechecker=beartype.beartype)
+class Vit(models.VisionTransformer, torch.nn.Module):
+    family: str = "fake-clip"
+
+    def __init__(self, ckpt: str):
+        super().__init__()
+
+        # Only support the tiny test model
+        assert ckpt == "hf-hub:hf-internal-testing/tiny-open-clip-model", (
+            f"FakeClip only supports tiny-open-clip-model, got {ckpt}"
+        )
+
+        clip, _ = open_clip.create_model_from_pretrained(
+            ckpt, cache_dir=helpers.get_cache_dir()
+        )
+        self._ckpt = ckpt
+        model = clip.visual
+        model.proj = None
+        model.output_tokens = True  # type: ignore
+        self.model = model.eval()
+
+    @property
+    def ckpt(self) -> str:
+        return self._ckpt
+
+    @property
+    def patch_size(self) -> int:
+        """Tiny model uses 2x2 patches."""
+        return 2
+
+    def get_residuals(self) -> list[torch.nn.Module]:
+        return self.model.transformer.resblocks
+
+    @staticmethod
+    def make_transforms(
+        ckpt: str, n_patches_per_img: int
+    ) -> tuple[Callable, Callable | None]:
+        """Create transforms for preprocessing: (img_transform, sample_transform | None)."""
+        _, img_transform = open_clip.create_model_from_pretrained(
+            ckpt, cache_dir=helpers.get_cache_dir()
+        )
+        return img_transform, None
+
+    @staticmethod
+    def make_resize(
+        ckpt: str,
+        n_patches_per_img: int = -1,
+        *,
+        scale: float = 1.0,
+        resample: Image.Resampling = Image.LANCZOS,
+    ) -> Callable[[Image.Image], Image.Image]:
+        """Create resize transform for tiny model (8x8 images)."""
+
+        def resize(img: Image.Image) -> Image.Image:
+            # Tiny model uses 8x8 images
+            size_px = (int(8 * scale), int(8 * scale))
+            return img.resize(size_px, resample=resample)
+
+        return resize
+
+    def get_patches(self, n_patches_per_img: int) -> slice:
+        return slice(None, None, None)
+
+    def forward(
+        self, batch: Float[Tensor, "batch 3 width height"]
+    ) -> Float[Tensor, "batch patches dim"]:
+        return self.model(batch)
 
 >>>> data/filesystem.md
 # File System & Performance
@@ -2064,12 +2302,13 @@ class Dataset(torch.utils.data.Dataset):
     Dataset of activations from disk.
     """
 
-    class Example(typing.TypedDict):
+    class Example(typing.TypedDict, total=False):
         """Individual example."""
 
         act: Float[Tensor, " d_vit"]
         image_i: int
         patch_i: int
+        patch_label: int
 
     cfg: Config
     """Configuration; set via CLI args."""
@@ -2084,6 +2323,24 @@ class Dataset(torch.utils.data.Dataset):
             raise RuntimeError(f"Activations are not saved at '{self.cfg.shard_root}'.")
 
         self.metadata = writers.Metadata.load(self.cfg.shard_root)
+
+        # Validate shard files exist
+        shard_info = writers.ShardInfo.load(self.cfg.shard_root)
+        for shard in shard_info:
+            shard_path = os.path.join(self.cfg.shard_root, shard.name)
+            if not os.path.exists(shard_path):
+                raise FileNotFoundError(f"Shard file not found: {shard_path}")
+
+        # Check if labels.bin exists
+        labels_path = os.path.join(self.cfg.shard_root, "labels.bin")
+        self.labels_mmap = None
+        if os.path.exists(labels_path):
+            self.labels_mmap = np.memmap(
+                labels_path,
+                mode="r",
+                dtype=np.uint8,
+                shape=(self.metadata.n_imgs, self.metadata.n_patches_per_img),
+            )
 
         # Pick a really big number so that if you accidentally use this when you shouldn't, you get an out of bounds IndexError.
         self.layer_index = 1_000_000
@@ -2113,7 +2370,12 @@ class Dataset(torch.utils.data.Dataset):
                 img_act = self.get_img_patches(i)
                 # Select layer's cls token.
                 act = img_act[self.layer_index, 0, :]
-                return self.Example(act=self.transform(act), image_i=i, patch_i=-1)
+                result = self.Example(act=self.transform(act), image_i=i, patch_i=-1)
+
+                # Note: CLS tokens don't have patch labels since they're not image patches
+                # patch_label is omitted for CLS tokens
+
+                return result
             case ("image", int()):
                 # Calculate which image and patch this index corresponds to
                 image_i = i // self.metadata.n_patches_per_img
@@ -2144,11 +2406,17 @@ class Dataset(torch.utils.data.Dataset):
                 # Get the activation
                 act = acts[img_pos_in_shard, self.layer_index, patch_idx_with_cls]
 
-                return self.Example(
+                result = self.Example(
                     act=self.transform(act),
                     image_i=image_i,
                     patch_i=patch_i,
                 )
+
+                # Add patch label if available
+                if self.labels_mmap is not None:
+                    result["patch_label"] = int(self.labels_mmap[image_i, patch_i])
+
+                return result
             case _:
                 print((self.cfg.patches, self.cfg.layer))
                 typing.assert_never((self.cfg.patches, self.cfg.layer))
@@ -2224,16 +2492,32 @@ class VisionTransformer(abc.ABC):
     @abc.abstractmethod
     def ckpt(self) -> str: ...
 
+    @property
+    @abc.abstractmethod
+    def patch_size(self) -> int:
+        """Patch size in pixels (e.g., 14 or 16)."""
+
+    @property
+    def name(self) -> str:
+        return f"{self.family}/{self.ckpt}"
+
     @staticmethod
     @abc.abstractmethod
-    def make_transforms(ckpt: str) -> tuple[Callable, Callable | None]: ...
+    def make_transforms(
+        ckpt: str, n_patches_per_img: int
+    ) -> tuple[Callable, Callable | None]:
+        """Create transforms for preprocessing: (img_transform, sample_transform | None)."""
 
     @staticmethod
     @abc.abstractmethod
     def make_resize(
-        ckpt: str, *, scale: float = 2.0
+        ckpt: str,
+        n_patches_per_img: int,
+        *,
+        scale: float = 1.0,
+        resample: Image.Resampling = Image.LANCZOS,
     ) -> Callable[[Image.Image], Image.Image]:
-        """How to resize images for patch visualizations."""
+        """Create resize transform for visualization. Use resample=Image.NEAREST for segmentation masks."""
 
     @abc.abstractmethod
     def get_residuals(self) -> list[torch.nn.Module]:
@@ -2248,10 +2532,6 @@ class VisionTransformer(abc.ABC):
         self, batch: Float[Tensor, "batch 3 width height"]
     ) -> Float[Tensor, "batch patches dim"]:
         """Run forward pass on batch of images."""
-
-    @property
-    def name(self) -> str:
-        return f"{self.family}/{self.ckpt}"
 
 
 _global_vit_registry: dict[str, type[VisionTransformer]] = {}
@@ -2283,10 +2563,9 @@ def list_families() -> list[str]:
 """
 Ordered (sequential) dataloader for activation data.
 
-This module provides a high-throughput dataloader that reads activation data
-from disk shards in sequential order, without shuffling. The implementation uses
-a single-threaded manager process to ensure data is delivered in the exact order
-it appears on disk.
+This module provides a high-throughput dataloader that reads activation data from disk shards in sequential order, without shuffling. The implementation uses a single-threaded manager process to ensure data is delivered in the exact order it appears on disk.
+
+Patch labels are provided if there is a labels.bin file on disk.
 
 See the design decisions in src/saev/data/performance.md.
 
@@ -2297,6 +2576,7 @@ Usage:
     ...     activations = batch["act"]  # [batch_size, d_vit]
     ...     image_indices = batch["image_i"]  # [batch_size]
     ...     patch_indices = batch["patch_i"]  # [batch_size]
+    ...     patch_labels = batch["patch_labels"]  # [batch_size]
 """
 
 import collections.abc
@@ -2390,6 +2670,18 @@ def _manager_main(
         shard_info = writers.ShardInfo.load(cfg.shard_root)
         layer_i = metadata.layers.index(cfg.layer)
 
+        # Check if labels.bin exists
+        labels_path = os.path.join(cfg.shard_root, "labels.bin")
+        labels_mmap = None
+        if os.path.exists(labels_path):
+            labels_mmap = np.memmap(
+                labels_path,
+                mode="r",
+                dtype=np.uint8,
+                shape=(metadata.n_imgs, metadata.n_patches_per_img),
+            )
+            logger.debug("Found labels.bin, will include patch labels in batches")
+
         # Calculate cumulative image offsets for each shard
         cumulative_imgs = [0]
         for shard in shard_info:
@@ -2416,6 +2708,9 @@ def _manager_main(
             batch_acts = []
             batch_image_is = []
             batch_patch_is = []
+            batch_patch_labels: list[int] | None = (
+                [] if labels_mmap is not None else None
+            )
 
             # Process samples in this batch range
             for idx in range(current_idx, batch_end_idx):
@@ -2463,6 +2758,11 @@ def _manager_main(
                 batch_image_is.append(global_image_i)
                 batch_patch_is.append(patch_i)
 
+                # Add patch label if available
+                if labels_mmap is not None and batch_patch_labels is not None:
+                    label = labels_mmap[global_image_i, patch_i]
+                    batch_patch_labels.append(label)
+
             # Send batch if we have data
             if batch_acts:
                 batch = {
@@ -2470,6 +2770,13 @@ def _manager_main(
                     "image_i": torch.tensor(batch_image_is, dtype=torch.long),
                     "patch_i": torch.tensor(batch_patch_is, dtype=torch.long),
                 }
+
+                # Add labels if available
+                if labels_mmap is not None:
+                    batch["patch_labels"] = torch.tensor(
+                        batch_patch_labels, dtype=torch.long
+                    )
+
                 batch_queue.put(batch)
                 logger.debug(f"Sent batch with {len(batch_acts)} samples")
 
@@ -2482,7 +2789,7 @@ def _manager_main(
         logger.info("Manager process finished.")
 
     logger.info("Manager process sleeping.")
-    #
+    # Sleep a little longer, otherwise the tensors will be released and garbage collected, then we get a memory error in the parent process..
     time.sleep(60.0)
     logger.info("Manager process finished.")
 
@@ -2494,12 +2801,14 @@ class DataLoader:
     """
 
     @jaxtyped(typechecker=beartype.beartype)
-    class ExampleBatch(typing.TypedDict):
+    class ExampleBatch(typing.TypedDict, total=False):
         """Individual example."""
 
         act: Float[Tensor, "batch d_vit"]
         image_i: Int[Tensor, " batch"]
         patch_i: Int[Tensor, " batch"]
+        # Optional, only present if labels.bin exists
+        patch_labels: Int[Tensor, " batch"]
 
     def __init__(self, cfg: Config):
         self.cfg = cfg
@@ -2507,6 +2816,13 @@ class DataLoader:
             raise RuntimeError(f"Activations are not saved at '{self.cfg.shard_root}'.")
 
         self.metadata = writers.Metadata.load(self.cfg.shard_root)
+
+        # Validate shard files exist
+        shard_info = writers.ShardInfo.load(self.cfg.shard_root)
+        for shard in shard_info:
+            shard_path = os.path.join(self.cfg.shard_root, shard.name)
+            if not os.path.exists(shard_path):
+                raise FileNotFoundError(f"Shard file not found: {shard_path}")
 
         self.logger = logging.getLogger("ordered.DataLoader")
         self.ctx = mp.get_context()
@@ -2779,12 +3095,13 @@ This document is the single normative source. Any divergence in code is a **bug*
 
 ```
 <dump_to>/<HASH>/
-    metadata.json              # UTF-8 JSON, human-readable, describes data-generating config
-    shards.json                # UTF-8 JSON, human-readable, describes shards.
-    acts000000.bin             # shard 0
-    acts000001.bin             # shard 1
+    metadata.json    # UTF-8 JSON, human-readable, describes data-generating config
+    shards.json      # UTF-8 JSON, human-readable, describes shards.
+    acts000000.bin   # shard 0
+    acts000001.bin   # shard 1
     ...
-    actsNNNNNN.bin             # shard NNNNNN  (zero-padded width=6)
+    actsNNNNNN.bin   # shard NNNNNN  (zero-padded width=6)
+    patch-labels.bin       # patch labels (optional)
 ```
 
 *`HASH` = `sha256(json.dumps(metadata, sort_keys=True, separators=(',', ':')).encode('utf-8'))`*
@@ -2808,7 +3125,7 @@ Guards against silent config drift.
 | `max_patches_per_shard` | int    | **logical** activations per shard (see #3) |
 | `data`                  | object | opaque dataset description                 |
 | `dtype`                 | string | numpy dtype. Fixed `"float32"` for now.    |
-| `protocol`              | string | `"1.0.0"` for now.                         |
+| `protocol`              | string | `"1.1"` (shards with a labels.bin)         |
 
 The `data` object is `dataclasses.asdict(cfg.data)`, with an additional `__class__` field with `cfg.data.__class__.__name__` as the value.
 
@@ -2906,10 +3223,8 @@ The relative order of patch tokens is preserved exactly as produced by the upstr
 
 ---
 
-That's the whole deal.
-No hidden invariants.
-Anything else you find in code that contradicts this sheet, fix the code or update the spec.
-
+That's it.
+Anything else you find in code that contradicts this document, fix the code or update the spec.
 
 >>>> data/shuffled.py
 # src/saev/data/shuffled.py
@@ -2956,6 +3271,9 @@ class Config:
     """Whether to drop the last batch if it's smaller than the others."""
     scale_norm: bool = False
     """Whether to scale norms to sqrt(D)."""
+    # Patch filtering
+    ignore_labels: list[int] = dataclasses.field(default_factory=list)
+    """If provided, exclude patches with these label values. None means no filtering. Common use: ignore_labels=[0] to exclude background."""
     # Performance
     n_threads: int = 4
     """Number of dataloading threads."""
@@ -2992,6 +3310,7 @@ def _io_worker(
     reservoir: buffers.ReservoirBuffer,
     stop_event: threading.Event,
     err_queue: Queue[tuple[str, str]],
+    labels_mmap: np.memmap | None = None,
 ):
     """
     Pulls work items from the queue, loads data, and pushes it to the ready queue.
@@ -3008,6 +3327,10 @@ def _io_worker(
     # Pre-conditions
     assert cfg.patches == "image"
     assert isinstance(cfg.layer, int)
+
+    # If we need to filter by labels, ensure we have the labels
+    if cfg.ignore_labels and labels_mmap is None:
+        raise ValueError("ignore_labels specified but no labels.bin found")
 
     bytes_sent = 0
     n_reads = 0
@@ -3036,18 +3359,49 @@ def _io_worker(
             for start, end in helpers.batched_idx(shard_info[shard_i].n_imgs, 1024):
                 for p in range(metadata.n_patches_per_img):
                     patch_i = p + int(metadata.cls_token)
-                    t0 = time.perf_counter()
-                    acts = torch.from_numpy(mmap[start:end, layer_i, patch_i])
-                    t1 = time.perf_counter()
 
-                    last_img_i = img_i_offset + (end - 1)
+                    # If filtering by labels, check which samples to keep
+                    if cfg.ignore_labels:
+                        # Get the labels for this batch of images and patch
+                        img_indices = np.arange(
+                            img_i_offset + start, img_i_offset + end
+                        )
+                        patch_labels = labels_mmap[img_indices, p]
+
+                        # Find which samples to keep (NOT in ignore list)
+                        mask = ~np.isin(patch_labels, cfg.ignore_labels)
+                        valid_indices = np.where(mask)[0]
+
+                        # Skip this batch if no samples match
+                        if len(valid_indices) == 0:
+                            continue
+
+                        # Only load the matching activations
+                        t0 = time.perf_counter()
+                        acts = torch.from_numpy(
+                            mmap[start + valid_indices, layer_i, patch_i]
+                        )
+                        t1 = time.perf_counter()
+
+                        # Create metadata for valid samples only
+                        meta = torch.full((len(valid_indices), 2), p, dtype=torch.int32)
+                        meta[:, 0] = (
+                            img_i_offset + start + torch.from_numpy(valid_indices)
+                        )
+                    else:
+                        # No filtering, load all
+                        t0 = time.perf_counter()
+                        acts = torch.from_numpy(mmap[start:end, layer_i, patch_i])
+                        t1 = time.perf_counter()
+
+                        meta = torch.full((end - start, 2), p, dtype=torch.int32)
+                        meta[:, 0] = img_i_offset + torch.arange(start, end)
+
+                    last_img_i = meta[:, 0].max().item()
                     if last_img_i >= metadata.n_imgs:
                         err = ImageOutOfBoundsError(metadata, last_img_i)
                         logger.warning(err.message)
                         raise err
-
-                    meta = torch.full((end - start, 2), p, dtype=torch.int32)
-                    meta[:, 0] = img_i_offset + torch.arange(start, end)
 
                     fill_before = reservoir.fill()
                     reservoir.put(acts, meta)
@@ -3090,6 +3444,7 @@ def _manager_main(
     reservoir: buffers.ReservoirBuffer,
     stop_event: Event,
     err_queue: Queue[tuple[str, str]],
+    labels_mmap: np.memmap | None = None,
 ):
     """
     The main function for the data loader manager process.
@@ -3112,7 +3467,7 @@ def _manager_main(
     logger.info("Shuffling shards.")
     rng = np.random.default_rng(cfg.seed)
     work_items = rng.permutation(metadata.n_shards)
-    logger.debug("First 10 shards: %s", work_items[:10])
+    logger.info("First 10 shards: %s", work_items[:10])
 
     try:
         # 2. SETUP WORK QUEUE & I/O THREADS
@@ -3136,6 +3491,7 @@ def _manager_main(
                 reservoir,
                 thread_stop_event,
                 err_queue,
+                labels_mmap,
             )
             thread = threading.Thread(target=_io_worker, args=args, daemon=True)
             thread.start()
@@ -3191,7 +3547,25 @@ class DataLoader:
             raise NotImplementedError("scale_norm not implemented.")
 
         self.metadata = writers.Metadata.load(self.cfg.shard_root)
+
+        # Validate shard files exist
+        shard_info = writers.ShardInfo.load(self.cfg.shard_root)
+        for shard in shard_info:
+            shard_path = os.path.join(self.cfg.shard_root, shard.name)
+            if not os.path.exists(shard_path):
+                raise FileNotFoundError(f"Shard file not found: {shard_path}")
+
         self._n_samples = self._calculate_n_samples()
+
+        # Check if labels.bin exists for filtering
+        self.labels_mmap = None
+        if self.cfg.ignore_labels:
+            labels_path = os.path.join(self.cfg.shard_root, "labels.bin")
+            if not os.path.exists(labels_path):
+                raise FileNotFoundError(
+                    f"ignore_labels filtering requested but labels.bin not found at {labels_path}"
+                )
+            # We'll create the memmap when starting the manager process
 
     @property
     def n_batches(self) -> int:
@@ -3229,10 +3603,22 @@ class DataLoader:
             dtype=torch.float32,
             meta_shape=(2,),
             meta_dtype=torch.int32,
+            seed=self.cfg.seed,
             collate_fn=torch.utils.data.default_collate,
         )
         self.stop_event = self.ctx.Event()
         self.err_queue = self.ctx.Queue(maxsize=self.cfg.n_threads + 1)
+
+        # Create labels memmap if needed
+        labels_mmap = None
+        if self.cfg.ignore_labels:
+            labels_path = os.path.join(self.cfg.shard_root, "labels.bin")
+            labels_mmap = np.memmap(
+                labels_path,
+                mode="r",
+                dtype=np.uint8,
+                shape=(self.metadata.n_imgs, self.metadata.n_patches_per_img),
+            )
 
         self.manager_proc = self.ctx.Process(
             target=_manager_main,
@@ -3242,6 +3628,7 @@ class DataLoader:
                 self.reservoir,
                 self.stop_event,
                 self.err_queue,
+                labels_mmap,
             ),
             daemon=True,
         )
@@ -3256,7 +3643,7 @@ class DataLoader:
             while n < self.n_samples:
                 need = min(self.cfg.batch_size, self.n_samples - n)
                 if not self.err_queue.empty():
-                    who, tb = self.err_q.get_nowait()
+                    who, tb = self.err_queue.get_nowait()
                     raise RuntimeError(f"{who} crashed:\n{tb}")
 
                 try:
@@ -3269,11 +3656,18 @@ class DataLoader:
                     yield self.ExampleBatch(act=act, image_i=image_i, patch_i=patch_i)
                     continue
                 except TimeoutError:
-                    self.logger.info(
-                        "Did not get a batch from %d worker threads in %.1fs seconds.",
-                        self.cfg.n_threads,
-                        self.cfg.batch_timeout_s,
-                    )
+                    if self.cfg.ignore_labels:
+                        self.logger.info(
+                            "Did not get a batch from %d worker threads in %.1fs seconds. This can happen when filtering out many labels.",
+                            self.cfg.n_threads,
+                            self.cfg.batch_timeout_s,
+                        )
+                    else:
+                        self.logger.info(
+                            "Did not get a batch from %d worker threads in %.1fs seconds.",
+                            self.cfg.n_threads,
+                            self.cfg.batch_timeout_s,
+                        )
 
                 # If we don't continue, then we should check on the manager process.
                 if not self.manager_proc.is_alive():
@@ -3315,22 +3709,61 @@ class DataLoader:
         self.shutdown()
 
     def _calculate_n_samples(self) -> int:
-        """Helper to calculate total number of examples based on config."""
+        """Helper to calculate total number of examples based on config.
+
+        When ignore_labels is specified, this counts the actual number of patches
+        that remain after filtering out the ignored labels.
+        """
+        # First calculate the maximum possible samples
+        max_samples = 0
         match (self.cfg.patches, self.cfg.layer):
             case ("cls", "all"):
-                return self.metadata.n_imgs * len(self.metadata.layers)
+                max_samples = self.metadata.n_imgs * len(self.metadata.layers)
             case ("cls", int()):
-                return self.metadata.n_imgs
+                max_samples = self.metadata.n_imgs
             case ("image", int()):
-                return self.metadata.n_imgs * self.metadata.n_patches_per_img
+                max_samples = self.metadata.n_imgs * self.metadata.n_patches_per_img
             case ("image", "all"):
-                return (
+                max_samples = (
                     self.metadata.n_imgs
                     * len(self.metadata.layers)
                     * self.metadata.n_patches_per_img
                 )
             case _:
                 typing.assert_never((self.cfg.patches, self.cfg.layer))
+
+        # If no filtering, return max samples
+        if not self.cfg.ignore_labels:
+            return max_samples
+
+        # For patch filtering, count actual remaining patches
+        # Note: This only works for "image" patches with fixed layer
+        if self.cfg.patches != "image" or not isinstance(self.cfg.layer, int):
+            raise NotImplementedError(
+                "Patch label filtering only supports 'image' patches with fixed layer"
+            )
+
+        # Load labels and count remaining patches
+        labels_path = os.path.join(self.cfg.shard_root, "labels.bin")
+        if not os.path.exists(labels_path):
+            raise FileNotFoundError(f"labels.bin not found at {labels_path}")
+
+        # Memory-map the labels file
+        labels = np.memmap(
+            labels_path,
+            mode="r",
+            dtype=np.uint8,
+            shape=(self.metadata.n_imgs, self.metadata.n_patches_per_img),
+        )
+
+        # Count patches that are NOT in the ignore list
+        mask = ~np.isin(labels, self.cfg.ignore_labels)
+        n_remaining = int(np.sum(mask))
+
+        # Clean up the memmap
+        del labels
+
+        return n_remaining
 
     def __len__(self) -> int:
         """Returns the number of batches in an epoch."""
@@ -3343,6 +3776,7 @@ import beartype
 import open_clip
 import torch
 from jaxtyping import Float, jaxtyped
+from PIL import Image
 from torch import Tensor
 
 from .. import helpers
@@ -3352,9 +3786,13 @@ from . import models
 @jaxtyped(typechecker=beartype.beartype)
 class Vit(torch.nn.Module, models.VisionTransformer):
     family = "siglip"
+    patch_size = 16
 
     @staticmethod
-    def make_transforms(ckpt: str) -> tuple[Callable, Callable | None]:
+    def make_transforms(
+        ckpt: str, n_patches_per_img: int
+    ) -> tuple[Callable, Callable | None]:
+        """Create transforms for preprocessing: (img_transform, sample_transform | None)."""
         if ckpt.startswith("hf-hub:"):
             _, img_transform = open_clip.create_model_from_pretrained(
                 ckpt, cache_dir=helpers.get_cache_dir()
@@ -3378,7 +3816,7 @@ class Vit(torch.nn.Module, models.VisionTransformer):
             clip, _ = open_clip.create_model_from_pretrained(
                 arch, pretrained=ckpt, cache_dir=helpers.get_cache_dir()
             )
-        self.ckpt = ckpt
+        self._ckpt = ckpt
 
         model = clip.visual
         model.proj = None
@@ -3386,6 +3824,29 @@ class Vit(torch.nn.Module, models.VisionTransformer):
         self.model = model
 
         assert isinstance(self.model, open_clip.timm_model.TimmModel)
+
+    @property
+    def ckpt(self) -> str:
+        return self._ckpt
+
+    @staticmethod
+    def make_resize(
+        ckpt: str,
+        n_patches_per_img: int = -1,
+        *,
+        scale: float = 1.0,
+        resample: Image.Resampling = Image.LANCZOS,
+    ) -> Callable[[Image.Image], Image.Image]:
+        """Create resize transform for visualization. Use resample=Image.NEAREST for segmentation masks."""
+        from PIL import Image
+
+        def resize(img: Image.Image) -> Image.Image:
+            # SigLIP typically uses 224x224 or 384x384 images
+            # We'll assume 224x224 for simplicity
+            resize_size_px = (int(224 * scale), int(224 * scale))
+            return img.resize(resize_size_px, resample=resample)
+
+        return resize
 
     def get_residuals(self) -> list[torch.nn.Module]:
         return self.model.trunk.blocks
@@ -3550,13 +4011,15 @@ import json
 import logging
 import math
 import os
-import typing
+import typing as tp
 from collections.abc import Callable
 
 import beartype
+import einops
 import numpy as np
 import torch
-from jaxtyping import Float, jaxtyped
+from jaxtyping import Float, UInt8, jaxtyped
+from PIL import Image
 from torch import Tensor
 
 from saev import helpers
@@ -3564,6 +4027,77 @@ from saev import helpers
 from . import datasets
 
 logger = logging.getLogger(__name__)
+
+
+@jaxtyped(typechecker=beartype.beartype)
+def pixel_to_patch_labels(
+    seg: Image.Image,
+    n_patches: int,
+    patch_size: int,
+    pixel_agg: tp.Literal["majority", "prefer-fg"] = "majority",
+    bg_label: int = 0,
+    max_classes: int = 256,
+) -> UInt8[Tensor, " n_patches"]:
+    """
+    Convert pixel-level segmentation to patch-level labels using vectorized operations.
+
+    Args:
+        seg: Pixel-level segmentation mask as PIL Image
+        n_patches: Total number of patches expected
+        patch_size: Size of each patch in pixels
+        pixel_agg: How to aggregate pixel labels into patch labels
+        bg_label: Background label index
+        max_classes: Maximum number of classes (for bincount)
+
+    Returns:
+        Patch labels as uint8 tensor of shape (n_patches,)
+    """
+    # Convert to torch tensor for vectorized operations
+    seg_tensor = torch.from_numpy(np.array(seg, dtype=np.uint8))
+    assert seg_tensor.ndim == 2
+
+    h, w = seg_tensor.shape
+
+    # Calculate patch grid dimensions
+    patch_grid_h = h // patch_size
+    patch_grid_w = w // patch_size
+    assert patch_grid_w * patch_grid_h == n_patches, (
+        f"Image size {w}x{h} with patch_size {patch_size} gives {patch_grid_w}x{patch_grid_h} = {patch_grid_w * patch_grid_h} patches, expected {n_patches}"
+    )
+
+    # Reshape into patches using einops: (n_patches, patch_size * patch_size)
+    patches = einops.rearrange(
+        seg_tensor,
+        "(h p1) (w p2) -> (h w) (p1 p2)",
+        p1=patch_size,
+        p2=patch_size,
+        h=patch_grid_h,
+        w=patch_grid_w,
+    )
+
+    # Use vectorized bincount approach to get class counts for all patches at once
+    # counts[i, c] = number of times class c appears in patch i
+    offsets = torch.arange(n_patches, device=patches.device).unsqueeze(1) * max_classes
+    flat = (patches + offsets).reshape(-1)
+    counts = torch.bincount(flat, minlength=n_patches * max_classes).reshape(
+        n_patches, max_classes
+    )
+
+    if pixel_agg == "majority":
+        # Take the most common label in each patch
+        patch_labels = counts.argmax(dim=1)
+    elif pixel_agg == "prefer-fg":
+        # Take the most common non-background label, or background if all background
+        nonbg = counts.clone()
+        nonbg[:, bg_label] = 0
+        has_nonbg = nonbg.sum(dim=1) > 0
+        nonbg_arg = nonbg.argmax(dim=1)
+        bg_tensor = torch.full_like(nonbg_arg, bg_label)
+        patch_labels = torch.where(has_nonbg, nonbg_arg, bg_tensor)
+    else:
+        tp.assert_never(pixel_agg)
+
+    return patch_labels.to(torch.uint8)
 
 
 @beartype.beartype
@@ -3575,7 +4109,7 @@ class Config:
     """Which dataset to use."""
     dump_to: str = os.path.join(".", "shards")
     """Where to write shards."""
-    vit_family: typing.Literal["clip", "siglip", "dinov2", "dinov3"] = "clip"
+    vit_family: tp.Literal["clip", "siglip", "dinov2", "dinov3", "fake-clip"] = "clip"
     """Which model family."""
     vit_ckpt: str = "ViT-L-14/openai"
     """Specific model checkpoint."""
@@ -3591,6 +4125,7 @@ class Config:
     """Number of ViT patches per image (depends on model)."""
     cls_token: bool = True
     """Whether the model has a [CLS] token."""
+    pixel_agg: tp.Literal["majority", "prefer-fg"] = "majority"
     max_patches_per_shard: int = 2_400_000
     """Maximum number of activations per shard; 2.4M is approximately 10GB for 1024-dimensional 4-byte activations."""
 
@@ -3656,7 +4191,16 @@ class RecordedVisionTransformer(torch.nn.Module):
 
             self._storage = self._empty_storage(batch, dim, output.device)
 
-        self._storage[:, self._i] = output[:, self.patches, :].detach()
+        # Select patches based on cls_token setting
+        selected_output = output[:, self.patches, :]
+        if (
+            not self.cls_token
+            and selected_output.shape[1] == self.n_patches_per_img + 1
+        ):
+            # Model has CLS token but we don't want to store it - skip first token
+            selected_output = selected_output[:, 1:, :]
+
+        self._storage[:, self._i] = selected_output.detach()
         self._i += 1
 
     def _empty_storage(self, batch: int, dim: int, device: torch.device):
@@ -3689,6 +4233,83 @@ class RecordedVisionTransformer(torch.nn.Module):
 
 
 @beartype.beartype
+@jaxtyped(typechecker=beartype.beartype)
+class LabelsWriter:
+    """
+    LabelsWriter handles writing patch-level segmentation labels to a single binary file.
+    """
+
+    labels: UInt8[np.ndarray, "n_imgs n_patches"] | None
+    labels_path: str
+    n_patches_per_img: int
+    n_imgs: int
+    current_idx: int
+    has_written: bool
+
+    def __init__(self, cfg: Config):
+        self.logger = logging.getLogger("labels-writer")
+        self.root = get_acts_dir(cfg)
+        self.n_patches_per_img = cfg.n_patches_per_img
+        self.n_imgs = cfg.data.n_imgs
+        self.has_written = False
+        self.current_idx = 0
+
+        # Always create memory-mapped file for labels
+        # If nothing is written, it will be deleted in flush()
+        self.labels_path = os.path.join(self.root, "labels.bin")
+        self.labels = np.memmap(
+            self.labels_path,
+            mode="w+",
+            dtype=np.uint8,
+            shape=(self.n_imgs, self.n_patches_per_img),
+        )
+        self.logger.info("Opened labels file '%s'.", self.labels_path)
+
+    @beartype.beartype
+    def write_batch(self, batch_labels: np.ndarray | Tensor, start_idx: int):
+        """
+        Write a batch of labels to the memory-mapped file.
+
+        Args:
+            batch_labels: Array of shape (batch_size, n_patches_per_img) with uint8 dtype
+            start_idx: Starting index in the global labels array
+        """
+        # Convert to numpy if needed
+        if isinstance(batch_labels, torch.Tensor):
+            batch_labels = batch_labels.cpu().numpy()
+
+        batch_size = len(batch_labels)
+        assert start_idx + batch_size <= self.n_imgs
+        assert batch_labels.shape == (batch_size, self.n_patches_per_img)
+        assert batch_labels.dtype == np.uint8
+
+        self.labels[start_idx : start_idx + batch_size] = batch_labels
+        self.current_idx = start_idx + batch_size
+        self.has_written = True
+
+    def flush(self) -> None:
+        """Flush the memory-mapped file to disk if anything was written."""
+        if self.labels is not None and self.has_written:
+            self.labels.flush()
+            self.logger.info("Flushed labels to '%s'.", self.labels_path)
+
+
+@beartype.beartype
+def _is_segmentation_dataset(data_cfg: datasets.Config) -> bool:
+    """
+    Check if a dataset configuration is for a segmentation dataset.
+
+    Args:
+        data_cfg: Dataset configuration
+
+    Returns:
+        True if this is a segmentation dataset that should have labels.bin
+    """
+    # Check if it's FakeSeg or SegFolder
+    return isinstance(data_cfg, (datasets.FakeSeg, datasets.SegFolder))
+
+
+@jaxtyped(typechecker=beartype.beartype)
 class ShardWriter:
     """
     ShardWriter is a stateful object that handles sharded activation writing to disk.
@@ -3700,6 +4321,7 @@ class ShardWriter:
     acts_path: str
     acts: Float[np.ndarray, "n_imgs_per_shard n_layers all_patches d_vit"] | None
     filled: int
+    labels_writer: LabelsWriter
 
     def __init__(self, cfg: Config):
         self.logger = logging.getLogger("shard-writer")
@@ -3722,37 +4344,80 @@ class ShardWriter:
         # builder for shard manifest
         self._shards: ShardInfo = ShardInfo()
 
+        # Always initialize labels writer (it handles non-seg datasets internally)
+        self.labels_writer = LabelsWriter(cfg)
+
         self.shard = -1
         self.acts = None
         self.next_shard()
 
-    @jaxtyped(typechecker=beartype.beartype)
-    def __setitem__(
-        self, i: slice, val: Float[Tensor, "_ n_layers all_patches d_vit"]
+    def write_batch(
+        self,
+        activations: Float[Tensor, "batch n_layers all_patches d_vit"],
+        start_idx: int,
+        patch_labels: UInt8[Tensor, "batch n_patches"] | None = None,
     ) -> None:
-        assert i.step is None
-        a, b = i.start, i.stop
-        assert len(val) == b - a
+        """Write a batch of activations and optionally patch labels.
 
+        Args:
+            activations: Batch of activations to write.
+            start_idx: Starting index for this batch.
+            patch_labels: Optional patch labels for segmentation datasets.
+        """
+        batch_size = len(activations)
+        end_idx = start_idx + batch_size
+
+        # Write activations (handling sharding)
         offset = self.n_imgs_per_shard * self.shard
 
-        if b >= offset + self.n_imgs_per_shard:
+        if end_idx >= offset + self.n_imgs_per_shard:
             # We have run out of space in this mmap'ed file. Let's fill it as much as we can.
-            n_fit = offset + self.n_imgs_per_shard - a
-            self.acts[a - offset : a - offset + n_fit] = val[:n_fit]
-            self.filled = a - offset + n_fit
+            n_fit = offset + self.n_imgs_per_shard - start_idx
+            self.acts[start_idx - offset : start_idx - offset + n_fit] = activations[
+                :n_fit
+            ]
+            self.filled = start_idx - offset + n_fit
+
+            # Write labels for the portion that fits
+            if patch_labels is not None:
+                # Convert to numpy uint8 if needed
+                if isinstance(patch_labels, torch.Tensor):
+                    labels_to_write = (
+                        patch_labels[:n_fit].cpu().numpy().astype(np.uint8)
+                    )
+                elif not isinstance(patch_labels, np.ndarray):
+                    labels_to_write = np.array(patch_labels[:n_fit], dtype=np.uint8)
+                else:
+                    labels_to_write = patch_labels[:n_fit]
+
+                self.labels_writer.write_batch(labels_to_write, start_idx)
 
             self.next_shard()
 
-            # Recursively call __setitem__ in case we need *another* shard
-            self[a + n_fit : b] = val[n_fit:]
+            # Recursively call write_batch for remaining data
+            if n_fit < batch_size:
+                self.write_batch(
+                    activations[n_fit:],
+                    start_idx + n_fit,
+                    patch_labels[n_fit:] if patch_labels is not None else None,
+                )
         else:
-            msg = f"0 <= {a} - {offset} <= {offset} + {self.n_imgs_per_shard}"
-            assert 0 <= a - offset <= offset + self.n_imgs_per_shard, msg
-            msg = f"0 <= {b} - {offset} <= {offset} + {self.n_imgs_per_shard}"
-            assert 0 <= b - offset <= offset + self.n_imgs_per_shard, msg
-            self.acts[a - offset : b - offset] = val
-            self.filled = b - offset
+            msg = f"0 <= {start_idx} - {offset} <= {offset} + {self.n_imgs_per_shard}"
+            assert 0 <= start_idx - offset <= offset + self.n_imgs_per_shard, msg
+            msg = f"0 <= {end_idx} - {offset} <= {offset} + {self.n_imgs_per_shard}"
+            assert 0 <= end_idx - offset <= offset + self.n_imgs_per_shard, msg
+            self.acts[start_idx - offset : end_idx - offset] = activations
+            self.filled = end_idx - offset
+
+            # Write labels if provided
+            if patch_labels is not None:
+                # Convert to numpy uint8 if needed
+                if isinstance(patch_labels, torch.Tensor):
+                    patch_labels = patch_labels.cpu().numpy().astype(np.uint8)
+                elif not isinstance(patch_labels, np.ndarray):
+                    patch_labels = np.array(patch_labels, dtype=np.uint8)
+
+                self.labels_writer.write_batch(patch_labels, start_idx)
 
     def flush(self) -> None:
         if self.acts is not None:
@@ -3765,6 +4430,25 @@ class ShardWriter:
             self._shards.dump(self.root)
 
         self.acts = None
+
+        # Flush labels to disk
+        self.labels_writer.flush()
+
+    def __enter__(self):
+        """Context manager entry."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Context manager exit - handle cleanup."""
+        self.flush()
+
+        # Delete empty labels file if nothing was written
+        if not self.labels_writer.has_written:
+            if os.path.exists(self.labels_writer.labels_path):
+                os.remove(self.labels_writer.labels_path)
+                self.logger.info(
+                    "Removed empty labels file '%s'.", self.labels_writer.labels_path
+                )
 
     def next_shard(self) -> None:
         self.flush()
@@ -3805,7 +4489,7 @@ def get_acts_dir(cfg: Config) -> str:
 @beartype.beartype
 @dataclasses.dataclass(frozen=True)
 class Metadata:
-    vit_family: typing.Literal["clip", "siglip", "dinov2", "dinov3"]
+    vit_family: tp.Literal["clip", "siglip", "dinov2", "dinov3", "fake-clip"]
     vit_ckpt: str
     layers: tuple[int, ...]
     n_patches_per_img: int
@@ -3814,8 +4498,9 @@ class Metadata:
     n_imgs: int
     max_patches_per_shard: int
     data: dict[str, object]
-    dtype: typing.Literal["float32"] = "float32"
-    protocol: typing.Literal["1.0.0"] = "1.0.0"
+    pixel_agg: tp.Literal["majority", "prefer-fg", None] = None
+    dtype: tp.Literal["float32"] = "float32"
+    protocol: tp.Literal["1.0.0", "1.1"] = "1.1"
 
     def __post_init__(self):
         # Check that at least one image per shard can fit.
@@ -3825,6 +4510,11 @@ class Metadata:
 
     @classmethod
     def from_cfg(cls, cfg: Config) -> "Metadata":
+        # Only include pixel_agg for segmentation datasets
+        pixel_agg = None
+        if _is_segmentation_dataset(cfg.data):
+            pixel_agg = cfg.pixel_agg
+
         return cls(
             cfg.vit_family,
             cfg.vit_ckpt,
@@ -3835,6 +4525,7 @@ class Metadata:
             cfg.data.n_imgs,
             cfg.max_patches_per_shard,
             {**dataclasses.asdict(cfg.data), "__class__": cfg.data.__class__.__name__},
+            pixel_agg,
         )
 
     @classmethod
@@ -3931,21 +4622,24 @@ class ShardInfo:
 def get_dataloader(
     cfg: Config,
     *,
-    img_transform: Callable | None = None,
-    sample_transform: Callable | None = None,
+    img_tr: Callable | None = None,
+    seg_tr: Callable | None = None,
+    sample_tr: Callable | None = None,
 ) -> torch.utils.data.DataLoader:
     """
     Get a dataloader for a default map-style dataset.
 
     Args:
         cfg: Config.
-        img_transform: Image transform to be applied to each image.
+        img_tr: Image transform to be applied to each image.
+        seg_tr: Segmentation transform to be applied to masks.
+        sample_tr: Transform to be applied to sample dicts.
 
     Returns:
         A PyTorch Dataloader that yields dictionaries with `'image'` keys containing image batches, `'index'` keys containing original dataset indices and `'label'` keys containing label batches.
     """
     dataset = datasets.get_dataset(
-        cfg.data, img_transform=img_transform, sample_transform=sample_transform
+        cfg.data, img_transform=img_tr, seg_transform=seg_tr, sample_transform=sample_tr
     )
 
     dataloader = torch.utils.data.DataLoader(
@@ -3985,39 +4679,73 @@ def worker_fn(cfg: Config):
         cfg = dataclasses.replace(cfg, device="cpu")
 
     vit_cls = models.load_vit_cls(cfg.vit_family)
-    vit = vit_cls(cfg.vit_ckpt).to(cfg.device)
+    vit_instance = vit_cls(cfg.vit_ckpt).to(cfg.device)
     vit = RecordedVisionTransformer(
-        vit, cfg.n_patches_per_img, cfg.cls_token, cfg.vit_layers
+        vit_instance, cfg.n_patches_per_img, cfg.cls_token, cfg.vit_layers
     )
-    img_tr, sample_tr = vit_cls.make_transforms(cfg.vit_ckpt)
-    dataloader = get_dataloader(cfg, img_transform=img_tr, sample_transform=sample_tr)
 
-    writer = ShardWriter(cfg)
+    img_tr, sample_tr = vit_cls.make_transforms(cfg.vit_ckpt, cfg.n_patches_per_img)
 
-    n_batches = cfg.data.n_imgs // cfg.vit_batch_size + 1
+    seg_tr = None
+    if _is_segmentation_dataset(cfg.data):
+        # For segmentation datasets, create a transform that converts pixels to patches
+        # Use make_resize with NEAREST interpolation for segmentation masks
+        seg_resize_tr = vit_cls.make_resize(
+            cfg.vit_ckpt, cfg.n_patches_per_img, scale=1.0, resample=Image.NEAREST
+        )
+
+        def seg_to_patches(seg):
+            """Transform that resizes segmentation and converts to patch labels."""
+
+            # Convert to patch labels
+            return pixel_to_patch_labels(
+                seg_resize_tr(seg),
+                cfg.n_patches_per_img,
+                patch_size=vit_instance.patch_size,
+                pixel_agg=cfg.pixel_agg,
+                bg_label=cfg.data.bg_label,
+            )
+
+        seg_tr = seg_to_patches
+
+    dataloader = get_dataloader(cfg, img_tr=img_tr, seg_tr=seg_tr, sample_tr=sample_tr)
+
+    n_batches = math.ceil(cfg.data.n_imgs / cfg.vit_batch_size)
     logger.info("Dumping %d batches of %d examples.", n_batches, cfg.vit_batch_size)
 
     vit = vit.to(cfg.device)
     # vit = torch.compile(vit)
 
-    i = 0
-    # Calculate and write ViT activations.
-    with torch.inference_mode():
-        for batch in helpers.progress(dataloader, total=n_batches):
-            imgs = batch.get("image").to(cfg.device)
-            grid = batch.get("grid")
-            if grid is not None:
-                grid = grid.to(cfg.device)
-                out, cache = vit(imgs, grid=grid)
-            else:
-                out, cache = vit(imgs)
-            # cache has shape [batch size, n layers, n patches + 1, d vit]
-            del out
+    # Use context manager for proper cleanup
+    with ShardWriter(cfg) as writer:
+        i = 0
+        # Calculate and write ViT activations.
+        with torch.inference_mode():
+            for batch in helpers.progress(dataloader, total=n_batches):
+                imgs = batch.get("image").to(cfg.device)
+                grid = batch.get("grid")
+                if grid is not None:
+                    grid = grid.to(cfg.device)
+                    out, cache = vit(imgs, grid=grid)
+                else:
+                    out, cache = vit(imgs)
+                # cache has shape [batch size, n layers, n patches + 1, d vit]
+                del out
 
-            writer[i : i + len(cache)] = cache
-            i += len(cache)
+                # Write activations and labels (if present) in one call
+                patch_labels = batch.get("patch_labels")
+                if patch_labels is not None:
+                    logger.debug(
+                        f"Found patch_labels in batch: shape={patch_labels.shape if hasattr(patch_labels, 'shape') else 'unknown'}"
+                    )
+                    # Ensure correct shape
+                    assert patch_labels.shape == (len(cache), cfg.n_patches_per_img)
+                else:
+                    logger.debug(f"No patch_labels in batch. Keys: {batch.keys()}")
 
-    writer.flush()
+                writer.write_batch(cache, i, patch_labels=patch_labels)
+
+                i += len(cache)
 
 
 @beartype.beartype
@@ -4039,8 +4767,8 @@ class IndexLookup:
     def __init__(
         self,
         metadata: Metadata,
-        patches: typing.Literal["cls", "image", "all"],
-        layer: int | typing.Literal["all"],
+        patches: tp.Literal["cls", "image", "all"],
+        layer: int | tp.Literal["all"],
     ):
         if not metadata.cls_token and patches == "cls":
             raise ValueError("Cannot return [CLS] token if one isn't present.")
@@ -4068,6 +4796,14 @@ class IndexLookup:
             raise IndexError(f"{i=} out of range [0, {n})")
 
         match (self.patches, self.layer):
+            case ("cls", "all"):
+                # For CLS token with all layers, i represents (img_idx * n_layers + layer_idx)
+                n_layers = len(self.metadata.layers)
+                img_i = i // n_layers
+                layer_idx = i % n_layers
+                shard_i, img_i_in_shard = self.map_img(img_i)
+                # CLS token is at position 0
+                return shard_i, (img_i_in_shard, layer_idx, 0)
             case ("cls", int()):
                 # For CLS token with specific layer, i is the image index
                 img_i = i
@@ -4082,7 +4818,22 @@ class IndexLookup:
                 shard_i, img_i_in_shard = self.map_img(img_i)
                 return shard_i, (img_i_in_shard, self.layer_to_idx[self.layer], token_i)
             case ("image", "all"):
-                raise NotImplementedError()
+                # For image patches with all layers
+                # Total patches per image across all layers
+                total_patches_per_img = self.metadata.n_patches_per_img * len(
+                    self.metadata.layers
+                )
+
+                # Calculate which image and which patch within that image across all layers
+                img_i = i // total_patches_per_img
+                remainder = i % total_patches_per_img
+
+                # Calculate which layer and which patch within that layer
+                layer_idx = remainder // self.metadata.n_patches_per_img
+                token_i = remainder % self.metadata.n_patches_per_img
+
+                shard_i, img_i_in_shard = self.map_img(img_i)
+                return shard_i, (img_i_in_shard, layer_idx, token_i)
             case ("all", int()):
                 n_tokens_per_img = self.metadata.n_patches_per_img + (
                     1 if self.metadata.cls_token else 0
@@ -4112,7 +4863,7 @@ class IndexLookup:
                 return shard_i, (img_i_in_shard, layer_idx, token_i)
 
             case _:
-                typing.assert_never((self.patches, self.layer))
+                tp.assert_never((self.patches, self.layer))
 
     def map_img(self, img_i: int) -> tuple[int, int]:
         """
@@ -4161,7 +4912,7 @@ class IndexLookup:
                     * (self.metadata.n_patches_per_img + int(self.metadata.cls_token))
                 )
             case _:
-                typing.assert_never((self.patches, self.layer))
+                tp.assert_never((self.patches, self.layer))
 
 >>>> extending.md
 
@@ -4414,7 +5165,8 @@ import pathlib
 import re
 import subprocess
 import time
-import typing
+import types
+import typing as tp
 
 import beartype
 
@@ -4487,7 +5239,7 @@ class progress:
             total: If non-zero, how long the iterable is.
         """
         self.it = it
-        self.every = every
+        self.every = max(every, 1)
         self.logger = logging.getLogger(desc)
         self.total = total
 
@@ -4602,7 +5354,7 @@ class batched_idx:
 #################
 
 
-T = typing.TypeVar("T")
+T = tp.TypeVar("T")
 
 
 @beartype.beartype
@@ -4688,6 +5440,93 @@ def grid(cfg: T, sweep_dct: dict[str, object]) -> tuple[list[T], list[str]]:
             errs.append(str(err))
 
     return cfgs, errs
+
+
+@beartype.beartype
+def dict_to_dataclass(data: dict, cls: type[T]) -> T:
+    """Recursively convert a dictionary to a dataclass instance."""
+    if not dataclasses.is_dataclass(cls):
+        return data
+
+    field_types = {f.name: f.type for f in dataclasses.fields(cls)}
+    kwargs = {}
+
+    for field_name, field_type in field_types.items():
+        if field_name not in data:
+            continue
+
+        value = data[field_name]
+
+        # Handle Optional types
+        origin = tp.get_origin(field_type)
+        args = tp.get_args(field_type)
+
+        # Handle tuple[str, ...]
+        if origin is tuple and args:
+            kwargs[field_name] = tuple(value) if isinstance(value, list) else value
+        # Handle list[DataclassType]
+        elif origin is list and args and dataclasses.is_dataclass(args[0]):
+            kwargs[field_name] = [dict_to_dataclass(item, args[0]) for item in value]
+        # Handle regular dataclass fields
+        elif dataclasses.is_dataclass(field_type):
+            kwargs[field_name] = dict_to_dataclass(value, field_type)
+        # Handle pathlib.Path
+        elif field_type is pathlib.Path:
+            # Required Path field - always convert
+            kwargs[field_name] = pathlib.Path(value) if value is not None else value
+        elif origin is tp.Union and pathlib.Path in args:
+            # Optional Path field (typing.Union style)
+            kwargs[field_name] = pathlib.Path(value) if value is not None else value
+        elif origin is types.UnionType and pathlib.Path in args:
+            # Optional Path field (Python 3.10+ union style with |)
+            kwargs[field_name] = pathlib.Path(value) if value is not None else value
+        else:
+            kwargs[field_name] = value
+
+    return cls(**kwargs)
+
+
+@beartype.beartype
+def get_non_default_values(obj: T, default_obj: T) -> dict:
+    """Recursively find fields that differ from defaults."""
+    # Check that obj and default_obj are instances of a dataclass.
+    assert dataclasses.is_dataclass(obj) and not isinstance(obj, type)
+    assert dataclasses.is_dataclass(default_obj) and not isinstance(default_obj, type)
+
+    obj_dict = dataclasses.asdict(obj)
+    default_dict = dataclasses.asdict(default_obj)
+
+    diff = {}
+    for key, value in obj_dict.items():
+        default_value = default_dict.get(key)
+        if value != default_value:
+            diff[key] = value
+
+    return diff
+
+
+@beartype.beartype
+def merge_configs(base: T, overrides: dict) -> T:
+    """Recursively merge override values into a base config."""
+    if not overrides:
+        return base
+
+    # Check that base is an instance of a dataclass.
+    assert dataclasses.is_dataclass(base) and not isinstance(base, type)
+
+    base_dict = dataclasses.asdict(base)
+
+    for key, value in overrides.items():
+        if key in base_dict:
+            # For nested dataclasses, merge recursively
+            if isinstance(value, dict) and dataclasses.is_dataclass(getattr(base, key)):
+                base_dict[key] = dataclasses.asdict(
+                    merge_configs(getattr(base, key), value)
+                )
+            else:
+                base_dict[key] = value
+
+    return dict_to_dataclass(base_dict, type(base))
 
 
 @beartype.beartype
@@ -5217,14 +6056,17 @@ app = marimo.App(width="full")
 def _():
     import json
     import os
+    import pathlib
 
+    import beartype
     import marimo as mo
     import matplotlib.pyplot as plt
     import numpy as np
+    import polars as pl
     import torch
-    import tqdm
+    from jaxtyping import Float, jaxtyped
 
-    return json, mo, np, os, plt, torch, tqdm
+    return Float, beartype, jaxtyped, json, mo, np, os, pathlib, pl, plt, torch
 
 
 @app.cell
@@ -5259,7 +6101,7 @@ def _(ckpt_dropdown, mo):
         ),
     )
 
-    webapp_dir = f"/fs/scratch/PAS2136/samuelstevens/saev/visuals/{ckpt_dropdown.value}/sort_by_patch"
+    webapp_dir = f"/fs/scratch/PAS2136/samuelstevens/saev/visuals/{ckpt_dropdown.value}"
 
     get_i, set_i = mo.state(0)
     return get_i, set_i, webapp_dir
@@ -5291,16 +6133,19 @@ def _(
     sort_by_freq_btn,
     sort_by_latent_btn,
     sort_by_value_btn,
-    tqdm,
     webapp_dir,
 ):
     def get_neurons() -> list[dict]:
         rows = []
-        for name in tqdm.tqdm(list(os.listdir(f"{webapp_dir}/neurons"))):
+        for name in mo.status.progress_bar(
+            list(os.listdir(f"{webapp_dir}/sort_by_patch/neurons"))
+        ):
             if not name.isdigit():
                 continue
             try:
-                with open(f"{webapp_dir}/neurons/{name}/metadata.json") as fd:
+                with open(
+                    f"{webapp_dir}/sort_by_patch/neurons/{name}/metadata.json"
+                ) as fd:
                     rows.append(json.load(fd))
             except FileNotFoundError:
                 print(f"Missing metadata.json for neuron {name}.")
@@ -5380,83 +6225,99 @@ def _():
 def _(get_i, mo, neurons):
     def display_info(log10_freq: float, log10_value: float, neuron: int):
         return mo.md(
-            f"Neuron {neuron} ({get_i()}/{len(neurons)}; {get_i() / len(neurons) * 100:.1f}%) | Frequency: {10**log10_freq * 100:.3f}% of inputs | Mean Value: {10**log10_value:.3f}"
+            f"Neuron {neuron} ({get_i()}/{len(neurons)}; {get_i() / len(neurons) * 100:.1f}%) | Frequency: {10**log10_freq * 100:.5f}% of inputs | Mean Value: {10**log10_value:.3f}"
         )
 
     return (display_info,)
 
 
 @app.cell
-def _(mo, webapp_dir):
+def _(json, mo, os, webapp_dir):
     def show_img(n: int, i: int):
-        label = "No label found."
-        try:
-            label = open(f"{webapp_dir}/neurons/{n}/{i}.txt").read().strip()
-            label = " ".join(label.split("_"))
-        except FileNotFoundError:
-            return mo.md(f"*Missing image {i + 1}*")
+        neuron_dir = f"{webapp_dir}/sort_by_patch/neurons/{n}"
 
-        return mo.vstack([mo.image(f"{webapp_dir}/neurons/{n}/{i}.png"), mo.md(label)])
+        # Try to load metadata from JSON first
+        metadata = {}
+        label = "No label found."
+
+        # Check for new JSON format
+        if os.path.exists(f"{neuron_dir}/{i}.json"):
+            try:
+                with open(f"{neuron_dir}/{i}.json") as fd:
+                    metadata = json.load(fd)
+                    label = metadata.get("label", "No label found.")
+                    label = " ".join(label.split("_"))
+            except (FileNotFoundError, json.JSONDecodeError):
+                pass
+        # Fall back to old text format
+        elif os.path.exists(f"{neuron_dir}/{i}.txt"):
+            try:
+                label = open(f"{neuron_dir}/{i}.txt").read().strip()
+                label = " ".join(label.split("_"))
+            except FileNotFoundError:
+                pass
+
+        # Check which image files exist
+        sae_path = f"{neuron_dir}/{i}_sae.png"
+        seg_path = f"{neuron_dir}/{i}_seg.png"
+        old_path = f"{neuron_dir}/{i}.png"  # For backwards compatibility
+
+        # Determine which images to show
+        images_to_show = []
+
+        # Try new SAE image first, fall back to old format
+        if os.path.exists(sae_path):
+            images_to_show.append(mo.vstack([mo.image(sae_path), mo.md(label)]))
+        elif os.path.exists(old_path):
+            images_to_show.append(mo.vstack([mo.image(old_path), mo.md(label)]))
+        else:
+            return mo.md(f"*Missing image {i}*")
+
+        # Add segmentation if it exists
+        if os.path.exists(seg_path):
+            images_to_show.append(
+                mo.vstack([mo.image(seg_path), mo.md("Segmentation")])
+            )
+
+        # If we have both images, show side-by-side; otherwise just show what we have
+        if len(images_to_show) == 2:
+            return mo.vstack([mo.md(label), mo.hstack(images_to_show, widths="equal")])
+        else:
+            return images_to_show[0]
 
     return (show_img,)
 
 
 @app.cell
-def _(get_i, mo, neurons, show_img):
-    n = neurons[get_i()]["neuron"]
+def _(mo):
+    # Add a slider to control number of columns
+    cols_slider = mo.ui.slider(
+        1, 10, value=5, label="Number of columns:", full_width=False
+    )
+    return (cols_slider,)
 
-    mo.vstack([
-        mo.hstack(
-            [
-                show_img(n, 0),
-                show_img(n, 1),
-                show_img(n, 2),
-                show_img(n, 3),
-                show_img(n, 4),
-            ],
-            widths="equal",
-        ),
-        mo.hstack(
-            [
-                show_img(n, 5),
-                show_img(n, 6),
-                show_img(n, 7),
-                show_img(n, 8),
-                show_img(n, 9),
-            ],
-            widths="equal",
-        ),
-        mo.hstack(
-            [
-                show_img(n, 10),
-                show_img(n, 11),
-                show_img(n, 12),
-                show_img(n, 13),
-                show_img(n, 14),
-            ],
-            widths="equal",
-        ),
-        mo.hstack(
-            [
-                show_img(n, 15),
-                show_img(n, 16),
-                show_img(n, 17),
-                show_img(n, 18),
-                show_img(n, 19),
-            ],
-            widths="equal",
-        ),
-        mo.hstack(
-            [
-                show_img(n, 20),
-                show_img(n, 21),
-                show_img(n, 22),
-                show_img(n, 23),
-                show_img(n, 24),
-            ],
-            widths="equal",
-        ),
-    ])
+
+@app.cell
+def _(cols_slider, mo):
+    mo.md(f"""{cols_slider}""")
+    return
+
+
+@app.cell
+def _(cols_slider, get_i, mo, neurons, show_img):
+    n = neurons[get_i()]["neuron"]
+    n_cols = cols_slider.value
+    n_images = 25  # Always show 25 images
+
+    # Create rows of images based on the number of columns
+    rows = []
+    for row_start in range(0, n_images, n_cols):
+        row_end = min(row_start + n_cols, n_images)
+        row_images = [show_img(n, i) for i in range(row_start, row_end)]
+        if row_images:  # Only add non-empty rows
+            rows.append(mo.hstack(row_images, widths="equal"))
+
+    mo.vstack(rows)
     return
 
 
@@ -5578,27 +6439,293 @@ def _(mo):
 
 
 @app.cell
-def _():
+def _(ckpt_dropdown, pathlib):
+    root = pathlib.Path(
+        f"/fs/scratch/PAS2136/samuelstevens/saev/acts/butterflies/{ckpt_dropdown.value}"
+    )
+    return (root,)
+
+
+@app.cell
+def _(np, root, torch):
+    x = torch.load(root / "img_acts.pt").numpy()
+
+    percentiles = np.quantile(x, 0.95, axis=0)
+    return percentiles, x
+
+
+@app.cell
+def _(pl, root):
+    obs = pl.read_parquet(root / "img_obs.parquet").with_columns(
+        i=pl.int_range(pl.len()).alias("index")
+    )
+
+    target_map = {
+        target: label
+        for target, label in obs.select("target", "label").unique().iter_rows()
+    }
+    return obs, target_map
+
+
+@app.cell
+def _(obs):
+    obs
     return
 
 
 @app.cell
-def _():
+def _(Float, beartype, jaxtyped, mo, np, obs, percentiles, pl, x):
+    @jaxtyped(typechecker=beartype.beartype)
+    def get_f1(x_ns: Float[np.ndarray, "n_imgs d_sae"], obs: pl.DataFrame):
+        n_imgs, d_sae = x_ns.shape
+        n_classes = obs.select("target").unique().height
+
+        preds_ns = (x_ns > percentiles[None, :]).astype(np.int32)
+        n_pos_s = (preds_ns == 1).sum(axis=0)
+
+        labels_n = obs.get_column("target").to_numpy()
+
+        prec_cs = np.ones((n_classes, d_sae), dtype=np.float32)
+        recall_cs = np.ones((n_classes, d_sae), dtype=np.float32)
+
+        for c_idx in mo.status.progress_bar(range(n_classes)):
+            mask = labels_n == c_idx
+            assert mask.sum() > 0
+            with np.errstate(divide="ignore", invalid="ignore"):
+                prec_cs[c_idx, :] = preds_ns[mask].sum(axis=0) / n_pos_s
+
+            recall_cs[c_idx, :] = preds_ns[mask].sum(axis=0) / mask.sum()
+
+        prec_cs[:, n_pos_s == 0] = 0
+        with np.errstate(divide="ignore", invalid="ignore"):
+            f1 = (2 * prec_cs * recall_cs) / (prec_cs + recall_cs)
+
+        f1 = np.nan_to_num(f1, 0.0)
+        return f1, prec_cs, recall_cs
+
+    f1, prec, recall = get_f1(x, obs)
+    return f1, prec, recall
+
+
+@app.cell
+def _(obs, pl):
+    target_counts = {
+        i: count
+        for i, count in obs.group_by("target").agg(pl.len().alias("count")).iter_rows()
+    }
+    return (target_counts,)
+
+
+@app.cell
+def _(obs, pl, target_counts):
+    for key, value in sorted(target_counts.items()):
+        if value == 2640:
+            print(
+                key,
+                obs.filter(pl.col("target") == key).item(row=0, column="label"),
+                value,
+            )
     return
 
 
 @app.cell
-def _():
+def _(obs, pl):
+    obs.filter(pl.col("target") == 50)
     return
 
 
 @app.cell
-def _():
+def _(f1, pl, prec, recall, target_counts, target_map):
+    df = pl.DataFrame([
+        {
+            "species": target_map[i],
+            "f1": f1[i, feature],
+            "prec": prec[i, feature],
+            "recall": recall[i, feature],
+            "feature": feature,
+            "n": target_counts[i],
+        }
+        for i, feature in set(
+            []
+            + list(enumerate(f1.argmax(axis=1)))
+            + list(enumerate(prec.argmax(axis=1)))
+            + list(enumerate(recall.argmax(axis=1)))
+        )
+    ]).unique()
+
+    df.filter(
+        ~pl.col("species").str.contains(" x ")
+        & (
+            (pl.col("species").str.contains("lativitta"))
+            | (pl.col("species").str.contains("malleti"))
+        )
+    ).sort(by="f1", descending=True)
+    return (df,)
+
+
+@app.cell
+def _(df, pl):
+    df.filter(
+        ~pl.col("species").str.contains(" x ")
+        & (
+            (pl.col("species").str.contains("cyrbia"))
+            | (pl.col("species").str.contains("cythera"))
+        )
+    ).sort(by="f1", descending=True)
     return
 
 
 @app.cell
-def _():
+def _(df, pl):
+    df.filter(
+        ~pl.col("species").str.contains(" x ")
+        & (
+            (pl.col("species").str.contains("notabilis"))
+            | (pl.col("species").str.contains("plesseni"))
+        )
+    ).sort(by="f1", descending=True)
+    return
+
+
+@app.cell
+def _(df, pl):
+    df.filter(
+        ~pl.col("species").str.contains(" x ")
+        & (
+            (pl.col("species").str.contains("hydara"))
+            | (pl.col("species").str.contains("ssp. melpomene"))
+        )
+    ).sort(by="f1", descending=True)
+    return
+
+
+@app.cell
+def _(df, pl):
+    df.filter(
+        ~pl.col("species").str.contains(" x ")
+        & (
+            (pl.col("species").str.contains("venus"))
+            | (pl.col("species").str.contains("ssp. vulcanus"))
+        )
+    ).sort(by="f1", descending=True)
+    return
+
+
+@app.cell
+def _(df, pl):
+    df.filter(
+        ~pl.col("species").str.contains(" x ")
+        & (
+            (pl.col("species").str.contains("ssp. phyllis"))
+            | (pl.col("species").str.contains("ssp. nanna"))
+        )
+    ).sort(by="f1", descending=True)
+    return
+
+
+@app.cell
+def _(df, pl):
+    df.filter(
+        ~pl.col("species").str.contains(" x ")
+        & (
+            (pl.col("species").str.contains("ssp. demophoon"))
+            | (pl.col("species").str.contains("ssp. rosina"))
+        )
+    ).sort(by="f1", descending=True)
+    return
+
+
+@app.cell
+def _(df):
+    print("--include-latents", " ".join(map(str, df.get_column("latent").to_list())))
+    return
+
+
+@app.cell
+def _(Float, beartype, jaxtyped, np, obs, percentiles, pl, x):
+    @jaxtyped(typechecker=beartype.beartype)
+    def get_entropy(x_ns: Float[np.ndarray, "n_imgs d_sae"], obs: pl.DataFrame):
+        """
+        Entropy over labels among images where each latent is ON (x > τ_q),
+        plus normalized entropy and concentration (1 - normalized entropy).
+
+        Returns:
+          H_d:          Float[np.ndarray, "d_sae"]        # entropy per latent
+          H_norm_d:     Float[np.ndarray, "d_sae"]        # H / ln(C)
+          concentration_d: Float[np.ndarray, "d_sae"]     # 1 - H_norm
+          p_cd:         Float[np.ndarray, "n_classes d_sae"]  # label distribution within ON set
+          support_d:    Int[np.ndarray,   "d_sae"]        # #(images ON) per latent
+        """
+        n_imgs, d_sae = x_ns.shape
+        n_classes = obs.select("target").unique().height
+
+        labels_n = obs.get_column("target").to_numpy()
+
+        # Thresholds τ_f per latent and ON mask
+        on_ns = x_ns > percentiles[None, :]  # (n,d) bool
+        support_s = on_ns.sum(axis=0)
+
+        counts_cs = np.zeros((n_classes, d_sae), dtype=np.int64)
+        for c_idx in range(n_classes):
+            mask = labels_n == c_idx
+            if not np.any(mask):
+                continue
+            counts_cs[c_idx, :] = on_ns[mask, :].sum(axis=0)
+
+        # Convert to probabilities within the ON set: p[c,d] = counts[c,d] / support[d]
+        with np.errstate(divide="ignore", invalid="ignore"):
+            p_cs = counts_cs / np.clip(support_s[None, :], 1, None)
+        p_cs[:, support_s == 0] = 0.0  # undefined ON → set to 0; we’ll mark NaN later
+
+        # Entropy per latent: H_d = -Σ_c p * ln p, treating 0 * ln 0 = 0
+        H_terms = np.where(p_cs > 0, p_cs * np.log(p_cs), 0.0)
+        H_s = -H_terms.sum(axis=0).astype(np.float32)  # (d,)
+
+        # Normalization by ln(C) and concentration
+        if n_classes > 1:
+            H_norm_d = H_s / np.log(n_classes)
+            concentration_d = 1.0 - H_norm_d
+        else:
+            H_norm_d = np.zeros_like(H_s)
+            concentration_d = np.ones_like(H_s)
+
+        # For latents with no ON images, mark as NaN
+        H_s[support_s == 0] = np.nan
+        H_norm_d[support_s == 0] = np.nan
+        concentration_d[support_s == 0] = np.nan
+
+        return H_s, H_norm_d, concentration_d, p_cs, support_s
+
+    H_s, *_ = get_entropy(x, obs)
+    return (H_s,)
+
+
+@app.cell
+def _(root, torch):
+    top_img_i = torch.load(root / "top_img_i.pt", map_location="cpu").numpy()
+    return (top_img_i,)
+
+
+@app.cell
+def _(H_s, np, pl, top_img_i):
+    var = pl.DataFrame([
+        {"i": i, "entropy": entropy, "n_imgs": np.unique(top_img_i[i]).size}
+        for i, entropy in enumerate(H_s.tolist())
+    ])
+    return (var,)
+
+
+@app.cell
+def _(pl, var):
+    low_entropy_latents = (
+        var.filter(~pl.col("entropy").is_nan() & (pl.col("n_imgs") >= 6))
+        .sort(by="entropy")
+        .head(100)
+        .get_column("i")
+        .to_list()
+    )
+    print("--include-latents", " ".join(map(str, low_entropy_latents)))
+    var.filter(~pl.col("entropy").is_nan() & (pl.col("n_imgs") >= 5)).sort(by="entropy")
     return
 
 
@@ -5656,15 +6783,11 @@ def _(mo):
 
     This notebook helps you analyze and compare SAE training runs from WandB.
 
-    ## Setup Instructions
-
     1. Edit the configuration cell at the top to set your WandB username and project
-    2. Make sure you have access to the original ViT activation shards
-    3. Use the filters to narrow down which models to compare
+    2. Use the filters to narrow down which models to compare
 
     ## Troubleshooting
 
-    - **Missing data error**: This notebook needs access to the original ViT activation shards
     - **No runs found**: Check your WandB username, project name, and tag filter
     """
     )
@@ -5792,7 +6915,6 @@ def _(
 
                 pareto = group.filter(pl.col(mse_col) == pl.col("cummin_mse"))
                 ids = pareto.get_column("id").to_list()
-                print(ids)
 
                 xs = pareto.get_column(l0_col).to_numpy()
                 ys = pareto.get_column(mse_col).to_numpy()
@@ -5864,14 +6986,16 @@ def _(
 
     fig = plot_layerwise(filtered_df, show_rest.value, show_ids.value)
     fig
-    return
+    return (layers,)
 
 
 @app.cell
-def _(alt, df, mo):
+def _(alt, df, layers, mo, pl):
     chart = mo.ui.altair_chart(
         alt.Chart(
-            df.select(
+            df.filter(
+                pl.col("config/data/layer").is_in([int(layer) for layer in layers])
+            ).select(
                 "summary/eval/l0",
                 "summary/eval/mse",
                 "id",
@@ -6087,10 +7211,10 @@ def _(
         filters = {}
         if tag:
             filters["config.tag"] = tag
-            filters["config.data.metadata.n_patches_per_img"] = 640
-            filters["config.data.metadata.data.root"] = (
-                "/fs/scratch/PAS2136/samuelstevens/datasets/fish-vista-imgfolder/*"
-            )
+            # filters["config.data.metadata.n_patches_per_img"] = 1920
+            # filters["config.data.metadata.data.root"] = (
+            #     "/fs/scratch/PAS2136/samuelstevens/datasets/butterflies-segfolder/"
+            # )
         runs = wandb.Api().runs(
             path=f"{WANDB_USERNAME}/{WANDB_PROJECT}", filters=filters
         )
@@ -6226,6 +7350,24 @@ def _(beartype):
         ):
             return "FishVista"
 
+        if (
+            "butterflies" in metadata["data"]["root"]
+            and metadata["data"]["__class__"] == "ImageFolder"
+        ):
+            return "Heliconius"
+
+        if (
+            "butterflies-segfolder" in metadata["data"]["root"]
+            and metadata["data"]["__class__"] == "SegFolder"
+        ):
+            return "Heliconius"
+
+        if (
+            "ADE" in metadata["data"]["root"]
+            and metadata["data"]["__class__"] == "SegFolder"
+        ):
+            return "ADE20K"
+
         if "train" in metadata["data"] and "Imagenet" in metadata["data"]:
             return "ImageNet-1K"
 
@@ -6320,7 +7462,7 @@ import typing
 import beartype
 import einops
 import torch
-from jaxtyping import Float, Int, jaxtyped
+from jaxtyping import Float, Int64, jaxtyped
 from torch import Tensor
 
 from .. import __version__, helpers
@@ -6424,7 +7566,7 @@ class SparseAutoencoder(torch.nn.Module):
         self,
         f_x: Float[Tensor, "batch d_sae"],
         *,
-        prefixes: Int[Tensor, " n_prefixes"] | None = None,
+        prefixes: Int64[Tensor, " n_prefixes"] | None = None,
     ) -> Float[Tensor, "batch n_prefixes d_model"]:
         """
         Decode latent features to reconstructions.
@@ -6434,18 +7576,23 @@ class SparseAutoencoder(torch.nn.Module):
             prefixes: Optional tensor of prefix lengths for Matryoshka decoding.
 
         Returns:
-            Matryoshka reconstructions (n_prefixes, batch, d_model).
+            Matryoshka reconstructions (batch, n_prefixes, d_model).
         """
         b, d_sae = f_x.shape
 
         # Matryoshka cumulative decode
         device = f_x.device
         if prefixes is None:
-            prefixes = torch.tensor([d_sae], dtype=int)
+            prefixes = torch.tensor([d_sae], dtype=torch.int64)
+        assert torch.all(prefixes[1:] > prefixes[:-1])
+        assert 1 <= int(prefixes[0]) and int(prefixes[-1]) == d_sae
         prefixes = prefixes.to(device)
 
         # Build blocks from prefix cuts: [0, cut1), [cut1, cut2), ...
-        block_indices = torch.cat([torch.tensor([0], device=device), prefixes])
+        block_indices = torch.cat([
+            torch.tensor([0], dtype=prefixes.dtype, device=device),
+            prefixes,
+        ])
         blocks = list(zip(block_indices[:-1], block_indices[1:]))
 
         # Compute block outputs
@@ -6674,7 +7821,7 @@ import typing
 import beartype
 import einops
 import torch
-from jaxtyping import Float, jaxtyped
+from jaxtyping import Float, Int64, jaxtyped
 from torch import Tensor
 
 from . import modeling
@@ -6775,7 +7922,7 @@ class VanillaObjective(Objective):
 
         mse_loss = mse_loss.mean()
         l0 = (f_x > 0).float().sum(axis=1).mean(axis=0)
-        l1 = f_x.sum(axis=1).mean(axis=0)
+        l1 = f_x.abs().sum(dim=1).mean(dim=0)
         sparsity_loss = self.sparsity_coeff * l1
 
         return VanillaLoss(mse_loss, sparsity_loss, l0, l1)
@@ -6836,7 +7983,7 @@ class MatryoshkaObjective(Objective):
         mse_loss = mean_squared_err(
             x_hats,
             einops.repeat(
-                x, "b d_sae -> b prefixes d_sae", prefixes=self.cfg.n_prefixes
+                x, "b d_model -> b prefixes d_model", prefixes=self.cfg.n_prefixes
             ),
         ).mean()
 
@@ -6849,9 +7996,10 @@ class MatryoshkaObjective(Objective):
 
 
 @torch.no_grad()
+@jaxtyped(typechecker=beartype.beartype)
 def sample_prefixes(
     d_sae: int, n_prefixes: int, min_prefix_length: int = 1, pareto_power: float = 0.5
-) -> torch.Tensor:
+) -> Int64[Tensor, " n_prefixes"]:
     """
     Samples prefix lengths using a Pareto distribution. Derived from "Learning Multi-Level Features with
     Matryoshka Sparse Autoencoders" (https://doi.org/10.48550/arXiv.2503.17547)
@@ -6866,7 +8014,7 @@ def sample_prefixes(
         torch.Tensor: Sorted prefix lengths
     """
     if n_prefixes <= 1:
-        return torch.tensor([d_sae])
+        return torch.tensor([d_sae], dtype=torch.int64)
 
     assert n_prefixes <= d_sae
 
@@ -6877,16 +8025,19 @@ def sample_prefixes(
     probability_dist = pareto_pdf / pareto_pdf.sum()
 
     # Sample and sort prefix lengths
-    prefixes = torch.multinomial(
+    sampled_indices = torch.multinomial(
         probability_dist, num_samples=n_prefixes - 1, replacement=False
     )
+
+    # Convert indices to actual prefix lengths
+    prefixes = lengths[sampled_indices]
 
     # Add n_latents as the final prefix
     prefixes = torch.cat((prefixes.detach().clone(), torch.tensor([d_sae])))
 
     prefixes, _ = torch.sort(prefixes, descending=False)
 
-    return prefixes
+    return prefixes.to(torch.int64)
 
 
 @beartype.beartype
@@ -6914,34 +8065,17 @@ def ref_mean_squared_err(
 def mean_squared_err(
     x_hat: Float[Tensor, "*batch d"], x: Float[Tensor, "*batch d"], norm: bool = False
 ) -> Float[Tensor, "*batch d"]:
-    upper = x.abs().max()
+    upper = x.abs().max().clamp(min=1e-12)
     x = x / upper
     x_hat = x_hat / upper
 
     mse = (x_hat - x) ** 2
     # (sam): I am now realizing that we normalize by the L2 norm of x.
     if norm:
-        mse /= torch.linalg.norm(x, axis=-1, keepdim=True) + 1e-12
+        mse /= torch.linalg.norm(x, dim=-1, keepdim=True) + 1e-12
         return mse * upper
 
     return mse * upper * upper
-
->>>> ops.py
-import beartype
-import torch
-from jaxtyping import Float, Int, jaxtyped
-from torch import Tensor
-
-
-@jaxtyped(typechecker=beartype.beartype)
-def gather_batched(
-    value: Float[Tensor, "batch n dim"], i: Int[Tensor, "batch k"]
-) -> Float[Tensor, "batch k dim"]:
-    batch_size, n, dim = value.shape
-    _, k = i.shape
-
-    batch_i = torch.arange(batch_size, device=value.device)[:, None].expand(-1, k)
-    return value[batch_i, i]
 
 >>>> preprint.md
 # Notes for Preprint
@@ -7039,83 +8173,69 @@ It can be helpful to think about this project from the perspective of a top mach
 
 >>>> py.typed
 
->>>> scripts/visuals.py
+>>>> scripts/dump.py
 """
-There is some important notation used only in this file to dramatically shorten variable names.
+Script for dumping image-level activations in a single pass over the dataset.
 
-Variables suffixed with `_im` refer to entire images, and variables suffixed with `_p` refer to patches.
+Dumps 5 files:
+
+1. mean_values.pt
+2. sparsity.pt
+3. distributions.pt
+4. img_acts.pt
+5. percentiles_p99.pt
 """
 
 import dataclasses
 import json
 import logging
-import math
 import os
-import random
-import typing
+import tomllib
+import typing as tp
 
 import beartype
 import einops
 import torch
-from jaxtyping import Float, Int, jaxtyped
-from PIL import Image
-from torch import Tensor
+import tyro
 
-import saev.data
-import saev.data.datasets
-from saev import helpers, nn, viz
+from saev import helpers, nn
+from saev.data import Metadata, OrderedConfig, OrderedDataLoader
+from saev.utils import statistics
 
 log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
 logging.basicConfig(level=logging.INFO, format=log_format)
-logger = logging.getLogger("visuals")
+logger = logging.getLogger("activations.py")
 
 
 @beartype.beartype
-@dataclasses.dataclass(frozen=True, slots=True)
+@dataclasses.dataclass(frozen=True)
 class Config:
-    """Configuration for generating visuals from trained SAEs."""
+    """Configuration for computing image activations."""
 
     # Disk
     ckpt: str = os.path.join(".", "checkpoints", "sae.pt")
     """Path to the sae.pt file."""
-    data: saev.data.OrderedConfig = dataclasses.field(
-        default_factory=saev.data.OrderedConfig
-    )
+    data: OrderedConfig = OrderedConfig()
     """Data configuration"""
-    images: saev.data.datasets.Config = dataclasses.field(
-        default_factory=saev.data.datasets.Imagenet
-    )
-    """Which images to use."""
     dump_to: str = os.path.join(".", "data")
     """Where to save data."""
 
-    # Algorithm
-    top_k: int = 128
-    """How many images per SAE feature to store."""
-    epsilon: float = 1e-9
-    """Value to add to avoid log(0)."""
-    sort_by: typing.Literal["cls", "img", "patch"] = "patch"
-    """How to find the top k images. 'cls' picks images where the SAE latents of the ViT's [CLS] token are maximized without any patch highligting. 'img' picks images that maximize the sum of an SAE latent over all patches in the image, highlighting the patches. 'patch' pickes images that maximize an SAE latent over all patches (not summed), highlighting the patches and only showing unique images."""
-    log_freq_range: tuple[float, float] = (-6.0, -2.0)
-    """Log10 frequency range for which to save images."""
-    log_value_range: tuple[float, float] = (-1.0, 1.0)
-    """Log10 frequency range for which to save images."""
-    include_latents: list[int] = dataclasses.field(default_factory=list)
-    """Latents to always include, no matter what."""
-    n_distributions: int = 25
+    n_dists: int = 25
     """Number of features to save distributions for."""
     percentile: int = 99
     """Percentile to estimate for outlier detection."""
-    n_latents: int = 400
-    """Maximum number of latents to save images for."""
-    sae_batch_size: int = 1024 * 16
-    """Batch size for SAE inference."""
+    top_k: int = 1
+    """How many patches per image to use to compute the maximum image activation per latent."""
+    ignore_labels: list[int] = dataclasses.field(default_factory=list)
+    """Which patch labels to ignore when calculating summarized image activations."""
+
+    # Control flags
+    force_recompute: bool = False
+    """Force recomputation even if files exist."""
 
     # Hardware
     device: str = "cuda"
     """Which accelerator to use."""
-    seed: int = 42
-    """Random seed."""
     slurm_acct: str = ""
     """Slurm account string. Empty means to not use Slurm."""
     slurm_partition: str = ""
@@ -7125,490 +8245,180 @@ class Config:
     log_to: str = os.path.join(".", "logs")
     """Where to log Slurm job stdout/stderr."""
 
+    # Properties for file paths
     @property
     def root(self) -> str:
-        return os.path.join(self.dump_to, f"sort_by_{self.sort_by}")
-
-    @property
-    def top_values_fpath(self) -> str:
-        return os.path.join(self.root, "top_values.pt")
-
-    @property
-    def top_img_i_fpath(self) -> str:
-        return os.path.join(self.root, "top_img_i.pt")
-
-    @property
-    def top_patch_i_fpath(self) -> str:
-        return os.path.join(self.root, "top_patch_i.pt")
-
-    @property
-    def mean_values_fpath(self) -> str:
-        return os.path.join(self.root, "mean_values.pt")
-
-    @property
-    def sparsity_fpath(self) -> str:
-        return os.path.join(self.root, "sparsity.pt")
-
-    @property
-    def distributions_fpath(self) -> str:
-        return os.path.join(self.root, "distributions.pt")
-
-    @property
-    def percentiles_fpath(self) -> str:
-        return os.path.join(self.root, f"percentiles_p{self.percentile}.pt")
-
-
-@beartype.beartype
-def safe_load(path: str) -> object:
-    return torch.load(path, map_location="cpu", weights_only=True)
-
-
-@jaxtyped(typechecker=beartype.beartype)
-def gather_batched(
-    value: Float[Tensor, "batch n dim"], i: Int[Tensor, "batch k"]
-) -> Float[Tensor, "batch k dim"]:
-    batch_size, n, dim = value.shape  # noqa: F841
-    _, k = i.shape
-
-    batch_i = torch.arange(batch_size, device=value.device)[:, None].expand(-1, k)
-    return value[batch_i, i]
-
-
-# def test_gather_batched_small():
-#     values = torch.arange(0, 64, dtype=torch.float).view(4, 2, 8)
-#     i = torch.tensor([[0], [0], [1], [1]])
-#     actual = gather_batched(values, i)
-#     expected = torch.tensor([
-#         [[0, 1, 2, 3, 4, 5, 6, 7]],
-#         [[16, 17, 18, 19, 20, 21, 22, 23]],
-#         [[40, 41, 42, 43, 44, 45, 46, 47]],
-#         [[56, 57, 58, 59, 60, 61, 62, 63]],
-#     ]).float()
-#     torch.testing.assert_close(actual, expected)
-
-
-@jaxtyped(typechecker=beartype.beartype)
-@dataclasses.dataclass(frozen=True)
-class GridElement:
-    img: Image.Image
-    label: str
-    patches: Float[Tensor, " n_patches"]
-
-
-@beartype.beartype
-def make_img(elem: GridElement, *, upper: float | None = None) -> Image.Image:
-    img = viz.add_highlights(elem.img, elem.patches.numpy(), patch_size=32, upper=upper)
-    return img
-
-
-@jaxtyped(typechecker=beartype.beartype)
-def get_new_topk(
-    val1: Float[Tensor, "d_sae k"],
-    i1: Int[Tensor, "d_sae k"],
-    val2: Float[Tensor, "d_sae k"],
-    i2: Int[Tensor, "d_sae k"],
-    k: int,
-) -> tuple[Float[Tensor, "d_sae k"], Int[Tensor, "d_sae k"]]:
-    """
-    Picks out the new top k values among val1 and val2. Also keeps track of i1 and i2, then indices of the values in the original dataset.
-
-    Args:
-        val1: top k original SAE values.
-        i1: the patch indices of those original top k values.
-        val2: top k incoming SAE values.
-        i2: the patch indices of those incoming top k values.
-        k: k.
-
-    Returns:
-        The new top k values and their patch indices.
-    """
-    all_val = torch.cat([val1, val2], dim=1)
-    new_values, top_i = torch.topk(all_val, k=k, dim=1)
-
-    all_i = torch.cat([i1, i2], dim=1)
-    new_indices = torch.gather(all_i, 1, top_i)
-    return new_values, new_indices
-
-
-@jaxtyped(typechecker=beartype.beartype)
-def get_sae_acts(
-    vit_acts: Float[Tensor, "n d_vit"], sae: nn.SparseAutoencoder, cfg: Config
-) -> Float[Tensor, "n d_sae"]:
-    """
-    Get SAE hidden layer activations for a batch of ViT activations.
-
-    Args:
-        vit_acts: Batch of ViT activations
-        sae: Sparse autoencder.
-        cfg: Experimental config.
-    """
-    sae_acts = []
-    for start, end in helpers.batched_idx(len(vit_acts), cfg.sae_batch_size):
-        _, f_x, *_ = sae(vit_acts[start:end].to(cfg.device))
-        sae_acts.append(f_x)
-
-    sae_acts = torch.cat(sae_acts, dim=0)
-    sae_acts = sae_acts.to(cfg.device)
-    return sae_acts
-
-
-@jaxtyped(typechecker=beartype.beartype)
-@dataclasses.dataclass(frozen=True)
-class TopKPatch:
-    """Summary of which images and patches most activate each SAE latent."""
-
-    top_values: Float[Tensor, "d_sae k n_patches_per_img"]
-    """For each latent and its top k images, the per-patch activation values over that image's patches. Used for heatmaps/highlighting of contributing regions."""
-    top_i: Int[Tensor, "d_sae k"]
-    """Global image indices for those top-`k` images per latent (aligned with the dataset's `image_i` indexing)."""
-    mean_values: Float[Tensor, " d_sae"]
-    """Mean positive activation per latent, computed as the sum of activations divided by the count of positives (`> 0`). With nonnegative activations (e.g., ReLU/TopK), this is the average active value."""
-    sparsity: Float[Tensor, " d_sae"]
-    """Fraction of samples where each latent is active (`> 0`), i.e., empirical activation rate."""
-    distributions: Float[Tensor, "m n"]
-    """For the first `m = cfg.n_distributions` latents, the raw activation values across all `n` samples. Useful for plotting activation histograms."""
-    percentiles: Float[Tensor, " d_sae"]
-    """Online estimate of the `cfg.percentile` activation threshold per latent over the dataset (used for outlier detection/thresholding)."""
+        ckpt_id = os.path.basename(os.path.dirname(self.ckpt))
+        return os.path.join(self.dump_to, ckpt_id)
 
 
 @beartype.beartype
 @torch.inference_mode()
-def get_topk_patch(cfg: Config) -> TopKPatch:
-    """
-    Gets the top k images for each latent in the SAE.
-    The top k images are for latent i are sorted by
+def worker_fn(cfg: Config):
+    os.makedirs(cfg.root, exist_ok=True)
+    cfg_fpath = os.path.join(cfg.root, "config.json")
+    mean_values_fpath = os.path.join(cfg.root, "mean_values.pt")
+    sparsity_fpath = os.path.join(cfg.root, "sparsity.pt")
+    distributions_fpath = os.path.join(cfg.root, "distributions.pt")
+    img_acts_fpath = os.path.join(cfg.root, "img_acts.pt")
+    percentiles_fpath = os.path.join(cfg.root, f"percentiles_p{cfg.percentile}.pt")
 
-        max over all patches: f_x(patch)[i]
+    # Check if we need to compute activations
+    fpaths = [
+        mean_values_fpath,
+        sparsity_fpath,
+        distributions_fpath,
+        percentiles_fpath,
+        img_acts_fpath,
+    ]
+    missing = [fpath for fpath in fpaths if not os.path.exists(fpath)]
+    need_compute = cfg.force_recompute or bool(missing)
 
-    Thus, we could end up with duplicate images in the top k, if an image has more than one patch that maximally activates an SAE latent.
+    if not need_compute:
+        logger.info("Found existing activation files.")
+        return
 
-    Args:
-        cfg: Config.
+    if cfg.force_recompute:
+        logger.info("Force recompute flag set; computing activations.")
+    else:
+        logger.info("Missing files %s; computing activations.", ", ".join(missing))
 
-    Returns:
-        A tuple of TopKPatch and m randomly sampled activation distributions.
-    """
-    assert cfg.sort_by == "patch"
+    with open(cfg_fpath, "w") as fd:
+        json.dump(dataclasses.asdict(cfg), fd)
+
     assert cfg.data.patches == "image"
-
     sae = nn.load(cfg.ckpt).to(cfg.device)
-    metadata = saev.data.Metadata.load(cfg.data.shard_root)
+    md = Metadata.load(cfg.data.shard_root)
 
-    top_values_p = torch.full(
-        (sae.cfg.d_sae, cfg.top_k, metadata.n_patches_per_img), -1.0, device=cfg.device
-    )
-    top_i_im = torch.zeros(
-        (sae.cfg.d_sae, cfg.top_k), dtype=torch.int, device=cfg.device
-    )
+    sparsity_s = torch.zeros((sae.cfg.d_sae,), device=cfg.device)
+    mean_values_s = torch.zeros((sae.cfg.d_sae,), device=cfg.device)
 
-    sparsity_S = torch.zeros((sae.cfg.d_sae,), device=cfg.device)
-    mean_values_S = torch.zeros((sae.cfg.d_sae,), device=cfg.device)
+    # Initialize image-level activations
+    INIT = -1.0
+    img_acts_ns = torch.full((md.n_imgs, sae.cfg.d_sae), INIT, device=cfg.device)
 
-    batch_size = (
-        cfg.data.batch_size // metadata.n_patches_per_img * metadata.n_patches_per_img
-    )
-    n_imgs_per_batch = batch_size // metadata.n_patches_per_img
-    dataloader = saev.data.OrderedDataLoader(
+    batch_size = cfg.data.batch_size // md.n_patches_per_img * md.n_patches_per_img
+    n_imgs_per_batch = batch_size // md.n_patches_per_img
+    dataloader = OrderedDataLoader(
         dataclasses.replace(cfg.data, batch_size=batch_size),
     )
 
-    distributions_MN = torch.zeros(
-        (cfg.n_distributions, dataloader.n_samples), device="cpu"
+    distributions_nm = torch.zeros(
+        (dataloader.n_samples, cfg.n_dists), device=cfg.device
     )
-    estimator = PercentileEstimator(
+    estimator = statistics.PercentileEstimator(
         cfg.percentile, dataloader.n_samples, shape=(sae.cfg.d_sae,)
     )
 
+    ignore = torch.tensor(cfg.ignore_labels)
+
     logger.info("Loaded SAE and data.")
 
-    for batch in helpers.progress(dataloader, desc="picking top-k"):
-        vit_acts_BD = batch["act"]
-        sae_acts_BS = get_sae_acts(vit_acts_BD, sae, cfg)
+    for batch in helpers.progress(dataloader, desc="activations"):
+        # Get SAE activations (shared computation)
+        vit_acts_bd = batch["act"].to(cfg.device)
+        _, f_x, *_ = sae(vit_acts_bd)
+        bsz, d_sae = f_x.shape
 
-        for sae_act_S in sae_acts_BS:
-            estimator.update(sae_act_S)
+        mask_b = torch.isin(batch["patch_labels"], ignore, invert=True)
 
-        sae_acts_SB = einops.rearrange(sae_acts_BS, "batch d_sae -> d_sae batch")
-        distributions_MN[:, batch["image_i"]] = sae_acts_SB[: cfg.n_distributions].to(
-            "cpu"
+        # Update percentile estimator
+        for sae_act_s in f_x[mask_b]:
+            estimator.update(sae_act_s)
+
+        # Update statistics
+        distributions_nm[batch["image_i"][mask_b], :] = f_x[mask_b, : cfg.n_dists]
+        mean_values_s += einops.reduce(f_x[mask_b], "batch d_sae -> d_sae", "sum")
+        sparsity_s += einops.reduce((f_x[mask_b] > 0), "batch d_sae -> d_sae", "sum")
+
+        # Get unique image indices in this batch
+        img_i = torch.sort(torch.unique(batch["image_i"])).values.to(cfg.device)
+
+        values_ips = einops.rearrange(
+            f_x,
+            "(n_img n_patches) d_sae -> n_img n_patches d_sae",
+            n_img=len(img_i),
+            n_patches=md.n_patches_per_img,
+        )
+        mask_ip = einops.rearrange(
+            mask_b,
+            "(n_img n_patches) -> n_img n_patches",
+            n_img=len(img_i),
+            n_patches=md.n_patches_per_img,
         )
 
-        mean_values_S += einops.reduce(sae_acts_SB, "d_sae batch -> d_sae", "sum")
-        sparsity_S += einops.reduce((sae_acts_SB > 0), "d_sae batch -> d_sae", "sum")
-
-        i_im = torch.sort(torch.unique(batch["image_i"])).values
-        values_p = sae_acts_SB.view(
-            sae.cfg.d_sae, len(i_im), metadata.n_patches_per_img
-        )
-
-        # Checks that I did my reshaping correctly.
-        assert values_p.shape[1] == i_im.shape[0]
-        if not len(i_im) == n_imgs_per_batch:
+        # Validation
+        assert values_ips.shape[0] == img_i.shape[0]
+        if not len(img_i) == n_imgs_per_batch:
             logger.warning(
                 "Got %d images; expected %d images per batch.",
-                len(i_im),
+                len(img_i),
                 n_imgs_per_batch,
             )
 
-        _, k = torch.topk(sae_acts_SB, k=cfg.top_k, dim=1)
-        k_im = k // metadata.n_patches_per_img
+        # All masked patches can have at most no activation.
+        values_ips[~mask_ip] = 0.0
+        # Take the mean of the top k patches as our image-level summary.
+        values_iks = torch.topk(values_ips, cfg.top_k, dim=1).values
+        assert (values_iks >= 0).all()
+        values_is = einops.reduce(values_iks, "n_img k d_sae -> n_img d_sae", "mean")
+        assert (img_acts_ns[img_i] == INIT).all(), "overwriting existing activations"
+        img_acts_ns[img_i, :] = values_is
 
-        values_p = gather_batched(values_p, k_im)
-        i_im = i_im.to(cfg.device)[k_im]
+    # Finalize statistics
+    mean_values_s /= sparsity_s
+    sparsity_s /= dataloader.n_samples
 
-        all_values_p = torch.cat((top_values_p, values_p), axis=1)
-        _, k = torch.topk(all_values_p.max(axis=-1).values, k=cfg.top_k, axis=1)
-
-        top_values_p = gather_batched(all_values_p, k)
-        top_i_im = torch.gather(torch.cat((top_i_im, i_im), axis=1), 1, k)
-
-    mean_values_S /= sparsity_S
-    sparsity_S /= dataloader.n_samples
-
-    return TopKPatch(
-        top_values_p,
-        top_i_im,
-        mean_values_S,
-        sparsity_S,
-        distributions_MN,
-        estimator.estimate.cpu(),
-    )
+    torch.save(mean_values_s.cpu(), mean_values_fpath)
+    torch.save(sparsity_s.cpu(), sparsity_fpath)
+    torch.save(distributions_nm.cpu(), distributions_fpath)
+    torch.save(estimator.estimate.cpu(), percentiles_fpath)
+    torch.save(img_acts_ns.cpu(), img_acts_fpath)
 
 
 @beartype.beartype
-@torch.inference_mode()
-def dump_activations(cfg: Config):
-    """Dump ViT activation statistics for later use.
+def main(cfg: tp.Annotated[Config, tyro.conf.arg(name="")], sweep: str | None = None):
+    """Main entry point."""
 
-    The dataset described by ``cfg`` is processed to find the images or patches that maximally activate each SAE latent.  Various tensors summarising these activations are then written to ``cfg.root`` so they can be loaded by other tools.
+    if sweep is not None:
+        with open(sweep, "rb") as fd:
+            cfgs, errs = helpers.grid(cfg, tomllib.load(fd))
 
-    Args:
-        cfg: options controlling which activations are processed and where the resulting files are saved.
-
-    Returns:
-        None. All data is saved to disk.
-    """
-    if cfg.sort_by == "img":
-        raise helpers.RemovedFeatureError("Feature removed.")
-    elif cfg.sort_by == "patch":
-        topk = get_topk_patch(cfg)
+        if errs:
+            for err in errs:
+                logger.error(f"Error in config: {err}")
+            return
     else:
-        typing.assert_never(cfg.sort_by)
+        cfgs = [cfg]
 
-    os.makedirs(cfg.root, exist_ok=True)
+    assert all(c.slurm_acct == cfgs[0].slurm_acct for c in cfgs)
+    cfg = cfgs[0]
 
-    torch.save(topk.top_values, cfg.top_values_fpath)
-    torch.save(topk.top_i, cfg.top_img_i_fpath)
-    torch.save(topk.mean_values, cfg.mean_values_fpath)
-    torch.save(topk.sparsity, cfg.sparsity_fpath)
-    torch.save(topk.distributions, cfg.distributions_fpath)
-    torch.save(topk.percentiles, cfg.percentiles_fpath)
+    if cfg.slurm_acct:
+        import submitit
 
-
-@jaxtyped(typechecker=beartype.beartype)
-def plot_activation_distributions(cfg: Config, distributions: Float[Tensor, "m n"]):
-    import matplotlib.pyplot as plt
-    import numpy as np
-
-    m, _ = distributions.shape
-
-    n_rows = int(math.sqrt(m))
-    n_cols = n_rows
-    fig, axes = plt.subplots(
-        figsize=(4 * n_cols, 4 * n_rows),
-        nrows=n_rows,
-        ncols=n_cols,
-        sharex=True,
-        sharey=True,
-    )
-
-    _, bins = np.histogram(np.log10(distributions[distributions > 0].numpy()), bins=100)
-
-    percentiles = [90, 95, 99, 100]
-    colors = ("red", "darkorange", "gold", "lime")
-
-    for dist, ax in zip(distributions, axes.reshape(-1)):
-        vals = np.log10(dist[dist > 0].numpy())
-
-        ax.hist(vals, bins=bins)
-
-        if vals.size == 0:
-            continue
-
-        for i, (percentile, color) in enumerate(
-            zip(np.percentile(vals, percentiles), colors)
-        ):
-            ax.axvline(percentile, color=color, label=f"{percentiles[i]}th %-ile")
-
-        for i, (percentile, color) in enumerate(zip(percentiles, colors)):
-            estimator = PercentileEstimator(percentile, len(vals))
-            for v in vals:
-                estimator.update(v)
-            ax.axvline(
-                estimator.estimate,
-                color=color,
-                linestyle="--",
-                label=f"Est. {percentiles[i]}th %-ile",
-            )
-
-    ax.legend()
-
-    fig.tight_layout()
-    return fig
-
-
-@beartype.beartype
-@torch.inference_mode()
-def dump_imgs(cfg: Config):
-    """
-    .. todo:: document this function.
-
-    Dump top-k images to a directory.
-
-    Args:
-        cfg: Configuration object.
-    """
-
-    try:
-        top_values = safe_load(cfg.top_values_fpath)
-        sparsity = safe_load(cfg.sparsity_fpath)
-        mean_values = safe_load(cfg.mean_values_fpath)
-        top_i = safe_load(cfg.top_img_i_fpath)
-        distributions = safe_load(cfg.distributions_fpath)
-        _ = safe_load(cfg.percentiles_fpath)
-    except FileNotFoundError as err:
-        logger.warning("Need to dump files: %s", err)
-        dump_activations(cfg)
-        return dump_imgs(cfg)
-
-    d_sae, cached_topk, *rest = top_values.shape
-    # Check that the data is at least shaped correctly.
-    assert cfg.top_k == cached_topk
-    if cfg.sort_by == "img":
-        assert len(rest) == 0
-    elif cfg.sort_by == "patch":
-        assert len(rest) == 1
-        n_patches = rest[0]
-        assert n_patches > 0
-    else:
-        typing.assert_never(cfg.sort_by)
-
-    logger.info("Loaded sorted data.")
-
-    os.makedirs(cfg.root, exist_ok=True)
-    fig_fpath = os.path.join(
-        cfg.root, f"{cfg.n_distributions}_activation_distributions.png"
-    )
-    plot_activation_distributions(cfg, distributions).savefig(fig_fpath, dpi=300)
-    logger.info(
-        "Saved %d activation distributions to '%s'.", cfg.n_distributions, fig_fpath
-    )
-
-    metadata = saev.data.Metadata.load(cfg.data.shard_root)
-    vit_cls = saev.data.models.load_vit_cls(metadata.vit_family)
-    img_transform = vit_cls.make_resize(metadata.vit_ckpt)
-    dataset = saev.data.datasets.get_dataset(cfg.images, img_transform=img_transform)
-
-    min_log_freq, max_log_freq = cfg.log_freq_range
-    min_log_value, max_log_value = cfg.log_value_range
-
-    mask = (
-        (min_log_freq < torch.log10(sparsity))
-        & (torch.log10(sparsity) < max_log_freq)
-        & (min_log_value < torch.log10(mean_values))
-        & (torch.log10(mean_values) < max_log_value)
-    )
-
-    neurons = cfg.include_latents
-    random_neurons = torch.arange(d_sae)[mask.cpu()].tolist()
-    random.seed(cfg.seed)
-    random.shuffle(random_neurons)
-    neurons += random_neurons[: cfg.n_latents]
-
-    for i in helpers.progress(neurons, desc="saving visuals"):
-        neuron_dir = os.path.join(cfg.root, "neurons", str(i))
-        os.makedirs(neuron_dir, exist_ok=True)
-
-        # Image grid
-        elems = []
-        seen_i_im = set()
-        for i_im, values_p in zip(top_i[i].tolist(), top_values[i]):
-            if i_im in seen_i_im:
-                continue
-
-            example = dataset[i_im]
-            if cfg.sort_by == "img":
-                elem = GridElement(example["image"], example["label"], torch.tensor([]))
-            elif cfg.sort_by == "patch":
-                elem = GridElement(example["image"], example["label"], values_p)
-            else:
-                typing.assert_never(cfg.sort_by)
-            elems.append(elem)
-
-            seen_i_im.add(i_im)
-
-        # How to scale values.
-        upper = None
-        if top_values[i].numel() > 0:
-            upper = top_values[i].max().item()
-
-        for j, elem in enumerate(elems):
-            img = make_img(elem, upper=upper)
-            img.save(os.path.join(neuron_dir, f"{j}.png"))
-            with open(os.path.join(neuron_dir, f"{j}.txt"), "w") as fd:
-                fd.write(elem.label + "\n")
-
-        # Metadata
-        metadata = {
-            "neuron": i,
-            "log10_freq": torch.log10(sparsity[i]).item(),
-            "log10_value": torch.log10(mean_values[i]).item(),
-        }
-        with open(os.path.join(neuron_dir, "metadata.json"), "w") as fd:
-            json.dump(metadata, fd)
-
-
-@beartype.beartype
-class PercentileEstimator:
-    def __init__(
-        self,
-        percentile: float | int,
-        total: int,
-        lr: float = 1e-3,
-        shape: tuple[int, ...] = (),
-    ):
-        self.percentile = percentile
-        self.total = total
-        self.lr = lr
-
-        self._estimate = torch.zeros(shape)
-        self._step = 0
-
-    def update(self, x):
-        """
-        Update the estimator with a new value.
-
-        This method maintains the marker positions using the P2 algorithm rules.
-        When a new value arrives, it's placed in the appropriate position relative to existing markers, and marker positions are adjusted to maintain their desired percentile positions.
-
-        Arguments:
-            x: The new value to incorporate into the estimation
-        """
-        self._step += 1
-
-        step_size = self.lr * (self.total - self._step) / self.total
-
-        # Is a no-op if it's already on the same device.
-        if isinstance(x, Tensor):
-            self._estimate = self._estimate.to(x.device)
-
-        self._estimate += step_size * (
-            torch.sign(x - self._estimate) + 2 * self.percentile / 100 - 1.0
+        executor = submitit.SlurmExecutor(folder=cfg.log_to)
+        executor.update_parameters(
+            time=int(cfg.n_hours * 60),
+            partition=cfg.slurm_partition,
+            gpus_per_node=1,
+            ntasks_per_node=1,
+            cpus_per_task=8,
+            stderr_to_stdout=True,
+            account=cfg.slurm_acct,
         )
+        with executor.batch():
+            jobs = [executor.submit(worker_fn, c) for c in cfgs]
 
-    @property
-    def estimate(self):
-        return self._estimate
+        logger.info(f"Submitted {len(jobs)} job(s).")
+        for j, job in enumerate(jobs):
+            job.result()
+            logger.info(f"Job {job.job_id} finished ({j + 1}/{len(jobs)}).")
+    else:
+        for c in cfgs:
+            worker_fn(c)
+
+    logger.info("Jobs done.")
 
 >>>> utils/scheduling.py
 import math
@@ -7754,6 +8564,53 @@ def _plot_example_schedules():
 if __name__ == "__main__":
     _plot_example_schedules()
 
+>>>> utils/statistics.py
+import beartype
+import torch
+from torch import Tensor
+
+
+@beartype.beartype
+class PercentileEstimator:
+    def __init__(
+        self,
+        percentile: float | int,
+        total: int,
+        lr: float = 1e-3,
+        shape: tuple[int, ...] = (),
+    ):
+        self.percentile = percentile
+        self.total = total
+        self.lr = lr
+
+        self._estimate = torch.zeros(shape)
+        self._step = 0
+
+    def update(self, x):
+        """
+        Update the estimator with a new value.
+
+        This method maintains the marker positions using the P2 algorithm rules. When a new value arrives, it's placed in the appropriate position relative to existing markers, and marker positions are adjusted to maintain their desired percentile positions.
+
+        Arguments:
+            x: The new value to incorporate into the estimation
+        """
+        self._step += 1
+
+        step_size = self.lr * (self.total - self._step) / self.total
+
+        # Is a no-op if it's already on the same device.
+        if isinstance(x, Tensor):
+            self._estimate = self._estimate.to(x.device)
+
+        self._estimate += step_size * (
+            torch.sign(x - self._estimate) + 2 * self.percentile / 100 - 1.0
+        )
+
+    @property
+    def estimate(self):
+        return self._estimate
+
 >>>> utils/wandb.py
 import beartype
 import wandb
@@ -7828,8 +8685,8 @@ colormap = matplotlib.colormaps.get_cmap("plasma")
 def add_highlights(
     img: Image.Image,
     patches: Float[np.ndarray, " n_patches"],
-    *,
     patch_size: int,
+    *,
     upper: float | None = None,
     opacity: float = 0.9,
 ) -> Image.Image:
@@ -7850,7 +8707,7 @@ def add_highlights(
     for p, (val, color) in enumerate(zip(patches, colors)):
         assert upper is not None
         val /= upper + 1e-9
-        x_np, y_np = p % iw_np, p // ih_np
+        x_np, y_np = p % iw_np, p // iw_np
         draw.rectangle(
             [
                 (x_np * patch_size, y_np * patch_size),

@@ -36,7 +36,7 @@ hljs.highlightAll();
 <h2 class="section-title" id="header-functions">Functions</h2>
 <dl>
 <dt id="saev.data.datasets.get_dataset"><code class="name flex">
-<span>def <span class="ident">get_dataset</span></span>(<span>cfg: <a title="saev.data.datasets.Imagenet" href="#saev.data.datasets.Imagenet">Imagenet</a> | <a title="saev.data.datasets.ImageFolder" href="#saev.data.datasets.ImageFolder">ImageFolder</a> | <a title="saev.data.datasets.SegFolder" href="#saev.data.datasets.SegFolder">SegFolder</a> | <a title="saev.data.datasets.Fake" href="#saev.data.datasets.Fake">Fake</a>,<br>*,<br>img_transform,<br>sample_transform=None)</span>
+<span>def <span class="ident">get_dataset</span></span>(<span>cfg: <a title="saev.data.datasets.Imagenet" href="#saev.data.datasets.Imagenet">Imagenet</a> | <a title="saev.data.datasets.ImageFolder" href="#saev.data.datasets.ImageFolder">ImageFolder</a> | <a title="saev.data.datasets.SegFolder" href="#saev.data.datasets.SegFolder">SegFolder</a> | <a title="saev.data.datasets.Fake" href="#saev.data.datasets.Fake">Fake</a> | <a title="saev.data.datasets.FakeSeg" href="#saev.data.datasets.FakeSeg">FakeSeg</a>,<br>*,<br>img_transform,<br>seg_transform=None,<br>sample_transform=None)</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Gets the dataset for the current experiment; delegates construction to dataset-specific functions.</p>
@@ -46,6 +46,8 @@ hljs.highlightAll();
 <dd>Experiment config.</dd>
 <dt><strong><code>img_transform</code></strong></dt>
 <dd>Image transform to be applied to each image.</dd>
+<dt><strong><code>seg_transform</code></strong></dt>
+<dd>Segmentation transform to be applied to masks (for segmentation datasets).</dd>
 <dt><strong><code>sample_transform</code></strong></dt>
 <dd>Transform to be applied to each sample dict.</dd>
 </dl>
@@ -56,13 +58,16 @@ hljs.highlightAll();
 <span>Expand source code</span>
 </summary>
 <pre><code class="python">@beartype.beartype
-def get_dataset(cfg: Config, *, img_transform, sample_transform=None):
+def get_dataset(
+    cfg: Config, *, img_transform, seg_transform=None, sample_transform=None
+):
     &#34;&#34;&#34;
     Gets the dataset for the current experiment; delegates construction to dataset-specific functions.
 
     Args:
         cfg: Experiment config.
         img_transform: Image transform to be applied to each image.
+        seg_transform: Segmentation transform to be applied to masks (for segmentation datasets).
         sample_transform: Transform to be applied to each sample dict.
     Returns:
         A dataset that has dictionaries with `&#39;image&#39;`, `&#39;index&#39;`, `&#39;target&#39;`, and `&#39;label&#39;` keys containing examples.
@@ -74,7 +79,10 @@ def get_dataset(cfg: Config, *, img_transform, sample_transform=None):
         )
     elif isinstance(cfg, SegFolder):
         return SegFolderDataset(
-            cfg, img_transform=img_transform, sample_transform=sample_transform
+            cfg,
+            img_transform=img_transform,
+            seg_transform=seg_transform,
+            sample_transform=sample_transform,
         )
     elif isinstance(cfg, ImageFolder):
         ds = [
@@ -90,6 +98,13 @@ def get_dataset(cfg: Config, *, img_transform, sample_transform=None):
     elif isinstance(cfg, Fake):
         return FakeDataset(
             cfg, img_transform=img_transform, sample_transform=sample_transform
+        )
+    elif isinstance(cfg, FakeSeg):
+        return FakeSegDataset(
+            cfg,
+            img_transform=img_transform,
+            seg_transform=seg_transform,
+            sample_transform=sample_transform,
         )
     else:
         typing.assert_never(cfg)</code></pre>
@@ -164,6 +179,155 @@ dataset with non-integral indices/keys, a custom sampler must be provided.</p>
             img = self.img_transform(img)
 
         sample = {&#34;image&#34;: img, &#34;index&#34;: i, &#34;target&#34;: 0, &#34;label&#34;: &#34;dummy&#34;}
+        if self.sample_transform is not None:
+            sample = self.sample_transform(sample)
+
+        return sample</code></pre>
+</details>
+<h3>Ancestors</h3>
+<ul class="hlist">
+<li>torch.utils.data.dataset.Dataset</li>
+<li>typing.Generic</li>
+</ul>
+</dd>
+<dt id="saev.data.datasets.FakeSeg"><code class="flex name class">
+<span>class <span class="ident">FakeSeg</span></span>
+<span>(</span><span>n_imgs: int = 10,<br>n_patches_per_img: int = 16,<br>n_classes: int = 3,<br>bg_label: int = 0)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Tiny synthetic segmentation dataset for tests.</p>
+<p>Generates dummy RGB images and pixel-level segmentation masks,
+mimicking the behavior of real segmentation datasets like SegFolder.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+@dataclasses.dataclass(frozen=True)
+class FakeSeg:
+    &#34;&#34;&#34;Tiny synthetic segmentation dataset for tests.
+
+    Generates dummy RGB images and pixel-level segmentation masks,
+    mimicking the behavior of real segmentation datasets like SegFolder.
+    &#34;&#34;&#34;
+
+    n_imgs: int = 10
+    &#34;&#34;&#34;Number of images.&#34;&#34;&#34;
+    n_patches_per_img: int = 16
+    &#34;&#34;&#34;Number of patches per image.&#34;&#34;&#34;
+    n_classes: int = 3
+    &#34;&#34;&#34;Number of segmentation classes.&#34;&#34;&#34;
+    bg_label: int = 0
+    &#34;&#34;&#34;Which class index is considered background.&#34;&#34;&#34;</code></pre>
+</details>
+<h3>Instance variables</h3>
+<dl>
+<dt id="saev.data.datasets.FakeSeg.bg_label"><code class="name">var <span class="ident">bg_label</span> : int</code></dt>
+<dd>
+<div class="desc"><p>Which class index is considered background.</p></div>
+</dd>
+<dt id="saev.data.datasets.FakeSeg.n_classes"><code class="name">var <span class="ident">n_classes</span> : int</code></dt>
+<dd>
+<div class="desc"><p>Number of segmentation classes.</p></div>
+</dd>
+<dt id="saev.data.datasets.FakeSeg.n_imgs"><code class="name">var <span class="ident">n_imgs</span> : int</code></dt>
+<dd>
+<div class="desc"><p>Number of images.</p></div>
+</dd>
+<dt id="saev.data.datasets.FakeSeg.n_patches_per_img"><code class="name">var <span class="ident">n_patches_per_img</span> : int</code></dt>
+<dd>
+<div class="desc"><p>Number of patches per image.</p></div>
+</dd>
+</dl>
+</dd>
+<dt id="saev.data.datasets.FakeSegDataset"><code class="flex name class">
+<span>class <span class="ident">FakeSegDataset</span></span>
+<span>(</span><span>cfg: <a title="saev.data.datasets.FakeSeg" href="#saev.data.datasets.FakeSeg">FakeSeg</a>,<br>*,<br>img_transform=None,<br>seg_transform=None,<br>sample_transform=None)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Synthetic segmentation dataset providing pixel-level segmentation masks.</p>
+<p>Mimics SegFolderDataset by providing:
+- image: a dummy RGB PIL image
+- segmentation: a PIL image with pixel-level class labels
+- index, target, label</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+class FakeSegDataset(torch.utils.data.Dataset):
+    &#34;&#34;&#34;Synthetic segmentation dataset providing pixel-level segmentation masks.
+
+    Mimics SegFolderDataset by providing:
+      - image: a dummy RGB PIL image
+      - segmentation: a PIL image with pixel-level class labels
+      - index, target, label
+    &#34;&#34;&#34;
+
+    def __init__(
+        self,
+        cfg: FakeSeg,
+        *,
+        img_transform=None,
+        seg_transform=None,
+        sample_transform=None,
+    ):
+        self.cfg = cfg
+        self.img_transform = img_transform
+        self.seg_transform = seg_transform
+        self.sample_transform = sample_transform
+
+    def __len__(self) -&gt; int:
+        return self.cfg.n_imgs
+
+    def __getitem__(self, i: int) -&gt; dict[str, object]:
+        import numpy as np
+
+        # Create a dummy RGB image
+        img_size = 64  # Will be resized by transforms
+        img = Image.new(&#34;RGB&#34;, (img_size, img_size), color=(127, 127, 127))
+
+        # Create a deterministic segmentation mask with pixel-level labels
+        # Use mode &#34;L&#34; for grayscale (0-255 values)
+        seg_array = np.zeros((img_size, img_size), dtype=np.uint8)
+
+        # Create a pattern that will result in different labels per patch
+        # Assuming patches are created by dividing the image into a grid
+        patch_grid_size = int(np.sqrt(self.cfg.n_patches_per_img))
+        patch_size = img_size // patch_grid_size
+
+        for y in range(0, img_size, patch_size):
+            for x in range(0, img_size, patch_size):
+                patch_idx = (y // patch_size) * patch_grid_size + (x // patch_size)
+                # Deterministic label based on patch index and image index
+                label = (patch_idx + i) % self.cfg.n_classes
+                seg_array[y : y + patch_size, x : x + patch_size] = label
+
+        # Set some patches to background
+        if self.cfg.bg_label &lt; self.cfg.n_classes:
+            seg_array[:patch_size, :] = self.cfg.bg_label
+
+        segmentation = Image.fromarray(seg_array)
+
+        if self.img_transform is not None:
+            img = self.img_transform(img)
+
+        # Apply segmentation transform to get patch labels
+        patch_labels = None
+        if self.seg_transform is not None:
+            patch_labels = self.seg_transform(segmentation)
+
+        sample: dict[str, object] = {
+            &#34;image&#34;: img,
+            &#34;index&#34;: i,
+            &#34;target&#34;: 0,
+            &#34;label&#34;: &#34;dummy&#34;,
+        }
+
+        # Add patch_labels if we have them
+        if patch_labels is not None:
+            sample[&#34;patch_labels&#34;] = patch_labels
+
         if self.sample_transform is not None:
             sample = self.sample_transform(sample)
 
@@ -447,10 +611,10 @@ class ImagenetDataset(torch.utils.data.Dataset):
 </dd>
 <dt id="saev.data.datasets.SegFolder"><code class="flex name class">
 <span>class <span class="ident">SegFolder</span></span>
-<span>(</span><span>root: str = './data/segdataset',<br>split: Literal['training', 'validation'] = 'training',<br>img_label_fname: str = 'sceneCategories.txt')</span>
+<span>(</span><span>root: str = './data/segdataset',<br>split: Literal['training', 'validation'] = 'training',<br>img_label_fname: str = 'sceneCategories.txt',<br>bg_label: int = 0)</span>
 </code></dt>
 <dd>
-<div class="desc"></div>
+<div class="desc"><p>SegFolder(root: str = './data/segdataset', split: Literal['training', 'validation'] = 'training', img_label_fname: str = 'sceneCategories.txt', bg_label: int = 0)</p></div>
 <details class="source">
 <summary>
 <span>Expand source code</span>
@@ -458,14 +622,14 @@ class ImagenetDataset(torch.utils.data.Dataset):
 <pre><code class="python">@beartype.beartype
 @dataclasses.dataclass(frozen=True)
 class SegFolder:
-    &#34;&#34;&#34; &#34;&#34;&#34;
-
     root: str = os.path.join(&#34;.&#34;, &#34;data&#34;, &#34;segdataset&#34;)
     &#34;&#34;&#34;Where the class folders with images are stored.&#34;&#34;&#34;
     split: typing.Literal[&#34;training&#34;, &#34;validation&#34;] = &#34;training&#34;
     &#34;&#34;&#34;Data split.&#34;&#34;&#34;
     img_label_fname: str = &#34;sceneCategories.txt&#34;
     &#34;&#34;&#34;Image labels filename.&#34;&#34;&#34;
+    bg_label: int = 0
+    &#34;&#34;&#34;Background label.&#34;&#34;&#34;
 
     @property
     def n_imgs(self) -&gt; int:
@@ -486,6 +650,10 @@ class SegFolder:
 </details>
 <h3>Instance variables</h3>
 <dl>
+<dt id="saev.data.datasets.SegFolder.bg_label"><code class="name">var <span class="ident">bg_label</span> : int</code></dt>
+<dd>
+<div class="desc"><p>Background label.</p></div>
+</dd>
 <dt id="saev.data.datasets.SegFolder.img_label_fname"><code class="name">var <span class="ident">img_label_fname</span> : str</code></dt>
 <dd>
 <div class="desc"><p>Image labels filename.</p></div>
@@ -649,11 +817,13 @@ class SegFolderDataset(torch.utils.data.Dataset):
             if image is not None:
                 sample[&#34;image&#34;] = image
 
-        sample[&#34;segmentation&#34;] = Image.open(sample.pop(&#34;seg_path&#34;))
+        segmentation = Image.open(sample.pop(&#34;seg_path&#34;))
+
+        # Apply segmentation transform to get patch labels
         if self.seg_transform is not None:
-            segmentation = self.seg_transform(sample.pop(&#34;segmentation&#34;))
-            if segmentation is not None:
-                sample[&#34;segmentation&#34;] = segmentation
+            patch_labels = self.seg_transform(segmentation)
+            if patch_labels is not None:
+                sample[&#34;patch_labels&#34;] = patch_labels
 
         sample[&#34;index&#34;] = index
 
@@ -758,6 +928,18 @@ setTimeout(() => input.focus(), 100);
 <h4><code><a title="saev.data.datasets.FakeDataset" href="#saev.data.datasets.FakeDataset">FakeDataset</a></code></h4>
 </li>
 <li>
+<h4><code><a title="saev.data.datasets.FakeSeg" href="#saev.data.datasets.FakeSeg">FakeSeg</a></code></h4>
+<ul class="">
+<li><code><a title="saev.data.datasets.FakeSeg.bg_label" href="#saev.data.datasets.FakeSeg.bg_label">bg_label</a></code></li>
+<li><code><a title="saev.data.datasets.FakeSeg.n_classes" href="#saev.data.datasets.FakeSeg.n_classes">n_classes</a></code></li>
+<li><code><a title="saev.data.datasets.FakeSeg.n_imgs" href="#saev.data.datasets.FakeSeg.n_imgs">n_imgs</a></code></li>
+<li><code><a title="saev.data.datasets.FakeSeg.n_patches_per_img" href="#saev.data.datasets.FakeSeg.n_patches_per_img">n_patches_per_img</a></code></li>
+</ul>
+</li>
+<li>
+<h4><code><a title="saev.data.datasets.FakeSegDataset" href="#saev.data.datasets.FakeSegDataset">FakeSegDataset</a></code></h4>
+</li>
+<li>
 <h4><code><a title="saev.data.datasets.ImageFolder" href="#saev.data.datasets.ImageFolder">ImageFolder</a></code></h4>
 <ul class="">
 <li><code><a title="saev.data.datasets.ImageFolder.n_imgs" href="#saev.data.datasets.ImageFolder.n_imgs">n_imgs</a></code></li>
@@ -781,6 +963,7 @@ setTimeout(() => input.focus(), 100);
 <li>
 <h4><code><a title="saev.data.datasets.SegFolder" href="#saev.data.datasets.SegFolder">SegFolder</a></code></h4>
 <ul class="">
+<li><code><a title="saev.data.datasets.SegFolder.bg_label" href="#saev.data.datasets.SegFolder.bg_label">bg_label</a></code></li>
 <li><code><a title="saev.data.datasets.SegFolder.img_label_fname" href="#saev.data.datasets.SegFolder.img_label_fname">img_label_fname</a></code></li>
 <li><code><a title="saev.data.datasets.SegFolder.n_imgs" href="#saev.data.datasets.SegFolder.n_imgs">n_imgs</a></code></li>
 <li><code><a title="saev.data.datasets.SegFolder.root" href="#saev.data.datasets.SegFolder.root">root</a></code></li>

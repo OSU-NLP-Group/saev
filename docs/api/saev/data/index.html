@@ -42,12 +42,13 @@ Gemma Scope makes this decision as well (see Section 3.3.2 of <a href="https://a
 <hr>
 <h2 id="1-directory-layout">1. Directory layout</h2>
 <pre><code>&lt;dump_to&gt;/&lt;HASH&gt;/
-    metadata.json              # UTF-8 JSON, human-readable, describes data-generating config
-    shards.json                # UTF-8 JSON, human-readable, describes shards.
-    acts000000.bin             # shard 0
-    acts000001.bin             # shard 1
+    metadata.json    # UTF-8 JSON, human-readable, describes data-generating config
+    shards.json      # UTF-8 JSON, human-readable, describes shards.
+    acts000000.bin   # shard 0
+    acts000001.bin   # shard 1
     ...
-    actsNNNNNN.bin             # shard NNNNNN  (zero-padded width=6)
+    actsNNNNNN.bin   # shard NNNNNN  (zero-padded width=6)
+    patch-labels.bin       # patch labels (optional)
 </code></pre>
 <p><em><code>HASH</code> = <code>sha256(json.dumps(metadata, sort_keys=True, separators=(',', ':')).encode('utf-8'))</code></em>
 Guards against silent config drift.</p>
@@ -116,7 +117,7 @@ Guards against silent config drift.</p>
 <tr>
 <td><code>protocol</code></td>
 <td>string</td>
-<td><code>"1.0.0"</code> for now.</td>
+<td><code>"1.1"</code> (shards with a labels.bin)</td>
 </tr>
 </tbody>
 </table>
@@ -219,9 +220,8 @@ A reader must raise an error if <code>layer</code> is not in <code>layers</code>
 <li><strong>Minor, backward-compatible additions</strong> (new optional JSON key) merely update this doc and the minor protocol version number.</li>
 </ul>
 <hr>
-<p>That's the whole deal.
-No hidden invariants.
-Anything else you find in code that contradicts this sheet, fix the code or update the spec.</p>
+<p>That's it.
+Anything else you find in code that contradicts this document, fix the code or update the spec.</p>
 <h1 id="performance">Performance</h1>
 <p>SAEs are mostly disk-bound.
 Gemma Scope (Google SAE paper) aimed for 1 GB/s to keep their GPUS brrr'ing.
@@ -306,10 +306,6 @@ This is useful for iterating through all patches in an image at once.</p>
 <dd>
 <div class="desc"></div>
 </dd>
-<dt><code class="name"><a title="saev.data.config" href="config.html">saev.data.config</a></code></dt>
-<dd>
-<div class="desc"></div>
-</dd>
 <dt><code class="name"><a title="saev.data.datasets" href="datasets.html">saev.data.datasets</a></code></dt>
 <dd>
 <div class="desc"></div>
@@ -321,6 +317,10 @@ This is useful for iterating through all patches in an image at once.</p>
 <dt><code class="name"><a title="saev.data.dinov3" href="dinov3.html">saev.data.dinov3</a></code></dt>
 <dd>
 <div class="desc"></div>
+</dd>
+<dt><code class="name"><a title="saev.data.fake_clip" href="fake_clip.html">saev.data.fake_clip</a></code></dt>
+<dd>
+<div class="desc"><p>Fake CLIP model for testing with tiny-open-clip-model …</p></div>
 </dd>
 <dt><code class="name"><a title="saev.data.indexed" href="indexed.html">saev.data.indexed</a></code></dt>
 <dd>
@@ -509,7 +509,7 @@ class Config:
 </dd>
 <dt id="saev.data.Config"><code class="flex name class">
 <span>class <span class="ident">ShuffledConfig</span></span>
-<span>(</span><span>shard_root: str = './shards',<br>patches: Literal['cls', 'image', 'all'] = 'image',<br>layer: int | Literal['all'] = -2,<br>batch_size: int = 16384,<br>drop_last: bool = False,<br>scale_norm: bool = False,<br>n_threads: int = 4,<br>buffer_size: int = 64,<br>batch_timeout_s: float = 30.0,<br>seed: int = 17,<br>debug: bool = False,<br>log_every_s: float = 30.0)</span>
+<span>(</span><span>shard_root: str = './shards',<br>patches: Literal['cls', 'image', 'all'] = 'image',<br>layer: int | Literal['all'] = -2,<br>batch_size: int = 16384,<br>drop_last: bool = False,<br>scale_norm: bool = False,<br>ignore_labels: list[int] = &lt;factory&gt;,<br>n_threads: int = 4,<br>buffer_size: int = 64,<br>batch_timeout_s: float = 30.0,<br>seed: int = 17,<br>debug: bool = False,<br>log_every_s: float = 30.0)</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Configuration for loading shuffled activation data from disk.</p></div>
@@ -534,6 +534,9 @@ class Config:
     &#34;&#34;&#34;Whether to drop the last batch if it&#39;s smaller than the others.&#34;&#34;&#34;
     scale_norm: bool = False
     &#34;&#34;&#34;Whether to scale norms to sqrt(D).&#34;&#34;&#34;
+    # Patch filtering
+    ignore_labels: list[int] = dataclasses.field(default_factory=list)
+    &#34;&#34;&#34;If provided, exclude patches with these label values. None means no filtering. Common use: ignore_labels=[0] to exclude background.&#34;&#34;&#34;
     # Performance
     n_threads: int = 4
     &#34;&#34;&#34;Number of dataloading threads.&#34;&#34;&#34;
@@ -570,6 +573,10 @@ class Config:
 <dt id="saev.data.Config.drop_last"><code class="name">var <span class="ident">drop_last</span> : bool</code></dt>
 <dd>
 <div class="desc"><p>Whether to drop the last batch if it's smaller than the others.</p></div>
+</dd>
+<dt id="saev.data.Config.ignore_labels"><code class="name">var <span class="ident">ignore_labels</span> : list[int]</code></dt>
+<dd>
+<div class="desc"><p>If provided, exclude patches with these label values. None means no filtering. Common use: ignore_labels=[0] to exclude background.</p></div>
 </dd>
 <dt id="saev.data.Config.layer"><code class="name">var <span class="ident">layer</span> : int | Literal['all']</code></dt>
 <dd>
@@ -618,12 +625,14 @@ class DataLoader:
     &#34;&#34;&#34;
 
     @jaxtyped(typechecker=beartype.beartype)
-    class ExampleBatch(typing.TypedDict):
+    class ExampleBatch(typing.TypedDict, total=False):
         &#34;&#34;&#34;Individual example.&#34;&#34;&#34;
 
         act: Float[Tensor, &#34;batch d_vit&#34;]
         image_i: Int[Tensor, &#34; batch&#34;]
         patch_i: Int[Tensor, &#34; batch&#34;]
+        # Optional, only present if labels.bin exists
+        patch_labels: Int[Tensor, &#34; batch&#34;]
 
     def __init__(self, cfg: Config):
         self.cfg = cfg
@@ -631,6 +640,13 @@ class DataLoader:
             raise RuntimeError(f&#34;Activations are not saved at &#39;{self.cfg.shard_root}&#39;.&#34;)
 
         self.metadata = writers.Metadata.load(self.cfg.shard_root)
+
+        # Validate shard files exist
+        shard_info = writers.ShardInfo.load(self.cfg.shard_root)
+        for shard in shard_info:
+            shard_path = os.path.join(self.cfg.shard_root, shard.name)
+            if not os.path.exists(shard_path):
+                raise FileNotFoundError(f&#34;Shard file not found: {shard_path}&#34;)
 
         self.logger = logging.getLogger(&#34;ordered.DataLoader&#34;)
         self.ctx = mp.get_context()
@@ -919,7 +935,25 @@ class DataLoader:
             raise NotImplementedError(&#34;scale_norm not implemented.&#34;)
 
         self.metadata = writers.Metadata.load(self.cfg.shard_root)
+
+        # Validate shard files exist
+        shard_info = writers.ShardInfo.load(self.cfg.shard_root)
+        for shard in shard_info:
+            shard_path = os.path.join(self.cfg.shard_root, shard.name)
+            if not os.path.exists(shard_path):
+                raise FileNotFoundError(f&#34;Shard file not found: {shard_path}&#34;)
+
         self._n_samples = self._calculate_n_samples()
+
+        # Check if labels.bin exists for filtering
+        self.labels_mmap = None
+        if self.cfg.ignore_labels:
+            labels_path = os.path.join(self.cfg.shard_root, &#34;labels.bin&#34;)
+            if not os.path.exists(labels_path):
+                raise FileNotFoundError(
+                    f&#34;ignore_labels filtering requested but labels.bin not found at {labels_path}&#34;
+                )
+            # We&#39;ll create the memmap when starting the manager process
 
     @property
     def n_batches(self) -&gt; int:
@@ -957,10 +991,22 @@ class DataLoader:
             dtype=torch.float32,
             meta_shape=(2,),
             meta_dtype=torch.int32,
+            seed=self.cfg.seed,
             collate_fn=torch.utils.data.default_collate,
         )
         self.stop_event = self.ctx.Event()
         self.err_queue = self.ctx.Queue(maxsize=self.cfg.n_threads + 1)
+
+        # Create labels memmap if needed
+        labels_mmap = None
+        if self.cfg.ignore_labels:
+            labels_path = os.path.join(self.cfg.shard_root, &#34;labels.bin&#34;)
+            labels_mmap = np.memmap(
+                labels_path,
+                mode=&#34;r&#34;,
+                dtype=np.uint8,
+                shape=(self.metadata.n_imgs, self.metadata.n_patches_per_img),
+            )
 
         self.manager_proc = self.ctx.Process(
             target=_manager_main,
@@ -970,6 +1016,7 @@ class DataLoader:
                 self.reservoir,
                 self.stop_event,
                 self.err_queue,
+                labels_mmap,
             ),
             daemon=True,
         )
@@ -984,7 +1031,7 @@ class DataLoader:
             while n &lt; self.n_samples:
                 need = min(self.cfg.batch_size, self.n_samples - n)
                 if not self.err_queue.empty():
-                    who, tb = self.err_q.get_nowait()
+                    who, tb = self.err_queue.get_nowait()
                     raise RuntimeError(f&#34;{who} crashed:\n{tb}&#34;)
 
                 try:
@@ -997,11 +1044,18 @@ class DataLoader:
                     yield self.ExampleBatch(act=act, image_i=image_i, patch_i=patch_i)
                     continue
                 except TimeoutError:
-                    self.logger.info(
-                        &#34;Did not get a batch from %d worker threads in %.1fs seconds.&#34;,
-                        self.cfg.n_threads,
-                        self.cfg.batch_timeout_s,
-                    )
+                    if self.cfg.ignore_labels:
+                        self.logger.info(
+                            &#34;Did not get a batch from %d worker threads in %.1fs seconds. This can happen when filtering out many labels.&#34;,
+                            self.cfg.n_threads,
+                            self.cfg.batch_timeout_s,
+                        )
+                    else:
+                        self.logger.info(
+                            &#34;Did not get a batch from %d worker threads in %.1fs seconds.&#34;,
+                            self.cfg.n_threads,
+                            self.cfg.batch_timeout_s,
+                        )
 
                 # If we don&#39;t continue, then we should check on the manager process.
                 if not self.manager_proc.is_alive():
@@ -1043,22 +1097,61 @@ class DataLoader:
         self.shutdown()
 
     def _calculate_n_samples(self) -&gt; int:
-        &#34;&#34;&#34;Helper to calculate total number of examples based on config.&#34;&#34;&#34;
+        &#34;&#34;&#34;Helper to calculate total number of examples based on config.
+
+        When ignore_labels is specified, this counts the actual number of patches
+        that remain after filtering out the ignored labels.
+        &#34;&#34;&#34;
+        # First calculate the maximum possible samples
+        max_samples = 0
         match (self.cfg.patches, self.cfg.layer):
             case (&#34;cls&#34;, &#34;all&#34;):
-                return self.metadata.n_imgs * len(self.metadata.layers)
+                max_samples = self.metadata.n_imgs * len(self.metadata.layers)
             case (&#34;cls&#34;, int()):
-                return self.metadata.n_imgs
+                max_samples = self.metadata.n_imgs
             case (&#34;image&#34;, int()):
-                return self.metadata.n_imgs * self.metadata.n_patches_per_img
+                max_samples = self.metadata.n_imgs * self.metadata.n_patches_per_img
             case (&#34;image&#34;, &#34;all&#34;):
-                return (
+                max_samples = (
                     self.metadata.n_imgs
                     * len(self.metadata.layers)
                     * self.metadata.n_patches_per_img
                 )
             case _:
                 typing.assert_never((self.cfg.patches, self.cfg.layer))
+
+        # If no filtering, return max samples
+        if not self.cfg.ignore_labels:
+            return max_samples
+
+        # For patch filtering, count actual remaining patches
+        # Note: This only works for &#34;image&#34; patches with fixed layer
+        if self.cfg.patches != &#34;image&#34; or not isinstance(self.cfg.layer, int):
+            raise NotImplementedError(
+                &#34;Patch label filtering only supports &#39;image&#39; patches with fixed layer&#34;
+            )
+
+        # Load labels and count remaining patches
+        labels_path = os.path.join(self.cfg.shard_root, &#34;labels.bin&#34;)
+        if not os.path.exists(labels_path):
+            raise FileNotFoundError(f&#34;labels.bin not found at {labels_path}&#34;)
+
+        # Memory-map the labels file
+        labels = np.memmap(
+            labels_path,
+            mode=&#34;r&#34;,
+            dtype=np.uint8,
+            shape=(self.metadata.n_imgs, self.metadata.n_patches_per_img),
+        )
+
+        # Count patches that are NOT in the ignore list
+        mask = ~np.isin(labels, self.cfg.ignore_labels)
+        n_remaining = int(np.sum(mask))
+
+        # Clean up the memmap
+        del labels
+
+        return n_remaining
 
     def __len__(self) -&gt; int:
         &#34;&#34;&#34;Returns the number of batches in an epoch.&#34;&#34;&#34;
@@ -1194,12 +1287,13 @@ class Dataset(torch.utils.data.Dataset):
     Dataset of activations from disk.
     &#34;&#34;&#34;
 
-    class Example(typing.TypedDict):
+    class Example(typing.TypedDict, total=False):
         &#34;&#34;&#34;Individual example.&#34;&#34;&#34;
 
         act: Float[Tensor, &#34; d_vit&#34;]
         image_i: int
         patch_i: int
+        patch_label: int
 
     cfg: Config
     &#34;&#34;&#34;Configuration; set via CLI args.&#34;&#34;&#34;
@@ -1214,6 +1308,24 @@ class Dataset(torch.utils.data.Dataset):
             raise RuntimeError(f&#34;Activations are not saved at &#39;{self.cfg.shard_root}&#39;.&#34;)
 
         self.metadata = writers.Metadata.load(self.cfg.shard_root)
+
+        # Validate shard files exist
+        shard_info = writers.ShardInfo.load(self.cfg.shard_root)
+        for shard in shard_info:
+            shard_path = os.path.join(self.cfg.shard_root, shard.name)
+            if not os.path.exists(shard_path):
+                raise FileNotFoundError(f&#34;Shard file not found: {shard_path}&#34;)
+
+        # Check if labels.bin exists
+        labels_path = os.path.join(self.cfg.shard_root, &#34;labels.bin&#34;)
+        self.labels_mmap = None
+        if os.path.exists(labels_path):
+            self.labels_mmap = np.memmap(
+                labels_path,
+                mode=&#34;r&#34;,
+                dtype=np.uint8,
+                shape=(self.metadata.n_imgs, self.metadata.n_patches_per_img),
+            )
 
         # Pick a really big number so that if you accidentally use this when you shouldn&#39;t, you get an out of bounds IndexError.
         self.layer_index = 1_000_000
@@ -1243,7 +1355,12 @@ class Dataset(torch.utils.data.Dataset):
                 img_act = self.get_img_patches(i)
                 # Select layer&#39;s cls token.
                 act = img_act[self.layer_index, 0, :]
-                return self.Example(act=self.transform(act), image_i=i, patch_i=-1)
+                result = self.Example(act=self.transform(act), image_i=i, patch_i=-1)
+
+                # Note: CLS tokens don&#39;t have patch labels since they&#39;re not image patches
+                # patch_label is omitted for CLS tokens
+
+                return result
             case (&#34;image&#34;, int()):
                 # Calculate which image and patch this index corresponds to
                 image_i = i // self.metadata.n_patches_per_img
@@ -1274,11 +1391,17 @@ class Dataset(torch.utils.data.Dataset):
                 # Get the activation
                 act = acts[img_pos_in_shard, self.layer_index, patch_idx_with_cls]
 
-                return self.Example(
+                result = self.Example(
                     act=self.transform(act),
                     image_i=image_i,
                     patch_i=patch_i,
                 )
+
+                # Add patch label if available
+                if self.labels_mmap is not None:
+                    result[&#34;patch_label&#34;] = int(self.labels_mmap[image_i, patch_i])
+
+                return result
             case _:
                 print((self.cfg.patches, self.cfg.layer))
                 typing.assert_never((self.cfg.patches, self.cfg.layer))
@@ -1419,10 +1542,10 @@ def d_vit(self) -&gt; int:
 </dd>
 <dt id="saev.data.Metadata"><code class="flex name class">
 <span>class <span class="ident">Metadata</span></span>
-<span>(</span><span>vit_family: Literal['<a title="saev.data.clip" href="clip.html">saev.data.clip</a>', '<a title="saev.data.siglip" href="siglip.html">saev.data.siglip</a>', '<a title="saev.data.dinov2" href="dinov2.html">saev.data.dinov2</a>', '<a title="saev.data.dinov3" href="dinov3.html">saev.data.dinov3</a>'],<br>vit_ckpt: str,<br>layers: tuple[int, ...],<br>n_patches_per_img: int,<br>cls_token: bool,<br>d_vit: int,<br>n_imgs: int,<br>max_patches_per_shard: int,<br>data: dict[str, object],<br>dtype: Literal['float32'] = 'float32',<br>protocol: Literal['1.0.0'] = '1.0.0')</span>
+<span>(</span><span>vit_family: Literal['<a title="saev.data.clip" href="clip.html">saev.data.clip</a>', '<a title="saev.data.siglip" href="siglip.html">saev.data.siglip</a>', '<a title="saev.data.dinov2" href="dinov2.html">saev.data.dinov2</a>', '<a title="saev.data.dinov3" href="dinov3.html">saev.data.dinov3</a>', 'fake-<a title="saev.data.clip" href="clip.html">saev.data.clip</a>'],<br>vit_ckpt: str,<br>layers: tuple[int, ...],<br>n_patches_per_img: int,<br>cls_token: bool,<br>d_vit: int,<br>n_imgs: int,<br>max_patches_per_shard: int,<br>data: dict[str, object],<br>pixel_agg: Literal['majority', 'prefer-fg', None] = None,<br>dtype: Literal['float32'] = 'float32',<br>protocol: Literal['1.0.0', '1.1'] = '1.1')</span>
 </code></dt>
 <dd>
-<div class="desc"><p>Metadata(vit_family: Literal['clip', 'siglip', 'dinov2', 'dinov3'], vit_ckpt: str, layers: tuple[int, &hellip;], n_patches_per_img: int, cls_token: bool, d_vit: int, n_imgs: int, max_patches_per_shard: int, data: dict[str, object], dtype: Literal['float32'] = 'float32', protocol: Literal['1.0.0'] = '1.0.0')</p></div>
+<div class="desc"><p>Metadata(vit_family: Literal['clip', 'siglip', 'dinov2', 'dinov3', 'fake-clip'], vit_ckpt: str, layers: tuple[int, &hellip;], n_patches_per_img: int, cls_token: bool, d_vit: int, n_imgs: int, max_patches_per_shard: int, data: dict[str, object], pixel_agg: Literal['majority', 'prefer-fg', None] = None, dtype: Literal['float32'] = 'float32', protocol: Literal['1.0.0', '1.1'] = '1.1')</p></div>
 <details class="source">
 <summary>
 <span>Expand source code</span>
@@ -1430,7 +1553,7 @@ def d_vit(self) -&gt; int:
 <pre><code class="python">@beartype.beartype
 @dataclasses.dataclass(frozen=True)
 class Metadata:
-    vit_family: typing.Literal[&#34;clip&#34;, &#34;siglip&#34;, &#34;dinov2&#34;, &#34;dinov3&#34;]
+    vit_family: tp.Literal[&#34;clip&#34;, &#34;siglip&#34;, &#34;dinov2&#34;, &#34;dinov3&#34;, &#34;fake-clip&#34;]
     vit_ckpt: str
     layers: tuple[int, ...]
     n_patches_per_img: int
@@ -1439,8 +1562,9 @@ class Metadata:
     n_imgs: int
     max_patches_per_shard: int
     data: dict[str, object]
-    dtype: typing.Literal[&#34;float32&#34;] = &#34;float32&#34;
-    protocol: typing.Literal[&#34;1.0.0&#34;] = &#34;1.0.0&#34;
+    pixel_agg: tp.Literal[&#34;majority&#34;, &#34;prefer-fg&#34;, None] = None
+    dtype: tp.Literal[&#34;float32&#34;] = &#34;float32&#34;
+    protocol: tp.Literal[&#34;1.0.0&#34;, &#34;1.1&#34;] = &#34;1.1&#34;
 
     def __post_init__(self):
         # Check that at least one image per shard can fit.
@@ -1450,6 +1574,11 @@ class Metadata:
 
     @classmethod
     def from_cfg(cls, cfg: Config) -&gt; &#34;Metadata&#34;:
+        # Only include pixel_agg for segmentation datasets
+        pixel_agg = None
+        if _is_segmentation_dataset(cfg.data):
+            pixel_agg = cfg.pixel_agg
+
         return cls(
             cfg.vit_family,
             cfg.vit_ckpt,
@@ -1460,6 +1589,7 @@ class Metadata:
             cfg.data.n_imgs,
             cfg.max_patches_per_shard,
             {**dataclasses.asdict(cfg.data), &#34;__class__&#34;: cfg.data.__class__.__name__},
+            pixel_agg,
         )
 
     @classmethod
@@ -1521,6 +1651,11 @@ class Metadata:
 </summary>
 <pre><code class="python">@classmethod
 def from_cfg(cls, cfg: Config) -&gt; &#34;Metadata&#34;:
+    # Only include pixel_agg for segmentation datasets
+    pixel_agg = None
+    if _is_segmentation_dataset(cfg.data):
+        pixel_agg = cfg.pixel_agg
+
     return cls(
         cfg.vit_family,
         cfg.vit_ckpt,
@@ -1531,6 +1666,7 @@ def from_cfg(cls, cfg: Config) -&gt; &#34;Metadata&#34;:
         cfg.data.n_imgs,
         cfg.max_patches_per_shard,
         {**dataclasses.asdict(cfg.data), &#34;__class__&#34;: cfg.data.__class__.__name__},
+        pixel_agg,
     )</code></pre>
 </details>
 </dd>
@@ -1646,7 +1782,11 @@ def n_tokens_per_img(self) -&gt; int:
     return self.n_patches_per_img + int(self.cls_token)</code></pre>
 </details>
 </dd>
-<dt id="saev.data.Metadata.protocol"><code class="name">var <span class="ident">protocol</span> : Literal['1.0.0']</code></dt>
+<dt id="saev.data.Metadata.pixel_agg"><code class="name">var <span class="ident">pixel_agg</span> : Literal['majority', 'prefer-fg', None]</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="saev.data.Metadata.protocol"><code class="name">var <span class="ident">protocol</span> : Literal['1.0.0', '1.1']</code></dt>
 <dd>
 <div class="desc"></div>
 </dd>
@@ -1671,7 +1811,7 @@ def shard_shape(self) -&gt; tuple[int, int, int, int]:
 <dd>
 <div class="desc"></div>
 </dd>
-<dt id="saev.data.Metadata.vit_family"><code class="name">var <span class="ident">vit_family</span> : Literal['<a title="saev.data.clip" href="clip.html">saev.data.clip</a>', '<a title="saev.data.siglip" href="siglip.html">saev.data.siglip</a>', '<a title="saev.data.dinov2" href="dinov2.html">saev.data.dinov2</a>', '<a title="saev.data.dinov3" href="dinov3.html">saev.data.dinov3</a>']</code></dt>
+<dt id="saev.data.Metadata.vit_family"><code class="name">var <span class="ident">vit_family</span> : Literal['<a title="saev.data.clip" href="clip.html">saev.data.clip</a>', '<a title="saev.data.siglip" href="siglip.html">saev.data.siglip</a>', '<a title="saev.data.dinov2" href="dinov2.html">saev.data.dinov2</a>', '<a title="saev.data.dinov3" href="dinov3.html">saev.data.dinov3</a>', 'fake-<a title="saev.data.clip" href="clip.html">saev.data.clip</a>']</code></dt>
 <dd>
 <div class="desc"></div>
 </dd>
@@ -1784,10 +1924,10 @@ setTimeout(() => input.focus(), 100);
 <ul>
 <li><code><a title="saev.data.buffers" href="buffers.html">saev.data.buffers</a></code></li>
 <li><code><a title="saev.data.clip" href="clip.html">saev.data.clip</a></code></li>
-<li><code><a title="saev.data.config" href="config.html">saev.data.config</a></code></li>
 <li><code><a title="saev.data.datasets" href="datasets.html">saev.data.datasets</a></code></li>
 <li><code><a title="saev.data.dinov2" href="dinov2.html">saev.data.dinov2</a></code></li>
 <li><code><a title="saev.data.dinov3" href="dinov3.html">saev.data.dinov3</a></code></li>
+<li><code><a title="saev.data.fake_clip" href="fake_clip.html">saev.data.fake_clip</a></code></li>
 <li><code><a title="saev.data.indexed" href="indexed.html">saev.data.indexed</a></code></li>
 <li><code><a title="saev.data.models" href="models.html">saev.data.models</a></code></li>
 <li><code><a title="saev.data.ordered" href="ordered.html">saev.data.ordered</a></code></li>
@@ -1835,6 +1975,7 @@ setTimeout(() => input.focus(), 100);
 <li><code><a title="saev.data.Config.buffer_size" href="#saev.data.Config.buffer_size">buffer_size</a></code></li>
 <li><code><a title="saev.data.Config.debug" href="#saev.data.Config.debug">debug</a></code></li>
 <li><code><a title="saev.data.Config.drop_last" href="#saev.data.Config.drop_last">drop_last</a></code></li>
+<li><code><a title="saev.data.Config.ignore_labels" href="#saev.data.Config.ignore_labels">ignore_labels</a></code></li>
 <li><code><a title="saev.data.Config.layer" href="#saev.data.Config.layer">layer</a></code></li>
 <li><code><a title="saev.data.Config.log_every_s" href="#saev.data.Config.log_every_s">log_every_s</a></code></li>
 <li><code><a title="saev.data.Config.n_threads" href="#saev.data.Config.n_threads">n_threads</a></code></li>
@@ -1897,6 +2038,7 @@ setTimeout(() => input.focus(), 100);
 <li><code><a title="saev.data.Metadata.n_patches_per_img" href="#saev.data.Metadata.n_patches_per_img">n_patches_per_img</a></code></li>
 <li><code><a title="saev.data.Metadata.n_shards" href="#saev.data.Metadata.n_shards">n_shards</a></code></li>
 <li><code><a title="saev.data.Metadata.n_tokens_per_img" href="#saev.data.Metadata.n_tokens_per_img">n_tokens_per_img</a></code></li>
+<li><code><a title="saev.data.Metadata.pixel_agg" href="#saev.data.Metadata.pixel_agg">pixel_agg</a></code></li>
 <li><code><a title="saev.data.Metadata.protocol" href="#saev.data.Metadata.protocol">protocol</a></code></li>
 <li><code><a title="saev.data.Metadata.shard_shape" href="#saev.data.Metadata.shard_shape">shard_shape</a></code></li>
 <li><code><a title="saev.data.Metadata.vit_ckpt" href="#saev.data.Metadata.vit_ckpt">vit_ckpt</a></code></li>

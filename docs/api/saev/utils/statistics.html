@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1">
 <meta name="generator" content="pdoc3 0.11.6">
-<title>saev.ops API documentation</title>
+<title>saev.utils.statistics API documentation</title>
 <meta name="description" content="">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/13.0.0/sanitize.min.css" integrity="sha512-y1dtMcuvtTMJc1yPgEqF0ZjQbhnc/bFhyvIyVNb9Zk5mIGtqVaAB1Ttl28su8AvFMOY0EwRbAe+HCLqj6W7/KA==" crossorigin>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/13.0.0/typography.min.css" integrity="sha512-Y1DYSb995BAfxobCkKepB1BqJJTPrOp3zPL74AWFugHHmmdcvO+C48WLrUOlhGMc0QG7AE3f7gmvvcrmX2fDoA==" crossorigin>
@@ -24,7 +24,7 @@ hljs.highlightAll();
 <main>
 <article id="content">
 <header>
-<h1 class="title">Module <code>saev.ops</code></h1>
+<h1 class="title">Module <code>saev.utils.statistics</code></h1>
 </header>
 <section id="section-intro">
 </section>
@@ -33,10 +33,13 @@ hljs.highlightAll();
 <section>
 </section>
 <section>
-<h2 class="section-title" id="header-functions">Functions</h2>
+</section>
+<section>
+<h2 class="section-title" id="header-classes">Classes</h2>
 <dl>
-<dt id="saev.ops.gather_batched"><code class="name flex">
-<span>def <span class="ident">gather_batched</span></span>(<span>value: jaxtyping.Float[Tensor, 'batch n dim'],<br>i: jaxtyping.Int[Tensor, 'batch k']) ‑> jaxtyping.Float[Tensor, 'batch k dim']</span>
+<dt id="saev.utils.statistics.PercentileEstimator"><code class="flex name class">
+<span>class <span class="ident">PercentileEstimator</span></span>
+<span>(</span><span>percentile: float | int,<br>total: int,<br>lr: float = 0.001,<br>shape: tuple[int, ...] = ())</span>
 </code></dt>
 <dd>
 <div class="desc"></div>
@@ -44,20 +47,101 @@ hljs.highlightAll();
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">@jaxtyped(typechecker=beartype.beartype)
-def gather_batched(
-    value: Float[Tensor, &#34;batch n dim&#34;], i: Int[Tensor, &#34;batch k&#34;]
-) -&gt; Float[Tensor, &#34;batch k dim&#34;]:
-    batch_size, n, dim = value.shape
-    _, k = i.shape
+<pre><code class="python">@beartype.beartype
+class PercentileEstimator:
+    def __init__(
+        self,
+        percentile: float | int,
+        total: int,
+        lr: float = 1e-3,
+        shape: tuple[int, ...] = (),
+    ):
+        self.percentile = percentile
+        self.total = total
+        self.lr = lr
 
-    batch_i = torch.arange(batch_size, device=value.device)[:, None].expand(-1, k)
-    return value[batch_i, i]</code></pre>
+        self._estimate = torch.zeros(shape)
+        self._step = 0
+
+    def update(self, x):
+        &#34;&#34;&#34;
+        Update the estimator with a new value.
+
+        This method maintains the marker positions using the P2 algorithm rules. When a new value arrives, it&#39;s placed in the appropriate position relative to existing markers, and marker positions are adjusted to maintain their desired percentile positions.
+
+        Arguments:
+            x: The new value to incorporate into the estimation
+        &#34;&#34;&#34;
+        self._step += 1
+
+        step_size = self.lr * (self.total - self._step) / self.total
+
+        # Is a no-op if it&#39;s already on the same device.
+        if isinstance(x, Tensor):
+            self._estimate = self._estimate.to(x.device)
+
+        self._estimate += step_size * (
+            torch.sign(x - self._estimate) + 2 * self.percentile / 100 - 1.0
+        )
+
+    @property
+    def estimate(self):
+        return self._estimate</code></pre>
+</details>
+<h3>Instance variables</h3>
+<dl>
+<dt id="saev.utils.statistics.PercentileEstimator.estimate"><code class="name">prop <span class="ident">estimate</span></code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def estimate(self):
+    return self._estimate</code></pre>
 </details>
 </dd>
 </dl>
-</section>
-<section>
+<h3>Methods</h3>
+<dl>
+<dt id="saev.utils.statistics.PercentileEstimator.update"><code class="name flex">
+<span>def <span class="ident">update</span></span>(<span>self, x)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Update the estimator with a new value.</p>
+<p>This method maintains the marker positions using the P2 algorithm rules. When a new value arrives, it's placed in the appropriate position relative to existing markers, and marker positions are adjusted to maintain their desired percentile positions.</p>
+<h2 id="arguments">Arguments</h2>
+<p>x: The new value to incorporate into the estimation</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def update(self, x):
+    &#34;&#34;&#34;
+    Update the estimator with a new value.
+
+    This method maintains the marker positions using the P2 algorithm rules. When a new value arrives, it&#39;s placed in the appropriate position relative to existing markers, and marker positions are adjusted to maintain their desired percentile positions.
+
+    Arguments:
+        x: The new value to incorporate into the estimation
+    &#34;&#34;&#34;
+    self._step += 1
+
+    step_size = self.lr * (self.total - self._step) / self.total
+
+    # Is a no-op if it&#39;s already on the same device.
+    if isinstance(x, Tensor):
+        self._estimate = self._estimate.to(x.device)
+
+    self._estimate += step_size * (
+        torch.sign(x - self._estimate) + 2 * self.percentile / 100 - 1.0
+    )</code></pre>
+</details>
+</dd>
+</dl>
+</dd>
+</dl>
 </section>
 </article>
 <nav id="sidebar">
@@ -95,7 +179,7 @@ const query = new URL(window.location).searchParams.get('q');
 if (query)
 search(query);
 function search(query) {
-const url = '../doc-search.html#' + encodeURIComponent(query);
+const url = '../../doc-search.html#' + encodeURIComponent(query);
 new tingle.modal({
 cssClass: ['modal-dialog'],
 onClose: () => {
@@ -113,12 +197,18 @@ setTimeout(() => input.focus(), 100);
 <ul id="index">
 <li><h3>Super-module</h3>
 <ul>
-<li><code><a title="saev" href="index.html">saev</a></code></li>
+<li><code><a title="saev.utils" href="index.html">saev.utils</a></code></li>
 </ul>
 </li>
-<li><h3><a href="#header-functions">Functions</a></h3>
+<li><h3><a href="#header-classes">Classes</a></h3>
+<ul>
+<li>
+<h4><code><a title="saev.utils.statistics.PercentileEstimator" href="#saev.utils.statistics.PercentileEstimator">PercentileEstimator</a></code></h4>
 <ul class="">
-<li><code><a title="saev.ops.gather_batched" href="#saev.ops.gather_batched">gather_batched</a></code></li>
+<li><code><a title="saev.utils.statistics.PercentileEstimator.estimate" href="#saev.utils.statistics.PercentileEstimator.estimate">estimate</a></code></li>
+<li><code><a title="saev.utils.statistics.PercentileEstimator.update" href="#saev.utils.statistics.PercentileEstimator.update">update</a></code></li>
+</ul>
+</li>
 </ul>
 </li>
 </ul>

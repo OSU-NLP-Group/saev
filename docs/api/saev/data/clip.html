@@ -51,19 +51,6 @@ hljs.highlightAll();
 class Vit(models.VisionTransformer, torch.nn.Module):
     family: str = &#34;clip&#34;
 
-    @staticmethod
-    def make_transforms(ckpt: str) -&gt; tuple[Callable, Callable | None]:
-        if ckpt.startswith(&#34;hf-hub:&#34;):
-            _, img_transform = open_clip.create_model_from_pretrained(
-                ckpt, cache_dir=helpers.get_cache_dir()
-            )
-        else:
-            arch, ckpt = ckpt.split(&#34;/&#34;)
-            _, img_transform = open_clip.create_model_from_pretrained(
-                arch, pretrained=ckpt, cache_dir=helpers.get_cache_dir()
-            )
-        return img_transform, None
-
     def __init__(self, ckpt: str):
         super().__init__()
 
@@ -89,6 +76,13 @@ class Vit(models.VisionTransformer, torch.nn.Module):
     def ckpt(self) -&gt; str:
         return self._ckpt
 
+    @property
+    def patch_size(self) -&gt; int:
+        &#34;&#34;&#34;Get patch size for CLIP models.&#34;&#34;&#34;
+        # Standard CLIP models all use 16x16 patches
+        # The tiny test model uses 2x2 but that&#39;s not a real model
+        return 16
+
     def get_residuals(self) -&gt; list[torch.nn.Module]:
         return self.model.transformer.resblocks
 
@@ -98,7 +92,47 @@ class Vit(models.VisionTransformer, torch.nn.Module):
     def forward(
         self, batch: Float[Tensor, &#34;batch 3 width height&#34;]
     ) -&gt; Float[Tensor, &#34;batch patches dim&#34;]:
-        return self.model(batch)</code></pre>
+        return self.model(batch)
+
+    @staticmethod
+    def make_transforms(
+        ckpt: str, n_patches_per_img: int
+    ) -&gt; tuple[Callable, Callable | None]:
+        &#34;&#34;&#34;Create transforms for preprocessing: (img_transform, sample_transform | None).&#34;&#34;&#34;
+        if ckpt.startswith(&#34;hf-hub:&#34;):
+            _, img_transform = open_clip.create_model_from_pretrained(
+                ckpt, cache_dir=helpers.get_cache_dir()
+            )
+        else:
+            arch, ckpt = ckpt.split(&#34;/&#34;)
+            _, img_transform = open_clip.create_model_from_pretrained(
+                arch, pretrained=ckpt, cache_dir=helpers.get_cache_dir()
+            )
+        return img_transform, None
+
+    @staticmethod
+    def make_resize(
+        ckpt: str,
+        n_patches_per_img: int = -1,
+        *,
+        scale: float = 2.0,
+        resample: Image.Resampling = Image.LANCZOS,
+    ) -&gt; Callable[[Image.Image], Image.Image]:
+        def resize(img: Image.Image) -&gt; Image.Image:
+            resize_size_px = (int(256 * scale), int(256 * scale))
+            crop_size_px = (int(224 * scale), int(224 * scale))
+
+            resize_w_px, resize_h_px = resize_size_px
+            crop_w_px, crop_h_px = crop_size_px
+            crop_coords_px = (
+                (resize_w_px - crop_w_px) // 2,
+                (resize_h_px - crop_h_px) // 2,
+                (resize_w_px + crop_w_px) // 2,
+                (resize_h_px + crop_h_px) // 2,
+            )
+            return img.resize(resize_size_px, resample=resample).crop(crop_coords_px)
+
+        return resize</code></pre>
 </details>
 <h3>Ancestors</h3>
 <ul class="hlist">
@@ -111,32 +145,6 @@ class Vit(models.VisionTransformer, torch.nn.Module):
 <dt id="saev.data.clip.Vit.family"><code class="name">var <span class="ident">family</span> : str</code></dt>
 <dd>
 <div class="desc"></div>
-</dd>
-</dl>
-<h3>Static methods</h3>
-<dl>
-<dt id="saev.data.clip.Vit.make_transforms"><code class="name flex">
-<span>def <span class="ident">make_transforms</span></span>(<span>ckpt: str) ‑> tuple[<class 'collections.abc.Callable'>, collections.abc.Callable | None]</span>
-</code></dt>
-<dd>
-<div class="desc"></div>
-<details class="source">
-<summary>
-<span>Expand source code</span>
-</summary>
-<pre><code class="python">@staticmethod
-def make_transforms(ckpt: str) -&gt; tuple[Callable, Callable | None]:
-    if ckpt.startswith(&#34;hf-hub:&#34;):
-        _, img_transform = open_clip.create_model_from_pretrained(
-            ckpt, cache_dir=helpers.get_cache_dir()
-        )
-    else:
-        arch, ckpt = ckpt.split(&#34;/&#34;)
-        _, img_transform = open_clip.create_model_from_pretrained(
-            arch, pretrained=ckpt, cache_dir=helpers.get_cache_dir()
-        )
-    return img_transform, None</code></pre>
-</details>
 </dd>
 </dl>
 <h3>Instance variables</h3>
@@ -153,6 +161,21 @@ def ckpt(self) -&gt; str:
     return self._ckpt</code></pre>
 </details>
 </dd>
+<dt id="saev.data.clip.Vit.patch_size"><code class="name">prop <span class="ident">patch_size</span> : int</code></dt>
+<dd>
+<div class="desc"><p>Get patch size for CLIP models.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def patch_size(self) -&gt; int:
+    &#34;&#34;&#34;Get patch size for CLIP models.&#34;&#34;&#34;
+    # Standard CLIP models all use 16x16 patches
+    # The tiny test model uses 2x2 but that&#39;s not a real model
+    return 16</code></pre>
+</details>
+</dd>
 </dl>
 <h3>Inherited members</h3>
 <ul class="hlist">
@@ -162,6 +185,7 @@ def ckpt(self) -&gt; str:
 <li><code><a title="saev.data.models.VisionTransformer.get_patches" href="models.html#saev.data.models.VisionTransformer.get_patches">get_patches</a></code></li>
 <li><code><a title="saev.data.models.VisionTransformer.get_residuals" href="models.html#saev.data.models.VisionTransformer.get_residuals">get_residuals</a></code></li>
 <li><code><a title="saev.data.models.VisionTransformer.make_resize" href="models.html#saev.data.models.VisionTransformer.make_resize">make_resize</a></code></li>
+<li><code><a title="saev.data.models.VisionTransformer.make_transforms" href="models.html#saev.data.models.VisionTransformer.make_transforms">make_transforms</a></code></li>
 </ul>
 </li>
 </ul>
@@ -232,7 +256,7 @@ setTimeout(() => input.focus(), 100);
 <ul class="">
 <li><code><a title="saev.data.clip.Vit.ckpt" href="#saev.data.clip.Vit.ckpt">ckpt</a></code></li>
 <li><code><a title="saev.data.clip.Vit.family" href="#saev.data.clip.Vit.family">family</a></code></li>
-<li><code><a title="saev.data.clip.Vit.make_transforms" href="#saev.data.clip.Vit.make_transforms">make_transforms</a></code></li>
+<li><code><a title="saev.data.clip.Vit.patch_size" href="#saev.data.clip.Vit.patch_size">patch_size</a></code></li>
 </ul>
 </li>
 </ul>

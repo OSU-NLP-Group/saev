@@ -75,7 +75,7 @@ def get_acts_dir(cfg: Config) -&gt; str:
 </details>
 </dd>
 <dt id="saev.data.writers.get_dataloader"><code class="name flex">
-<span>def <span class="ident">get_dataloader</span></span>(<span>cfg: <a title="saev.data.writers.Config" href="#saev.data.writers.Config">Config</a>,<br>*,<br>img_transform: collections.abc.Callable | None = None,<br>sample_transform: collections.abc.Callable | None = None) ‑> torch.utils.data.dataloader.DataLoader</span>
+<span>def <span class="ident">get_dataloader</span></span>(<span>cfg: <a title="saev.data.writers.Config" href="#saev.data.writers.Config">Config</a>,<br>*,<br>img_tr: collections.abc.Callable | None = None,<br>seg_tr: collections.abc.Callable | None = None,<br>sample_tr: collections.abc.Callable | None = None) ‑> torch.utils.data.dataloader.DataLoader</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Get a dataloader for a default map-style dataset.</p>
@@ -83,8 +83,12 @@ def get_acts_dir(cfg: Config) -&gt; str:
 <dl>
 <dt><strong><code>cfg</code></strong></dt>
 <dd>Config.</dd>
-<dt><strong><code>img_transform</code></strong></dt>
+<dt><strong><code>img_tr</code></strong></dt>
 <dd>Image transform to be applied to each image.</dd>
+<dt><strong><code>seg_tr</code></strong></dt>
+<dd>Segmentation transform to be applied to masks.</dd>
+<dt><strong><code>sample_tr</code></strong></dt>
+<dd>Transform to be applied to sample dicts.</dd>
 </dl>
 <h2 id="returns">Returns</h2>
 <p>A PyTorch Dataloader that yields dictionaries with <code>'image'</code> keys containing image batches, <code>'index'</code> keys containing original dataset indices and <code>'label'</code> keys containing label batches.</p></div>
@@ -96,21 +100,24 @@ def get_acts_dir(cfg: Config) -&gt; str:
 def get_dataloader(
     cfg: Config,
     *,
-    img_transform: Callable | None = None,
-    sample_transform: Callable | None = None,
+    img_tr: Callable | None = None,
+    seg_tr: Callable | None = None,
+    sample_tr: Callable | None = None,
 ) -&gt; torch.utils.data.DataLoader:
     &#34;&#34;&#34;
     Get a dataloader for a default map-style dataset.
 
     Args:
         cfg: Config.
-        img_transform: Image transform to be applied to each image.
+        img_tr: Image transform to be applied to each image.
+        seg_tr: Segmentation transform to be applied to masks.
+        sample_tr: Transform to be applied to sample dicts.
 
     Returns:
         A PyTorch Dataloader that yields dictionaries with `&#39;image&#39;` keys containing image batches, `&#39;index&#39;` keys containing original dataset indices and `&#39;label&#39;` keys containing label batches.
     &#34;&#34;&#34;
     dataset = datasets.get_dataset(
-        cfg.data, img_transform=img_transform, sample_transform=sample_transform
+        cfg.data, img_transform=img_tr, seg_transform=seg_tr, sample_transform=sample_tr
     )
 
     dataloader = torch.utils.data.DataLoader(
@@ -123,6 +130,103 @@ def get_dataloader(
         pin_memory=False,
     )
     return dataloader</code></pre>
+</details>
+</dd>
+<dt id="saev.data.writers.pixel_to_patch_labels"><code class="name flex">
+<span>def <span class="ident">pixel_to_patch_labels</span></span>(<span>seg: PIL.Image.Image,<br>n_patches: int,<br>patch_size: int,<br>pixel_agg: Literal['majority', 'prefer-fg'] = 'majority',<br>bg_label: int = 0,<br>max_classes: int = 256) ‑> jaxtyping.UInt8[Tensor, 'n_patches']</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Convert pixel-level segmentation to patch-level labels using vectorized operations.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>seg</code></strong></dt>
+<dd>Pixel-level segmentation mask as PIL Image</dd>
+<dt><strong><code>n_patches</code></strong></dt>
+<dd>Total number of patches expected</dd>
+<dt><strong><code>patch_size</code></strong></dt>
+<dd>Size of each patch in pixels</dd>
+<dt><strong><code>pixel_agg</code></strong></dt>
+<dd>How to aggregate pixel labels into patch labels</dd>
+<dt><strong><code>bg_label</code></strong></dt>
+<dd>Background label index</dd>
+<dt><strong><code>max_classes</code></strong></dt>
+<dd>Maximum number of classes (for bincount)</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<p>Patch labels as uint8 tensor of shape (n_patches,)</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@jaxtyped(typechecker=beartype.beartype)
+def pixel_to_patch_labels(
+    seg: Image.Image,
+    n_patches: int,
+    patch_size: int,
+    pixel_agg: tp.Literal[&#34;majority&#34;, &#34;prefer-fg&#34;] = &#34;majority&#34;,
+    bg_label: int = 0,
+    max_classes: int = 256,
+) -&gt; UInt8[Tensor, &#34; n_patches&#34;]:
+    &#34;&#34;&#34;
+    Convert pixel-level segmentation to patch-level labels using vectorized operations.
+
+    Args:
+        seg: Pixel-level segmentation mask as PIL Image
+        n_patches: Total number of patches expected
+        patch_size: Size of each patch in pixels
+        pixel_agg: How to aggregate pixel labels into patch labels
+        bg_label: Background label index
+        max_classes: Maximum number of classes (for bincount)
+
+    Returns:
+        Patch labels as uint8 tensor of shape (n_patches,)
+    &#34;&#34;&#34;
+    # Convert to torch tensor for vectorized operations
+    seg_tensor = torch.from_numpy(np.array(seg, dtype=np.uint8))
+    assert seg_tensor.ndim == 2
+
+    h, w = seg_tensor.shape
+
+    # Calculate patch grid dimensions
+    patch_grid_h = h // patch_size
+    patch_grid_w = w // patch_size
+    assert patch_grid_w * patch_grid_h == n_patches, (
+        f&#34;Image size {w}x{h} with patch_size {patch_size} gives {patch_grid_w}x{patch_grid_h} = {patch_grid_w * patch_grid_h} patches, expected {n_patches}&#34;
+    )
+
+    # Reshape into patches using einops: (n_patches, patch_size * patch_size)
+    patches = einops.rearrange(
+        seg_tensor,
+        &#34;(h p1) (w p2) -&gt; (h w) (p1 p2)&#34;,
+        p1=patch_size,
+        p2=patch_size,
+        h=patch_grid_h,
+        w=patch_grid_w,
+    )
+
+    # Use vectorized bincount approach to get class counts for all patches at once
+    # counts[i, c] = number of times class c appears in patch i
+    offsets = torch.arange(n_patches, device=patches.device).unsqueeze(1) * max_classes
+    flat = (patches + offsets).reshape(-1)
+    counts = torch.bincount(flat, minlength=n_patches * max_classes).reshape(
+        n_patches, max_classes
+    )
+
+    if pixel_agg == &#34;majority&#34;:
+        # Take the most common label in each patch
+        patch_labels = counts.argmax(dim=1)
+    elif pixel_agg == &#34;prefer-fg&#34;:
+        # Take the most common non-background label, or background if all background
+        nonbg = counts.clone()
+        nonbg[:, bg_label] = 0
+        has_nonbg = nonbg.sum(dim=1) &gt; 0
+        nonbg_arg = nonbg.argmax(dim=1)
+        bg_tensor = torch.full_like(nonbg_arg, bg_label)
+        patch_labels = torch.where(has_nonbg, nonbg_arg, bg_tensor)
+    else:
+        tp.assert_never(pixel_agg)
+
+    return patch_labels.to(torch.uint8)</code></pre>
 </details>
 </dd>
 <dt id="saev.data.writers.worker_fn"><code class="name flex">
@@ -163,39 +267,73 @@ def worker_fn(cfg: Config):
         cfg = dataclasses.replace(cfg, device=&#34;cpu&#34;)
 
     vit_cls = models.load_vit_cls(cfg.vit_family)
-    vit = vit_cls(cfg.vit_ckpt).to(cfg.device)
+    vit_instance = vit_cls(cfg.vit_ckpt).to(cfg.device)
     vit = RecordedVisionTransformer(
-        vit, cfg.n_patches_per_img, cfg.cls_token, cfg.vit_layers
+        vit_instance, cfg.n_patches_per_img, cfg.cls_token, cfg.vit_layers
     )
-    img_tr, sample_tr = vit_cls.make_transforms(cfg.vit_ckpt)
-    dataloader = get_dataloader(cfg, img_transform=img_tr, sample_transform=sample_tr)
 
-    writer = ShardWriter(cfg)
+    img_tr, sample_tr = vit_cls.make_transforms(cfg.vit_ckpt, cfg.n_patches_per_img)
 
-    n_batches = cfg.data.n_imgs // cfg.vit_batch_size + 1
+    seg_tr = None
+    if _is_segmentation_dataset(cfg.data):
+        # For segmentation datasets, create a transform that converts pixels to patches
+        # Use make_resize with NEAREST interpolation for segmentation masks
+        seg_resize_tr = vit_cls.make_resize(
+            cfg.vit_ckpt, cfg.n_patches_per_img, scale=1.0, resample=Image.NEAREST
+        )
+
+        def seg_to_patches(seg):
+            &#34;&#34;&#34;Transform that resizes segmentation and converts to patch labels.&#34;&#34;&#34;
+
+            # Convert to patch labels
+            return pixel_to_patch_labels(
+                seg_resize_tr(seg),
+                cfg.n_patches_per_img,
+                patch_size=vit_instance.patch_size,
+                pixel_agg=cfg.pixel_agg,
+                bg_label=cfg.data.bg_label,
+            )
+
+        seg_tr = seg_to_patches
+
+    dataloader = get_dataloader(cfg, img_tr=img_tr, seg_tr=seg_tr, sample_tr=sample_tr)
+
+    n_batches = math.ceil(cfg.data.n_imgs / cfg.vit_batch_size)
     logger.info(&#34;Dumping %d batches of %d examples.&#34;, n_batches, cfg.vit_batch_size)
 
     vit = vit.to(cfg.device)
     # vit = torch.compile(vit)
 
-    i = 0
-    # Calculate and write ViT activations.
-    with torch.inference_mode():
-        for batch in helpers.progress(dataloader, total=n_batches):
-            imgs = batch.get(&#34;image&#34;).to(cfg.device)
-            grid = batch.get(&#34;grid&#34;)
-            if grid is not None:
-                grid = grid.to(cfg.device)
-                out, cache = vit(imgs, grid=grid)
-            else:
-                out, cache = vit(imgs)
-            # cache has shape [batch size, n layers, n patches + 1, d vit]
-            del out
+    # Use context manager for proper cleanup
+    with ShardWriter(cfg) as writer:
+        i = 0
+        # Calculate and write ViT activations.
+        with torch.inference_mode():
+            for batch in helpers.progress(dataloader, total=n_batches):
+                imgs = batch.get(&#34;image&#34;).to(cfg.device)
+                grid = batch.get(&#34;grid&#34;)
+                if grid is not None:
+                    grid = grid.to(cfg.device)
+                    out, cache = vit(imgs, grid=grid)
+                else:
+                    out, cache = vit(imgs)
+                # cache has shape [batch size, n layers, n patches + 1, d vit]
+                del out
 
-            writer[i : i + len(cache)] = cache
-            i += len(cache)
+                # Write activations and labels (if present) in one call
+                patch_labels = batch.get(&#34;patch_labels&#34;)
+                if patch_labels is not None:
+                    logger.debug(
+                        f&#34;Found patch_labels in batch: shape={patch_labels.shape if hasattr(patch_labels, &#39;shape&#39;) else &#39;unknown&#39;}&#34;
+                    )
+                    # Ensure correct shape
+                    assert patch_labels.shape == (len(cache), cfg.n_patches_per_img)
+                else:
+                    logger.debug(f&#34;No patch_labels in batch. Keys: {batch.keys()}&#34;)
 
-    writer.flush()</code></pre>
+                writer.write_batch(cache, i, patch_labels=patch_labels)
+
+                i += len(cache)</code></pre>
 </details>
 </dd>
 </dl>
@@ -205,7 +343,7 @@ def worker_fn(cfg: Config):
 <dl>
 <dt id="saev.data.writers.Config"><code class="flex name class">
 <span>class <span class="ident">Config</span></span>
-<span>(</span><span>data: <a title="saev.data.datasets.Imagenet" href="datasets.html#saev.data.datasets.Imagenet">Imagenet</a> | <a title="saev.data.datasets.ImageFolder" href="datasets.html#saev.data.datasets.ImageFolder">ImageFolder</a> | <a title="saev.data.datasets.SegFolder" href="datasets.html#saev.data.datasets.SegFolder">SegFolder</a> | <a title="saev.data.datasets.Fake" href="datasets.html#saev.data.datasets.Fake">Fake</a> = &lt;factory&gt;,<br>dump_to: str = './shards',<br>vit_family: Literal['clip', 'siglip', 'dinov2', 'dinov3'] = 'clip',<br>vit_ckpt: str = 'ViT-L-14/openai',<br>vit_batch_size: int = 1024,<br>n_workers: int = 8,<br>d_vit: int = 1024,<br>vit_layers: list[int] = &lt;factory&gt;,<br>n_patches_per_img: int = 256,<br>cls_token: bool = True,<br>max_patches_per_shard: int = 2400000,<br>ssl: bool = True,<br>device: str = 'cuda',<br>n_hours: float = 24.0,<br>slurm_acct: str = '',<br>slurm_partition: str = '',<br>log_to: str = './logs')</span>
+<span>(</span><span>data: <a title="saev.data.datasets.Imagenet" href="datasets.html#saev.data.datasets.Imagenet">Imagenet</a> | <a title="saev.data.datasets.ImageFolder" href="datasets.html#saev.data.datasets.ImageFolder">ImageFolder</a> | <a title="saev.data.datasets.SegFolder" href="datasets.html#saev.data.datasets.SegFolder">SegFolder</a> | <a title="saev.data.datasets.Fake" href="datasets.html#saev.data.datasets.Fake">Fake</a> | <a title="saev.data.datasets.FakeSeg" href="datasets.html#saev.data.datasets.FakeSeg">FakeSeg</a> = &lt;factory&gt;,<br>dump_to: str = './shards',<br>vit_family: Literal['clip', 'siglip', 'dinov2', 'dinov3', 'fake-clip'] = 'clip',<br>vit_ckpt: str = 'ViT-L-14/openai',<br>vit_batch_size: int = 1024,<br>n_workers: int = 8,<br>d_vit: int = 1024,<br>vit_layers: list[int] = &lt;factory&gt;,<br>n_patches_per_img: int = 256,<br>cls_token: bool = True,<br>pixel_agg: Literal['majority', 'prefer-fg'] = 'majority',<br>max_patches_per_shard: int = 2400000,<br>ssl: bool = True,<br>device: str = 'cuda',<br>n_hours: float = 24.0,<br>slurm_acct: str = '',<br>slurm_partition: str = '',<br>log_to: str = './logs')</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Configuration for calculating and saving ViT activations.</p></div>
@@ -222,7 +360,7 @@ class Config:
     &#34;&#34;&#34;Which dataset to use.&#34;&#34;&#34;
     dump_to: str = os.path.join(&#34;.&#34;, &#34;shards&#34;)
     &#34;&#34;&#34;Where to write shards.&#34;&#34;&#34;
-    vit_family: typing.Literal[&#34;clip&#34;, &#34;siglip&#34;, &#34;dinov2&#34;, &#34;dinov3&#34;] = &#34;clip&#34;
+    vit_family: tp.Literal[&#34;clip&#34;, &#34;siglip&#34;, &#34;dinov2&#34;, &#34;dinov3&#34;, &#34;fake-clip&#34;] = &#34;clip&#34;
     &#34;&#34;&#34;Which model family.&#34;&#34;&#34;
     vit_ckpt: str = &#34;ViT-L-14/openai&#34;
     &#34;&#34;&#34;Specific model checkpoint.&#34;&#34;&#34;
@@ -238,6 +376,7 @@ class Config:
     &#34;&#34;&#34;Number of ViT patches per image (depends on model).&#34;&#34;&#34;
     cls_token: bool = True
     &#34;&#34;&#34;Whether the model has a [CLS] token.&#34;&#34;&#34;
+    pixel_agg: tp.Literal[&#34;majority&#34;, &#34;prefer-fg&#34;] = &#34;majority&#34;
     max_patches_per_shard: int = 2_400_000
     &#34;&#34;&#34;Maximum number of activations per shard; 2.4M is approximately 10GB for 1024-dimensional 4-byte activations.&#34;&#34;&#34;
 
@@ -266,7 +405,7 @@ class Config:
 <dd>
 <div class="desc"><p>Dimension of the ViT activations (depends on model).</p></div>
 </dd>
-<dt id="saev.data.writers.Config.data"><code class="name">var <span class="ident">data</span> : <a title="saev.data.datasets.Imagenet" href="datasets.html#saev.data.datasets.Imagenet">Imagenet</a> | <a title="saev.data.datasets.ImageFolder" href="datasets.html#saev.data.datasets.ImageFolder">ImageFolder</a> | <a title="saev.data.datasets.SegFolder" href="datasets.html#saev.data.datasets.SegFolder">SegFolder</a> | <a title="saev.data.datasets.Fake" href="datasets.html#saev.data.datasets.Fake">Fake</a></code></dt>
+<dt id="saev.data.writers.Config.data"><code class="name">var <span class="ident">data</span> : <a title="saev.data.datasets.Imagenet" href="datasets.html#saev.data.datasets.Imagenet">Imagenet</a> | <a title="saev.data.datasets.ImageFolder" href="datasets.html#saev.data.datasets.ImageFolder">ImageFolder</a> | <a title="saev.data.datasets.SegFolder" href="datasets.html#saev.data.datasets.SegFolder">SegFolder</a> | <a title="saev.data.datasets.Fake" href="datasets.html#saev.data.datasets.Fake">Fake</a> | <a title="saev.data.datasets.FakeSeg" href="datasets.html#saev.data.datasets.FakeSeg">FakeSeg</a></code></dt>
 <dd>
 <div class="desc"><p>Which dataset to use.</p></div>
 </dd>
@@ -298,6 +437,10 @@ class Config:
 <dd>
 <div class="desc"><p>Number of dataloader workers.</p></div>
 </dd>
+<dt id="saev.data.writers.Config.pixel_agg"><code class="name">var <span class="ident">pixel_agg</span> : Literal['majority', 'prefer-fg']</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
 <dt id="saev.data.writers.Config.slurm_acct"><code class="name">var <span class="ident">slurm_acct</span> : str</code></dt>
 <dd>
 <div class="desc"><p>Slurm account string.</p></div>
@@ -318,7 +461,7 @@ class Config:
 <dd>
 <div class="desc"><p>Specific model checkpoint.</p></div>
 </dd>
-<dt id="saev.data.writers.Config.vit_family"><code class="name">var <span class="ident">vit_family</span> : Literal['clip', 'siglip', 'dinov2', 'dinov3']</code></dt>
+<dt id="saev.data.writers.Config.vit_family"><code class="name">var <span class="ident">vit_family</span> : Literal['clip', 'siglip', 'dinov2', 'dinov3', 'fake-clip']</code></dt>
 <dd>
 <div class="desc"><p>Which model family.</p></div>
 </dd>
@@ -370,8 +513,8 @@ class IndexLookup:
     def __init__(
         self,
         metadata: Metadata,
-        patches: typing.Literal[&#34;cls&#34;, &#34;image&#34;, &#34;all&#34;],
-        layer: int | typing.Literal[&#34;all&#34;],
+        patches: tp.Literal[&#34;cls&#34;, &#34;image&#34;, &#34;all&#34;],
+        layer: int | tp.Literal[&#34;all&#34;],
     ):
         if not metadata.cls_token and patches == &#34;cls&#34;:
             raise ValueError(&#34;Cannot return [CLS] token if one isn&#39;t present.&#34;)
@@ -399,6 +542,14 @@ class IndexLookup:
             raise IndexError(f&#34;{i=} out of range [0, {n})&#34;)
 
         match (self.patches, self.layer):
+            case (&#34;cls&#34;, &#34;all&#34;):
+                # For CLS token with all layers, i represents (img_idx * n_layers + layer_idx)
+                n_layers = len(self.metadata.layers)
+                img_i = i // n_layers
+                layer_idx = i % n_layers
+                shard_i, img_i_in_shard = self.map_img(img_i)
+                # CLS token is at position 0
+                return shard_i, (img_i_in_shard, layer_idx, 0)
             case (&#34;cls&#34;, int()):
                 # For CLS token with specific layer, i is the image index
                 img_i = i
@@ -413,7 +564,22 @@ class IndexLookup:
                 shard_i, img_i_in_shard = self.map_img(img_i)
                 return shard_i, (img_i_in_shard, self.layer_to_idx[self.layer], token_i)
             case (&#34;image&#34;, &#34;all&#34;):
-                raise NotImplementedError()
+                # For image patches with all layers
+                # Total patches per image across all layers
+                total_patches_per_img = self.metadata.n_patches_per_img * len(
+                    self.metadata.layers
+                )
+
+                # Calculate which image and which patch within that image across all layers
+                img_i = i // total_patches_per_img
+                remainder = i % total_patches_per_img
+
+                # Calculate which layer and which patch within that layer
+                layer_idx = remainder // self.metadata.n_patches_per_img
+                token_i = remainder % self.metadata.n_patches_per_img
+
+                shard_i, img_i_in_shard = self.map_img(img_i)
+                return shard_i, (img_i_in_shard, layer_idx, token_i)
             case (&#34;all&#34;, int()):
                 n_tokens_per_img = self.metadata.n_patches_per_img + (
                     1 if self.metadata.cls_token else 0
@@ -443,7 +609,7 @@ class IndexLookup:
                 return shard_i, (img_i_in_shard, layer_idx, token_i)
 
             case _:
-                typing.assert_never((self.patches, self.layer))
+                tp.assert_never((self.patches, self.layer))
 
     def map_img(self, img_i: int) -&gt; tuple[int, int]:
         &#34;&#34;&#34;
@@ -492,7 +658,7 @@ class IndexLookup:
                     * (self.metadata.n_patches_per_img + int(self.metadata.cls_token))
                 )
             case _:
-                typing.assert_never((self.patches, self.layer))</code></pre>
+                tp.assert_never((self.patches, self.layer))</code></pre>
 </details>
 <h3>Methods</h3>
 <dl>
@@ -537,7 +703,7 @@ class IndexLookup:
                 * (self.metadata.n_patches_per_img + int(self.metadata.cls_token))
             )
         case _:
-            typing.assert_never((self.patches, self.layer))</code></pre>
+            tp.assert_never((self.patches, self.layer))</code></pre>
 </details>
 </dd>
 <dt id="saev.data.writers.IndexLookup.map_global"><code class="name flex">
@@ -568,6 +734,14 @@ index in shard (img_i_in_shard, layer_i, token_i)
         raise IndexError(f&#34;{i=} out of range [0, {n})&#34;)
 
     match (self.patches, self.layer):
+        case (&#34;cls&#34;, &#34;all&#34;):
+            # For CLS token with all layers, i represents (img_idx * n_layers + layer_idx)
+            n_layers = len(self.metadata.layers)
+            img_i = i // n_layers
+            layer_idx = i % n_layers
+            shard_i, img_i_in_shard = self.map_img(img_i)
+            # CLS token is at position 0
+            return shard_i, (img_i_in_shard, layer_idx, 0)
         case (&#34;cls&#34;, int()):
             # For CLS token with specific layer, i is the image index
             img_i = i
@@ -582,7 +756,22 @@ index in shard (img_i_in_shard, layer_i, token_i)
             shard_i, img_i_in_shard = self.map_img(img_i)
             return shard_i, (img_i_in_shard, self.layer_to_idx[self.layer], token_i)
         case (&#34;image&#34;, &#34;all&#34;):
-            raise NotImplementedError()
+            # For image patches with all layers
+            # Total patches per image across all layers
+            total_patches_per_img = self.metadata.n_patches_per_img * len(
+                self.metadata.layers
+            )
+
+            # Calculate which image and which patch within that image across all layers
+            img_i = i // total_patches_per_img
+            remainder = i % total_patches_per_img
+
+            # Calculate which layer and which patch within that layer
+            layer_idx = remainder // self.metadata.n_patches_per_img
+            token_i = remainder % self.metadata.n_patches_per_img
+
+            shard_i, img_i_in_shard = self.map_img(img_i)
+            return shard_i, (img_i_in_shard, layer_idx, token_i)
         case (&#34;all&#34;, int()):
             n_tokens_per_img = self.metadata.n_patches_per_img + (
                 1 if self.metadata.cls_token else 0
@@ -612,7 +801,7 @@ index in shard (img_i_in_shard, layer_i, token_i)
             return shard_i, (img_i_in_shard, layer_idx, token_i)
 
         case _:
-            typing.assert_never((self.patches, self.layer))</code></pre>
+            tp.assert_never((self.patches, self.layer))</code></pre>
 </details>
 </dd>
 <dt id="saev.data.writers.IndexLookup.map_img"><code class="name flex">
@@ -643,12 +832,169 @@ index in shard (img_i_in_shard, layer_i, token_i)
 </dd>
 </dl>
 </dd>
-<dt id="saev.data.writers.Metadata"><code class="flex name class">
-<span>class <span class="ident">Metadata</span></span>
-<span>(</span><span>vit_family: Literal['clip', 'siglip', 'dinov2', 'dinov3'],<br>vit_ckpt: str,<br>layers: tuple[int, ...],<br>n_patches_per_img: int,<br>cls_token: bool,<br>d_vit: int,<br>n_imgs: int,<br>max_patches_per_shard: int,<br>data: dict[str, object],<br>dtype: Literal['float32'] = 'float32',<br>protocol: Literal['1.0.0'] = '1.0.0')</span>
+<dt id="saev.data.writers.LabelsWriter"><code class="flex name class">
+<span>class <span class="ident">LabelsWriter</span></span>
+<span>(</span><span>cfg: <a title="saev.data.writers.Config" href="#saev.data.writers.Config">Config</a>)</span>
 </code></dt>
 <dd>
-<div class="desc"><p>Metadata(vit_family: Literal['clip', 'siglip', 'dinov2', 'dinov3'], vit_ckpt: str, layers: tuple[int, &hellip;], n_patches_per_img: int, cls_token: bool, d_vit: int, n_imgs: int, max_patches_per_shard: int, data: dict[str, object], dtype: Literal['float32'] = 'float32', protocol: Literal['1.0.0'] = '1.0.0')</p></div>
+<div class="desc"><p>LabelsWriter handles writing patch-level segmentation labels to a single binary file.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+@jaxtyped(typechecker=beartype.beartype)
+class LabelsWriter:
+    &#34;&#34;&#34;
+    LabelsWriter handles writing patch-level segmentation labels to a single binary file.
+    &#34;&#34;&#34;
+
+    labels: UInt8[np.ndarray, &#34;n_imgs n_patches&#34;] | None
+    labels_path: str
+    n_patches_per_img: int
+    n_imgs: int
+    current_idx: int
+    has_written: bool
+
+    def __init__(self, cfg: Config):
+        self.logger = logging.getLogger(&#34;labels-writer&#34;)
+        self.root = get_acts_dir(cfg)
+        self.n_patches_per_img = cfg.n_patches_per_img
+        self.n_imgs = cfg.data.n_imgs
+        self.has_written = False
+        self.current_idx = 0
+
+        # Always create memory-mapped file for labels
+        # If nothing is written, it will be deleted in flush()
+        self.labels_path = os.path.join(self.root, &#34;labels.bin&#34;)
+        self.labels = np.memmap(
+            self.labels_path,
+            mode=&#34;w+&#34;,
+            dtype=np.uint8,
+            shape=(self.n_imgs, self.n_patches_per_img),
+        )
+        self.logger.info(&#34;Opened labels file &#39;%s&#39;.&#34;, self.labels_path)
+
+    @beartype.beartype
+    def write_batch(self, batch_labels: np.ndarray | Tensor, start_idx: int):
+        &#34;&#34;&#34;
+        Write a batch of labels to the memory-mapped file.
+
+        Args:
+            batch_labels: Array of shape (batch_size, n_patches_per_img) with uint8 dtype
+            start_idx: Starting index in the global labels array
+        &#34;&#34;&#34;
+        # Convert to numpy if needed
+        if isinstance(batch_labels, torch.Tensor):
+            batch_labels = batch_labels.cpu().numpy()
+
+        batch_size = len(batch_labels)
+        assert start_idx + batch_size &lt;= self.n_imgs
+        assert batch_labels.shape == (batch_size, self.n_patches_per_img)
+        assert batch_labels.dtype == np.uint8
+
+        self.labels[start_idx : start_idx + batch_size] = batch_labels
+        self.current_idx = start_idx + batch_size
+        self.has_written = True
+
+    def flush(self) -&gt; None:
+        &#34;&#34;&#34;Flush the memory-mapped file to disk if anything was written.&#34;&#34;&#34;
+        if self.labels is not None and self.has_written:
+            self.labels.flush()
+            self.logger.info(&#34;Flushed labels to &#39;%s&#39;.&#34;, self.labels_path)</code></pre>
+</details>
+<h3>Class variables</h3>
+<dl>
+<dt id="saev.data.writers.LabelsWriter.current_idx"><code class="name">var <span class="ident">current_idx</span> : int</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="saev.data.writers.LabelsWriter.has_written"><code class="name">var <span class="ident">has_written</span> : bool</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="saev.data.writers.LabelsWriter.labels"><code class="name">var <span class="ident">labels</span> : jaxtyping.UInt8[ndarray, 'n_imgs n_patches'] | None</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="saev.data.writers.LabelsWriter.labels_path"><code class="name">var <span class="ident">labels_path</span> : str</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="saev.data.writers.LabelsWriter.n_imgs"><code class="name">var <span class="ident">n_imgs</span> : int</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="saev.data.writers.LabelsWriter.n_patches_per_img"><code class="name">var <span class="ident">n_patches_per_img</span> : int</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+</dl>
+<h3>Methods</h3>
+<dl>
+<dt id="saev.data.writers.LabelsWriter.flush"><code class="name flex">
+<span>def <span class="ident">flush</span></span>(<span>self) ‑> None</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Flush the memory-mapped file to disk if anything was written.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def flush(self) -&gt; None:
+    &#34;&#34;&#34;Flush the memory-mapped file to disk if anything was written.&#34;&#34;&#34;
+    if self.labels is not None and self.has_written:
+        self.labels.flush()
+        self.logger.info(&#34;Flushed labels to &#39;%s&#39;.&#34;, self.labels_path)</code></pre>
+</details>
+</dd>
+<dt id="saev.data.writers.LabelsWriter.write_batch"><code class="name flex">
+<span>def <span class="ident">write_batch</span></span>(<span>self, batch_labels: numpy.ndarray | torch.Tensor, start_idx: int)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Write a batch of labels to the memory-mapped file.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>batch_labels</code></strong></dt>
+<dd>Array of shape (batch_size, n_patches_per_img) with uint8 dtype</dd>
+<dt><strong><code>start_idx</code></strong></dt>
+<dd>Starting index in the global labels array</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+def write_batch(self, batch_labels: np.ndarray | Tensor, start_idx: int):
+    &#34;&#34;&#34;
+    Write a batch of labels to the memory-mapped file.
+
+    Args:
+        batch_labels: Array of shape (batch_size, n_patches_per_img) with uint8 dtype
+        start_idx: Starting index in the global labels array
+    &#34;&#34;&#34;
+    # Convert to numpy if needed
+    if isinstance(batch_labels, torch.Tensor):
+        batch_labels = batch_labels.cpu().numpy()
+
+    batch_size = len(batch_labels)
+    assert start_idx + batch_size &lt;= self.n_imgs
+    assert batch_labels.shape == (batch_size, self.n_patches_per_img)
+    assert batch_labels.dtype == np.uint8
+
+    self.labels[start_idx : start_idx + batch_size] = batch_labels
+    self.current_idx = start_idx + batch_size
+    self.has_written = True</code></pre>
+</details>
+</dd>
+</dl>
+</dd>
+<dt id="saev.data.writers.Metadata"><code class="flex name class">
+<span>class <span class="ident">Metadata</span></span>
+<span>(</span><span>vit_family: Literal['clip', 'siglip', 'dinov2', 'dinov3', 'fake-clip'],<br>vit_ckpt: str,<br>layers: tuple[int, ...],<br>n_patches_per_img: int,<br>cls_token: bool,<br>d_vit: int,<br>n_imgs: int,<br>max_patches_per_shard: int,<br>data: dict[str, object],<br>pixel_agg: Literal['majority', 'prefer-fg', None] = None,<br>dtype: Literal['float32'] = 'float32',<br>protocol: Literal['1.0.0', '1.1'] = '1.1')</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Metadata(vit_family: Literal['clip', 'siglip', 'dinov2', 'dinov3', 'fake-clip'], vit_ckpt: str, layers: tuple[int, &hellip;], n_patches_per_img: int, cls_token: bool, d_vit: int, n_imgs: int, max_patches_per_shard: int, data: dict[str, object], pixel_agg: Literal['majority', 'prefer-fg', None] = None, dtype: Literal['float32'] = 'float32', protocol: Literal['1.0.0', '1.1'] = '1.1')</p></div>
 <details class="source">
 <summary>
 <span>Expand source code</span>
@@ -656,7 +1002,7 @@ index in shard (img_i_in_shard, layer_i, token_i)
 <pre><code class="python">@beartype.beartype
 @dataclasses.dataclass(frozen=True)
 class Metadata:
-    vit_family: typing.Literal[&#34;clip&#34;, &#34;siglip&#34;, &#34;dinov2&#34;, &#34;dinov3&#34;]
+    vit_family: tp.Literal[&#34;clip&#34;, &#34;siglip&#34;, &#34;dinov2&#34;, &#34;dinov3&#34;, &#34;fake-clip&#34;]
     vit_ckpt: str
     layers: tuple[int, ...]
     n_patches_per_img: int
@@ -665,8 +1011,9 @@ class Metadata:
     n_imgs: int
     max_patches_per_shard: int
     data: dict[str, object]
-    dtype: typing.Literal[&#34;float32&#34;] = &#34;float32&#34;
-    protocol: typing.Literal[&#34;1.0.0&#34;] = &#34;1.0.0&#34;
+    pixel_agg: tp.Literal[&#34;majority&#34;, &#34;prefer-fg&#34;, None] = None
+    dtype: tp.Literal[&#34;float32&#34;] = &#34;float32&#34;
+    protocol: tp.Literal[&#34;1.0.0&#34;, &#34;1.1&#34;] = &#34;1.1&#34;
 
     def __post_init__(self):
         # Check that at least one image per shard can fit.
@@ -676,6 +1023,11 @@ class Metadata:
 
     @classmethod
     def from_cfg(cls, cfg: Config) -&gt; &#34;Metadata&#34;:
+        # Only include pixel_agg for segmentation datasets
+        pixel_agg = None
+        if _is_segmentation_dataset(cfg.data):
+            pixel_agg = cfg.pixel_agg
+
         return cls(
             cfg.vit_family,
             cfg.vit_ckpt,
@@ -686,6 +1038,7 @@ class Metadata:
             cfg.data.n_imgs,
             cfg.max_patches_per_shard,
             {**dataclasses.asdict(cfg.data), &#34;__class__&#34;: cfg.data.__class__.__name__},
+            pixel_agg,
         )
 
     @classmethod
@@ -747,6 +1100,11 @@ class Metadata:
 </summary>
 <pre><code class="python">@classmethod
 def from_cfg(cls, cfg: Config) -&gt; &#34;Metadata&#34;:
+    # Only include pixel_agg for segmentation datasets
+    pixel_agg = None
+    if _is_segmentation_dataset(cfg.data):
+        pixel_agg = cfg.pixel_agg
+
     return cls(
         cfg.vit_family,
         cfg.vit_ckpt,
@@ -757,6 +1115,7 @@ def from_cfg(cls, cfg: Config) -&gt; &#34;Metadata&#34;:
         cfg.data.n_imgs,
         cfg.max_patches_per_shard,
         {**dataclasses.asdict(cfg.data), &#34;__class__&#34;: cfg.data.__class__.__name__},
+        pixel_agg,
     )</code></pre>
 </details>
 </dd>
@@ -872,7 +1231,11 @@ def n_tokens_per_img(self) -&gt; int:
     return self.n_patches_per_img + int(self.cls_token)</code></pre>
 </details>
 </dd>
-<dt id="saev.data.writers.Metadata.protocol"><code class="name">var <span class="ident">protocol</span> : Literal['1.0.0']</code></dt>
+<dt id="saev.data.writers.Metadata.pixel_agg"><code class="name">var <span class="ident">pixel_agg</span> : Literal['majority', 'prefer-fg', None]</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="saev.data.writers.Metadata.protocol"><code class="name">var <span class="ident">protocol</span> : Literal['1.0.0', '1.1']</code></dt>
 <dd>
 <div class="desc"></div>
 </dd>
@@ -897,7 +1260,7 @@ def shard_shape(self) -&gt; tuple[int, int, int, int]:
 <dd>
 <div class="desc"></div>
 </dd>
-<dt id="saev.data.writers.Metadata.vit_family"><code class="name">var <span class="ident">vit_family</span> : Literal['clip', 'siglip', 'dinov2', 'dinov3']</code></dt>
+<dt id="saev.data.writers.Metadata.vit_family"><code class="name">var <span class="ident">vit_family</span> : Literal['clip', 'siglip', 'dinov2', 'dinov3', 'fake-clip']</code></dt>
 <dd>
 <div class="desc"></div>
 </dd>
@@ -1004,7 +1367,16 @@ class RecordedVisionTransformer(torch.nn.Module):
 
             self._storage = self._empty_storage(batch, dim, output.device)
 
-        self._storage[:, self._i] = output[:, self.patches, :].detach()
+        # Select patches based on cls_token setting
+        selected_output = output[:, self.patches, :]
+        if (
+            not self.cls_token
+            and selected_output.shape[1] == self.n_patches_per_img + 1
+        ):
+            # Model has CLS token but we don&#39;t want to store it - skip first token
+            selected_output = selected_output[:, 1:, :]
+
+        self._storage[:, self._i] = selected_output.detach()
         self._i += 1
 
     def _empty_storage(self, batch: int, dim: int, device: torch.device):
@@ -1111,7 +1483,16 @@ registered hooks while the latter silently ignores them.</p>
 
         self._storage = self._empty_storage(batch, dim, output.device)
 
-    self._storage[:, self._i] = output[:, self.patches, :].detach()
+    # Select patches based on cls_token setting
+    selected_output = output[:, self.patches, :]
+    if (
+        not self.cls_token
+        and selected_output.shape[1] == self.n_patches_per_img + 1
+    ):
+        # Model has CLS token but we don&#39;t want to store it - skip first token
+        selected_output = selected_output[:, 1:, :]
+
+    self._storage[:, self._i] = selected_output.detach()
     self._i += 1</code></pre>
 </details>
 </dd>
@@ -1270,7 +1651,7 @@ def load(cls, shard_path: str) -&gt; &#34;ShardInfo&#34;:
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">@beartype.beartype
+<pre><code class="python">@jaxtyped(typechecker=beartype.beartype)
 class ShardWriter:
     &#34;&#34;&#34;
     ShardWriter is a stateful object that handles sharded activation writing to disk.
@@ -1282,6 +1663,7 @@ class ShardWriter:
     acts_path: str
     acts: Float[np.ndarray, &#34;n_imgs_per_shard n_layers all_patches d_vit&#34;] | None
     filled: int
+    labels_writer: LabelsWriter
 
     def __init__(self, cfg: Config):
         self.logger = logging.getLogger(&#34;shard-writer&#34;)
@@ -1304,37 +1686,80 @@ class ShardWriter:
         # builder for shard manifest
         self._shards: ShardInfo = ShardInfo()
 
+        # Always initialize labels writer (it handles non-seg datasets internally)
+        self.labels_writer = LabelsWriter(cfg)
+
         self.shard = -1
         self.acts = None
         self.next_shard()
 
-    @jaxtyped(typechecker=beartype.beartype)
-    def __setitem__(
-        self, i: slice, val: Float[Tensor, &#34;_ n_layers all_patches d_vit&#34;]
+    def write_batch(
+        self,
+        activations: Float[Tensor, &#34;batch n_layers all_patches d_vit&#34;],
+        start_idx: int,
+        patch_labels: UInt8[Tensor, &#34;batch n_patches&#34;] | None = None,
     ) -&gt; None:
-        assert i.step is None
-        a, b = i.start, i.stop
-        assert len(val) == b - a
+        &#34;&#34;&#34;Write a batch of activations and optionally patch labels.
 
+        Args:
+            activations: Batch of activations to write.
+            start_idx: Starting index for this batch.
+            patch_labels: Optional patch labels for segmentation datasets.
+        &#34;&#34;&#34;
+        batch_size = len(activations)
+        end_idx = start_idx + batch_size
+
+        # Write activations (handling sharding)
         offset = self.n_imgs_per_shard * self.shard
 
-        if b &gt;= offset + self.n_imgs_per_shard:
+        if end_idx &gt;= offset + self.n_imgs_per_shard:
             # We have run out of space in this mmap&#39;ed file. Let&#39;s fill it as much as we can.
-            n_fit = offset + self.n_imgs_per_shard - a
-            self.acts[a - offset : a - offset + n_fit] = val[:n_fit]
-            self.filled = a - offset + n_fit
+            n_fit = offset + self.n_imgs_per_shard - start_idx
+            self.acts[start_idx - offset : start_idx - offset + n_fit] = activations[
+                :n_fit
+            ]
+            self.filled = start_idx - offset + n_fit
+
+            # Write labels for the portion that fits
+            if patch_labels is not None:
+                # Convert to numpy uint8 if needed
+                if isinstance(patch_labels, torch.Tensor):
+                    labels_to_write = (
+                        patch_labels[:n_fit].cpu().numpy().astype(np.uint8)
+                    )
+                elif not isinstance(patch_labels, np.ndarray):
+                    labels_to_write = np.array(patch_labels[:n_fit], dtype=np.uint8)
+                else:
+                    labels_to_write = patch_labels[:n_fit]
+
+                self.labels_writer.write_batch(labels_to_write, start_idx)
 
             self.next_shard()
 
-            # Recursively call __setitem__ in case we need *another* shard
-            self[a + n_fit : b] = val[n_fit:]
+            # Recursively call write_batch for remaining data
+            if n_fit &lt; batch_size:
+                self.write_batch(
+                    activations[n_fit:],
+                    start_idx + n_fit,
+                    patch_labels[n_fit:] if patch_labels is not None else None,
+                )
         else:
-            msg = f&#34;0 &lt;= {a} - {offset} &lt;= {offset} + {self.n_imgs_per_shard}&#34;
-            assert 0 &lt;= a - offset &lt;= offset + self.n_imgs_per_shard, msg
-            msg = f&#34;0 &lt;= {b} - {offset} &lt;= {offset} + {self.n_imgs_per_shard}&#34;
-            assert 0 &lt;= b - offset &lt;= offset + self.n_imgs_per_shard, msg
-            self.acts[a - offset : b - offset] = val
-            self.filled = b - offset
+            msg = f&#34;0 &lt;= {start_idx} - {offset} &lt;= {offset} + {self.n_imgs_per_shard}&#34;
+            assert 0 &lt;= start_idx - offset &lt;= offset + self.n_imgs_per_shard, msg
+            msg = f&#34;0 &lt;= {end_idx} - {offset} &lt;= {offset} + {self.n_imgs_per_shard}&#34;
+            assert 0 &lt;= end_idx - offset &lt;= offset + self.n_imgs_per_shard, msg
+            self.acts[start_idx - offset : end_idx - offset] = activations
+            self.filled = end_idx - offset
+
+            # Write labels if provided
+            if patch_labels is not None:
+                # Convert to numpy uint8 if needed
+                if isinstance(patch_labels, torch.Tensor):
+                    patch_labels = patch_labels.cpu().numpy().astype(np.uint8)
+                elif not isinstance(patch_labels, np.ndarray):
+                    patch_labels = np.array(patch_labels, dtype=np.uint8)
+
+                self.labels_writer.write_batch(patch_labels, start_idx)
 
     def flush(self) -&gt; None:
         if self.acts is not None:
@@ -1347,6 +1772,25 @@ class ShardWriter:
             self._shards.dump(self.root)
 
         self.acts = None
+
+        # Flush labels to disk
+        self.labels_writer.flush()
+
+    def __enter__(self):
+        &#34;&#34;&#34;Context manager entry.&#34;&#34;&#34;
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        &#34;&#34;&#34;Context manager exit - handle cleanup.&#34;&#34;&#34;
+        self.flush()
+
+        # Delete empty labels file if nothing was written
+        if not self.labels_writer.has_written:
+            if os.path.exists(self.labels_writer.labels_path):
+                os.remove(self.labels_writer.labels_path)
+                self.logger.info(
+                    &#34;Removed empty labels file &#39;%s&#39;.&#34;, self.labels_writer.labels_path
+                )
 
     def next_shard(self) -&gt; None:
         self.flush()
@@ -1372,6 +1816,10 @@ class ShardWriter:
 <div class="desc"></div>
 </dd>
 <dt id="saev.data.writers.ShardWriter.filled"><code class="name">var <span class="ident">filled</span> : int</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="saev.data.writers.ShardWriter.labels_writer"><code class="name">var <span class="ident">labels_writer</span> : <a title="saev.data.writers.LabelsWriter" href="#saev.data.writers.LabelsWriter">LabelsWriter</a></code></dt>
 <dd>
 <div class="desc"></div>
 </dd>
@@ -1409,7 +1857,10 @@ class ShardWriter:
         )
         self._shards.dump(self.root)
 
-    self.acts = None</code></pre>
+    self.acts = None
+
+    # Flush labels to disk
+    self.labels_writer.flush()</code></pre>
 </details>
 </dd>
 <dt id="saev.data.writers.ShardWriter.next_shard"><code class="name flex">
@@ -1433,6 +1884,93 @@ class ShardWriter:
     self.filled = 0
 
     self.logger.info(&#34;Opened shard &#39;%s&#39;.&#34;, self.acts_path)</code></pre>
+</details>
+</dd>
+<dt id="saev.data.writers.ShardWriter.write_batch"><code class="name flex">
+<span>def <span class="ident">write_batch</span></span>(<span>self,<br>activations: jaxtyping.Float[Tensor, 'batch n_layers all_patches d_vit'],<br>start_idx: int,<br>patch_labels: jaxtyping.UInt8[Tensor, 'batch n_patches'] | None = None) ‑> None</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Write a batch of activations and optionally patch labels.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>activations</code></strong></dt>
+<dd>Batch of activations to write.</dd>
+<dt><strong><code>start_idx</code></strong></dt>
+<dd>Starting index for this batch.</dd>
+<dt><strong><code>patch_labels</code></strong></dt>
+<dd>Optional patch labels for segmentation datasets.</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def write_batch(
+    self,
+    activations: Float[Tensor, &#34;batch n_layers all_patches d_vit&#34;],
+    start_idx: int,
+    patch_labels: UInt8[Tensor, &#34;batch n_patches&#34;] | None = None,
+) -&gt; None:
+    &#34;&#34;&#34;Write a batch of activations and optionally patch labels.
+
+    Args:
+        activations: Batch of activations to write.
+        start_idx: Starting index for this batch.
+        patch_labels: Optional patch labels for segmentation datasets.
+    &#34;&#34;&#34;
+    batch_size = len(activations)
+    end_idx = start_idx + batch_size
+
+    # Write activations (handling sharding)
+    offset = self.n_imgs_per_shard * self.shard
+
+    if end_idx &gt;= offset + self.n_imgs_per_shard:
+        # We have run out of space in this mmap&#39;ed file. Let&#39;s fill it as much as we can.
+        n_fit = offset + self.n_imgs_per_shard - start_idx
+        self.acts[start_idx - offset : start_idx - offset + n_fit] = activations[
+            :n_fit
+        ]
+        self.filled = start_idx - offset + n_fit
+
+        # Write labels for the portion that fits
+        if patch_labels is not None:
+            # Convert to numpy uint8 if needed
+            if isinstance(patch_labels, torch.Tensor):
+                labels_to_write = (
+                    patch_labels[:n_fit].cpu().numpy().astype(np.uint8)
+                )
+            elif not isinstance(patch_labels, np.ndarray):
+                labels_to_write = np.array(patch_labels[:n_fit], dtype=np.uint8)
+            else:
+                labels_to_write = patch_labels[:n_fit]
+
+            self.labels_writer.write_batch(labels_to_write, start_idx)
+
+        self.next_shard()
+
+        # Recursively call write_batch for remaining data
+        if n_fit &lt; batch_size:
+            self.write_batch(
+                activations[n_fit:],
+                start_idx + n_fit,
+                patch_labels[n_fit:] if patch_labels is not None else None,
+            )
+    else:
+        msg = f&#34;0 &lt;= {start_idx} - {offset} &lt;= {offset} + {self.n_imgs_per_shard}&#34;
+        assert 0 &lt;= start_idx - offset &lt;= offset + self.n_imgs_per_shard, msg
+        msg = f&#34;0 &lt;= {end_idx} - {offset} &lt;= {offset} + {self.n_imgs_per_shard}&#34;
+        assert 0 &lt;= end_idx - offset &lt;= offset + self.n_imgs_per_shard, msg
+        self.acts[start_idx - offset : end_idx - offset] = activations
+        self.filled = end_idx - offset
+
+        # Write labels if provided
+        if patch_labels is not None:
+            # Convert to numpy uint8 if needed
+            if isinstance(patch_labels, torch.Tensor):
+                patch_labels = patch_labels.cpu().numpy().astype(np.uint8)
+            elif not isinstance(patch_labels, np.ndarray):
+                patch_labels = np.array(patch_labels, dtype=np.uint8)
+
+            self.labels_writer.write_batch(patch_labels, start_idx)</code></pre>
 </details>
 </dd>
 </dl>
@@ -1500,6 +2038,7 @@ setTimeout(() => input.focus(), 100);
 <ul class="">
 <li><code><a title="saev.data.writers.get_acts_dir" href="#saev.data.writers.get_acts_dir">get_acts_dir</a></code></li>
 <li><code><a title="saev.data.writers.get_dataloader" href="#saev.data.writers.get_dataloader">get_dataloader</a></code></li>
+<li><code><a title="saev.data.writers.pixel_to_patch_labels" href="#saev.data.writers.pixel_to_patch_labels">pixel_to_patch_labels</a></code></li>
 <li><code><a title="saev.data.writers.worker_fn" href="#saev.data.writers.worker_fn">worker_fn</a></code></li>
 </ul>
 </li>
@@ -1518,6 +2057,7 @@ setTimeout(() => input.focus(), 100);
 <li><code><a title="saev.data.writers.Config.n_hours" href="#saev.data.writers.Config.n_hours">n_hours</a></code></li>
 <li><code><a title="saev.data.writers.Config.n_patches_per_img" href="#saev.data.writers.Config.n_patches_per_img">n_patches_per_img</a></code></li>
 <li><code><a title="saev.data.writers.Config.n_workers" href="#saev.data.writers.Config.n_workers">n_workers</a></code></li>
+<li><code><a title="saev.data.writers.Config.pixel_agg" href="#saev.data.writers.Config.pixel_agg">pixel_agg</a></code></li>
 <li><code><a title="saev.data.writers.Config.slurm_acct" href="#saev.data.writers.Config.slurm_acct">slurm_acct</a></code></li>
 <li><code><a title="saev.data.writers.Config.slurm_partition" href="#saev.data.writers.Config.slurm_partition">slurm_partition</a></code></li>
 <li><code><a title="saev.data.writers.Config.ssl" href="#saev.data.writers.Config.ssl">ssl</a></code></li>
@@ -1533,6 +2073,19 @@ setTimeout(() => input.focus(), 100);
 <li><code><a title="saev.data.writers.IndexLookup.length" href="#saev.data.writers.IndexLookup.length">length</a></code></li>
 <li><code><a title="saev.data.writers.IndexLookup.map_global" href="#saev.data.writers.IndexLookup.map_global">map_global</a></code></li>
 <li><code><a title="saev.data.writers.IndexLookup.map_img" href="#saev.data.writers.IndexLookup.map_img">map_img</a></code></li>
+</ul>
+</li>
+<li>
+<h4><code><a title="saev.data.writers.LabelsWriter" href="#saev.data.writers.LabelsWriter">LabelsWriter</a></code></h4>
+<ul class="two-column">
+<li><code><a title="saev.data.writers.LabelsWriter.current_idx" href="#saev.data.writers.LabelsWriter.current_idx">current_idx</a></code></li>
+<li><code><a title="saev.data.writers.LabelsWriter.flush" href="#saev.data.writers.LabelsWriter.flush">flush</a></code></li>
+<li><code><a title="saev.data.writers.LabelsWriter.has_written" href="#saev.data.writers.LabelsWriter.has_written">has_written</a></code></li>
+<li><code><a title="saev.data.writers.LabelsWriter.labels" href="#saev.data.writers.LabelsWriter.labels">labels</a></code></li>
+<li><code><a title="saev.data.writers.LabelsWriter.labels_path" href="#saev.data.writers.LabelsWriter.labels_path">labels_path</a></code></li>
+<li><code><a title="saev.data.writers.LabelsWriter.n_imgs" href="#saev.data.writers.LabelsWriter.n_imgs">n_imgs</a></code></li>
+<li><code><a title="saev.data.writers.LabelsWriter.n_patches_per_img" href="#saev.data.writers.LabelsWriter.n_patches_per_img">n_patches_per_img</a></code></li>
+<li><code><a title="saev.data.writers.LabelsWriter.write_batch" href="#saev.data.writers.LabelsWriter.write_batch">write_batch</a></code></li>
 </ul>
 </li>
 <li>
@@ -1553,6 +2106,7 @@ setTimeout(() => input.focus(), 100);
 <li><code><a title="saev.data.writers.Metadata.n_patches_per_img" href="#saev.data.writers.Metadata.n_patches_per_img">n_patches_per_img</a></code></li>
 <li><code><a title="saev.data.writers.Metadata.n_shards" href="#saev.data.writers.Metadata.n_shards">n_shards</a></code></li>
 <li><code><a title="saev.data.writers.Metadata.n_tokens_per_img" href="#saev.data.writers.Metadata.n_tokens_per_img">n_tokens_per_img</a></code></li>
+<li><code><a title="saev.data.writers.Metadata.pixel_agg" href="#saev.data.writers.Metadata.pixel_agg">pixel_agg</a></code></li>
 <li><code><a title="saev.data.writers.Metadata.protocol" href="#saev.data.writers.Metadata.protocol">protocol</a></code></li>
 <li><code><a title="saev.data.writers.Metadata.shard_shape" href="#saev.data.writers.Metadata.shard_shape">shard_shape</a></code></li>
 <li><code><a title="saev.data.writers.Metadata.vit_ckpt" href="#saev.data.writers.Metadata.vit_ckpt">vit_ckpt</a></code></li>
@@ -1591,10 +2145,12 @@ setTimeout(() => input.focus(), 100);
 <li><code><a title="saev.data.writers.ShardWriter.acts_path" href="#saev.data.writers.ShardWriter.acts_path">acts_path</a></code></li>
 <li><code><a title="saev.data.writers.ShardWriter.filled" href="#saev.data.writers.ShardWriter.filled">filled</a></code></li>
 <li><code><a title="saev.data.writers.ShardWriter.flush" href="#saev.data.writers.ShardWriter.flush">flush</a></code></li>
+<li><code><a title="saev.data.writers.ShardWriter.labels_writer" href="#saev.data.writers.ShardWriter.labels_writer">labels_writer</a></code></li>
 <li><code><a title="saev.data.writers.ShardWriter.next_shard" href="#saev.data.writers.ShardWriter.next_shard">next_shard</a></code></li>
 <li><code><a title="saev.data.writers.ShardWriter.root" href="#saev.data.writers.ShardWriter.root">root</a></code></li>
 <li><code><a title="saev.data.writers.ShardWriter.shape" href="#saev.data.writers.ShardWriter.shape">shape</a></code></li>
 <li><code><a title="saev.data.writers.ShardWriter.shard" href="#saev.data.writers.ShardWriter.shard">shard</a></code></li>
+<li><code><a title="saev.data.writers.ShardWriter.write_batch" href="#saev.data.writers.ShardWriter.write_batch">write_batch</a></code></li>
 </ul>
 </li>
 </ul>

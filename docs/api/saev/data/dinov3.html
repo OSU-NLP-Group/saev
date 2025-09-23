@@ -1214,16 +1214,20 @@ evaluation mode.
 </summary>
 <pre><code class="python">@jaxtyped(typechecker=beartype.beartype)
 class Vit(torch.nn.Module, models.VisionTransformer):
-    patch_size: int = 16
     family: str = &#34;dinov3&#34;
+    patch_size: int = 16
 
     def __init__(self, ckpt: str):
         super().__init__()
         name = self._parse_name(ckpt)
         self.model = load(name, ckpt)
 
-        self.ckpt = name
+        self._ckpt = name
         self.logger = logging.getLogger(f&#34;dinov3/{name}&#34;)
+
+    @property
+    def ckpt(self) -&gt; str:
+        return self._ckpt
 
     def get_residuals(self) -&gt; list[torch.nn.Module]:
         return self.model.blocks
@@ -1255,24 +1259,37 @@ class Vit(torch.nn.Module, models.VisionTransformer):
         return features
 
     @staticmethod
-    def make_transforms(ckpt: str) -&gt; tuple[Callable, Callable | None]:
+    def make_transforms(
+        ckpt: str, n_patches_per_img: int
+    ) -&gt; tuple[Callable, Callable | None]:
+        &#34;&#34;&#34;Create transforms for preprocessing: (img_transform, sample_transform | None).&#34;&#34;&#34;
         img_transform = v2.Compose([
-            transforms.FlexResize(patch_size=16, n_patches=640),
+            transforms.FlexResize(patch_size=16, n_patches=n_patches_per_img),
             v2.ToImage(),
             v2.ToDtype(torch.float32, scale=True),
             v2.Normalize(mean=[0.4850, 0.4560, 0.4060], std=[0.2290, 0.2240, 0.2250]),
         ])
-        sample_transform = transforms.Patchify(patch_size=16, n_patches=640)
+        sample_transform = transforms.Patchify(
+            patch_size=16, n_patches=n_patches_per_img
+        )
         return img_transform, sample_transform
 
     @staticmethod
     def make_resize(
-        ckpt: str, *, scale: float = 2.0
+        ckpt: str,
+        n_patches_per_img: int,
+        *,
+        scale: float = 1.0,
+        resample: Image.Resampling = Image.LANCZOS,
     ) -&gt; Callable[[Image.Image], Image.Image]:
+        &#34;&#34;&#34;Create resize transform for visualization. Use resample=Image.NEAREST for segmentation masks.&#34;&#34;&#34;
         import functools
 
         return functools.partial(
-            transforms.resize_to_patch_grid, p=int(16 * scale), n=640
+            transforms.resize_to_patch_grid,
+            p=int(16 * scale),
+            n=n_patches_per_img,
+            resample=resample,
         )</code></pre>
 </details>
 <h3>Ancestors</h3>
@@ -1287,32 +1304,19 @@ class Vit(torch.nn.Module, models.VisionTransformer):
 <dd>
 <div class="desc"></div>
 </dd>
-<dt id="saev.data.dinov3.Vit.patch_size"><code class="name">var <span class="ident">patch_size</span> : int</code></dt>
-<dd>
-<div class="desc"></div>
-</dd>
 </dl>
-<h3>Static methods</h3>
+<h3>Instance variables</h3>
 <dl>
-<dt id="saev.data.dinov3.Vit.make_transforms"><code class="name flex">
-<span>def <span class="ident">make_transforms</span></span>(<span>ckpt: str) ‑> tuple[<class 'collections.abc.Callable'>, collections.abc.Callable | None]</span>
-</code></dt>
+<dt id="saev.data.dinov3.Vit.ckpt"><code class="name">prop <span class="ident">ckpt</span> : str</code></dt>
 <dd>
 <div class="desc"></div>
 <details class="source">
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">@staticmethod
-def make_transforms(ckpt: str) -&gt; tuple[Callable, Callable | None]:
-    img_transform = v2.Compose([
-        transforms.FlexResize(patch_size=16, n_patches=640),
-        v2.ToImage(),
-        v2.ToDtype(torch.float32, scale=True),
-        v2.Normalize(mean=[0.4850, 0.4560, 0.4060], std=[0.2290, 0.2240, 0.2250]),
-    ])
-    sample_transform = transforms.Patchify(patch_size=16, n_patches=640)
-    return img_transform, sample_transform</code></pre>
+<pre><code class="python">@property
+def ckpt(self) -&gt; str:
+    return self._ckpt</code></pre>
 </details>
 </dd>
 </dl>
@@ -1355,6 +1359,8 @@ registered hooks while the latter silently ignores them.</p>
 <li><code><a title="saev.data.models.VisionTransformer.get_patches" href="models.html#saev.data.models.VisionTransformer.get_patches">get_patches</a></code></li>
 <li><code><a title="saev.data.models.VisionTransformer.get_residuals" href="models.html#saev.data.models.VisionTransformer.get_residuals">get_residuals</a></code></li>
 <li><code><a title="saev.data.models.VisionTransformer.make_resize" href="models.html#saev.data.models.VisionTransformer.make_resize">make_resize</a></code></li>
+<li><code><a title="saev.data.models.VisionTransformer.make_transforms" href="models.html#saev.data.models.VisionTransformer.make_transforms">make_transforms</a></code></li>
+<li><code><a title="saev.data.models.VisionTransformer.patch_size" href="models.html#saev.data.models.VisionTransformer.patch_size">patch_size</a></code></li>
 </ul>
 </li>
 </ul>
@@ -1497,10 +1503,9 @@ setTimeout(() => input.focus(), 100);
 <li>
 <h4><code><a title="saev.data.dinov3.Vit" href="#saev.data.dinov3.Vit">Vit</a></code></h4>
 <ul class="">
+<li><code><a title="saev.data.dinov3.Vit.ckpt" href="#saev.data.dinov3.Vit.ckpt">ckpt</a></code></li>
 <li><code><a title="saev.data.dinov3.Vit.family" href="#saev.data.dinov3.Vit.family">family</a></code></li>
 <li><code><a title="saev.data.dinov3.Vit.forward" href="#saev.data.dinov3.Vit.forward">forward</a></code></li>
-<li><code><a title="saev.data.dinov3.Vit.make_transforms" href="#saev.data.dinov3.Vit.make_transforms">make_transforms</a></code></li>
-<li><code><a title="saev.data.dinov3.Vit.patch_size" href="#saev.data.dinov3.Vit.patch_size">patch_size</a></code></li>
 </ul>
 </li>
 </ul>

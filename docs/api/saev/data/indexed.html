@@ -103,12 +103,13 @@ class Dataset(torch.utils.data.Dataset):
     Dataset of activations from disk.
     &#34;&#34;&#34;
 
-    class Example(typing.TypedDict):
+    class Example(typing.TypedDict, total=False):
         &#34;&#34;&#34;Individual example.&#34;&#34;&#34;
 
         act: Float[Tensor, &#34; d_vit&#34;]
         image_i: int
         patch_i: int
+        patch_label: int
 
     cfg: Config
     &#34;&#34;&#34;Configuration; set via CLI args.&#34;&#34;&#34;
@@ -123,6 +124,24 @@ class Dataset(torch.utils.data.Dataset):
             raise RuntimeError(f&#34;Activations are not saved at &#39;{self.cfg.shard_root}&#39;.&#34;)
 
         self.metadata = writers.Metadata.load(self.cfg.shard_root)
+
+        # Validate shard files exist
+        shard_info = writers.ShardInfo.load(self.cfg.shard_root)
+        for shard in shard_info:
+            shard_path = os.path.join(self.cfg.shard_root, shard.name)
+            if not os.path.exists(shard_path):
+                raise FileNotFoundError(f&#34;Shard file not found: {shard_path}&#34;)
+
+        # Check if labels.bin exists
+        labels_path = os.path.join(self.cfg.shard_root, &#34;labels.bin&#34;)
+        self.labels_mmap = None
+        if os.path.exists(labels_path):
+            self.labels_mmap = np.memmap(
+                labels_path,
+                mode=&#34;r&#34;,
+                dtype=np.uint8,
+                shape=(self.metadata.n_imgs, self.metadata.n_patches_per_img),
+            )
 
         # Pick a really big number so that if you accidentally use this when you shouldn&#39;t, you get an out of bounds IndexError.
         self.layer_index = 1_000_000
@@ -152,7 +171,12 @@ class Dataset(torch.utils.data.Dataset):
                 img_act = self.get_img_patches(i)
                 # Select layer&#39;s cls token.
                 act = img_act[self.layer_index, 0, :]
-                return self.Example(act=self.transform(act), image_i=i, patch_i=-1)
+                result = self.Example(act=self.transform(act), image_i=i, patch_i=-1)
+
+                # Note: CLS tokens don&#39;t have patch labels since they&#39;re not image patches
+                # patch_label is omitted for CLS tokens
+
+                return result
             case (&#34;image&#34;, int()):
                 # Calculate which image and patch this index corresponds to
                 image_i = i // self.metadata.n_patches_per_img
@@ -183,11 +207,17 @@ class Dataset(torch.utils.data.Dataset):
                 # Get the activation
                 act = acts[img_pos_in_shard, self.layer_index, patch_idx_with_cls]
 
-                return self.Example(
+                result = self.Example(
                     act=self.transform(act),
                     image_i=image_i,
                     patch_i=patch_i,
                 )
+
+                # Add patch label if available
+                if self.labels_mmap is not None:
+                    result[&#34;patch_label&#34;] = int(self.labels_mmap[image_i, patch_i])
+
+                return result
             case _:
                 print((self.cfg.patches, self.cfg.layer))
                 typing.assert_never((self.cfg.patches, self.cfg.layer))

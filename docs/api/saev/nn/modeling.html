@@ -360,7 +360,7 @@ class SparseAutoencoder(torch.nn.Module):
         self,
         f_x: Float[Tensor, &#34;batch d_sae&#34;],
         *,
-        prefixes: Int[Tensor, &#34; n_prefixes&#34;] | None = None,
+        prefixes: Int64[Tensor, &#34; n_prefixes&#34;] | None = None,
     ) -&gt; Float[Tensor, &#34;batch n_prefixes d_model&#34;]:
         &#34;&#34;&#34;
         Decode latent features to reconstructions.
@@ -370,18 +370,23 @@ class SparseAutoencoder(torch.nn.Module):
             prefixes: Optional tensor of prefix lengths for Matryoshka decoding.
 
         Returns:
-            Matryoshka reconstructions (n_prefixes, batch, d_model).
+            Matryoshka reconstructions (batch, n_prefixes, d_model).
         &#34;&#34;&#34;
         b, d_sae = f_x.shape
 
         # Matryoshka cumulative decode
         device = f_x.device
         if prefixes is None:
-            prefixes = torch.tensor([d_sae], dtype=int)
+            prefixes = torch.tensor([d_sae], dtype=torch.int64)
+        assert torch.all(prefixes[1:] &gt; prefixes[:-1])
+        assert 1 &lt;= int(prefixes[0]) and int(prefixes[-1]) == d_sae
         prefixes = prefixes.to(device)
 
         # Build blocks from prefix cuts: [0, cut1), [cut1, cut2), ...
-        block_indices = torch.cat([torch.tensor([0], device=device), prefixes])
+        block_indices = torch.cat([
+            torch.tensor([0], dtype=prefixes.dtype, device=device),
+            prefixes,
+        ])
         blocks = list(zip(block_indices[:-1], block_indices[1:]))
 
         # Compute block outputs
@@ -446,7 +451,7 @@ class SparseAutoencoder(torch.nn.Module):
 <h3>Methods</h3>
 <dl>
 <dt id="saev.nn.modeling.SparseAutoencoder.decode"><code class="name flex">
-<span>def <span class="ident">decode</span></span>(<span>self,<br>f_x: jaxtyping.Float[Tensor, 'batch d_sae'],<br>*,<br>prefixes: jaxtyping.Int[Tensor, 'n_prefixes'] | None = None) ‑> jaxtyping.Float[Tensor, 'batch n_prefixes d_model']</span>
+<span>def <span class="ident">decode</span></span>(<span>self,<br>f_x: jaxtyping.Float[Tensor, 'batch d_sae'],<br>*,<br>prefixes: jaxtyping.Int64[Tensor, 'n_prefixes'] | None = None) ‑> jaxtyping.Float[Tensor, 'batch n_prefixes d_model']</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Decode latent features to reconstructions.</p>
@@ -458,7 +463,7 @@ class SparseAutoencoder(torch.nn.Module):
 <dd>Optional tensor of prefix lengths for Matryoshka decoding.</dd>
 </dl>
 <h2 id="returns">Returns</h2>
-<p>Matryoshka reconstructions (n_prefixes, batch, d_model).</p></div>
+<p>Matryoshka reconstructions (batch, n_prefixes, d_model).</p></div>
 <details class="source">
 <summary>
 <span>Expand source code</span>
@@ -467,7 +472,7 @@ class SparseAutoencoder(torch.nn.Module):
     self,
     f_x: Float[Tensor, &#34;batch d_sae&#34;],
     *,
-    prefixes: Int[Tensor, &#34; n_prefixes&#34;] | None = None,
+    prefixes: Int64[Tensor, &#34; n_prefixes&#34;] | None = None,
 ) -&gt; Float[Tensor, &#34;batch n_prefixes d_model&#34;]:
     &#34;&#34;&#34;
     Decode latent features to reconstructions.
@@ -477,18 +482,23 @@ class SparseAutoencoder(torch.nn.Module):
         prefixes: Optional tensor of prefix lengths for Matryoshka decoding.
 
     Returns:
-        Matryoshka reconstructions (n_prefixes, batch, d_model).
+        Matryoshka reconstructions (batch, n_prefixes, d_model).
     &#34;&#34;&#34;
     b, d_sae = f_x.shape
 
     # Matryoshka cumulative decode
     device = f_x.device
     if prefixes is None:
-        prefixes = torch.tensor([d_sae], dtype=int)
+        prefixes = torch.tensor([d_sae], dtype=torch.int64)
+    assert torch.all(prefixes[1:] &gt; prefixes[:-1])
+    assert 1 &lt;= int(prefixes[0]) and int(prefixes[-1]) == d_sae
     prefixes = prefixes.to(device)
 
     # Build blocks from prefix cuts: [0, cut1), [cut1, cut2), ...
-    block_indices = torch.cat([torch.tensor([0], device=device), prefixes])
+    block_indices = torch.cat([
+        torch.tensor([0], dtype=prefixes.dtype, device=device),
+        prefixes,
+    ])
     blocks = list(zip(block_indices[:-1], block_indices[1:]))
 
     # Compute block outputs

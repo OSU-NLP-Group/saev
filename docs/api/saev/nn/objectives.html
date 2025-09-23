@@ -67,14 +67,14 @@ def get_objective(cfg: ObjectiveConfig) -&gt; Objective:
 def mean_squared_err(
     x_hat: Float[Tensor, &#34;*batch d&#34;], x: Float[Tensor, &#34;*batch d&#34;], norm: bool = False
 ) -&gt; Float[Tensor, &#34;*batch d&#34;]:
-    upper = x.abs().max()
+    upper = x.abs().max().clamp(min=1e-12)
     x = x / upper
     x_hat = x_hat / upper
 
     mse = (x_hat - x) ** 2
     # (sam): I am now realizing that we normalize by the L2 norm of x.
     if norm:
-        mse /= torch.linalg.norm(x, axis=-1, keepdim=True) + 1e-12
+        mse /= torch.linalg.norm(x, dim=-1, keepdim=True) + 1e-12
         return mse * upper
 
     return mse * upper * upper</code></pre>
@@ -101,7 +101,7 @@ def ref_mean_squared_err(
 </details>
 </dd>
 <dt id="saev.nn.objectives.sample_prefixes"><code class="name flex">
-<span>def <span class="ident">sample_prefixes</span></span>(<span>d_sae: int,<br>n_prefixes: int,<br>min_prefix_length: int = 1,<br>pareto_power: float = 0.5) ‑> torch.Tensor</span>
+<span>def <span class="ident">sample_prefixes</span></span>(<span>d_sae: int,<br>n_prefixes: int,<br>min_prefix_length: int = 1,<br>pareto_power: float = 0.5) ‑> jaxtyping.Int64[Tensor, 'n_prefixes']</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Samples prefix lengths using a Pareto distribution. Derived from "Learning Multi-Level Features with
@@ -127,9 +127,10 @@ Matryoshka Sparse Autoencoders" (<a href="https://doi.org/10.48550/arXiv.2503.17
 <span>Expand source code</span>
 </summary>
 <pre><code class="python">@torch.no_grad()
+@jaxtyped(typechecker=beartype.beartype)
 def sample_prefixes(
     d_sae: int, n_prefixes: int, min_prefix_length: int = 1, pareto_power: float = 0.5
-) -&gt; torch.Tensor:
+) -&gt; Int64[Tensor, &#34; n_prefixes&#34;]:
     &#34;&#34;&#34;
     Samples prefix lengths using a Pareto distribution. Derived from &#34;Learning Multi-Level Features with
     Matryoshka Sparse Autoencoders&#34; (https://doi.org/10.48550/arXiv.2503.17547)
@@ -144,7 +145,7 @@ def sample_prefixes(
         torch.Tensor: Sorted prefix lengths
     &#34;&#34;&#34;
     if n_prefixes &lt;= 1:
-        return torch.tensor([d_sae])
+        return torch.tensor([d_sae], dtype=torch.int64)
 
     assert n_prefixes &lt;= d_sae
 
@@ -155,16 +156,19 @@ def sample_prefixes(
     probability_dist = pareto_pdf / pareto_pdf.sum()
 
     # Sample and sort prefix lengths
-    prefixes = torch.multinomial(
+    sampled_indices = torch.multinomial(
         probability_dist, num_samples=n_prefixes - 1, replacement=False
     )
+
+    # Convert indices to actual prefix lengths
+    prefixes = lengths[sampled_indices]
 
     # Add n_latents as the final prefix
     prefixes = torch.cat((prefixes.detach().clone(), torch.tensor([d_sae])))
 
     prefixes, _ = torch.sort(prefixes, descending=False)
 
-    return prefixes</code></pre>
+    return prefixes.to(torch.int64)</code></pre>
 </details>
 </dd>
 </dl>
@@ -564,7 +568,7 @@ class MatryoshkaObjective(Objective):
         mse_loss = mean_squared_err(
             x_hats,
             einops.repeat(
-                x, &#34;b d_sae -&gt; b prefixes d_sae&#34;, prefixes=self.cfg.n_prefixes
+                x, &#34;b d_model -&gt; b prefixes d_model&#34;, prefixes=self.cfg.n_prefixes
             ),
         ).mean()
 
@@ -981,7 +985,7 @@ class VanillaObjective(Objective):
 
         mse_loss = mse_loss.mean()
         l0 = (f_x &gt; 0).float().sum(axis=1).mean(axis=0)
-        l1 = f_x.sum(axis=1).mean(axis=0)
+        l1 = f_x.abs().sum(dim=1).mean(dim=0)
         sparsity_loss = self.sparsity_coeff * l1
 
         return VanillaLoss(mse_loss, sparsity_loss, l0, l1)</code></pre>

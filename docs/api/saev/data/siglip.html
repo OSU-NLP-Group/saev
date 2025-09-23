@@ -78,9 +78,13 @@ evaluation mode.
 <pre><code class="python">@jaxtyped(typechecker=beartype.beartype)
 class Vit(torch.nn.Module, models.VisionTransformer):
     family = &#34;siglip&#34;
+    patch_size = 16
 
     @staticmethod
-    def make_transforms(ckpt: str) -&gt; tuple[Callable, Callable | None]:
+    def make_transforms(
+        ckpt: str, n_patches_per_img: int
+    ) -&gt; tuple[Callable, Callable | None]:
+        &#34;&#34;&#34;Create transforms for preprocessing: (img_transform, sample_transform | None).&#34;&#34;&#34;
         if ckpt.startswith(&#34;hf-hub:&#34;):
             _, img_transform = open_clip.create_model_from_pretrained(
                 ckpt, cache_dir=helpers.get_cache_dir()
@@ -104,7 +108,7 @@ class Vit(torch.nn.Module, models.VisionTransformer):
             clip, _ = open_clip.create_model_from_pretrained(
                 arch, pretrained=ckpt, cache_dir=helpers.get_cache_dir()
             )
-        self.ckpt = ckpt
+        self._ckpt = ckpt
 
         model = clip.visual
         model.proj = None
@@ -112,6 +116,29 @@ class Vit(torch.nn.Module, models.VisionTransformer):
         self.model = model
 
         assert isinstance(self.model, open_clip.timm_model.TimmModel)
+
+    @property
+    def ckpt(self) -&gt; str:
+        return self._ckpt
+
+    @staticmethod
+    def make_resize(
+        ckpt: str,
+        n_patches_per_img: int = -1,
+        *,
+        scale: float = 1.0,
+        resample: Image.Resampling = Image.LANCZOS,
+    ) -&gt; Callable[[Image.Image], Image.Image]:
+        &#34;&#34;&#34;Create resize transform for visualization. Use resample=Image.NEAREST for segmentation masks.&#34;&#34;&#34;
+        from PIL import Image
+
+        def resize(img: Image.Image) -&gt; Image.Image:
+            # SigLIP typically uses 224x224 or 384x384 images
+            # We&#39;ll assume 224x224 for simplicity
+            resize_size_px = (int(224 * scale), int(224 * scale))
+            return img.resize(resize_size_px, resample=resample)
+
+        return resize
 
     def get_residuals(self) -&gt; list[torch.nn.Module]:
         return self.model.trunk.blocks
@@ -138,29 +165,18 @@ class Vit(torch.nn.Module, models.VisionTransformer):
 <div class="desc"></div>
 </dd>
 </dl>
-<h3>Static methods</h3>
+<h3>Instance variables</h3>
 <dl>
-<dt id="saev.data.siglip.Vit.make_transforms"><code class="name flex">
-<span>def <span class="ident">make_transforms</span></span>(<span>ckpt: str) ‑> tuple[<class 'collections.abc.Callable'>, collections.abc.Callable | None]</span>
-</code></dt>
+<dt id="saev.data.siglip.Vit.ckpt"><code class="name">prop <span class="ident">ckpt</span> : str</code></dt>
 <dd>
 <div class="desc"></div>
 <details class="source">
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">@staticmethod
-def make_transforms(ckpt: str) -&gt; tuple[Callable, Callable | None]:
-    if ckpt.startswith(&#34;hf-hub:&#34;):
-        _, img_transform = open_clip.create_model_from_pretrained(
-            ckpt, cache_dir=helpers.get_cache_dir()
-        )
-    else:
-        arch, ckpt = ckpt.split(&#34;/&#34;)
-        _, img_transform = open_clip.create_model_from_pretrained(
-            arch, pretrained=ckpt, cache_dir=helpers.get_cache_dir()
-        )
-    return img_transform, None</code></pre>
+<pre><code class="python">@property
+def ckpt(self) -&gt; str:
+    return self._ckpt</code></pre>
 </details>
 </dd>
 </dl>
@@ -198,6 +214,8 @@ registered hooks while the latter silently ignores them.</p>
 <li><code><a title="saev.data.models.VisionTransformer.get_patches" href="models.html#saev.data.models.VisionTransformer.get_patches">get_patches</a></code></li>
 <li><code><a title="saev.data.models.VisionTransformer.get_residuals" href="models.html#saev.data.models.VisionTransformer.get_residuals">get_residuals</a></code></li>
 <li><code><a title="saev.data.models.VisionTransformer.make_resize" href="models.html#saev.data.models.VisionTransformer.make_resize">make_resize</a></code></li>
+<li><code><a title="saev.data.models.VisionTransformer.make_transforms" href="models.html#saev.data.models.VisionTransformer.make_transforms">make_transforms</a></code></li>
+<li><code><a title="saev.data.models.VisionTransformer.patch_size" href="models.html#saev.data.models.VisionTransformer.patch_size">patch_size</a></code></li>
 </ul>
 </li>
 </ul>
@@ -266,9 +284,9 @@ setTimeout(() => input.focus(), 100);
 <li>
 <h4><code><a title="saev.data.siglip.Vit" href="#saev.data.siglip.Vit">Vit</a></code></h4>
 <ul class="">
+<li><code><a title="saev.data.siglip.Vit.ckpt" href="#saev.data.siglip.Vit.ckpt">ckpt</a></code></li>
 <li><code><a title="saev.data.siglip.Vit.family" href="#saev.data.siglip.Vit.family">family</a></code></li>
 <li><code><a title="saev.data.siglip.Vit.forward" href="#saev.data.siglip.Vit.forward">forward</a></code></li>
-<li><code><a title="saev.data.siglip.Vit.make_transforms" href="#saev.data.siglip.Vit.make_transforms">make_transforms</a></code></li>
 </ul>
 </li>
 </ul>

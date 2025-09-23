@@ -79,6 +79,59 @@ def current_git_commit() -&gt; str | None:
         return None</code></pre>
 </details>
 </dd>
+<dt id="saev.helpers.dict_to_dataclass"><code class="name flex">
+<span>def <span class="ident">dict_to_dataclass</span></span>(<span>data: dict, cls: type[~T]) ‑> ~T</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Recursively convert a dictionary to a dataclass instance.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+def dict_to_dataclass(data: dict, cls: type[T]) -&gt; T:
+    &#34;&#34;&#34;Recursively convert a dictionary to a dataclass instance.&#34;&#34;&#34;
+    if not dataclasses.is_dataclass(cls):
+        return data
+
+    field_types = {f.name: f.type for f in dataclasses.fields(cls)}
+    kwargs = {}
+
+    for field_name, field_type in field_types.items():
+        if field_name not in data:
+            continue
+
+        value = data[field_name]
+
+        # Handle Optional types
+        origin = tp.get_origin(field_type)
+        args = tp.get_args(field_type)
+
+        # Handle tuple[str, ...]
+        if origin is tuple and args:
+            kwargs[field_name] = tuple(value) if isinstance(value, list) else value
+        # Handle list[DataclassType]
+        elif origin is list and args and dataclasses.is_dataclass(args[0]):
+            kwargs[field_name] = [dict_to_dataclass(item, args[0]) for item in value]
+        # Handle regular dataclass fields
+        elif dataclasses.is_dataclass(field_type):
+            kwargs[field_name] = dict_to_dataclass(value, field_type)
+        # Handle pathlib.Path
+        elif field_type is pathlib.Path:
+            # Required Path field - always convert
+            kwargs[field_name] = pathlib.Path(value) if value is not None else value
+        elif origin is tp.Union and pathlib.Path in args:
+            # Optional Path field (typing.Union style)
+            kwargs[field_name] = pathlib.Path(value) if value is not None else value
+        elif origin is types.UnionType and pathlib.Path in args:
+            # Optional Path field (Python 3.10+ union style with |)
+            kwargs[field_name] = pathlib.Path(value) if value is not None else value
+        else:
+            kwargs[field_name] = value
+
+    return cls(**kwargs)</code></pre>
+</details>
+</dd>
 <dt id="saev.helpers.expand"><code class="name flex">
 <span>def <span class="ident">expand</span></span>(<span>config: dict[str, object]) ‑> Iterator[dict[str, object]]</span>
 </code></dt>
@@ -220,6 +273,34 @@ def get_cache_dir() -&gt; str:
     for var in (&#34;SAEV_CACHE&#34;, &#34;HF_HOME&#34;, &#34;HF_HUB_CACHE&#34;):
         cache_dir = cache_dir or os.environ.get(var, &#34;&#34;)
     return cache_dir or &#34;.&#34;</code></pre>
+</details>
+</dd>
+<dt id="saev.helpers.get_non_default_values"><code class="name flex">
+<span>def <span class="ident">get_non_default_values</span></span>(<span>obj: ~T, default_obj: ~T) ‑> dict</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Recursively find fields that differ from defaults.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+def get_non_default_values(obj: T, default_obj: T) -&gt; dict:
+    &#34;&#34;&#34;Recursively find fields that differ from defaults.&#34;&#34;&#34;
+    # Check that obj and default_obj are instances of a dataclass.
+    assert dataclasses.is_dataclass(obj) and not isinstance(obj, type)
+    assert dataclasses.is_dataclass(default_obj) and not isinstance(default_obj, type)
+
+    obj_dict = dataclasses.asdict(obj)
+    default_dict = dataclasses.asdict(default_obj)
+
+    diff = {}
+    for key, value in obj_dict.items():
+        default_value = default_dict.get(key)
+        if value != default_value:
+            diff[key] = value
+
+    return diff</code></pre>
 </details>
 </dd>
 <dt id="saev.helpers.get_slurm_job_count"><code class="name flex">
@@ -410,6 +491,39 @@ def grid(cfg: T, sweep_dct: dict[str, object]) -&gt; tuple[list[T], list[str]]:
     return cfgs, errs</code></pre>
 </details>
 </dd>
+<dt id="saev.helpers.merge_configs"><code class="name flex">
+<span>def <span class="ident">merge_configs</span></span>(<span>base: ~T, overrides: dict) ‑> ~T</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Recursively merge override values into a base config.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@beartype.beartype
+def merge_configs(base: T, overrides: dict) -&gt; T:
+    &#34;&#34;&#34;Recursively merge override values into a base config.&#34;&#34;&#34;
+    if not overrides:
+        return base
+
+    # Check that base is an instance of a dataclass.
+    assert dataclasses.is_dataclass(base) and not isinstance(base, type)
+
+    base_dict = dataclasses.asdict(base)
+
+    for key, value in overrides.items():
+        if key in base_dict:
+            # For nested dataclasses, merge recursively
+            if isinstance(value, dict) and dataclasses.is_dataclass(getattr(base, key)):
+                base_dict[key] = dataclasses.asdict(
+                    merge_configs(getattr(base, key), value)
+                )
+            else:
+                base_dict[key] = value
+
+    return dict_to_dataclass(base_dict, type(base))</code></pre>
+</details>
+</dd>
 </dl>
 </section>
 <section>
@@ -531,7 +645,7 @@ class progress:
             total: If non-zero, how long the iterable is.
         &#34;&#34;&#34;
         self.it = it
-        self.every = every
+        self.every = max(every, 1)
         self.logger = logging.getLogger(desc)
         self.total = total
 
@@ -634,15 +748,18 @@ setTimeout(() => input.focus(), 100);
 <li><h3><a href="#header-functions">Functions</a></h3>
 <ul class="">
 <li><code><a title="saev.helpers.current_git_commit" href="#saev.helpers.current_git_commit">current_git_commit</a></code></li>
+<li><code><a title="saev.helpers.dict_to_dataclass" href="#saev.helpers.dict_to_dataclass">dict_to_dataclass</a></code></li>
 <li><code><a title="saev.helpers.expand" href="#saev.helpers.expand">expand</a></code></li>
 <li><code><a title="saev.helpers.flattened" href="#saev.helpers.flattened">flattened</a></code></li>
 <li><code><a title="saev.helpers.fssafe" href="#saev.helpers.fssafe">fssafe</a></code></li>
 <li><code><a title="saev.helpers.get" href="#saev.helpers.get">get</a></code></li>
 <li><code><a title="saev.helpers.get_cache_dir" href="#saev.helpers.get_cache_dir">get_cache_dir</a></code></li>
+<li><code><a title="saev.helpers.get_non_default_values" href="#saev.helpers.get_non_default_values">get_non_default_values</a></code></li>
 <li><code><a title="saev.helpers.get_slurm_job_count" href="#saev.helpers.get_slurm_job_count">get_slurm_job_count</a></code></li>
 <li><code><a title="saev.helpers.get_slurm_max_array_size" href="#saev.helpers.get_slurm_max_array_size">get_slurm_max_array_size</a></code></li>
 <li><code><a title="saev.helpers.get_slurm_max_submit_jobs" href="#saev.helpers.get_slurm_max_submit_jobs">get_slurm_max_submit_jobs</a></code></li>
 <li><code><a title="saev.helpers.grid" href="#saev.helpers.grid">grid</a></code></li>
+<li><code><a title="saev.helpers.merge_configs" href="#saev.helpers.merge_configs">merge_configs</a></code></li>
 </ul>
 </li>
 <li><h3><a href="#header-classes">Classes</a></h3>
