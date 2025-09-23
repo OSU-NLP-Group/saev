@@ -1,6 +1,7 @@
 """Unit tests for 1D probe training."""
 
 import numpy as np
+import pytest
 import torch
 from sklearn.linear_model import LogisticRegression
 from tdiscovery.probe1d import Sparse1DProbe
@@ -25,9 +26,10 @@ def test_fit_smoke():
     clf.loss_matrix(x, y)
 
 
-def test_fit_against_sklearn():
-    torch.manual_seed(1)
-    n_samples, n_latents, n_classes = 128, 8, 4
+@pytest.mark.parametrize("seed", range(5))
+def test_fit_against_sklearn(seed):
+    torch.manual_seed(seed)
+    n_samples, n_latents, n_classes = 64, 8, 4
     x = torch.randn(n_samples, n_latents)
     # make it sparse k=3 per sample
     topk = torch.topk(x.abs(), k=3, dim=1)
@@ -49,7 +51,10 @@ def test_fit_against_sklearn():
         for c in range(n_classes):
             yc = y[:, c].numpy()
 
-            lr = LogisticRegression(fit_intercept=True, solver="lbfgs")
+            # Use very large C to effectively disable regularization
+            lr = LogisticRegression(
+                fit_intercept=True, solver="lbfgs", C=1e10, max_iter=100
+            )
             lr.fit(xi, yc)
 
             # compute mean NLL on (xi, yc)
@@ -57,9 +62,12 @@ def test_fit_against_sklearn():
             mu = 1 / (1 + np.exp(-z))
             loss_ref[i, c] = -(yc * np.log(mu) + (1 - yc) * np.log(1 - mu)).mean()
 
-    probe = Sparse1DProbe(n_latents=n_latents, n_classes=n_classes, device="cpu")
+    # Use very small ridge to effectively disable regularization (matching sklearn)
+    probe = Sparse1DProbe(
+        n_latents=n_latents, n_classes=n_classes, device="cpu", ridge=1e-10
+    )
     probe.fit(x.to_sparse_csr(), y)
     loss_sparse = probe.loss_matrix(x.to_sparse_csr(), y)
-    assert torch.allclose(
-        loss_sparse, torch.tensor(loss_ref, dtype=torch.float32), rtol=5e-3, atol=5e-4
+    torch.testing.assert_close(
+        loss_sparse, torch.tensor(loss_ref, dtype=torch.float32), rtol=1e-4, atol=1e-4
     )

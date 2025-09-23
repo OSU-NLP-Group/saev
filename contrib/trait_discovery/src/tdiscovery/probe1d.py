@@ -12,22 +12,28 @@ from torch import Tensor
 
 @jaxtyped(typechecker=beartype.beartype)
 class Sparse1DProbe(sklearn.base.BaseEstimator):
-    """Newton-Raphson optimizer for 1D logistic regression with L2 regularization. `fit(x, y)` streams sparse x and optimizes (b, w) for every (latent, class) pair. Results are exposed as attributes and helper methods."""
+    """Newton-Raphson optimizer for 1D logistic regression.
+
+    `fit(x, y)` streams sparse x and optimizes (b, w) for every (latent, class) pair.
+    Results are exposed as attributes and helper methods.
+    """
 
     def __init__(
         self,
         *,
         n_latents: int,
         n_classes: int,
-        tol: float = 1e-6,
+        tol: float = 1e-4,
         device: str = "cuda",
-        n_iter: int = 30,
+        n_iter: int = 100,
+        ridge: float = 1e-8,
     ):
         self.n_latents = n_latents
         self.n_classes = n_classes
         self.tol = tol
         self.device = device
         self.n_iter = n_iter
+        self.ridge = ridge  # L2 regularization strength
         self.logger = logging.getLogger("sparse1d")
         self.eps = 1e-15
 
@@ -61,9 +67,6 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
         self.intercept_[:] = einops.repeat(
             torch.logit(prevalence), "c -> l c", l=self.n_latents
         )
-
-        # L2 regularization parameter (tiny for numerical stability)
-        ridge = 1e-8
 
         # Get CSR components
         crow_indices = x.crow_indices()
@@ -129,12 +132,16 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
             pi_expanded = einops.rearrange(pi, "c -> 1 c")
             g0 = m_nz + n_zeros_expanded * mu_0 - pi_expanded
 
+            # Add L2 regularization gradient for weights
+            g1 = g1 + self.ridge * self.coef_
+
             # S0 includes zero contributions
             s0 = s0 + n_zeros_expanded * s_0
 
             # Add L2 regularization to diagonal of Hessian
-            s0 = s0 + ridge
-            s2 = s2 + ridge
+            # Add to both s0 and s2 for numerical stability
+            s0 = s0 + self.ridge
+            s2 = s2 + self.ridge
 
             # Calculate Newton updates
             det_h = s0 * s2 - s1 * s1
@@ -158,10 +165,12 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
             # Check convergence
             loss_change = torch.abs(prev_loss - self.loss_)
             if torch.all(loss_change < self.tol):
-                self.logger.info(f"Converged at iteration {it}")
+                self.logger.debug(f"Converged at iteration {it}")
                 break
 
             prev_loss = self.loss_.clone()
+        else:
+            self.logger.debug(f"Did not converge after {self.n_iter} iterations")
 
     def _compute_loss(
         self,
@@ -185,16 +194,16 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
 
         # Initialize with contribution from all-zeros (will subtract non-zeros)
         # For zero entries: -y*log(mu_0) - (1-y)*log(1-mu_0)
-        for c in range(self.n_classes):
-            y_c = y[:, c]
-            n_pos = y_c.sum()
-            n_neg = n_samples - n_pos
+        # Vectorized computation for all latents and classes at once
+        n_pos = y.sum(dim=0)  # [n_classes] - number of positive samples per class
+        n_neg = n_samples - n_pos  # [n_classes] - number of negative samples per class
 
-            # All samples contribute as if they were zero
-            for latent_idx in range(self.n_latents):
-                loss[latent_idx, c] = -n_pos * torch.log(
-                    mu_0[latent_idx, c]
-                ) - n_neg * torch.log(1 - mu_0[latent_idx, c])
+        # Broadcast n_pos and n_neg to [n_latents, n_classes]
+        n_pos_expanded = einops.repeat(n_pos, "c -> l c", l=self.n_latents)
+        n_neg_expanded = einops.repeat(n_neg, "c -> l c", l=self.n_latents)
+
+        # Compute loss for all (latent, class) pairs at once
+        loss = -n_pos_expanded * torch.log(mu_0) - n_neg_expanded * torch.log(1 - mu_0)
 
         # Vectorized correction for non-zero entries
         if col_indices.numel() > 0:
@@ -266,38 +275,25 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
         # Count nnz per latent
         crow_indices = x.crow_indices()
         col_indices = x.col_indices()
-        nnz_per_latent = torch.zeros(
-            self.n_latents, dtype=torch.long, device=self.device
-        )
-
-        for sample_idx in range(n_samples):
-            start_idx = crow_indices[sample_idx]
-            end_idx = crow_indices[sample_idx + 1]
-            if start_idx < end_idx:
-                sample_col_indices = col_indices[start_idx:end_idx]
-                nnz_per_latent[sample_col_indices] += 1
+        nnz_per_latent = torch.bincount(col_indices, minlength=self.n_latents)
 
         # Compute accuracy (at threshold 0.5)
         # For zero entries
         mu_0 = torch.sigmoid(self.intercept_)
         pred_0 = (mu_0 > 0.5).float()
 
-        # Start with accuracy for all zeros
-        # Each latent gets credit for correctly predicting when x=0
-        acc = torch.zeros(
-            (self.n_latents, self.n_classes), dtype=torch.float32, device=self.device
-        )
-
         # Count correct predictions assuming all entries are zero
         # pred_0 shape: [n_latents, n_classes]
         # y shape: [n_samples, n_classes]
-        # We need to compare each latent's prediction against all samples
-        for c in range(self.n_classes):
-            y_c = y[:, c]  # [n_samples]
-            # Broadcasting: pred_0[:, c] shape [n_latents] vs y_c shape [n_samples]
-            pred_0_c = einops.rearrange(pred_0[:, c], "l -> l 1")
-            y_c_expanded = einops.rearrange(y_c, "s -> 1 s")
-            acc[:, c] = (pred_0_c == y_c_expanded).float().sum(dim=1)
+        # Vectorized across all classes at once
+        pred_0_expanded = einops.rearrange(
+            pred_0, "l c -> l 1 c"
+        )  # [n_latents, 1, n_classes]
+        y_expanded = einops.rearrange(y, "s c -> 1 s c")  # [1, n_samples, n_classes]
+        # Compare and sum over samples
+        acc = (
+            (pred_0_expanded == y_expanded).float().sum(dim=1)
+        )  # [n_latents, n_classes]
 
         # Vectorized correction for non-zero entries
         if col_indices.numel() > 0:
