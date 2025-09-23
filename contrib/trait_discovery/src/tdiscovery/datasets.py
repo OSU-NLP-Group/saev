@@ -1,13 +1,12 @@
 import abc
 import dataclasses
 import logging
-import pathlib
+import os.path
 import typing as tp
 
 import beartype
 import polars as pl
 import torch.utils.data
-import torchvision.datasets
 
 import saev.data.datasets
 
@@ -15,17 +14,11 @@ import saev.data.datasets
 @beartype.beartype
 @dataclasses.dataclass(frozen=True)
 class Butterflies:
-    root: pathlib.Path = pathlib.Path("./data/butterflies")
+    root: str = os.path.join("data", "butterflies")
     """Where you stored the segmentation dataset."""
 
 
-@beartype.beartype
-@dataclasses.dataclass(frozen=True)
-class FishVista:
-    pass
-
-
-Config = Butterflies | FishVista
+Config = Butterflies
 
 
 @beartype.beartype
@@ -42,27 +35,26 @@ class MetadataDataset(abc.ABC, torch.utils.data.Dataset):
         - target: int
         - Any additional dataset-specific fields
         """
-        pass
+        raise NotImplementedError()
 
 
 @beartype.beartype
-def get_dataset(cfg: Config, *, img_tr, seg_tr, sample_tr=None):
+def get_dataset(cfg: Config, *, img_tr, seg_tr, sample_tr=None) -> MetadataDataset:
     """
     Gets the dataset for the current experiment; delegates construction to dataset-specific functions.
 
     Args:
         cfg: Experiment config.
-        img_transform: Image transform to be applied to each image.
-        sample_transform: Transform to be applied to each sample dict.
+        img_tr: Image transform to be applied to each image.
+        seg_tr: Transform to be applied to each segmentation.
+        sample_tr: Transform to be applied to each sample dict.
     Returns:
         A dataset that has dictionaries with 'image', 'index', 'target' and 'label' keys (and maybe some extras), containing examples.
     """
     if isinstance(cfg, Butterflies):
-        return saev.data.datasets.SegFolderDataset(
-            cfg, img_tr=img_tr, sample_tr=sample_tr
+        return ButterfliesDataset(
+            cfg, img_tr=img_tr, seg_tr=seg_tr, sample_tr=sample_tr
         )
-    elif isinstance(cfg, FishVista):
-        return FishVistaDataset(cfg, img_tr=img_tr, sample_tr=sample_tr)
     else:
         tp.assert_never(cfg)
 
@@ -73,13 +65,11 @@ class ButterfliesDataset(MetadataDataset):
         "file_url",
         "zenodo_name",
         "zenodo_link",
-        "Image_name",
         "X",
         "Sequence",
         "Sample_accession",
         "Collected_by",
         "Other_ID",
-        "Dataset",
         "Date",
         "Store",
         "Brood",
@@ -91,11 +81,43 @@ class ButterfliesDataset(MetadataDataset):
     def __init__(self, cfg: Butterflies, *, img_tr=None, seg_tr=None, sample_tr=None):
         self.logger = logging.getLogger("bfly-ds")
         self.cfg = cfg
+        self.seg_cfg = saev.data.datasets.SegFolder(
+            root=cfg.root,
+            split="training",
+            img_label_fname="image_labels.txt",
+            bg_label=0,
+        )
 
-        self.ds = saev.data.datasets.SegFolderDataset(cfg)
+        self.ds = saev.data.datasets.SegFolderDataset(self.seg_cfg)
+
+        self.metadata = (
+            pl.read_csv(
+                os.path.join(self.cfg.root, "Heliconius_img_master.csv"),
+                infer_schema_length=None,
+            )
+            .drop(self.dead_cols, strict=True)
+            .drop((self.ds[0].keys()), strict=False)
+        )
+
+        # Build index -> metadata row mapping using filenames
+        # Create a dict from Image_name to row index in metadata
+        image_name_to_meta_idx = {
+            row["Image_name"]: i
+            for i, row in enumerate(self.metadata.iter_rows(named=True))
+        }
+
+        # Map dataset index to metadata index using ds.samples
+        self.index_to_meta = []
+        for sample in self.ds.samples:
+            # Extract just the filename from the full path
+            img_fname = os.path.basename(sample.img_path)
+            meta_idx = image_name_to_meta_idx.get(img_fname)
+            if meta_idx is None:
+                raise ValueError(f"No metadata found for image: {img_fname}")
+            self.index_to_meta.append(meta_idx)
 
     def get_metadata(self, index: int) -> dict:
-        meta_idx = self.meta_indices[index]
+        meta_idx = self.index_to_meta[index]
         return self.metadata.row(meta_idx, named=True)
 
     def __len__(self) -> int:
@@ -112,11 +134,3 @@ class ButterfliesDataset(MetadataDataset):
         sample = self.ds[index]
         sample.update(**self.get_metadata(index))
         return sample
-
-
-class FishVistaDataset(MetadataDataset):
-    def __init__(self, cfg: FishVista, *, img_transform=None, sample_transform=None):
-        pass
-
-    def get_metadata(self, index: int) -> dict:
-        raise NotImplementedError("FishVistaDataset.get_metadata not yet implemented")

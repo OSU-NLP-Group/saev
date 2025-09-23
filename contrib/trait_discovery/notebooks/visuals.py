@@ -13,15 +13,14 @@ def _():
     import marimo as mo
     import numpy as np
     import polars as pl
-    import torch
     from jaxtyping import Float, jaxtyped
 
-    return Float, beartype, bisect, jaxtyped, mo, np, pathlib, pl, torch
+    return Float, beartype, bisect, jaxtyped, mo, np, pathlib, pl
 
 
 @app.cell
 def _(pathlib):
-    root = pathlib.Path("/fs/scratch/PAS2136/samuelstevens/saev/acts/butterflies/")
+    root = pathlib.Path("/fs/scratch/PAS2136/samuelstevens/saev/acts/bfly-fg-v0/")
     return (root,)
 
 
@@ -75,10 +74,10 @@ def _(pl):
 @app.cell
 def _(add_target, ckpt_dropdown, pl, root):
     img_obs, target2fields = add_target(
-        pl.read_parquet(root / ckpt_dropdown.value / "img_obs.parquet"),
+        pl.read_parquet(root / ckpt_dropdown.value / "obs.parquet"),
         ["Taxonomic_Name", "View"],
     )
-    sae_var = pl.read_parquet(root / ckpt_dropdown.value / "sae_var.parquet")
+    sae_var = pl.read_parquet(root / ckpt_dropdown.value / "var.parquet")
     return img_obs, sae_var, target2fields
 
 
@@ -174,19 +173,111 @@ def _(
 
 
 @app.cell
-def _(ckpt_dropdown, img_obs, mo, root, sae_var):
+def _(mo):
+    cols_slider = mo.ui.slider(1, 10, value=3, full_width=False)
+    show_img_switch = mo.ui.switch(value=False, label="Original Image")
+    show_sae_img_switch = mo.ui.switch(value=True, label="Highlighted Image")
+    show_seg_switch = mo.ui.switch(value=False, label="Original Segmentation")
+    show_sae_seg_switch = mo.ui.switch(value=True, label="Highlighted Segmentation")
+    return (
+        cols_slider,
+        show_img_switch,
+        show_sae_img_switch,
+        show_sae_seg_switch,
+        show_seg_switch,
+    )
+
+
+@app.cell
+def _(
+    cols_slider,
+    mo,
+    show_img_switch,
+    show_sae_img_switch,
+    show_sae_seg_switch,
+    show_seg_switch,
+):
+    mo.hstack(
+        [
+            mo.hstack(
+                [mo.md(f"{cols_slider.value} column(s):"), cols_slider], justify="start"
+            ),
+            show_img_switch,
+            show_sae_img_switch,
+            show_seg_switch,
+            show_sae_seg_switch,
+        ],
+        justify="space-between",
+    )
+    return
+
+
+@app.cell
+def _(
+    ckpt_dropdown,
+    img_obs,
+    mo,
+    root,
+    sae_var,
+    show_img_switch,
+    show_sae_img_switch,
+    show_sae_seg_switch,
+    show_seg_switch,
+):
     def show_img(feature: int, i: int):
         neuron_dir = root / ckpt_dropdown.value / "features" / str(feature)
 
-        sae_path = neuron_dir / f"{i}_sae.png"
-        if not sae_path.exists():
-            return mo.md(f"*Missing image {i}*")
+        imgs = []
+
+        n_imgs = sum([
+            show_img_switch.value,
+            show_sae_img_switch.value,
+            show_seg_switch.value,
+            show_sae_seg_switch.value,
+        ])
+        width = 100 / n_imgs
+
+        if show_img_switch.value:
+            path = neuron_dir / f"{i}_img.png"
+            imgs.append(
+                mo.image(path, width=f"{width}%")
+                if path.exists()
+                else mo.md(f"*Missing image {i}*")
+            )
+
+        if show_sae_img_switch.value:
+            path = neuron_dir / f"{i}_sae_img.png"
+            imgs.append(
+                mo.image(path, width=f"{width}%")
+                if path.exists()
+                else mo.md(f"*Missing SAE image {i}*")
+            )
+
+        if show_seg_switch.value:
+            path = neuron_dir / f"{i}_seg.png"
+            imgs.append(
+                mo.image(path, width=f"{width}%")
+                if path.exists()
+                else mo.md(f"*Missing segmentation {i}*")
+            )
+
+        if show_sae_seg_switch.value:
+            path = neuron_dir / f"{i}_sae_seg.png"
+            imgs.append(
+                mo.image(path, width=f"{width}%")
+                if path.exists()
+                else mo.md(f"*Missing SAE segmentation {i}*")
+            )
 
         feature = sae_var.row(feature, named=True)
-        md = img_obs.row(feature["top_i_im"][i], named=True)
+        metadata = img_obs.row(feature["top_img_i"][i], named=True)
 
         return mo.vstack(
-            [mo.image(sae_path), mo.md(md["Taxonomic_Name"]), mo.md(md["View"])],
+            [
+                mo.hstack(imgs),
+                mo.md(metadata["Taxonomic_Name"]),
+                mo.md(metadata["Image_name"]),
+            ],
             align="center",
         )
 
@@ -194,28 +285,15 @@ def _(ckpt_dropdown, img_obs, mo, root, sae_var):
 
 
 @app.cell
-def _(mo):
-    cols_slider = mo.ui.slider(1, 10, value=5, full_width=False)
-    return (cols_slider,)
-
-
-@app.cell
-def _(cols_slider, mo):
-    mo.hstack([mo.md(f"{cols_slider.value} column(s):"), cols_slider], justify="start")
-    return
-
-
-@app.cell
 def _(cols_slider, features, get_i, mo, show_img):
-    feature = features[get_i()]
     n_cols = cols_slider.value
-    n_images = 25  # Always show 25 images
+    n_images = 8
 
     # Create rows of images based on the number of columns
     rows = []
     for row_start in range(0, n_images, n_cols):
         row_end = min(row_start + n_cols, n_images)
-        row_images = [show_img(feature, i) for i in range(row_start, row_end)]
+        row_images = [show_img(features[get_i()], i) for i in range(row_start, row_end)]
         if row_images:  # Only add non-empty rows
             rows.append(mo.hstack(row_images, widths="equal"))
 
@@ -224,11 +302,11 @@ def _(cols_slider, features, get_i, mo, show_img):
 
 
 @app.cell
-def _(ckpt_dropdown, np, root, torch):
-    x = torch.load(root / ckpt_dropdown.value / "img_acts.pt").numpy()
+def _():
+    # x = torch.load(root / ckpt_dropdown.value / "img_acts.pt").numpy()
 
-    percentiles = np.quantile(x, 0.95, axis=0)
-    return percentiles, x
+    # percentiles = np.quantile(x, 0.95, axis=0)
+    return
 
 
 @app.cell
