@@ -1,12 +1,36 @@
 site_name: saev
 docs_dir: src
 site_dir: api
+site_url: https://osu-nlp-group.github.io/saev/api
 
 theme:
-  name: readthedocs
-  user_color_mode_toggle: true
-  sticky_navigation: false
-  prev_next_buttons_location: none
+  name: material
+  palette:
+    primary: custom
+  font: false
+  features:
+    - navigation.tabs
+    - navigation.path
+    - navigation.indexes
+    - navigation.expand
+    - toc.follow
+    - toc.integrate
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.tabs.link
+    - content.code.annotation
+    - content.code.copy
+    - navigation.footer
+    - content.action.edit
+
+extra_css:
+  - stylesheets/extra.css
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/OSU-NLP-Group/saev
 
 nav:
   - Home: index.md
