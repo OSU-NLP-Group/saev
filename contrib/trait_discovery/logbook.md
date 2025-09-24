@@ -1085,3 +1085,28 @@ Thus, we will be able to fit probes on every combination of (latent x semantic c
 
 Time to write a spec for my coding buddy! I hate math! :)
 
+
+# 09/23/2025
+
+Okay, Claude Code wrote a decent sparse implementation.
+[GPT-5 Pro thinks it will blow up if we try to do all classes in parallel.](https://chatgpt.com/share/68d2b939-a638-8003-bdca-341eb4a125e2)
+I actually agree.
+
+There are a couple things that I've learned that I want to remember tomorrow:
+
+1. The above; we need to iterate over classes (151 for ADE20K, 10 for FishVista)
+2. dump.py saves sparse matrices instead of image-level max activations. visuals.py will need to be updated to deal with this.
+3. Job 2525911 (`tail -f logs/2525911_0_log.out`) might fail because of a dtype issue. We have 29126 images x 1920 patches/image x 16K latents/patch = 894.75B values. 2 ^ 31 = 2.14B and 2 ^ 63 = 9.22e18. So while the column indices (`.indices`) can be int32, the row pointers (`.indptr`) *MUST* be int64. Supposedly hstack will do the conversion. Luckily, this has a negligble impact on size (22MB for int32 indptr to 44MB for int64 intptr).
+4. Once we have these activations, then we can try to measure ADE20K accuracy. But we need to dump the activations for the FishVista or ADE20K SAEs, not the butterfly SAEs.
+
+Thus, tomorrow, I need:
+
+1. SAEs trained on FishVista and ADE20K.
+2. Dumped activations from these SAEs.
+
+Then I can work on evaluating class-level probes in a memory-efficient manner.
+
+
+# 09/24/2025
+
+I have activations. Let's try to evaluate ADE20K probes.

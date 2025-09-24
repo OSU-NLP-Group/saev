@@ -37,9 +37,8 @@ logger = logging.getLogger("visuals")
 class Config:
     """Configuration for unified activation computation."""
 
-    # Disk
     root: str = os.path.join(".", "acts", "butterflies", "abcdefg")
-    """Path to the activations directory."""
+    """Path to the saved SAE image activations."""
     acts: saev.data.IndexedConfig = saev.data.IndexedConfig()
     """Activations."""
     ckpt: str = os.path.join(".", "checkpoints", "sae.pt")

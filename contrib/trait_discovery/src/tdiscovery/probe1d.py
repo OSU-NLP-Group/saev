@@ -1,4 +1,123 @@
-"""Per-feature x per-class 1D logistic probes on SAE activations."""
+r"""Per-feature x per-class 1D logistic probes on SAE activations.
+
+Some feedback:
+
+Short answer: as written, this will OOM long before it gets a chance to be "slow." The killer is every place you expand from nnz → (nnz, n\_classes). With 22k×256 = 5.632M samples and L0=400, you have \~2.2528B nonzeros. Anything of shape (nnz, 151) is astronomically large.
+
+Here’s a surgical pass through `fit()` with concrete sizes and fixes.
+
+# What blows up (and why)
+
+* `y = y.to(self.device)`
+  If `y` is float32, that’s 5.632M×151×4B ≈ 3.4 GB on GPU. This is already chunky. Prefer processing **one class (or a tiny slab of classes)** at a time so you only keep 5.6M labels in memory (≈22 MB as uint8/bool).
+
+* `row_indices = torch.repeat_interleave(...)`
+  Length = nnz = 2,252,800,000.
+  int32: \~9.0 GB; int64: \~18 GB. This alone can eat your remaining memory. You must avoid materializing full `row_indices`—compute it **per row-block** (microbatch over rows), so the repeated\_interleave vector is at most tens of millions long at any moment.
+
+* `y_nz = y[row_indices]  # [nnz, n_classes]`
+  This is the show-stopper. Shape \~ (2.25B, 151).
+  Even fp16: 2.25e9×151×2B ≈ 680 GB. fp32 is \~1.36 TB. Impossible. Fix: loop over **classes** (or tiny class slabs, e.g., 4–8) and **event microbatches** (row-blocks), so at any instant you only touch (E\_chunk, C\_chunk).
+
+* `eta = self.intercept_[col_indices] + self.coef_[col_indices] * x_values_expanded`
+  `self.intercept_[col_indices]` is also (nnz, n\_classes). Same explosion as above. Gather (L, C\_chunk) once, then index with (E\_chunk,) to get (E\_chunk, C\_chunk) only.
+
+* `mu`, `s`, `residual` allocated as (nnz, n\_classes)
+  Same problem—compute in **chunks** and **don’t store** these big intermediates at all; compute-and-accumulate.
+
+Everything else (the (L, C) accumulators, params, counts) is tiny by comparison (a few hundred MB total).
+
+# How to restructure so it runs
+
+1. **Loop over classes (or a small slab):**
+
+```python
+for c0 in range(0, n_classes, Cb):  # e.g., Cb = 4 or 8
+    b = self.intercept_[:, c0:c0+Cb]    # (L, Cb)
+    w = self.coef_[:, c0:c0+Cb]         # (L, Cb)
+    mu0 = torch.sigmoid(b); s0 = mu0*(1-mu0)
+    # init accumulators M_nz, G1, S0, S1, S2 as (L, Cb) zeros
+```
+
+2. **Stream rows in blocks** to avoid a mega `row_indices`:
+
+```python
+for r0 in range(0, n_samples, Rb):     # e.g., Rb = 1–8 million rows
+    r1 = min(r0+Rb, n_samples)
+    # From CSR: [start:end) spans all nnz in these rows
+    start = crow_indices[r0].item()
+    end   = crow_indices[r1].item()
+    cols  = col_indices[start:end]      # (E_chunk,)
+    vals  = values[start:end]           # (E_chunk,)
+    # Build a TEMPORARY row_indices only for [r0:r1]
+    # lengths_per_row = crow[r0+1:r1+1] - crow[r0:r1]
+    # row_idx_chunk = repeat_interleave(lengths_per_row)  # length = E_chunk (fits)
+    y_chunk = y[r0:r1, c0:c0+Cb]        # (Rb, Cb)
+    y_nz    = y_chunk[row_idx_chunk]    # (E_chunk, Cb)  <-- manageable
+    # Gather params by latent for this event chunk
+    b_cols = b[cols]                    # (E_chunk, Cb)
+    w_cols = w[cols]                    # (E_chunk, Cb)
+    # Compute and ACCUMULATE on the fly (don’t keep mu/s around):
+    eta = b_cols + w_cols * vals.view(-1,1)
+    mu  = torch.sigmoid(eta)
+    s   = mu * (1 - mu)
+    # segmented reduction by latent index:
+    M_nz.index_add_(0, cols, mu)
+    G1.index_add_(0, cols, (mu - y_nz) * vals.view(-1,1))
+    S0.index_add_(0, cols, s)
+    S1.index_add_(0, cols, s * vals.view(-1,1))
+    S2.index_add_(0, cols, s * (vals**2).view(-1,1))
+```
+
+3. **Zero-part + Newton update for the class slab:**
+
+```python
+nnz_per_latent = torch.bincount(col_indices, minlength=L)  # (L,) – once globally
+Z = (n_samples - nnz_per_latent).view(L,1).float()
+
+G0 = M_nz + Z * mu0 - pi[c0:c0+Cb].view(1, Cb)
+S0 = S0 + Z * s0
+# ridge: G1 += lambda*w ; S2 += lambda (true L2). Add small damping to both diag entries if needed.
+```
+
+Then compute `db, dw` from the 2×2 per-(latent, class) systems and update `b, w`. Write back to `self.intercept_[:, c0:c0+Cb]`, `self.coef_[:, c0:c0+Cb]`. Repeat until convergence.
+
+4. **Loss**: compute in the same class/event microbatch loops using the “zero baseline + nonzero correction” you wrote, but **accumulate directly** into the (L, Cb) loss matrix via `index_add_`—don’t allocate (nnz, Cb).
+
+# Will it be too slow?
+
+Once you avoid the (nnz, n\_classes) tensors, the bottleneck becomes **scatter/index\_add over \~2.25B events per class per Newton iteration**.
+
+Very rough order-of-magnitude:
+
+* Events: E = 2.2528e9.
+* Classes: C = 151.
+* Event–class operations per iteration: E×C ≈ 3.40e11.
+* Per event–class you do \~10–20 flops and a handful of memory ops plus a scatter-add. This is **memory/atomics bound**, not compute bound.
+
+Empirically on A100s:
+
+* Coalesced `index_add_` (after sorting by `cols`) can push **hundreds of millions** of updates/sec; unsorted atomics can be far worse.
+* If you hit \~100M event–class updates/sec, that’s \~3.4e3 s ≈ **57 min per Newton iteration**.
+* With 6–10 Newton steps, you’re in the **6–10 hour** ballpark per SAE, which meets your “<12 hours” target—*if* you implement class+row microbatching, keep dtypes lean (bf16/half for activations), and reduce atomic contention (see below).
+
+This is not a guarantee—throughput depends a lot on:
+
+* **Atomics contention**: many events hitting the same latent line. Sorting `cols` within each event chunk before `index_add_` (or using `torch_scatter`/segmented reductions) often gives a **2–5×** boost.
+* **Chunk sizes**: tune `Rb` (rows per block) and `Cb` (classes per slab) so your temporary buffers stay <1–2 GB and your kernels stay saturated.
+* **Dtypes**: keep `vals` (activations) in fp16/bf16 and `y` in uint8/bool; keep accumulators in fp32.
+
+# Minimal changes you should make now
+
+* Do **not** allocate `row_indices` for the whole matrix; build it per row-block.
+* Do **not** allocate anything with shape `(nnz, n_classes)`. Always tile classes and events.
+* Move `y` to GPU **per class slab** (or stream from pinned host memory).
+* Consider **sorting** `cols` inside each chunk (`torch.sort`) and apply the same permutation to `vals` and `row_idx_chunk`; then use `index_add_` or `segment_reduce` to cut atomics.
+* Keep `values` and `mu` computations in **bf16/fp16**; keep accumulators in fp32.
+* In `_compute_loss`, reuse the same class/event microbatching; don’t rebuild huge arrays.
+
+If you want, I can rewrite your `fit()` skeleton into a tiled version (classes × row-blocks) with placeholders for chunk sizes and a micro-benchmark harness so you can time E×C throughput on one A100 and extrapolate.
+"""
 
 import logging
 

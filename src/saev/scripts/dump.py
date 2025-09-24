@@ -6,7 +6,7 @@ Dumps 5 files:
 1. mean_values.pt
 2. sparsity.pt
 3. distributions.pt
-4. img_acts.pt
+4. patch_acts.npz
 5. percentiles_p99.pt
 """
 
@@ -19,6 +19,7 @@ import typing as tp
 
 import beartype
 import einops
+import scipy.sparse
 import torch
 import tyro
 
@@ -84,7 +85,7 @@ def worker_fn(cfg: Config):
     mean_values_fpath = os.path.join(cfg.root, "mean_values.pt")
     sparsity_fpath = os.path.join(cfg.root, "sparsity.pt")
     distributions_fpath = os.path.join(cfg.root, "distributions.pt")
-    img_acts_fpath = os.path.join(cfg.root, "img_acts.pt")
+    patch_acts_fpath = os.path.join(cfg.root, "patch_acts.npz")
     percentiles_fpath = os.path.join(cfg.root, f"percentiles_p{cfg.percentile}.pt")
 
     # Check if we need to compute activations
@@ -93,7 +94,7 @@ def worker_fn(cfg: Config):
         sparsity_fpath,
         distributions_fpath,
         percentiles_fpath,
-        img_acts_fpath,
+        patch_acts_fpath,
     ]
     missing = [fpath for fpath in fpaths if not os.path.exists(fpath)]
     need_compute = cfg.force_recompute or bool(missing)
@@ -118,8 +119,7 @@ def worker_fn(cfg: Config):
     mean_values_s = torch.zeros((sae.cfg.d_sae,), device=cfg.device)
 
     # Initialize image-level activations
-    INIT = -1.0
-    img_acts_ns = torch.full((md.n_imgs, sae.cfg.d_sae), INIT, device=cfg.device)
+    patch_acts_blocks = []
 
     batch_size = cfg.data.batch_size // md.n_patches_per_img * md.n_patches_per_img
     n_imgs_per_batch = batch_size // md.n_patches_per_img
@@ -138,6 +138,8 @@ def worker_fn(cfg: Config):
 
     logger.info("Loaded SAE and data.")
 
+    prev_i = -1
+
     for batch in helpers.progress(dataloader, desc="activations"):
         # Get SAE activations (shared computation)
         vit_acts_bd = batch["act"].to(cfg.device)
@@ -155,39 +157,19 @@ def worker_fn(cfg: Config):
         mean_values_s += einops.reduce(f_x[mask_b], "batch d_sae -> d_sae", "sum")
         sparsity_s += einops.reduce((f_x[mask_b] > 0), "batch d_sae -> d_sae", "sum")
 
-        # Get unique image indices in this batch
-        img_i = torch.sort(torch.unique(batch["image_i"])).values.to(cfg.device)
-
-        values_ips = einops.rearrange(
-            f_x,
-            "(n_img n_patches) d_sae -> n_img n_patches d_sae",
-            n_img=len(img_i),
-            n_patches=md.n_patches_per_img,
-        )
-        mask_ip = einops.rearrange(
-            mask_b,
-            "(n_img n_patches) -> n_img n_patches",
-            n_img=len(img_i),
-            n_patches=md.n_patches_per_img,
-        )
-
-        # Validation
-        assert values_ips.shape[0] == img_i.shape[0]
-        if not len(img_i) == n_imgs_per_batch:
-            logger.warning(
-                "Got %d images; expected %d images per batch.",
-                len(img_i),
-                n_imgs_per_batch,
-            )
+        batch_i = batch["image_i"] * md.n_patches_per_img + batch["patch_i"]
+        # Assert that batch_i[0].item() == prev_i + 1
+        assert batch_i[0].item() == prev_i + 1
+        # Assert that batch_i is is already sorted
+        assert (torch.sort(batch_i).values == batch_i).all()
+        # Assert that batch_i is a continuous range from start, ed
+        assert (torch.arange(batch_i[0], batch_i[-1] + 1) == batch_i).all()
 
         # All masked patches can have at most no activation.
-        values_ips[~mask_ip] = 0.0
-        # Take the mean of the top k patches as our image-level summary.
-        values_iks = torch.topk(values_ips, cfg.top_k, dim=1).values
-        assert (values_iks >= 0).all()
-        values_is = einops.reduce(values_iks, "n_img k d_sae -> n_img d_sae", "mean")
-        assert (img_acts_ns[img_i] == INIT).all(), "overwriting existing activations"
-        img_acts_ns[img_i, :] = values_is
+        f_x[~mask_b, :] = 0.0
+
+        patch_acts_blocks.append(scipy.sparse.csr_array(f_x.cpu().numpy()))
+        prev_i = batch_i[-1].item()
 
     # Finalize statistics
     mean_values_s /= sparsity_s
@@ -197,7 +179,9 @@ def worker_fn(cfg: Config):
     torch.save(sparsity_s.cpu(), sparsity_fpath)
     torch.save(distributions_nm.cpu(), distributions_fpath)
     torch.save(estimator.estimate.cpu(), percentiles_fpath)
-    torch.save(img_acts_ns.cpu(), img_acts_fpath)
+    # Sparse CSR array
+    patch_acts = scipy.sparse.vstack(patch_acts_blocks, format="csr")
+    scipy.sparse.save_npz(patch_acts_fpath, patch_acts)
 
 
 @beartype.beartype
