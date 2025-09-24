@@ -17,24 +17,32 @@ logger = logging.getLogger(__name__)
 @beartype.beartype
 @dataclasses.dataclass(frozen=True)
 class Config:
-    """Configuration for loading indexed activation data from disk."""
+    """Configuration for loading indexed activation data from disk
+
+    Attributes:
+        shard_root: Directory with .bin shards and a metadata.json file.
+        patches: Which kinds of patches to use. 'cls' indicates just the [CLS] token (if any). 'image' indicates it will return image patches. 'all' returns all patches.
+        layer: Which ViT layer(s) to read from disk. ``-2`` selects the second-to-last layer. ``"all"`` enumerates every recorded layer.
+        seed: Random seed.
+        debug: Whether the dataloader process should log debug messages.
+    """
 
     shard_root: str = os.path.join(".", "shards")
-    """Directory with .bin shards and a metadata.json file."""
     patches: typing.Literal["cls", "image", "all"] = "image"
-    """Which kinds of patches to use. 'cls' indicates just the [CLS] token (if any). 'image' indicates it will return image patches. 'all' returns all patches."""
     layer: int | typing.Literal["all"] = -2
-    """Which ViT layer(s) to read from disk. ``-2`` selects the second-to-last layer. ``"all"`` enumerates every recorded layer."""
     seed: int = 17
-    """Random seed."""
     debug: bool = False
-    """Whether the dataloader process should log debug messages."""
 
 
 @jaxtyped(typechecker=beartype.beartype)
 class Dataset(torch.utils.data.Dataset):
     """
     Dataset of activations from disk.
+
+    Attributes:
+        cfg: Configuration set via CLI args.
+        metadata: Activations metadata; automatically loaded from disk.
+        layer_index: Layer index into the shards if we are choosing a specific layer.
     """
 
     class Example(typing.TypedDict, total=False):
@@ -46,11 +54,8 @@ class Dataset(torch.utils.data.Dataset):
         patch_label: int
 
     cfg: Config
-    """Configuration; set via CLI args."""
     metadata: writers.Metadata
-    """Activations metadata; automatically loaded from disk."""
     layer_index: int
-    """Layer index into the shards if we are choosing a specific layer."""
 
     def __init__(self, cfg: Config):
         self.cfg = cfg

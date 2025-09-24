@@ -1,11 +1,5 @@
 """
 saev is a Python package for training sparse autoencoders (SAEs) on vision transformers (ViTs) in PyTorch.
-
-The main entrypoint to the package is in `__main__`; use `python -m saev --help` to see the options and documentation for the script.
-
-.. include:: ./guide.md
-
-.. include:: ./inference.md
 """
 
 import importlib.metadata
@@ -19,6 +13,7 @@ def _version_from_pyproject() -> str:
         saev/__init__.py
         saev/
         pyproject.toml
+
     Returns "0.0.0+unknown" on any error.
     """
     try:

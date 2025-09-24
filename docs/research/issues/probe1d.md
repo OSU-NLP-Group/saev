@@ -17,8 +17,7 @@ This is intentionally simple and convex: each model has only two parameters `(w_
 
 ## Details
 
-* We include extremely minimal L2 regularization (ridge) to avoid divergence on linearly separable pairs.
-* We use balanced weighting or `pos_weight` to address class imbalance.
+We include extremely minimal L2 regularization (ridge) to avoid divergence on linearly separable pairs.
 
 SAE inference will be done once at the start from ViT patch activations (no multi‑TB dumps) but stored as a sparse matrix in memory.
 We assume an average L0 of 400 per image. That means that we have n_imgs * n_patches_per_img * 400 non-zero elements + n_classes class binary labels.

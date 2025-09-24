@@ -1,6 +1,9 @@
 # saev - Sparse Auto-Encoders for Vision
 
-![Coverage](docs/coverage.svg)
+![PyPI Downloads](https://static.pepy.tech/badge/saev)
+![MIT License](https://img.shields.io/badge/License-MIT-efefef)
+![GitHub Repo stars](https://img.shields.io/github/stars/OSU-NLP-group/saev?style=flat&label=GitHub%20%E2%AD%90)
+
 
 Sparse autoencoders (SAEs) for vision transformers (ViTs), implemented in PyTorch.
 

@@ -28,12 +28,15 @@ from . import buffers, writers
 @beartype.beartype
 @dataclasses.dataclass(frozen=True)
 class Config:
-    """Configuration for loading shuffled activation data from disk."""
+    """Configuration for loading shuffled activation data from disk.
+
+    Attributes:
+        shard_root: Directory with .bin shards and a metadata.json file.
+        patches: Which kinds of patches to use. 'cls' indicates just the [CLS] token (if any). 'image' indicates it will return image patches. 'all' returns all patches.
+    """
 
     shard_root: str = os.path.join(".", "shards")
-    """Directory with .bin shards and a metadata.json file."""
     patches: typing.Literal["cls", "image", "all"] = "image"
-    """Which kinds of patches to use. 'cls' indicates just the [CLS] token (if any). 'image' indicates it will return image patches. 'all' returns all patches."""
     layer: int | typing.Literal["all"] = -2
     """Which ViT layer(s) to read from disk. ``-2`` selects the second-to-last layer. ``"all"`` enumerates every recorded layer."""
     batch_size: int = 1024 * 16

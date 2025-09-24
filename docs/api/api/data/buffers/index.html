@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../../../img/favicon.ico" />
+    <title>saev.data.buffers - saev</title>
+    <link rel="stylesheet" href="../../../css/theme.css" />
+    <link rel="stylesheet" href="../../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+        <link href="../../../assets/_mkdocstrings.css" rel="stylesheet" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "saev.data.buffers";
+        var mkdocs_page_input_path = "api/data/buffers.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../../.." class="icon icon-home"> saev
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../..">Home</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Users</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../users/guide/">Guide</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../users/inference/">Inference</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Developers</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../developers/contributing/">Contributing</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">API</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../../saev/">saev</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../colors/">saev.colors</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../saev.data/">saev.data</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../__main__/">saev.data.main</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">saev.data.buffers</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#saev.data.buffers.ReservoirBuffer">ReservoirBuffer</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#saev.data.buffers.ReservoirBuffer.close">close</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#saev.data.buffers.ReservoirBuffer.fill">fill</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#saev.data.buffers.ReservoirBuffer.qsize">qsize</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#saev.data.buffers.RingBuffer">RingBuffer</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#saev.data.buffers.RingBuffer--parameters">Parameters</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#saev.data.buffers.RingBuffer.close">close</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#saev.data.buffers.RingBuffer.fill">fill</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#saev.data.buffers.RingBuffer.get">get</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#saev.data.buffers.RingBuffer.put">put</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#saev.data.buffers.RingBuffer.qsize">qsize</a>
+    </li>
+        </ul>
+    </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../clip/">saev.data.clip</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../datasets/">saev.data.datasets</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../dinov2/">saev.data.dinov2</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../dinov3/">saev.data.dinov3</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../fake_clip/">saev.data.fake_clip</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../indexed/">saev.data.indexed</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../models/">saev.data.models</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../ordered/">saev.data.ordered</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../shuffled/">saev.data.shuffled</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../siglip/">saev.data.siglip</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../transforms/">saev.data.transforms</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../writers/">saev.data.writers</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../helpers/">saev.helpers</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../nn/saev.nn/">saev.nn</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../nn/modeling/">saev.nn.modeling</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../nn/objectives/">saev.nn.objectives</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../utils/saev.utils/">saev.utils</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../utils/scheduling/">saev.utils.scheduling</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../utils/statistics/">saev.utils.statistics</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../utils/wandb/">saev.utils.wandb</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../viz/">saev.viz</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../..">saev</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../../.." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">API</li>
+      <li class="breadcrumb-item active">saev.data.buffers</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <div class="doc doc-object doc-module">
+
+
+
+<h2 id="saev.data.buffers" class="doc doc-heading">
+            <code>saev.data.buffers</code>
+
+
+</h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="saev.data.buffers.ReservoirBuffer" class="doc doc-heading">
+              <code class="highlight language-python"><span class="n">ReservoirBuffer</span><span class="p">(</span><span class="n">capacity</span><span class="p">,</span> <span class="n">shape</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">meta_shape</span><span class="o">=</span><span class="p">(</span><span class="mi">2</span><span class="p">,),</span> <span class="n">meta_dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">int32</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">collate_fn</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+
+        <p>Pool of (tensor, meta) pairs.
+Multiple producers call put(batch_x, batch_meta).
+Multiple consumers call get(batch_size) -&gt; (x, meta).
+Random order, each sample delivered once, blocking semantics.</p>
+
+
+
+
+
+
+
+
+                  <details class="quote">
+                    <summary>Source code in <code>src/saev/data/buffers.py</code></summary>
+                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 97</span>
+<span class="normal"> 98</span>
+<span class="normal"> 99</span>
+<span class="normal">100</span>
+<span class="normal">101</span>
+<span class="normal">102</span>
+<span class="normal">103</span>
+<span class="normal">104</span>
+<span class="normal">105</span>
+<span class="normal">106</span>
+<span class="normal">107</span>
+<span class="normal">108</span>
+<span class="normal">109</span>
+<span class="normal">110</span>
+<span class="normal">111</span>
+<span class="normal">112</span>
+<span class="normal">113</span>
+<span class="normal">114</span>
+<span class="normal">115</span>
+<span class="normal">116</span>
+<span class="normal">117</span>
+<span class="normal">118</span>
+<span class="normal">119</span>
+<span class="normal">120</span>
+<span class="normal">121</span>
+<span class="normal">122</span>
+<span class="normal">123</span>
+<span class="normal">124</span>
+<span class="normal">125</span>
+<span class="normal">126</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+    <span class="bp">self</span><span class="p">,</span>
+    <span class="n">capacity</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">shape</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">dtype</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">dtype</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span>
+    <span class="n">meta_shape</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mi">2</span><span class="p">,),</span>
+    <span class="n">meta_dtype</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">dtype</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">int32</span><span class="p">,</span>
+    <span class="n">seed</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
+    <span class="n">collate_fn</span><span class="p">:</span> <span class="n">collections</span><span class="o">.</span><span class="n">abc</span><span class="o">.</span><span class="n">Callable</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">):</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">capacity</span> <span class="o">=</span> <span class="n">capacity</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">_empty</span> <span class="o">=</span> <span class="mi">123456789</span>
+
+    <span class="bp">self</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">full</span><span class="p">((</span><span class="n">capacity</span><span class="p">,</span> <span class="o">*</span><span class="n">shape</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">_empty</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">dtype</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">share_memory_</span><span class="p">()</span>
+
+    <span class="bp">self</span><span class="o">.</span><span class="n">meta</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">full</span><span class="p">((</span><span class="n">capacity</span><span class="p">,</span> <span class="o">*</span><span class="n">meta_shape</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">_empty</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">meta_dtype</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">meta</span><span class="o">.</span><span class="n">share_memory_</span><span class="p">()</span>
+
+    <span class="bp">self</span><span class="o">.</span><span class="n">ctx</span> <span class="o">=</span> <span class="n">mp</span><span class="o">.</span><span class="n">get_context</span><span class="p">()</span>
+
+    <span class="bp">self</span><span class="o">.</span><span class="n">size</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ctx</span><span class="o">.</span><span class="n">Value</span><span class="p">(</span><span class="s2">&quot;L&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>  <span class="c1"># current live items</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">lock</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ctx</span><span class="o">.</span><span class="n">Lock</span><span class="p">()</span>  <span class="c1"># guards size+swap</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">free</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ctx</span><span class="o">.</span><span class="n">Semaphore</span><span class="p">(</span><span class="n">capacity</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">full</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ctx</span><span class="o">.</span><span class="n">Semaphore</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+    <span class="c1"># Each process has its own RNG.</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">rng</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">default_rng</span><span class="p">(</span><span class="n">seed</span><span class="p">)</span>
+
+    <span class="bp">self</span><span class="o">.</span><span class="n">collate_fn</span> <span class="o">=</span> <span class="n">collate_fn</span>
+</code></pre></div></td></tr></table></div>
+                  </details>
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="saev.data.buffers.ReservoirBuffer.close" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">close</span><span class="p">()</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Release the shared-memory backing store (call once in the parent).</p>
+
+
+            <details class="quote">
+              <summary>Source code in <code>src/saev/data/buffers.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">209</span>
+<span class="normal">210</span>
+<span class="normal">211</span>
+<span class="normal">212</span>
+<span class="normal">213</span>
+<span class="normal">214</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">close</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Release the shared-memory backing store (call once in the parent).&quot;&quot;&quot;</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">untyped_storage</span><span class="p">()</span><span class="o">.</span><span class="n">_free_shared_mem</span><span class="p">()</span>
+    <span class="k">except</span> <span class="p">(</span><span class="ne">AttributeError</span><span class="p">,</span> <span class="ne">FileNotFoundError</span><span class="p">):</span>
+        <span class="k">pass</span>  <span class="c1"># already freed or never allocated</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="saev.data.buffers.ReservoirBuffer.fill" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">fill</span><span class="p">()</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Approximate proportion of filled slots (race-safe enough for tests).</p>
+
+
+            <details class="quote">
+              <summary>Source code in <code>src/saev/data/buffers.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">220</span>
+<span class="normal">221</span>
+<span class="normal">222</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">fill</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Approximate proportion of filled slots (race-safe enough for tests).&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">qsize</span><span class="p">()</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">capacity</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="saev.data.buffers.ReservoirBuffer.qsize" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">qsize</span><span class="p">()</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Approximate number of filled slots (race-safe enough for tests).</p>
+
+
+            <details class="quote">
+              <summary>Source code in <code>src/saev/data/buffers.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">216</span>
+<span class="normal">217</span>
+<span class="normal">218</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">qsize</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Approximate number of filled slots (race-safe enough for tests).&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">size</span><span class="o">.</span><span class="n">value</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="saev.data.buffers.RingBuffer" class="doc doc-heading">
+              <code class="highlight language-python"><span class="n">RingBuffer</span><span class="p">(</span><span class="n">slots</span><span class="p">,</span> <span class="n">shape</span><span class="p">,</span> <span class="n">dtype</span><span class="p">)</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+
+        <p>Fixed-capacity, multiple-producer / multiple-consumer queue backed by a shared-memory tensor.</p>
+<h5 id="saev.data.buffers.RingBuffer--parameters">Parameters</h5>
+<p>slots  : int           capacity in number of items (tensor rows)
+shape  : tuple[int]    shape of one item, e.g. (batch, dim)
+dtype  : torch.dtype   tensor dtype</p>
+<p>put(tensor)  : blocks if full
+get() -&gt; tensor  : blocks if empty
+qsize() -&gt; int        advisory size (approximate)
+close()               frees shared storage (call in the main process)</p>
+
+
+
+
+
+
+
+
+                  <details class="quote">
+                    <summary>Source code in <code>src/saev/data/buffers.py</code></summary>
+                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">30</span>
+<span class="normal">31</span>
+<span class="normal">32</span>
+<span class="normal">33</span>
+<span class="normal">34</span>
+<span class="normal">35</span>
+<span class="normal">36</span>
+<span class="normal">37</span>
+<span class="normal">38</span>
+<span class="normal">39</span>
+<span class="normal">40</span>
+<span class="normal">41</span>
+<span class="normal">42</span>
+<span class="normal">43</span>
+<span class="normal">44</span>
+<span class="normal">45</span>
+<span class="normal">46</span>
+<span class="normal">47</span>
+<span class="normal">48</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">slots</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">shape</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span> <span class="n">dtype</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">dtype</span><span class="p">):</span>
+    <span class="k">assert</span> <span class="n">slots</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;slots must be positive&quot;</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">slots</span> <span class="o">=</span> <span class="n">slots</span>
+    <span class="c1"># 123456789 -&gt; Should make you very worried.</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">buf</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">full</span><span class="p">((</span><span class="n">slots</span><span class="p">,</span> <span class="o">*</span><span class="n">shape</span><span class="p">),</span> <span class="mi">123456789</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">dtype</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">buf</span><span class="o">.</span><span class="n">share_memory_</span><span class="p">()</span>
+
+    <span class="n">ctx</span> <span class="o">=</span> <span class="n">mp</span><span class="o">.</span><span class="n">get_context</span><span class="p">()</span>  <span class="c1"># obeys the global start method (&quot;spawn&quot;)</span>
+
+    <span class="c1"># shared, lock-free counters</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">head</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">Value</span><span class="p">(</span><span class="s2">&quot;L&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">lock</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>  <span class="c1"># next free slot</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">tail</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">Value</span><span class="p">(</span><span class="s2">&quot;L&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">lock</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>  <span class="c1"># next occupied slot</span>
+
+    <span class="c1"># semaphores for blocking semantics</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">free</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">Semaphore</span><span class="p">(</span><span class="n">slots</span><span class="p">)</span>  <span class="c1"># initially all slots free</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">fill</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">Semaphore</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>  <span class="c1"># no filled slots yet</span>
+
+    <span class="c1"># one mutex for pointer updates</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">mutex</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">Lock</span><span class="p">()</span>
+</code></pre></div></td></tr></table></div>
+                  </details>
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="saev.data.buffers.RingBuffer.close" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">close</span><span class="p">()</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Release the shared-memory backing store (call once in the parent).</p>
+
+
+            <details class="quote">
+              <summary>Source code in <code>src/saev/data/buffers.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">80</span>
+<span class="normal">81</span>
+<span class="normal">82</span>
+<span class="normal">83</span>
+<span class="normal">84</span>
+<span class="normal">85</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">close</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Release the shared-memory backing store (call once in the parent).&quot;&quot;&quot;</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">buf</span><span class="o">.</span><span class="n">untyped_storage</span><span class="p">()</span><span class="o">.</span><span class="n">_free_shared_mem</span><span class="p">()</span>
+    <span class="k">except</span> <span class="p">(</span><span class="ne">AttributeError</span><span class="p">,</span> <span class="ne">FileNotFoundError</span><span class="p">):</span>
+        <span class="k">pass</span>  <span class="c1"># already freed or never allocated</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="saev.data.buffers.RingBuffer.fill" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">fill</span><span class="p">()</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Approximate proportion of filled slots (race-safe enough for tests).</p>
+
+
+            <details class="quote">
+              <summary>Source code in <code>src/saev/data/buffers.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">76</span>
+<span class="normal">77</span>
+<span class="normal">78</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">fill</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Approximate proportion of filled slots (race-safe enough for tests).&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">qsize</span><span class="p">()</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">capacity</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="saev.data.buffers.RingBuffer.get" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">get</span><span class="p">()</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Return a view of the next item; blocks if the queue is empty.</p>
+
+
+            <details class="quote">
+              <summary>Source code in <code>src/saev/data/buffers.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">62</span>
+<span class="normal">63</span>
+<span class="normal">64</span>
+<span class="normal">65</span>
+<span class="normal">66</span>
+<span class="normal">67</span>
+<span class="normal">68</span>
+<span class="normal">69</span>
+<span class="normal">70</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">get</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return a view of the next item; blocks if the queue is empty.&quot;&quot;&quot;</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">fill</span><span class="o">.</span><span class="n">acquire</span><span class="p">()</span>  <span class="c1"># wait for data</span>
+    <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">mutex</span><span class="p">:</span>  <span class="c1"># exclusive update of tail</span>
+        <span class="n">idx</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">tail</span><span class="o">.</span><span class="n">value</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">slots</span>
+        <span class="n">out</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">buf</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tail</span><span class="o">.</span><span class="n">value</span> <span class="o">+=</span> <span class="mi">1</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">free</span><span class="o">.</span><span class="n">release</span><span class="p">()</span>  <span class="c1"># signal one more free slot</span>
+    <span class="k">return</span> <span class="n">out</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="saev.data.buffers.RingBuffer.put" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">put</span><span class="p">(</span><span class="n">tensor</span><span class="p">)</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Copy <code>tensor</code> into the next free slot; blocks if the queue is full.</p>
+
+
+            <details class="quote">
+              <summary>Source code in <code>src/saev/data/buffers.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">50</span>
+<span class="normal">51</span>
+<span class="normal">52</span>
+<span class="normal">53</span>
+<span class="normal">54</span>
+<span class="normal">55</span>
+<span class="normal">56</span>
+<span class="normal">57</span>
+<span class="normal">58</span>
+<span class="normal">59</span>
+<span class="normal">60</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">put</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tensor</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Copy `tensor` into the next free slot; blocks if the queue is full.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">tensor</span><span class="o">.</span><span class="n">shape</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">buf</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span> <span class="ow">or</span> <span class="n">tensor</span><span class="o">.</span><span class="n">dtype</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">buf</span><span class="o">.</span><span class="n">dtype</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;tensor shape / dtype mismatch&quot;</span><span class="p">)</span>
+
+    <span class="bp">self</span><span class="o">.</span><span class="n">free</span><span class="o">.</span><span class="n">acquire</span><span class="p">()</span>  <span class="c1"># wait for a free slot</span>
+    <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">mutex</span><span class="p">:</span>  <span class="c1"># exclusive update of head</span>
+        <span class="n">idx</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">head</span><span class="o">.</span><span class="n">value</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">slots</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">buf</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span><span class="o">.</span><span class="n">copy_</span><span class="p">(</span><span class="n">tensor</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">head</span><span class="o">.</span><span class="n">value</span> <span class="o">+=</span> <span class="mi">1</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">fill</span><span class="o">.</span><span class="n">release</span><span class="p">()</span>  <span class="c1"># signal there is data</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="saev.data.buffers.RingBuffer.qsize" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">qsize</span><span class="p">()</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Approximate number of filled slots (race-safe enough for tests).</p>
+
+
+            <details class="quote">
+              <summary>Source code in <code>src/saev/data/buffers.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">72</span>
+<span class="normal">73</span>
+<span class="normal">74</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">qsize</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Approximate number of filled slots (race-safe enough for tests).&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">head</span><span class="o">.</span><span class="n">value</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">tail</span><span class="o">.</span><span class="n">value</span><span class="p">)</span> <span class="o">%</span> <span class="p">(</span><span class="mi">1</span> <span class="o">&lt;&lt;</span> <span class="mi">64</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+              
+            </div>
+          </div><footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+      <span><a href="../__main__/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../clip/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../../../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "../../..";</script>
+    <script src="../../../js/theme_extra.js"></script>
+    <script src="../../../js/theme.js"></script>
+      <script src="../../../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(false);
+        });
+    </script>
+
+</body>
+</html>

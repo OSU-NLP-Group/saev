@@ -1,0 +1,2000 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../../../img/favicon.ico" />
+    <title>saev.data - saev</title>
+    <link rel="stylesheet" href="../../../css/theme.css" />
+    <link rel="stylesheet" href="../../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+        <link href="../../../assets/_mkdocstrings.css" rel="stylesheet" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "saev.data";
+        var mkdocs_page_input_path = "api/data/saev.data.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../../.." class="icon icon-home"> saev
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../..">Home</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Users</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../users/guide/">Guide</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../users/inference/">Inference</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Developers</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../developers/contributing/">Contributing</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">API</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../../saev/">saev</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../colors/">saev.colors</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">saev.data</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#saev.data.Dataset">Dataset</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#saev.data.Dataset.d_vit">d_vit</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#saev.data.Dataset.Example">Example</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#saev.data.Dataset.__len__">__len__</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#saev.data.IndexedConfig">IndexedConfig</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#saev.data.Metadata">Metadata</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#saev.data.Metadata.n_imgs_per_shard">n_imgs_per_shard</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#saev.data.OrderedConfig">OrderedConfig</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#saev.data.OrderedConfig.batch_size">batch_size</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#saev.data.OrderedConfig.batch_timeout_s">batch_timeout_s</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#saev.data.OrderedConfig.buffer_size">buffer_size</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#saev.data.OrderedConfig.debug">debug</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#saev.data.OrderedConfig.drop_last">drop_last</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#saev.data.OrderedConfig.layer">layer</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#saev.data.OrderedConfig.patches">patches</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#saev.data.OrderedConfig.shard_root">shard_root</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#saev.data.OrderedDataLoader">OrderedDataLoader</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#saev.data.OrderedDataLoader.ExampleBatch">ExampleBatch</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#saev.data.OrderedDataLoader.__iter__">__iter__</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#saev.data.OrderedDataLoader.__len__">__len__</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#saev.data.ShuffledConfig">ShuffledConfig</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#saev.data.ShuffledConfig.batch_size">batch_size</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#saev.data.ShuffledConfig.batch_timeout_s">batch_timeout_s</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#saev.data.ShuffledConfig.buffer_size">buffer_size</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#saev.data.ShuffledConfig.debug">debug</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#saev.data.ShuffledConfig.drop_last">drop_last</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#saev.data.ShuffledConfig.ignore_labels">ignore_labels</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#saev.data.ShuffledConfig.layer">layer</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#saev.data.ShuffledConfig.log_every_s">log_every_s</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#saev.data.ShuffledConfig.n_threads">n_threads</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#saev.data.ShuffledConfig.scale_norm">scale_norm</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#saev.data.ShuffledConfig.seed">seed</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#saev.data.ShuffledDataLoader">ShuffledDataLoader</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#saev.data.ShuffledDataLoader.ExampleBatch">ExampleBatch</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#saev.data.ShuffledDataLoader.__iter__">__iter__</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#saev.data.ShuffledDataLoader.__len__">__len__</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#saev.data.make_ordered_config">make_ordered_config</a>
+    </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../__main__/">saev.data.main</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../buffers/">saev.data.buffers</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../clip/">saev.data.clip</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../datasets/">saev.data.datasets</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../dinov2/">saev.data.dinov2</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../dinov3/">saev.data.dinov3</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../fake_clip/">saev.data.fake_clip</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../indexed/">saev.data.indexed</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../models/">saev.data.models</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../ordered/">saev.data.ordered</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../shuffled/">saev.data.shuffled</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../siglip/">saev.data.siglip</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../transforms/">saev.data.transforms</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../writers/">saev.data.writers</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../helpers/">saev.helpers</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../nn/saev.nn/">saev.nn</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../nn/modeling/">saev.nn.modeling</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../nn/objectives/">saev.nn.objectives</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../utils/saev.utils/">saev.utils</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../utils/scheduling/">saev.utils.scheduling</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../utils/statistics/">saev.utils.statistics</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../utils/wandb/">saev.utils.wandb</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../viz/">saev.viz</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../..">saev</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../../.." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">API</li>
+      <li class="breadcrumb-item active">saev.data</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <div class="doc doc-object doc-module">
+
+
+
+<h2 id="saev.data" class="doc doc-heading">
+            <code>saev.data</code>
+
+
+</h2>
+
+    <div class="doc doc-contents first">
+
+        <p>.. include:: ./protocol.md</p>
+<p>.. include:: ./performance.md</p>
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="saev.data.Dataset" class="doc doc-heading">
+              <code class="highlight language-python"><span class="n">Dataset</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="torch.utils.data.Dataset">Dataset</span></code></p>
+
+
+        <p>Dataset of activations from disk.</p>
+
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Attributes:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+              <b><code>cfg</code></b>
+                  (<code><a class="autorefs autorefs-internal" title="Config(shard_root=os.path.join('.', 'shards'), patches='image', layer=-2, seed=17, debug=False)
+
+  
+      dataclass
+   (saev.data.indexed.Config)" href="../indexed/#saev.data.indexed.Config">Config</a></code>)
+              –
+              <div class="doc-md-description">
+                <p>Configuration set via CLI args.</p>
+              </div>
+            </li>
+            <li>
+              <b><code>metadata</code></b>
+                  (<code><a class="autorefs autorefs-internal" title="Metadata(vit_family, vit_ckpt, layers, n_patches_per_img, cls_token, d_vit, n_imgs, max_patches_per_shard, data, pixel_agg=None, dtype='float32', protocol='1.1')
+
+  
+      dataclass
+   (saev.data.writers.Metadata)" href="../writers/#saev.data.writers.Metadata">Metadata</a></code>)
+              –
+              <div class="doc-md-description">
+                <p>Activations metadata; automatically loaded from disk.</p>
+              </div>
+            </li>
+            <li>
+              <b><code>layer_index</code></b>
+                  (<code><span title="int">int</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>Layer index into the shards if we are choosing a specific layer.</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+
+
+
+
+
+
+                  <details class="quote">
+                    <summary>Source code in <code>src/saev/data/indexed.py</code></summary>
+                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">60</span>
+<span class="normal">61</span>
+<span class="normal">62</span>
+<span class="normal">63</span>
+<span class="normal">64</span>
+<span class="normal">65</span>
+<span class="normal">66</span>
+<span class="normal">67</span>
+<span class="normal">68</span>
+<span class="normal">69</span>
+<span class="normal">70</span>
+<span class="normal">71</span>
+<span class="normal">72</span>
+<span class="normal">73</span>
+<span class="normal">74</span>
+<span class="normal">75</span>
+<span class="normal">76</span>
+<span class="normal">77</span>
+<span class="normal">78</span>
+<span class="normal">79</span>
+<span class="normal">80</span>
+<span class="normal">81</span>
+<span class="normal">82</span>
+<span class="normal">83</span>
+<span class="normal">84</span>
+<span class="normal">85</span>
+<span class="normal">86</span>
+<span class="normal">87</span>
+<span class="normal">88</span>
+<span class="normal">89</span>
+<span class="normal">90</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">Config</span><span class="p">):</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span> <span class="o">=</span> <span class="n">cfg</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shard_root</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Activations are not saved at &#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shard_root</span><span class="si">}</span><span class="s2">&#39;.&quot;</span><span class="p">)</span>
+
+    <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span> <span class="o">=</span> <span class="n">writers</span><span class="o">.</span><span class="n">Metadata</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shard_root</span><span class="p">)</span>
+
+    <span class="c1"># Validate shard files exist</span>
+    <span class="n">shard_info</span> <span class="o">=</span> <span class="n">writers</span><span class="o">.</span><span class="n">ShardInfo</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shard_root</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">shard</span> <span class="ow">in</span> <span class="n">shard_info</span><span class="p">:</span>
+        <span class="n">shard_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shard_root</span><span class="p">,</span> <span class="n">shard</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">shard_path</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Shard file not found: </span><span class="si">{</span><span class="n">shard_path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="c1"># Check if labels.bin exists</span>
+    <span class="n">labels_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shard_root</span><span class="p">,</span> <span class="s2">&quot;labels.bin&quot;</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">labels_mmap</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">labels_path</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">labels_mmap</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">memmap</span><span class="p">(</span>
+            <span class="n">labels_path</span><span class="p">,</span>
+            <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;r&quot;</span><span class="p">,</span>
+            <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">uint8</span><span class="p">,</span>
+            <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">n_imgs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">n_patches_per_img</span><span class="p">),</span>
+        <span class="p">)</span>
+
+    <span class="c1"># Pick a really big number so that if you accidentally use this when you shouldn&#39;t, you get an out of bounds IndexError.</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">layer_index</span> <span class="o">=</span> <span class="mi">1_000_000</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">layer</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+        <span class="n">err_msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;Non-exact matches for .layer field not supported; </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">layer</span><span class="si">}</span><span class="s2"> not in </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">layers</span><span class="si">}</span><span class="s2">.&quot;</span>
+        <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">layer</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">layers</span><span class="p">,</span> <span class="n">err_msg</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">layer_index</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">layers</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">layer</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+                  </details>
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h4 id="saev.data.Dataset.d_vit" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">d_vit</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Dimension of the underlying vision transformer's embedding space.</p>
+
+    </div>
+
+</div>
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h4 id="saev.data.Dataset.Example" class="doc doc-heading">
+            <code>Example</code>
+
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="typing.TypedDict">TypedDict</span></code></p>
+
+
+        <p>Individual example.</p>
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="saev.data.Dataset.__len__" class="doc doc-heading">
+            <code class="highlight language-python"><span class="fm">__len__</span><span class="p">()</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Dataset length depends on <code>patches</code> and <code>layer</code>.</p>
+
+
+            <details class="quote">
+              <summary>Source code in <code>src/saev/data/indexed.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">185</span>
+<span class="normal">186</span>
+<span class="normal">187</span>
+<span class="normal">188</span>
+<span class="normal">189</span>
+<span class="normal">190</span>
+<span class="normal">191</span>
+<span class="normal">192</span>
+<span class="normal">193</span>
+<span class="normal">194</span>
+<span class="normal">195</span>
+<span class="normal">196</span>
+<span class="normal">197</span>
+<span class="normal">198</span>
+<span class="normal">199</span>
+<span class="normal">200</span>
+<span class="normal">201</span>
+<span class="normal">202</span>
+<span class="normal">203</span>
+<span class="normal">204</span>
+<span class="normal">205</span>
+<span class="normal">206</span>
+<span class="normal">207</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__len__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Dataset length depends on `patches` and `layer`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">match</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">patches</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">layer</span><span class="p">):</span>
+        <span class="k">case</span> <span class="p">(</span><span class="s2">&quot;cls&quot;</span><span class="p">,</span> <span class="s2">&quot;all&quot;</span><span class="p">):</span>
+            <span class="c1"># Return a CLS token from a random image and random layer.</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">n_imgs</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">layers</span><span class="p">)</span>
+        <span class="k">case</span> <span class="p">(</span><span class="s2">&quot;cls&quot;</span><span class="p">,</span> <span class="nb">int</span><span class="p">()):</span>
+            <span class="c1"># Return a CLS token from a random image and fixed layer.</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">n_imgs</span>
+        <span class="k">case</span> <span class="p">(</span><span class="s2">&quot;image&quot;</span><span class="p">,</span> <span class="nb">int</span><span class="p">()):</span>
+            <span class="c1"># Return a patch from a random image, fixed layer, and random patch.</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">n_imgs</span> <span class="o">*</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">n_patches_per_img</span><span class="p">)</span>
+        <span class="k">case</span> <span class="p">(</span><span class="s2">&quot;image&quot;</span><span class="p">,</span> <span class="s2">&quot;all&quot;</span><span class="p">):</span>
+            <span class="c1"># Return a patch from a random image, random layer and random patch.</span>
+            <span class="k">return</span> <span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">n_imgs</span>
+                <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">layers</span><span class="p">)</span>
+                <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">n_patches_per_img</span>
+            <span class="p">)</span>
+        <span class="k">case</span><span class="w"> </span><span class="k">_</span><span class="p">:</span>
+            <span class="n">typing</span><span class="o">.</span><span class="n">assert_never</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">patches</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">layer</span><span class="p">))</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="saev.data.IndexedConfig" class="doc doc-heading">
+              <code class="highlight language-python"><span class="n">IndexedConfig</span><span class="p">(</span><span class="n">shard_root</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">,</span> <span class="s1">&#39;shards&#39;</span><span class="p">),</span> <span class="n">patches</span><span class="o">=</span><span class="s1">&#39;image&#39;</span><span class="p">,</span> <span class="n">layer</span><span class="o">=-</span><span class="mi">2</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">17</span><span class="p">,</span> <span class="n">debug</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+
+        <p>Configuration for loading indexed activation data from disk</p>
+
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Attributes:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+              <b><code>shard_root</code></b>
+                  (<code><span title="str">str</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>Directory with .bin shards and a metadata.json file.</p>
+              </div>
+            </li>
+            <li>
+              <b><code>patches</code></b>
+                  (<code><span title="typing.Literal">Literal</span>[&#39;cls&#39;, &#39;image&#39;, &#39;all&#39;]</code>)
+              –
+              <div class="doc-md-description">
+                <p>Which kinds of patches to use. 'cls' indicates just the [CLS] token (if any). 'image' indicates it will return image patches. 'all' returns all patches.</p>
+              </div>
+            </li>
+            <li>
+              <b><code>layer</code></b>
+                  (<code><span title="int">int</span> | <span title="typing.Literal">Literal</span>[&#39;all&#39;]</code>)
+              –
+              <div class="doc-md-description">
+                <p>Which ViT layer(s) to read from disk. <code>-2</code> selects the second-to-last layer. <code>"all"</code> enumerates every recorded layer.</p>
+              </div>
+            </li>
+            <li>
+              <b><code>seed</code></b>
+                  (<code><span title="int">int</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>Random seed.</p>
+              </div>
+            </li>
+            <li>
+              <b><code>debug</code></b>
+                  (<code><span title="bool">bool</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>Whether the dataloader process should log debug messages.</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="saev.data.Metadata" class="doc doc-heading">
+              <code class="highlight language-python"><span class="n">Metadata</span><span class="p">(</span><span class="n">vit_family</span><span class="p">,</span> <span class="n">vit_ckpt</span><span class="p">,</span> <span class="n">layers</span><span class="p">,</span> <span class="n">n_patches_per_img</span><span class="p">,</span> <span class="n">cls_token</span><span class="p">,</span> <span class="n">d_vit</span><span class="p">,</span> <span class="n">n_imgs</span><span class="p">,</span> <span class="n">max_patches_per_shard</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">pixel_agg</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;float32&#39;</span><span class="p">,</span> <span class="n">protocol</span><span class="o">=</span><span class="s1">&#39;1.1&#39;</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h4 id="saev.data.Metadata.n_imgs_per_shard" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">n_imgs_per_shard</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Calculate the number of images per shard based on the protocol.</p>
+
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Returns:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+                  <code><span title="int">int</span></code>
+              –
+              <div class="doc-md-description">
+                <p>Number of images that fit in a shard.</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+    </div>
+
+</div>
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="saev.data.OrderedConfig" class="doc doc-heading">
+              <code class="highlight language-python"><span class="n">OrderedConfig</span><span class="p">(</span><span class="n">shard_root</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">,</span> <span class="s1">&#39;shards&#39;</span><span class="p">),</span> <span class="n">patches</span><span class="o">=</span><span class="s1">&#39;image&#39;</span><span class="p">,</span> <span class="n">layer</span><span class="o">=-</span><span class="mi">2</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">1024</span> <span class="o">*</span> <span class="mi">16</span><span class="p">,</span> <span class="n">batch_timeout_s</span><span class="o">=</span><span class="mf">30.0</span><span class="p">,</span> <span class="n">drop_last</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">buffer_size</span><span class="o">=</span><span class="mi">64</span><span class="p">,</span> <span class="n">debug</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+
+        <p>Configuration for loading ordered (non-shuffled) activation data from disk.</p>
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h4 id="saev.data.OrderedConfig.batch_size" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">batch_size</span> <span class="o">=</span> <span class="mi">1024</span> <span class="o">*</span> <span class="mi">16</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Batch size.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h4 id="saev.data.OrderedConfig.batch_timeout_s" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">batch_timeout_s</span> <span class="o">=</span> <span class="mf">30.0</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>How long to wait for at least one batch.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h4 id="saev.data.OrderedConfig.buffer_size" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">buffer_size</span> <span class="o">=</span> <span class="mi">64</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Number of batches to queue in the shared-memory ring buffer. Higher values add latency but improve resilience to brief stalls.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h4 id="saev.data.OrderedConfig.debug" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">debug</span> <span class="o">=</span> <span class="kc">False</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Whether the dataloader process should log debug messages.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h4 id="saev.data.OrderedConfig.drop_last" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">drop_last</span> <span class="o">=</span> <span class="kc">False</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Whether to drop the last batch if it's smaller than the others.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h4 id="saev.data.OrderedConfig.layer" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">layer</span> <span class="o">=</span> <span class="o">-</span><span class="mi">2</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Which ViT layer(s) to read from disk. <code>-2</code> selects the second-to-last layer. <code>"all"</code> enumerates every recorded layer.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h4 id="saev.data.OrderedConfig.patches" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">patches</span> <span class="o">=</span> <span class="s1">&#39;image&#39;</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Which kinds of patches to use. 'cls' indicates just the [CLS] token (if any). 'image' indicates it will return image patches. 'all' returns all patches.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h4 id="saev.data.OrderedConfig.shard_root" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">shard_root</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">,</span> <span class="s1">&#39;shards&#39;</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Directory with .bin shards and a metadata.json file.</p>
+
+    </div>
+
+</div>
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="saev.data.OrderedDataLoader" class="doc doc-heading">
+              <code class="highlight language-python"><span class="n">OrderedDataLoader</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+
+        <p>High-throughput streaming loader that reads data from disk shards in order (no shuffling).</p>
+
+
+
+
+
+
+
+
+                  <details class="quote">
+                    <summary>Source code in <code>src/saev/data/ordered.py</code></summary>
+                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">252</span>
+<span class="normal">253</span>
+<span class="normal">254</span>
+<span class="normal">255</span>
+<span class="normal">256</span>
+<span class="normal">257</span>
+<span class="normal">258</span>
+<span class="normal">259</span>
+<span class="normal">260</span>
+<span class="normal">261</span>
+<span class="normal">262</span>
+<span class="normal">263</span>
+<span class="normal">264</span>
+<span class="normal">265</span>
+<span class="normal">266</span>
+<span class="normal">267</span>
+<span class="normal">268</span>
+<span class="normal">269</span>
+<span class="normal">270</span>
+<span class="normal">271</span>
+<span class="normal">272</span>
+<span class="normal">273</span>
+<span class="normal">274</span>
+<span class="normal">275</span>
+<span class="normal">276</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">Config</span><span class="p">):</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span> <span class="o">=</span> <span class="n">cfg</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shard_root</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Activations are not saved at &#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shard_root</span><span class="si">}</span><span class="s2">&#39;.&quot;</span><span class="p">)</span>
+
+    <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span> <span class="o">=</span> <span class="n">writers</span><span class="o">.</span><span class="n">Metadata</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shard_root</span><span class="p">)</span>
+
+    <span class="c1"># Validate shard files exist</span>
+    <span class="n">shard_info</span> <span class="o">=</span> <span class="n">writers</span><span class="o">.</span><span class="n">ShardInfo</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shard_root</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">shard</span> <span class="ow">in</span> <span class="n">shard_info</span><span class="p">:</span>
+        <span class="n">shard_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shard_root</span><span class="p">,</span> <span class="n">shard</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">shard_path</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Shard file not found: </span><span class="si">{</span><span class="n">shard_path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="bp">self</span><span class="o">.</span><span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s2">&quot;ordered.DataLoader&quot;</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">ctx</span> <span class="o">=</span> <span class="n">mp</span><span class="o">.</span><span class="n">get_context</span><span class="p">()</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">manager_proc</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">batch_queue</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">stop_event</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">_n_samples</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_calculate_n_samples</span><span class="p">()</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+        <span class="s2">&quot;Initialized ordered.DataLoader with </span><span class="si">%d</span><span class="s2"> samples. (debug=</span><span class="si">%s</span><span class="s2">)&quot;</span><span class="p">,</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">n_samples</span><span class="p">,</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">debug</span><span class="p">,</span>
+    <span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+                  </details>
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h4 id="saev.data.OrderedDataLoader.ExampleBatch" class="doc doc-heading">
+            <code>ExampleBatch</code>
+
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="typing.TypedDict">TypedDict</span></code></p>
+
+
+        <p>Individual example.</p>
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="saev.data.OrderedDataLoader.__iter__" class="doc doc-heading">
+            <code class="highlight language-python"><span class="fm">__iter__</span><span class="p">()</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Yields batches in order.</p>
+
+
+            <details class="quote">
+              <summary>Source code in <code>src/saev/data/ordered.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">320</span>
+<span class="normal">321</span>
+<span class="normal">322</span>
+<span class="normal">323</span>
+<span class="normal">324</span>
+<span class="normal">325</span>
+<span class="normal">326</span>
+<span class="normal">327</span>
+<span class="normal">328</span>
+<span class="normal">329</span>
+<span class="normal">330</span>
+<span class="normal">331</span>
+<span class="normal">332</span>
+<span class="normal">333</span>
+<span class="normal">334</span>
+<span class="normal">335</span>
+<span class="normal">336</span>
+<span class="normal">337</span>
+<span class="normal">338</span>
+<span class="normal">339</span>
+<span class="normal">340</span>
+<span class="normal">341</span>
+<span class="normal">342</span>
+<span class="normal">343</span>
+<span class="normal">344</span>
+<span class="normal">345</span>
+<span class="normal">346</span>
+<span class="normal">347</span>
+<span class="normal">348</span>
+<span class="normal">349</span>
+<span class="normal">350</span>
+<span class="normal">351</span>
+<span class="normal">352</span>
+<span class="normal">353</span>
+<span class="normal">354</span>
+<span class="normal">355</span>
+<span class="normal">356</span>
+<span class="normal">357</span>
+<span class="normal">358</span>
+<span class="normal">359</span>
+<span class="normal">360</span>
+<span class="normal">361</span>
+<span class="normal">362</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__iter__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">collections</span><span class="o">.</span><span class="n">abc</span><span class="o">.</span><span class="n">Iterable</span><span class="p">[</span><span class="n">ExampleBatch</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Yields batches in order.&quot;&quot;&quot;</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">_start_manager</span><span class="p">()</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">while</span> <span class="n">n</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_samples</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">err_queue</span><span class="o">.</span><span class="n">empty</span><span class="p">():</span>
+                <span class="n">who</span><span class="p">,</span> <span class="n">tb</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">err_queue</span><span class="o">.</span><span class="n">get_nowait</span><span class="p">()</span>
+                <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">who</span><span class="si">}</span><span class="s2"> crashed:</span><span class="se">\n</span><span class="si">{</span><span class="n">tb</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">batch</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">batch_queue</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">timeout</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">batch_timeout_s</span><span class="p">)</span>
+                <span class="n">actual_batch_size</span> <span class="o">=</span> <span class="n">batch</span><span class="p">[</span><span class="s2">&quot;act&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+                <span class="c1"># Handle drop_last</span>
+                <span class="k">if</span> <span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">drop_last</span>
+                    <span class="ow">and</span> <span class="n">actual_batch_size</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">batch_size</span>
+                    <span class="ow">and</span> <span class="n">n</span> <span class="o">+</span> <span class="n">actual_batch_size</span> <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_samples</span>
+                <span class="p">):</span>
+                    <span class="k">break</span>
+
+                <span class="n">n</span> <span class="o">+=</span> <span class="n">actual_batch_size</span>
+                <span class="k">yield</span> <span class="bp">self</span><span class="o">.</span><span class="n">ExampleBatch</span><span class="p">(</span><span class="o">**</span><span class="n">batch</span><span class="p">)</span>
+                <span class="k">continue</span>
+            <span class="k">except</span> <span class="n">queue</span><span class="o">.</span><span class="n">Empty</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+                    <span class="s2">&quot;Did not get a batch from manager process in </span><span class="si">%.1f</span><span class="s2">s seconds.&quot;</span><span class="p">,</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">batch_timeout_s</span><span class="p">,</span>
+                <span class="p">)</span>
+            <span class="k">except</span> <span class="ne">FileNotFoundError</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Manager process (probably) closed.&quot;</span><span class="p">)</span>
+                <span class="k">continue</span>
+
+            <span class="c1"># If we don&#39;t continue, then we should check on the manager process.</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">manager_proc</span><span class="o">.</span><span class="n">is_alive</span><span class="p">():</span>
+                <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Manager process died unexpectedly after </span><span class="si">{</span><span class="n">n</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">n_samples</span><span class="si">}</span><span class="s2"> samples.&quot;</span>
+                <span class="p">)</span>
+
+    <span class="k">finally</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">shutdown</span><span class="p">()</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="saev.data.OrderedDataLoader.__len__" class="doc doc-heading">
+            <code class="highlight language-python"><span class="fm">__len__</span><span class="p">()</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Returns the number of batches in an epoch.</p>
+
+
+            <details class="quote">
+              <summary>Source code in <code>src/saev/data/ordered.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">409</span>
+<span class="normal">410</span>
+<span class="normal">411</span>
+<span class="normal">412</span>
+<span class="normal">413</span>
+<span class="normal">414</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__len__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Returns the number of batches in an epoch.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">drop_last</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_samples</span> <span class="o">//</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">batch_size</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">math</span><span class="o">.</span><span class="n">ceil</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_samples</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">batch_size</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="saev.data.ShuffledConfig" class="doc doc-heading">
+              <code class="highlight language-python"><span class="n">ShuffledConfig</span><span class="p">(</span><span class="n">shard_root</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">,</span> <span class="s1">&#39;shards&#39;</span><span class="p">),</span> <span class="n">patches</span><span class="o">=</span><span class="s1">&#39;image&#39;</span><span class="p">,</span> <span class="n">layer</span><span class="o">=-</span><span class="mi">2</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">1024</span> <span class="o">*</span> <span class="mi">16</span><span class="p">,</span> <span class="n">drop_last</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">scale_norm</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">ignore_labels</span><span class="o">=</span><span class="nb">list</span><span class="p">(),</span> <span class="n">n_threads</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">buffer_size</span><span class="o">=</span><span class="mi">64</span><span class="p">,</span> <span class="n">batch_timeout_s</span><span class="o">=</span><span class="mf">30.0</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">17</span><span class="p">,</span> <span class="n">debug</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">log_every_s</span><span class="o">=</span><span class="mf">30.0</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+
+        <p>Configuration for loading shuffled activation data from disk.</p>
+
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Attributes:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+              <b><code>shard_root</code></b>
+                  (<code><span title="str">str</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>Directory with .bin shards and a metadata.json file.</p>
+              </div>
+            </li>
+            <li>
+              <b><code>patches</code></b>
+                  (<code><span title="typing.Literal">Literal</span>[&#39;cls&#39;, &#39;image&#39;, &#39;all&#39;]</code>)
+              –
+              <div class="doc-md-description">
+                <p>Which kinds of patches to use. 'cls' indicates just the [CLS] token (if any). 'image' indicates it will return image patches. 'all' returns all patches.</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h4 id="saev.data.ShuffledConfig.batch_size" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">batch_size</span> <span class="o">=</span> <span class="mi">1024</span> <span class="o">*</span> <span class="mi">16</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Batch size.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h4 id="saev.data.ShuffledConfig.batch_timeout_s" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">batch_timeout_s</span> <span class="o">=</span> <span class="mf">30.0</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>How long to wait for at least one batch.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h4 id="saev.data.ShuffledConfig.buffer_size" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">buffer_size</span> <span class="o">=</span> <span class="mi">64</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Number of batches to queue in the shared-memory ring buffer. Higher values add latency but improve resilience to brief stalls.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h4 id="saev.data.ShuffledConfig.debug" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">debug</span> <span class="o">=</span> <span class="kc">False</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Whether the dataloader process should log debug messages.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h4 id="saev.data.ShuffledConfig.drop_last" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">drop_last</span> <span class="o">=</span> <span class="kc">False</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Whether to drop the last batch if it's smaller than the others.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h4 id="saev.data.ShuffledConfig.ignore_labels" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">ignore_labels</span> <span class="o">=</span> <span class="n">dataclasses</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">list</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>If provided, exclude patches with these label values. None means no filtering. Common use: ignore_labels=[0] to exclude background.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h4 id="saev.data.ShuffledConfig.layer" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">layer</span> <span class="o">=</span> <span class="o">-</span><span class="mi">2</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Which ViT layer(s) to read from disk. <code>-2</code> selects the second-to-last layer. <code>"all"</code> enumerates every recorded layer.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h4 id="saev.data.ShuffledConfig.log_every_s" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">log_every_s</span> <span class="o">=</span> <span class="mf">30.0</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>How frequently the dataloader process should log (debug) performance messages.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h4 id="saev.data.ShuffledConfig.n_threads" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">n_threads</span> <span class="o">=</span> <span class="mi">4</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Number of dataloading threads.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h4 id="saev.data.ShuffledConfig.scale_norm" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">scale_norm</span> <span class="o">=</span> <span class="kc">False</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Whether to scale norms to sqrt(D).</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h4 id="saev.data.ShuffledConfig.seed" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">seed</span> <span class="o">=</span> <span class="mi">17</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Random seed.</p>
+
+    </div>
+
+</div>
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="saev.data.ShuffledDataLoader" class="doc doc-heading">
+              <code class="highlight language-python"><span class="n">ShuffledDataLoader</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+
+        <p>High-throughput streaming loader that deterministically shuffles data from disk shards.</p>
+
+
+
+
+
+
+
+
+                  <details class="quote">
+                    <summary>Source code in <code>src/saev/data/shuffled.py</code></summary>
+                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">307</span>
+<span class="normal">308</span>
+<span class="normal">309</span>
+<span class="normal">310</span>
+<span class="normal">311</span>
+<span class="normal">312</span>
+<span class="normal">313</span>
+<span class="normal">314</span>
+<span class="normal">315</span>
+<span class="normal">316</span>
+<span class="normal">317</span>
+<span class="normal">318</span>
+<span class="normal">319</span>
+<span class="normal">320</span>
+<span class="normal">321</span>
+<span class="normal">322</span>
+<span class="normal">323</span>
+<span class="normal">324</span>
+<span class="normal">325</span>
+<span class="normal">326</span>
+<span class="normal">327</span>
+<span class="normal">328</span>
+<span class="normal">329</span>
+<span class="normal">330</span>
+<span class="normal">331</span>
+<span class="normal">332</span>
+<span class="normal">333</span>
+<span class="normal">334</span>
+<span class="normal">335</span>
+<span class="normal">336</span>
+<span class="normal">337</span>
+<span class="normal">338</span>
+<span class="normal">339</span>
+<span class="normal">340</span>
+<span class="normal">341</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">Config</span><span class="p">):</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span> <span class="o">=</span> <span class="n">cfg</span>
+
+    <span class="bp">self</span><span class="o">.</span><span class="n">manager_proc</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">reservoir</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">stop_event</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="bp">self</span><span class="o">.</span><span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s2">&quot;shuffled.DataLoader&quot;</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">ctx</span> <span class="o">=</span> <span class="n">mp</span><span class="o">.</span><span class="n">get_context</span><span class="p">()</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shard_root</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Activations are not saved at &#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shard_root</span><span class="si">}</span><span class="s2">&#39;.&quot;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">scale_norm</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;scale_norm not implemented.&quot;</span><span class="p">)</span>
+
+    <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span> <span class="o">=</span> <span class="n">writers</span><span class="o">.</span><span class="n">Metadata</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shard_root</span><span class="p">)</span>
+
+    <span class="c1"># Validate shard files exist</span>
+    <span class="n">shard_info</span> <span class="o">=</span> <span class="n">writers</span><span class="o">.</span><span class="n">ShardInfo</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shard_root</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">shard</span> <span class="ow">in</span> <span class="n">shard_info</span><span class="p">:</span>
+        <span class="n">shard_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shard_root</span><span class="p">,</span> <span class="n">shard</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">shard_path</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Shard file not found: </span><span class="si">{</span><span class="n">shard_path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="bp">self</span><span class="o">.</span><span class="n">_n_samples</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_calculate_n_samples</span><span class="p">()</span>
+
+    <span class="c1"># Check if labels.bin exists for filtering</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">labels_mmap</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">ignore_labels</span><span class="p">:</span>
+        <span class="n">labels_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shard_root</span><span class="p">,</span> <span class="s2">&quot;labels.bin&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">labels_path</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;ignore_labels filtering requested but labels.bin not found at </span><span class="si">{</span><span class="n">labels_path</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+                  </details>
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h4 id="saev.data.ShuffledDataLoader.ExampleBatch" class="doc doc-heading">
+            <code>ExampleBatch</code>
+
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="typing.TypedDict">TypedDict</span></code></p>
+
+
+        <p>Individual example.</p>
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="saev.data.ShuffledDataLoader.__iter__" class="doc doc-heading">
+            <code class="highlight language-python"><span class="fm">__iter__</span><span class="p">()</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Yields batches.</p>
+
+
+            <details class="quote">
+              <summary>Source code in <code>src/saev/data/shuffled.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">411</span>
+<span class="normal">412</span>
+<span class="normal">413</span>
+<span class="normal">414</span>
+<span class="normal">415</span>
+<span class="normal">416</span>
+<span class="normal">417</span>
+<span class="normal">418</span>
+<span class="normal">419</span>
+<span class="normal">420</span>
+<span class="normal">421</span>
+<span class="normal">422</span>
+<span class="normal">423</span>
+<span class="normal">424</span>
+<span class="normal">425</span>
+<span class="normal">426</span>
+<span class="normal">427</span>
+<span class="normal">428</span>
+<span class="normal">429</span>
+<span class="normal">430</span>
+<span class="normal">431</span>
+<span class="normal">432</span>
+<span class="normal">433</span>
+<span class="normal">434</span>
+<span class="normal">435</span>
+<span class="normal">436</span>
+<span class="normal">437</span>
+<span class="normal">438</span>
+<span class="normal">439</span>
+<span class="normal">440</span>
+<span class="normal">441</span>
+<span class="normal">442</span>
+<span class="normal">443</span>
+<span class="normal">444</span>
+<span class="normal">445</span>
+<span class="normal">446</span>
+<span class="normal">447</span>
+<span class="normal">448</span>
+<span class="normal">449</span>
+<span class="normal">450</span>
+<span class="normal">451</span>
+<span class="normal">452</span>
+<span class="normal">453</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__iter__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">collections</span><span class="o">.</span><span class="n">abc</span><span class="o">.</span><span class="n">Iterator</span><span class="p">[</span><span class="n">ExampleBatch</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Yields batches.&quot;&quot;&quot;</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">_start_manager</span><span class="p">()</span>
+    <span class="n">n</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">while</span> <span class="n">n</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_samples</span><span class="p">:</span>
+            <span class="n">need</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">batch_size</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_samples</span> <span class="o">-</span> <span class="n">n</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">err_queue</span><span class="o">.</span><span class="n">empty</span><span class="p">():</span>
+                <span class="n">who</span><span class="p">,</span> <span class="n">tb</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">err_queue</span><span class="o">.</span><span class="n">get_nowait</span><span class="p">()</span>
+                <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">who</span><span class="si">}</span><span class="s2"> crashed:</span><span class="se">\n</span><span class="si">{</span><span class="n">tb</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">act</span><span class="p">,</span> <span class="n">meta</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">reservoir</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+                    <span class="n">need</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">batch_timeout_s</span>
+                <span class="p">)</span>
+                <span class="n">n</span> <span class="o">+=</span> <span class="n">need</span>
+                <span class="n">b</span> <span class="o">+=</span> <span class="mi">1</span>
+                <span class="n">image_i</span><span class="p">,</span> <span class="n">patch_i</span> <span class="o">=</span> <span class="n">meta</span><span class="o">.</span><span class="n">T</span>
+                <span class="k">yield</span> <span class="bp">self</span><span class="o">.</span><span class="n">ExampleBatch</span><span class="p">(</span><span class="n">act</span><span class="o">=</span><span class="n">act</span><span class="p">,</span> <span class="n">image_i</span><span class="o">=</span><span class="n">image_i</span><span class="p">,</span> <span class="n">patch_i</span><span class="o">=</span><span class="n">patch_i</span><span class="p">)</span>
+                <span class="k">continue</span>
+            <span class="k">except</span> <span class="ne">TimeoutError</span><span class="p">:</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">ignore_labels</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+                        <span class="s2">&quot;Did not get a batch from </span><span class="si">%d</span><span class="s2"> worker threads in </span><span class="si">%.1f</span><span class="s2">s seconds. This can happen when filtering out many labels.&quot;</span><span class="p">,</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">n_threads</span><span class="p">,</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">batch_timeout_s</span><span class="p">,</span>
+                    <span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+                        <span class="s2">&quot;Did not get a batch from </span><span class="si">%d</span><span class="s2"> worker threads in </span><span class="si">%.1f</span><span class="s2">s seconds.&quot;</span><span class="p">,</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">n_threads</span><span class="p">,</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">batch_timeout_s</span><span class="p">,</span>
+                    <span class="p">)</span>
+
+            <span class="c1"># If we don&#39;t continue, then we should check on the manager process.</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">manager_proc</span><span class="o">.</span><span class="n">is_alive</span><span class="p">():</span>
+                <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Manager process died unexpectedly after </span><span class="si">{</span><span class="n">b</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span><span class="si">}</span><span class="s2"> batches.&quot;</span>
+                <span class="p">)</span>
+
+    <span class="k">finally</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">shutdown</span><span class="p">()</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="saev.data.ShuffledDataLoader.__len__" class="doc doc-heading">
+            <code class="highlight language-python"><span class="fm">__len__</span><span class="p">()</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Returns the number of batches in an epoch.</p>
+
+
+            <details class="quote">
+              <summary>Source code in <code>src/saev/data/shuffled.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">542</span>
+<span class="normal">543</span>
+<span class="normal">544</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__len__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Returns the number of batches in an epoch.&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">math</span><span class="o">.</span><span class="n">ceil</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_samples</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">batch_size</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="saev.data.make_ordered_config" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">make_ordered_config</span><span class="p">(</span><span class="n">shuffled_cfg</span><span class="p">,</span> <span class="o">**</span><span class="n">overrides</span><span class="p">)</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Create an <code>OrderedConfig</code> from a <code>ShuffledConfig</code>, with optional overrides.</p>
+<p>Defaults come from <code>shuffled_cfg</code> for fields present in <code>OrderedConfig</code>, and <code>overrides</code> take precedence. Unknown override fields raise <code>TypeError</code> from the <code>OrderedConfig</code> constructor, mirroring <code>dataclasses.replace</code>.</p>
+
+
+            <details class="quote">
+              <summary>Source code in <code>src/saev/data/__init__.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">38</span>
+<span class="normal">39</span>
+<span class="normal">40</span>
+<span class="normal">41</span>
+<span class="normal">42</span>
+<span class="normal">43</span>
+<span class="normal">44</span>
+<span class="normal">45</span>
+<span class="normal">46</span>
+<span class="normal">47</span>
+<span class="normal">48</span>
+<span class="normal">49</span>
+<span class="normal">50</span>
+<span class="normal">51</span>
+<span class="normal">52</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@beartype</span><span class="o">.</span><span class="n">beartype</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">make_ordered_config</span><span class="p">(</span>
+    <span class="n">shuffled_cfg</span><span class="p">:</span> <span class="n">ShuffledConfig</span><span class="p">,</span> <span class="o">**</span><span class="n">overrides</span><span class="p">:</span> <span class="nb">object</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">OrderedConfig</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Create an `OrderedConfig` from a `ShuffledConfig`, with optional overrides.</span>
+
+<span class="sd">    Defaults come from `shuffled_cfg` for fields present in `OrderedConfig`, and `overrides` take precedence. Unknown override fields raise `TypeError` from the `OrderedConfig` constructor, mirroring `dataclasses.replace`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">params</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">object</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">dataclasses</span><span class="o">.</span><span class="n">fields</span><span class="p">(</span><span class="n">OrderedConfig</span><span class="p">):</span>
+        <span class="n">name</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">name</span>
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">shuffled_cfg</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
+            <span class="n">params</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">shuffled_cfg</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
+    <span class="n">params</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">overrides</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">OrderedConfig</span><span class="p">(</span><span class="o">**</span><span class="n">params</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+              
+            </div>
+          </div><footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+      <span><a href="../../colors/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../__main__/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../../../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "../../..";</script>
+    <script src="../../../js/theme_extra.js"></script>
+    <script src="../../../js/theme.js"></script>
+      <script src="../../../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(false);
+        });
+    </script>
+
+</body>
+</html>

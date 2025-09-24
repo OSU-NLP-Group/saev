@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../../../img/favicon.ico" />
+    <title>saev.data.main - saev</title>
+    <link rel="stylesheet" href="../../../css/theme.css" />
+    <link rel="stylesheet" href="../../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+        <link href="../../../assets/_mkdocstrings.css" rel="stylesheet" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "saev.data.main";
+        var mkdocs_page_input_path = "api/data/__main__.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../../.." class="icon icon-home"> saev
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../..">Home</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Users</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../users/guide/">Guide</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../users/inference/">Inference</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Developers</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../developers/contributing/">Contributing</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">API</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../../saev/">saev</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../colors/">saev.colors</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../saev.data/">saev.data</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">saev.data.main</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#saev.data.__main__.main">main</a>
+    </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../buffers/">saev.data.buffers</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../clip/">saev.data.clip</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../datasets/">saev.data.datasets</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../dinov2/">saev.data.dinov2</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../dinov3/">saev.data.dinov3</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../fake_clip/">saev.data.fake_clip</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../indexed/">saev.data.indexed</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../models/">saev.data.models</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../ordered/">saev.data.ordered</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../shuffled/">saev.data.shuffled</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../siglip/">saev.data.siglip</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../transforms/">saev.data.transforms</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../writers/">saev.data.writers</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../helpers/">saev.helpers</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../nn/saev.nn/">saev.nn</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../nn/modeling/">saev.nn.modeling</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../nn/objectives/">saev.nn.objectives</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../utils/saev.utils/">saev.utils</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../utils/scheduling/">saev.utils.scheduling</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../utils/statistics/">saev.utils.statistics</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../utils/wandb/">saev.utils.wandb</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../viz/">saev.viz</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../..">saev</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../../.." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">API</li>
+      <li class="breadcrumb-item active">saev.data.main</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <div class="doc doc-object doc-module">
+
+
+
+<h2 id="saev.data.__main__" class="doc doc-heading">
+            <code>saev.data.__main__</code>
+
+
+</h2>
+
+    <div class="doc doc-contents first">
+
+        <p>To save lots of activations, we want to do things in parallel, with lots of slurm jobs, and save multiple files, rather than just one.</p>
+<p>This module handles that additional complexity.</p>
+<p>Conceptually, activations are either thought of as</p>
+<ol>
+<li>A single [n_imgs x n_layers x (n_patches + 1), d_vit] tensor. This is a <em>dataset</em></li>
+<li>Multiple [n_imgs_per_shard, n_layers, (n_patches + 1), d_vit] tensors. This is a set of sharded activations.</li>
+</ol>
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="saev.data.__main__.main" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">main</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Save ViT activations for use later on.</p>
+
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Parameters:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+              <b><code>cfg</code></b>
+                  (<code><span title="typing.Annotated">Annotated</span>[<a class="autorefs autorefs-internal" title="Config(data=datasets.Imagenet(), dump_to=os.path.join('.', 'shards'), vit_family='clip', vit_ckpt='ViT-L-14/openai', vit_batch_size=1024, n_workers=8, d_vit=1024, vit_layers=(lambda: [-2])(), n_patches_per_img=256, cls_token=True, pixel_agg='majority', max_patches_per_shard=2400000, ssl=True, device='cuda', n_hours=24.0, slurm_acct='', slurm_partition='', log_to='./logs')
+
+  
+      dataclass
+   (saev.data.writers.Config)" href="../writers/#saev.data.writers.Config">Config</a>, <span title="tyro.conf.arg">arg</span>(name=&#39;&#39;)]</code>)
+              –
+              <div class="doc-md-description">
+                <p>Configuration for activations.</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+            <details class="quote">
+              <summary>Source code in <code>src/saev/data/__main__.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">26</span>
+<span class="normal">27</span>
+<span class="normal">28</span>
+<span class="normal">29</span>
+<span class="normal">30</span>
+<span class="normal">31</span>
+<span class="normal">32</span>
+<span class="normal">33</span>
+<span class="normal">34</span>
+<span class="normal">35</span>
+<span class="normal">36</span>
+<span class="normal">37</span>
+<span class="normal">38</span>
+<span class="normal">39</span>
+<span class="normal">40</span>
+<span class="normal">41</span>
+<span class="normal">42</span>
+<span class="normal">43</span>
+<span class="normal">44</span>
+<span class="normal">45</span>
+<span class="normal">46</span>
+<span class="normal">47</span>
+<span class="normal">48</span>
+<span class="normal">49</span>
+<span class="normal">50</span>
+<span class="normal">51</span>
+<span class="normal">52</span>
+<span class="normal">53</span>
+<span class="normal">54</span>
+<span class="normal">55</span>
+<span class="normal">56</span>
+<span class="normal">57</span>
+<span class="normal">58</span>
+<span class="normal">59</span>
+<span class="normal">60</span>
+<span class="normal">61</span>
+<span class="normal">62</span>
+<span class="normal">63</span>
+<span class="normal">64</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@beartype</span><span class="o">.</span><span class="n">beartype</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">(</span><span class="n">cfg</span><span class="p">:</span> <span class="n">typing</span><span class="o">.</span><span class="n">Annotated</span><span class="p">[</span><span class="n">writers</span><span class="o">.</span><span class="n">Config</span><span class="p">,</span> <span class="n">tyro</span><span class="o">.</span><span class="n">conf</span><span class="o">.</span><span class="n">arg</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">)]):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Save ViT activations for use later on.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        cfg: Configuration for activations.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s2">&quot;dump&quot;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">cfg</span><span class="o">.</span><span class="n">ssl</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Ignoring SSL certs. Try not to do this!&quot;</span><span class="p">)</span>
+        <span class="c1"># https://github.com/openai/whisper/discussions/734#discussioncomment-4491761</span>
+        <span class="c1"># Ideally we don&#39;t have to disable SSL but we are only downloading weights.</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">ssl</span>
+
+        <span class="n">ssl</span><span class="o">.</span><span class="n">_create_default_https_context</span> <span class="o">=</span> <span class="n">ssl</span><span class="o">.</span><span class="n">_create_unverified_context</span>
+
+    <span class="c1"># Actually record activations.</span>
+    <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">slurm_acct</span><span class="p">:</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">submitit</span>
+
+        <span class="n">executor</span> <span class="o">=</span> <span class="n">submitit</span><span class="o">.</span><span class="n">SlurmExecutor</span><span class="p">(</span><span class="n">folder</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">log_to</span><span class="p">)</span>
+        <span class="n">executor</span><span class="o">.</span><span class="n">update_parameters</span><span class="p">(</span>
+            <span class="n">time</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">n_hours</span> <span class="o">*</span> <span class="mi">60</span><span class="p">),</span>
+            <span class="n">partition</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">slurm_partition</span><span class="p">,</span>
+            <span class="n">gpus_per_node</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+            <span class="n">ntasks_per_node</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+            <span class="n">cpus_per_task</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">n_workers</span> <span class="o">+</span> <span class="mi">4</span><span class="p">,</span>
+            <span class="n">stderr_to_stdout</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">account</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">slurm_acct</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="n">job</span> <span class="o">=</span> <span class="n">executor</span><span class="o">.</span><span class="n">submit</span><span class="p">(</span><span class="n">writers</span><span class="o">.</span><span class="n">worker_fn</span><span class="p">,</span> <span class="n">cfg</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Running job &#39;</span><span class="si">%s</span><span class="s2">&#39;.&quot;</span><span class="p">,</span> <span class="n">job</span><span class="o">.</span><span class="n">job_id</span><span class="p">)</span>
+        <span class="n">job</span><span class="o">.</span><span class="n">result</span><span class="p">()</span>
+
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">writers</span><span class="o">.</span><span class="n">worker_fn</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+              
+            </div>
+          </div><footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+      <span><a href="../saev.data/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../buffers/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../../../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "../../..";</script>
+    <script src="../../../js/theme_extra.js"></script>
+    <script src="../../../js/theme.js"></script>
+      <script src="../../../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(false);
+        });
+    </script>
+
+</body>
+</html>

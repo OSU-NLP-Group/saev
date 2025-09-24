@@ -1,73 +1,37 @@
-import glob
-import os
+import pathlib
+
+import mkdocs_gen_files
+
+root = (pathlib.Path(__file__).parent.parent / "src").resolve()
+skip_dirs = ["__pycache__", "scripts", "interactive"]
 
 
-def main(in_paths: list[str], out_fpath: str):
-    """
-    Args:
-        in_paths: Directories and paths for source files.
-        out_fpath: Path for output .txt file
-    """
+def main():
+    nav = mkdocs_gen_files.Nav()
 
-    content = []
-    # Get all Python files from input directories
-    for path in in_paths:
-        if os.path.isdir(path):
-            for root, _, files in os.walk(path):
-                for file in files:
-                    if file.endswith(".py"):
-                        fpath = os.path.join(root, file)
-                        content.append(get_content(fpath))
-        elif os.path.isfile(path):
-            if path.endswith(".py"):
-                content.append(get_content(path))
-        else:
-            breakpoint()
+    for path in sorted(root.glob("**/*.py")):
+        if any(skip in str(path) for skip in skip_dirs):
+            continue
 
-    # Find all .md files in docs/ except those in docs/api/
-    md_files = ["README.md"]
-    md_files.extend(glob.glob("docs/**/*.md", recursive=True))
-    # Filter out docs/api/ files
-    md_files = [f for f in md_files if "docs/api/" not in f]
+        module_path = pathlib.Path(
+            str(path.relative_to(root).with_suffix("")).replace("__init__", "")
+        )
+        ident = ".".join(module_path.parts)
+        doc_path = pathlib.Path(
+            str(path.relative_to(root / "saev").with_suffix(".md")).replace(
+                "__init__.md", f"{ident}.md"
+            )
+        )
+        full_doc_path = pathlib.Path("api", doc_path)
 
-    # Process markdown files
-    root = os.path.commonpath([os.path.dirname(p) for p in md_files])
-    for md_file in md_files:
-        with open(md_file, "r") as f:
-            md_content = f.read()
-            content.append(with_header(md_file, md_content, root))
+        nav[ident] = doc_path
 
-    # Process all modules and write to file
-    with open(out_fpath, "w") as f:
-        f.write("\n\n".join(content))
+        with mkdocs_gen_files.open(full_doc_path, "w") as f:
+            print("::: " + ident, file=f)
+
+    with mkdocs_gen_files.open("api/summary.md", "w") as nav_file:
+        nav_file.writelines(nav.build_literate_nav())
 
 
-def get_content(fpath: str) -> str:
-    with open(fpath, "r") as f:
-        rel_path = os.path.relpath(fpath)
-        file_content = f"# {rel_path}\n\n```python\n{f.read()}\n```"
-    return file_content
-
-
-def with_header(md_file: str, md_content: str, root: str) -> str:
-    """Add a header to markdown content if it doesn't have one.
-
-    Args:
-        md_file: Path to the markdown file
-        md_content: Content of the markdown file
-        root: root directory of markdown files
-
-    Returns:
-        Content with header added if needed
-    """
-
-    if not md_content.lstrip().startswith("#"):
-        rel_path = os.path.relpath(md_file, root)
-        return f"# {rel_path}\n\n{md_content}"
-    return md_content
-
-
-if __name__ == "__main__":
-    import tyro
-
-    tyro.cli(main)
+# No if __name__ == '__main__': https://github.com/oprypin/mkdocs-gen-files/pull/36
+main()

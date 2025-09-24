@@ -1,0 +1,34 @@
+site_name: saev
+docs_dir: src
+site_dir: api
+
+theme:
+  name: readthedocs
+  user_color_mode_toggle: true
+  sticky_navigation: false
+  prev_next_buttons_location: none
+
+nav:
+  - Home: index.md
+  - Users:
+      - Guide: users/guide.md
+      - Inference: users/inference.md
+  - Developers:
+      - Contributing: developers/contributing.md
+  - API: api/
+  
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            docstring_style: google
+            merge_init_into_class: true
+            show_root_heading: true
+  - gen-files:
+        scripts:
+          - ../scripts/docs.py
+  - literate-nav:
+      nav_file: summary.md

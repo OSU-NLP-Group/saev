@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../../../img/favicon.ico" />
+    <title>saev.data.transforms - saev</title>
+    <link rel="stylesheet" href="../../../css/theme.css" />
+    <link rel="stylesheet" href="../../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+        <link href="../../../assets/_mkdocstrings.css" rel="stylesheet" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "saev.data.transforms";
+        var mkdocs_page_input_path = "api/data/transforms.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../../.." class="icon icon-home"> saev
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../..">Home</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Users</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../users/guide/">Guide</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../users/inference/">Inference</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Developers</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../developers/contributing/">Contributing</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">API</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../../saev/">saev</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../colors/">saev.colors</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../saev.data/">saev.data</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../__main__/">saev.data.main</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../buffers/">saev.data.buffers</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../clip/">saev.data.clip</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../datasets/">saev.data.datasets</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../dinov2/">saev.data.dinov2</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../dinov3/">saev.data.dinov3</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../fake_clip/">saev.data.fake_clip</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../indexed/">saev.data.indexed</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../models/">saev.data.models</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../ordered/">saev.data.ordered</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../shuffled/">saev.data.shuffled</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../siglip/">saev.data.siglip</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">saev.data.transforms</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#saev.data.transforms.conv2d_to_tokens">conv2d_to_tokens</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#saev.data.transforms.resize_to_patch_grid">resize_to_patch_grid</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#saev.data.transforms.unfolded_conv2d">unfolded_conv2d</a>
+    </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../writers/">saev.data.writers</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../helpers/">saev.helpers</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../nn/saev.nn/">saev.nn</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../nn/modeling/">saev.nn.modeling</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../nn/objectives/">saev.nn.objectives</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../utils/saev.utils/">saev.utils</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../utils/scheduling/">saev.utils.scheduling</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../utils/statistics/">saev.utils.statistics</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../utils/wandb/">saev.utils.wandb</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../viz/">saev.viz</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../..">saev</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../../.." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">API</li>
+      <li class="breadcrumb-item active">saev.data.transforms</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <div class="doc doc-object doc-module">
+
+
+
+<h2 id="saev.data.transforms" class="doc doc-heading">
+            <code>saev.data.transforms</code>
+
+
+</h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="saev.data.transforms.conv2d_to_tokens" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">conv2d_to_tokens</span><span class="p">(</span><span class="n">x_bchw</span><span class="p">,</span> <span class="n">conv</span><span class="p">)</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Conv2d then flatten spatial to L, return (B, L, D).</p>
+
+
+            <details class="quote">
+              <summary>Source code in <code>src/saev/data/transforms.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">135</span>
+<span class="normal">136</span>
+<span class="normal">137</span>
+<span class="normal">138</span>
+<span class="normal">139</span>
+<span class="normal">140</span>
+<span class="normal">141</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@jaxtyped</span><span class="p">(</span><span class="n">typechecker</span><span class="o">=</span><span class="n">beartype</span><span class="o">.</span><span class="n">beartype</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">conv2d_to_tokens</span><span class="p">(</span>
+    <span class="n">x_bchw</span><span class="p">:</span> <span class="n">Float</span><span class="p">[</span><span class="n">Tensor</span><span class="p">,</span> <span class="s2">&quot;b c h w&quot;</span><span class="p">],</span> <span class="n">conv</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Conv2d</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Float</span><span class="p">[</span><span class="n">Tensor</span><span class="p">,</span> <span class="s2">&quot;b n d&quot;</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Conv2d then flatten spatial to L, return (B, L, D).&quot;&quot;&quot;</span>
+    <span class="n">y_bdhw</span> <span class="o">=</span> <span class="n">conv</span><span class="p">(</span><span class="n">x_bchw</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">einops</span><span class="o">.</span><span class="n">rearrange</span><span class="p">(</span><span class="n">y_bdhw</span><span class="p">,</span> <span class="s2">&quot;b d h w -&gt; b (h w) d&quot;</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="saev.data.transforms.resize_to_patch_grid" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">resize_to_patch_grid</span><span class="p">(</span><span class="n">img</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="n">resample</span><span class="o">=</span><span class="n">Image</span><span class="o">.</span><span class="n">LANCZOS</span><span class="p">)</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Resize image to (w, h) so that:
+  - w % p == 0, h % p == 0
+  - (h/p) * (w/p) == N
+  - Minimizes change in aspect ratio.</p>
+
+
+            <details class="quote">
+              <summary>Source code in <code>src/saev/data/transforms.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">36</span>
+<span class="normal">37</span>
+<span class="normal">38</span>
+<span class="normal">39</span>
+<span class="normal">40</span>
+<span class="normal">41</span>
+<span class="normal">42</span>
+<span class="normal">43</span>
+<span class="normal">44</span>
+<span class="normal">45</span>
+<span class="normal">46</span>
+<span class="normal">47</span>
+<span class="normal">48</span>
+<span class="normal">49</span>
+<span class="normal">50</span>
+<span class="normal">51</span>
+<span class="normal">52</span>
+<span class="normal">53</span>
+<span class="normal">54</span>
+<span class="normal">55</span>
+<span class="normal">56</span>
+<span class="normal">57</span>
+<span class="normal">58</span>
+<span class="normal">59</span>
+<span class="normal">60</span>
+<span class="normal">61</span>
+<span class="normal">62</span>
+<span class="normal">63</span>
+<span class="normal">64</span>
+<span class="normal">65</span>
+<span class="normal">66</span>
+<span class="normal">67</span>
+<span class="normal">68</span>
+<span class="normal">69</span>
+<span class="normal">70</span>
+<span class="normal">71</span>
+<span class="normal">72</span>
+<span class="normal">73</span>
+<span class="normal">74</span>
+<span class="normal">75</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@beartype</span><span class="o">.</span><span class="n">beartype</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">resize_to_patch_grid</span><span class="p">(</span>
+    <span class="n">img</span><span class="p">:</span> <span class="n">Image</span><span class="o">.</span><span class="n">Image</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">p</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">n</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">resample</span><span class="p">:</span> <span class="n">Image</span><span class="o">.</span><span class="n">Resampling</span> <span class="o">|</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">Image</span><span class="o">.</span><span class="n">LANCZOS</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Image</span><span class="o">.</span><span class="n">Image</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Resize image to (w, h) so that:</span>
+<span class="sd">      - w % p == 0, h % p == 0</span>
+<span class="sd">      - (h/p) * (w/p) == N</span>
+<span class="sd">      - Minimizes change in aspect ratio.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">p</span> <span class="o">&lt;=</span> <span class="mi">0</span> <span class="ow">or</span> <span class="n">n</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;p and n must be positive integers&quot;</span><span class="p">)</span>
+
+    <span class="n">w0</span><span class="p">,</span> <span class="n">h0</span> <span class="o">=</span> <span class="n">img</span><span class="o">.</span><span class="n">size</span>
+    <span class="n">a0</span> <span class="o">=</span> <span class="n">w0</span> <span class="o">/</span> <span class="n">h0</span>
+
+    <span class="c1"># Find the aspect ratio closest to a0</span>
+    <span class="n">best_c</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">best_dist</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="s2">&quot;inf&quot;</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="n">math</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">n</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)):</span>
+        <span class="k">if</span> <span class="n">n</span> <span class="o">%</span> <span class="n">i</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">continue</span>
+
+        <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">n</span> <span class="o">//</span> <span class="n">i</span><span class="p">):</span>
+            <span class="n">c</span><span class="p">,</span> <span class="n">r</span> <span class="o">=</span> <span class="n">d</span><span class="p">,</span> <span class="n">n</span> <span class="o">//</span> <span class="n">d</span>
+            <span class="n">aspect</span> <span class="o">=</span> <span class="n">c</span> <span class="o">/</span> <span class="n">r</span>
+            <span class="n">dist</span> <span class="o">=</span> <span class="nb">abs</span><span class="p">(</span><span class="n">aspect</span> <span class="o">-</span> <span class="n">a0</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">dist</span> <span class="o">&lt;</span> <span class="n">best_dist</span><span class="p">:</span>
+                <span class="n">best_c</span> <span class="o">=</span> <span class="n">d</span>
+                <span class="n">best_dist</span> <span class="o">=</span> <span class="n">dist</span>
+
+    <span class="n">c</span> <span class="o">=</span> <span class="n">best_c</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">n</span> <span class="o">//</span> <span class="n">c</span>
+    <span class="n">w</span><span class="p">,</span> <span class="n">h</span> <span class="o">=</span> <span class="n">c</span> <span class="o">*</span> <span class="n">p</span><span class="p">,</span> <span class="n">r</span> <span class="o">*</span> <span class="n">p</span>
+    <span class="k">return</span> <span class="n">img</span><span class="o">.</span><span class="n">resize</span><span class="p">((</span><span class="n">w</span><span class="p">,</span> <span class="n">h</span><span class="p">),</span> <span class="n">resample</span><span class="o">=</span><span class="n">resample</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="saev.data.transforms.unfolded_conv2d" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">unfolded_conv2d</span><span class="p">(</span><span class="n">x_bchw</span><span class="p">,</span> <span class="n">conv</span><span class="p">)</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Returns tokens shaped (B, L, D), where L = (H/k)*(W/k), D = conv.out_channels.
+Requires: stride == kernel_size, padding == 0, groups == 1, dilation == 1.</p>
+
+
+            <details class="quote">
+              <summary>Source code in <code>src/saev/data/transforms.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">105</span>
+<span class="normal">106</span>
+<span class="normal">107</span>
+<span class="normal">108</span>
+<span class="normal">109</span>
+<span class="normal">110</span>
+<span class="normal">111</span>
+<span class="normal">112</span>
+<span class="normal">113</span>
+<span class="normal">114</span>
+<span class="normal">115</span>
+<span class="normal">116</span>
+<span class="normal">117</span>
+<span class="normal">118</span>
+<span class="normal">119</span>
+<span class="normal">120</span>
+<span class="normal">121</span>
+<span class="normal">122</span>
+<span class="normal">123</span>
+<span class="normal">124</span>
+<span class="normal">125</span>
+<span class="normal">126</span>
+<span class="normal">127</span>
+<span class="normal">128</span>
+<span class="normal">129</span>
+<span class="normal">130</span>
+<span class="normal">131</span>
+<span class="normal">132</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@jaxtyped</span><span class="p">(</span><span class="n">typechecker</span><span class="o">=</span><span class="n">beartype</span><span class="o">.</span><span class="n">beartype</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">unfolded_conv2d</span><span class="p">(</span>
+    <span class="n">x_bchw</span><span class="p">:</span> <span class="n">Float</span><span class="p">[</span><span class="n">Tensor</span><span class="p">,</span> <span class="s2">&quot;b c h w&quot;</span><span class="p">],</span> <span class="n">conv</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Conv2d</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Float</span><span class="p">[</span><span class="n">Tensor</span><span class="p">,</span> <span class="s2">&quot;b n d&quot;</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Returns tokens shaped (B, L, D), where L = (H/k)*(W/k), D = conv.out_channels.</span>
+<span class="sd">    Requires: stride == kernel_size, padding == 0, groups == 1, dilation == 1.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">k</span> <span class="o">=</span> <span class="n">conv</span><span class="o">.</span><span class="n">kernel_size</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="k">assert</span> <span class="n">conv</span><span class="o">.</span><span class="n">kernel_size</span> <span class="o">==</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">conv</span><span class="o">.</span><span class="n">stride</span> <span class="o">==</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">conv</span><span class="o">.</span><span class="n">padding</span> <span class="o">==</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">conv</span><span class="o">.</span><span class="n">groups</span> <span class="o">==</span> <span class="mi">1</span>
+    <span class="k">assert</span> <span class="n">conv</span><span class="o">.</span><span class="n">dilation</span> <span class="o">==</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+
+    <span class="o">*</span><span class="n">b</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">h</span><span class="p">,</span> <span class="n">w</span> <span class="o">=</span> <span class="n">x_bchw</span><span class="o">.</span><span class="n">shape</span>
+
+    <span class="k">assert</span> <span class="n">h</span> <span class="o">%</span> <span class="n">k</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">w</span> <span class="o">%</span> <span class="n">k</span> <span class="o">==</span> <span class="mi">0</span>
+
+    <span class="n">tokens_bnd</span> <span class="o">=</span> <span class="n">einops</span><span class="o">.</span><span class="n">rearrange</span><span class="p">(</span>
+        <span class="n">x_bchw</span><span class="p">,</span> <span class="s2">&quot;b c (hp p1) (wp p2) -&gt; b (hp wp) (c p1 p2)&quot;</span><span class="p">,</span> <span class="n">p1</span><span class="o">=</span><span class="n">k</span><span class="p">,</span> <span class="n">p2</span><span class="o">=</span><span class="n">k</span>
+    <span class="p">)</span><span class="o">.</span><span class="n">contiguous</span><span class="p">()</span>
+    <span class="n">w_dp</span> <span class="o">=</span> <span class="n">conv</span><span class="o">.</span><span class="n">weight</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">conv</span><span class="o">.</span><span class="n">out_channels</span><span class="p">,</span> <span class="n">c</span> <span class="o">*</span> <span class="n">k</span> <span class="o">*</span> <span class="n">k</span><span class="p">)</span>
+    <span class="n">tokens_bnd</span> <span class="o">=</span> <span class="n">tokens_bnd</span> <span class="o">@</span> <span class="n">w_dp</span><span class="o">.</span><span class="n">T</span>
+    <span class="k">if</span> <span class="n">conv</span><span class="o">.</span><span class="n">bias</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">tokens_bnd</span> <span class="o">=</span> <span class="n">tokens_bnd</span> <span class="o">+</span> <span class="n">conv</span><span class="o">.</span><span class="n">bias</span><span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="p">:]</span>
+    <span class="k">return</span> <span class="n">tokens_bnd</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+              
+            </div>
+          </div><footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+      <span><a href="../siglip/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../writers/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../../../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "../../..";</script>
+    <script src="../../../js/theme_extra.js"></script>
+    <script src="../../../js/theme.js"></script>
+      <script src="../../../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(false);
+        });
+    </script>
+
+</body>
+</html>

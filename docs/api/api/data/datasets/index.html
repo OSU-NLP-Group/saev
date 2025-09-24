@@ -1,0 +1,1211 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../../../img/favicon.ico" />
+    <title>saev.data.datasets - saev</title>
+    <link rel="stylesheet" href="../../../css/theme.css" />
+    <link rel="stylesheet" href="../../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+        <link href="../../../assets/_mkdocstrings.css" rel="stylesheet" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "saev.data.datasets";
+        var mkdocs_page_input_path = "api/data/datasets.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../../.." class="icon icon-home"> saev
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../..">Home</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Users</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../users/guide/">Guide</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../users/inference/">Inference</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Developers</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../developers/contributing/">Contributing</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">API</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../../saev/">saev</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../colors/">saev.colors</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../saev.data/">saev.data</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../__main__/">saev.data.main</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../buffers/">saev.data.buffers</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../clip/">saev.data.clip</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">saev.data.datasets</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#saev.data.datasets.FakeSeg">FakeSeg</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#saev.data.datasets.FakeSeg.bg_label">bg_label</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#saev.data.datasets.FakeSeg.n_classes">n_classes</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#saev.data.datasets.FakeSeg.n_imgs">n_imgs</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#saev.data.datasets.FakeSeg.n_patches_per_img">n_patches_per_img</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#saev.data.datasets.FakeSegDataset">FakeSegDataset</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#saev.data.datasets.ImageFolder">ImageFolder</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#saev.data.datasets.ImageFolder.n_imgs">n_imgs</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#saev.data.datasets.ImageFolder.root">root</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#saev.data.datasets.ImageFolderDataset">ImageFolderDataset</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#saev.data.datasets.ImageFolderDataset.__getitem__">__getitem__</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#saev.data.datasets.Imagenet">Imagenet</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#saev.data.datasets.Imagenet.n_imgs">n_imgs</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#saev.data.datasets.Imagenet.name">name</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#saev.data.datasets.Imagenet.split">split</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#saev.data.datasets.SegFolder">SegFolder</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#saev.data.datasets.SegFolder.bg_label">bg_label</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#saev.data.datasets.SegFolder.img_label_fname">img_label_fname</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#saev.data.datasets.SegFolder.n_imgs">n_imgs</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#saev.data.datasets.SegFolder.root">root</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#saev.data.datasets.SegFolder.split">split</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#saev.data.datasets.get_dataset">get_dataset</a>
+    </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../dinov2/">saev.data.dinov2</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../dinov3/">saev.data.dinov3</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../fake_clip/">saev.data.fake_clip</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../indexed/">saev.data.indexed</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../models/">saev.data.models</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../ordered/">saev.data.ordered</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../shuffled/">saev.data.shuffled</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../siglip/">saev.data.siglip</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../transforms/">saev.data.transforms</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../writers/">saev.data.writers</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../helpers/">saev.helpers</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../nn/saev.nn/">saev.nn</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../nn/modeling/">saev.nn.modeling</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../nn/objectives/">saev.nn.objectives</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../utils/saev.utils/">saev.utils</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../utils/scheduling/">saev.utils.scheduling</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../utils/statistics/">saev.utils.statistics</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../utils/wandb/">saev.utils.wandb</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../viz/">saev.viz</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../..">saev</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../../.." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">API</li>
+      <li class="breadcrumb-item active">saev.data.datasets</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <div class="doc doc-object doc-module">
+
+
+
+<h2 id="saev.data.datasets" class="doc doc-heading">
+            <code>saev.data.datasets</code>
+
+
+</h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="saev.data.datasets.FakeSeg" class="doc doc-heading">
+              <code class="highlight language-python"><span class="n">FakeSeg</span><span class="p">(</span><span class="n">n_imgs</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">n_patches_per_img</span><span class="o">=</span><span class="mi">16</span><span class="p">,</span> <span class="n">n_classes</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">bg_label</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+
+        <p>Tiny synthetic segmentation dataset for tests.</p>
+<p>Generates dummy RGB images and pixel-level segmentation masks,
+mimicking the behavior of real segmentation datasets like SegFolder.</p>
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h4 id="saev.data.datasets.FakeSeg.bg_label" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">bg_label</span> <span class="o">=</span> <span class="mi">0</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Which class index is considered background.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h4 id="saev.data.datasets.FakeSeg.n_classes" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">n_classes</span> <span class="o">=</span> <span class="mi">3</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Number of segmentation classes.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h4 id="saev.data.datasets.FakeSeg.n_imgs" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">n_imgs</span> <span class="o">=</span> <span class="mi">10</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Number of images.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h4 id="saev.data.datasets.FakeSeg.n_patches_per_img" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">n_patches_per_img</span> <span class="o">=</span> <span class="mi">16</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Number of patches per image.</p>
+
+    </div>
+
+</div>
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="saev.data.datasets.FakeSegDataset" class="doc doc-heading">
+              <code class="highlight language-python"><span class="n">FakeSegDataset</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">img_transform</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">seg_transform</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">sample_transform</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="torch.utils.data.Dataset">Dataset</span></code></p>
+
+
+        <p>Synthetic segmentation dataset providing pixel-level segmentation masks.</p>
+
+
+<details class="mimics-segfolderdataset-by-providing" open>
+  <summary>Mimics SegFolderDataset by providing</summary>
+  <ul>
+<li>image: a dummy RGB PIL image</li>
+<li>segmentation: a PIL image with pixel-level class labels</li>
+<li>index, target, label</li>
+</ul>
+</details>
+
+
+
+
+
+
+
+                  <details class="quote">
+                    <summary>Source code in <code>src/saev/data/datasets.py</code></summary>
+                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">395</span>
+<span class="normal">396</span>
+<span class="normal">397</span>
+<span class="normal">398</span>
+<span class="normal">399</span>
+<span class="normal">400</span>
+<span class="normal">401</span>
+<span class="normal">402</span>
+<span class="normal">403</span>
+<span class="normal">404</span>
+<span class="normal">405</span>
+<span class="normal">406</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+    <span class="bp">self</span><span class="p">,</span>
+    <span class="n">cfg</span><span class="p">:</span> <span class="n">FakeSeg</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">img_transform</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="n">seg_transform</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="n">sample_transform</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<span class="p">):</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span> <span class="o">=</span> <span class="n">cfg</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">img_transform</span> <span class="o">=</span> <span class="n">img_transform</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">seg_transform</span> <span class="o">=</span> <span class="n">seg_transform</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">sample_transform</span> <span class="o">=</span> <span class="n">sample_transform</span>
+</code></pre></div></td></tr></table></div>
+                  </details>
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="saev.data.datasets.ImageFolder" class="doc doc-heading">
+              <code class="highlight language-python"><span class="n">ImageFolder</span><span class="p">(</span><span class="n">root</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">,</span> <span class="s1">&#39;data&#39;</span><span class="p">,</span> <span class="s1">&#39;split&#39;</span><span class="p">))</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+
+        <p>Configuration for a generic image folder dataset.</p>
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h4 id="saev.data.datasets.ImageFolder.n_imgs" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">n_imgs</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Number of images in the dataset. Calculated on the fly, but is non-trivial to calculate because it requires walking the directory structure. If you need to reference this number very often, cache it in a local variable.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h4 id="saev.data.datasets.ImageFolder.root" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">root</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">,</span> <span class="s1">&#39;data&#39;</span><span class="p">,</span> <span class="s1">&#39;split&#39;</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Where the class folders with images are stored. Can be a glob pattern to match multiple directories.</p>
+
+    </div>
+
+</div>
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="saev.data.datasets.ImageFolderDataset" class="doc doc-heading">
+              <code class="highlight language-python"><span class="n">ImageFolderDataset</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">sample_transform</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="torchvision.datasets.ImageFolder">ImageFolder</span></code></p>
+
+
+
+
+
+
+
+
+
+                  <details class="quote">
+                    <summary>Source code in <code>src/saev/data/datasets.py</code></summary>
+                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">209</span>
+<span class="normal">210</span>
+<span class="normal">211</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">sample_transform</span><span class="p">:</span> <span class="n">Callable</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">sample_transform</span> <span class="o">=</span> <span class="n">sample_transform</span>
+</code></pre></div></td></tr></table></div>
+                  </details>
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="saev.data.datasets.ImageFolderDataset.__getitem__" class="doc doc-heading">
+            <code class="highlight language-python"><span class="fm">__getitem__</span><span class="p">(</span><span class="n">index</span><span class="p">)</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Parameters:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+              <b><code>index</code></b>
+                  (<code><span title="int">int</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>Index</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Returns:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+                  <code><span title="dict">dict</span>[<span title="str">str</span>, <span title="object">object</span>]</code>
+              –
+              <div class="doc-md-description">
+                <p>dict with keys 'image', 'index', 'target' and 'label'.</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+            <details class="quote">
+              <summary>Source code in <code>src/saev/data/datasets.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">213</span>
+<span class="normal">214</span>
+<span class="normal">215</span>
+<span class="normal">216</span>
+<span class="normal">217</span>
+<span class="normal">218</span>
+<span class="normal">219</span>
+<span class="normal">220</span>
+<span class="normal">221</span>
+<span class="normal">222</span>
+<span class="normal">223</span>
+<span class="normal">224</span>
+<span class="normal">225</span>
+<span class="normal">226</span>
+<span class="normal">227</span>
+<span class="normal">228</span>
+<span class="normal">229</span>
+<span class="normal">230</span>
+<span class="normal">231</span>
+<span class="normal">232</span>
+<span class="normal">233</span>
+<span class="normal">234</span>
+<span class="normal">235</span>
+<span class="normal">236</span>
+<span class="normal">237</span>
+<span class="normal">238</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">index</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">object</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Args:</span>
+<span class="sd">        index: Index</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        dict with keys &#39;image&#39;, &#39;index&#39;, &#39;target&#39; and &#39;label&#39;.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">path</span><span class="p">,</span> <span class="n">target</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="p">[</span><span class="n">index</span><span class="p">]</span>
+    <span class="n">image</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">loader</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">transform</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">image</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">image</span><span class="p">)</span>
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">target_transform</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">target</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">target_transform</span><span class="p">(</span><span class="n">target</span><span class="p">)</span>
+
+    <span class="n">sample</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s2">&quot;image&quot;</span><span class="p">:</span> <span class="n">image</span><span class="p">,</span>
+        <span class="s2">&quot;target&quot;</span><span class="p">:</span> <span class="n">target</span><span class="p">,</span>
+        <span class="s2">&quot;label&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">classes</span><span class="p">[</span><span class="n">target</span><span class="p">],</span>
+        <span class="s2">&quot;index&quot;</span><span class="p">:</span> <span class="n">index</span><span class="p">,</span>
+    <span class="p">}</span>
+
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">sample_transform</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">sample</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sample_transform</span><span class="p">(</span><span class="n">sample</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">sample</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="saev.data.datasets.Imagenet" class="doc doc-heading">
+              <code class="highlight language-python"><span class="n">Imagenet</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;ILSVRC/imagenet-1k&#39;</span><span class="p">,</span> <span class="n">split</span><span class="o">=</span><span class="s1">&#39;train&#39;</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+
+        <p>Configuration for HuggingFace Imagenet.</p>
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h4 id="saev.data.datasets.Imagenet.n_imgs" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">n_imgs</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Number of images in the dataset. Calculated on the fly, but is non-trivial to calculate because it requires loading the dataset. If you need to reference this number very often, cache it in a local variable.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h4 id="saev.data.datasets.Imagenet.name" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">name</span> <span class="o">=</span> <span class="s1">&#39;ILSVRC/imagenet-1k&#39;</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Dataset name on HuggingFace. Don't need to change this..</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h4 id="saev.data.datasets.Imagenet.split" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">split</span> <span class="o">=</span> <span class="s1">&#39;train&#39;</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Dataset split. For the default ImageNet-1K dataset, can either be 'train', 'validation' or 'test'.</p>
+
+    </div>
+
+</div>
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="saev.data.datasets.SegFolder" class="doc doc-heading">
+              <code class="highlight language-python"><span class="n">SegFolder</span><span class="p">(</span><span class="n">root</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">,</span> <span class="s1">&#39;data&#39;</span><span class="p">,</span> <span class="s1">&#39;segdataset&#39;</span><span class="p">),</span> <span class="n">split</span><span class="o">=</span><span class="s1">&#39;training&#39;</span><span class="p">,</span> <span class="n">img_label_fname</span><span class="o">=</span><span class="s1">&#39;sceneCategories.txt&#39;</span><span class="p">,</span> <span class="n">bg_label</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h4 id="saev.data.datasets.SegFolder.bg_label" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">bg_label</span> <span class="o">=</span> <span class="mi">0</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Background label.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h4 id="saev.data.datasets.SegFolder.img_label_fname" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">img_label_fname</span> <span class="o">=</span> <span class="s1">&#39;sceneCategories.txt&#39;</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Image labels filename.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h4 id="saev.data.datasets.SegFolder.n_imgs" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">n_imgs</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Number of images in the dataset. Calculated on the fly by counting image files in root/images/split.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h4 id="saev.data.datasets.SegFolder.root" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">root</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">,</span> <span class="s1">&#39;data&#39;</span><span class="p">,</span> <span class="s1">&#39;segdataset&#39;</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Where the class folders with images are stored.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h4 id="saev.data.datasets.SegFolder.split" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">split</span> <span class="o">=</span> <span class="s1">&#39;training&#39;</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Data split.</p>
+
+    </div>
+
+</div>
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="saev.data.datasets.get_dataset" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">get_dataset</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">img_transform</span><span class="p">,</span> <span class="n">seg_transform</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">sample_transform</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Gets the dataset for the current experiment; delegates construction to dataset-specific functions.</p>
+
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Parameters:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+              <b><code>cfg</code></b>
+                  (<code><span title="saev.data.datasets.Config">Config</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>Experiment config.</p>
+              </div>
+            </li>
+            <li>
+              <b><code>img_transform</code></b>
+              –
+              <div class="doc-md-description">
+                <p>Image transform to be applied to each image.</p>
+              </div>
+            </li>
+            <li>
+              <b><code>seg_transform</code></b>
+              –
+              <div class="doc-md-description">
+                <p>Segmentation transform to be applied to masks (for segmentation datasets).</p>
+              </div>
+            </li>
+            <li>
+              <b><code>sample_transform</code></b>
+              –
+              <div class="doc-md-description">
+                <p>Transform to be applied to each sample dict.</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>        <p>Returns:
+    A dataset that has dictionaries with <code>'image'</code>, <code>'index'</code>, <code>'target'</code>, and <code>'label'</code> keys containing examples.</p>
+
+
+            <details class="quote">
+              <summary>Source code in <code>src/saev/data/datasets.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">116</span>
+<span class="normal">117</span>
+<span class="normal">118</span>
+<span class="normal">119</span>
+<span class="normal">120</span>
+<span class="normal">121</span>
+<span class="normal">122</span>
+<span class="normal">123</span>
+<span class="normal">124</span>
+<span class="normal">125</span>
+<span class="normal">126</span>
+<span class="normal">127</span>
+<span class="normal">128</span>
+<span class="normal">129</span>
+<span class="normal">130</span>
+<span class="normal">131</span>
+<span class="normal">132</span>
+<span class="normal">133</span>
+<span class="normal">134</span>
+<span class="normal">135</span>
+<span class="normal">136</span>
+<span class="normal">137</span>
+<span class="normal">138</span>
+<span class="normal">139</span>
+<span class="normal">140</span>
+<span class="normal">141</span>
+<span class="normal">142</span>
+<span class="normal">143</span>
+<span class="normal">144</span>
+<span class="normal">145</span>
+<span class="normal">146</span>
+<span class="normal">147</span>
+<span class="normal">148</span>
+<span class="normal">149</span>
+<span class="normal">150</span>
+<span class="normal">151</span>
+<span class="normal">152</span>
+<span class="normal">153</span>
+<span class="normal">154</span>
+<span class="normal">155</span>
+<span class="normal">156</span>
+<span class="normal">157</span>
+<span class="normal">158</span>
+<span class="normal">159</span>
+<span class="normal">160</span>
+<span class="normal">161</span>
+<span class="normal">162</span>
+<span class="normal">163</span>
+<span class="normal">164</span>
+<span class="normal">165</span>
+<span class="normal">166</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@beartype</span><span class="o">.</span><span class="n">beartype</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_dataset</span><span class="p">(</span>
+    <span class="n">cfg</span><span class="p">:</span> <span class="n">Config</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">img_transform</span><span class="p">,</span> <span class="n">seg_transform</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">sample_transform</span><span class="o">=</span><span class="kc">None</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Gets the dataset for the current experiment; delegates construction to dataset-specific functions.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        cfg: Experiment config.</span>
+<span class="sd">        img_transform: Image transform to be applied to each image.</span>
+<span class="sd">        seg_transform: Segmentation transform to be applied to masks (for segmentation datasets).</span>
+<span class="sd">        sample_transform: Transform to be applied to each sample dict.</span>
+<span class="sd">    Returns:</span>
+<span class="sd">        A dataset that has dictionaries with `&#39;image&#39;`, `&#39;index&#39;`, `&#39;target&#39;`, and `&#39;label&#39;` keys containing examples.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># TODO: Can we reduce duplication? Or is it nice to see that there is no magic here?</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">Imagenet</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">ImagenetDataset</span><span class="p">(</span>
+            <span class="n">cfg</span><span class="p">,</span> <span class="n">img_transform</span><span class="o">=</span><span class="n">img_transform</span><span class="p">,</span> <span class="n">sample_transform</span><span class="o">=</span><span class="n">sample_transform</span>
+        <span class="p">)</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">SegFolder</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">SegFolderDataset</span><span class="p">(</span>
+            <span class="n">cfg</span><span class="p">,</span>
+            <span class="n">img_transform</span><span class="o">=</span><span class="n">img_transform</span><span class="p">,</span>
+            <span class="n">seg_transform</span><span class="o">=</span><span class="n">seg_transform</span><span class="p">,</span>
+            <span class="n">sample_transform</span><span class="o">=</span><span class="n">sample_transform</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">ImageFolder</span><span class="p">):</span>
+        <span class="n">ds</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">ImageFolderDataset</span><span class="p">(</span>
+                <span class="n">root</span><span class="p">,</span> <span class="n">transform</span><span class="o">=</span><span class="n">img_transform</span><span class="p">,</span> <span class="n">sample_transform</span><span class="o">=</span><span class="n">sample_transform</span>
+            <span class="p">)</span>
+            <span class="k">for</span> <span class="n">root</span> <span class="ow">in</span> <span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">root</span><span class="p">,</span> <span class="n">recursive</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="p">]</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">ds</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">ds</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">ConcatDataset</span><span class="p">(</span><span class="n">ds</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">Fake</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">FakeDataset</span><span class="p">(</span>
+            <span class="n">cfg</span><span class="p">,</span> <span class="n">img_transform</span><span class="o">=</span><span class="n">img_transform</span><span class="p">,</span> <span class="n">sample_transform</span><span class="o">=</span><span class="n">sample_transform</span>
+        <span class="p">)</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">FakeSeg</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">FakeSegDataset</span><span class="p">(</span>
+            <span class="n">cfg</span><span class="p">,</span>
+            <span class="n">img_transform</span><span class="o">=</span><span class="n">img_transform</span><span class="p">,</span>
+            <span class="n">seg_transform</span><span class="o">=</span><span class="n">seg_transform</span><span class="p">,</span>
+            <span class="n">sample_transform</span><span class="o">=</span><span class="n">sample_transform</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">typing</span><span class="o">.</span><span class="n">assert_never</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+              
+            </div>
+          </div><footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+      <span><a href="../clip/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../dinov2/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../../../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "../../..";</script>
+    <script src="../../../js/theme_extra.js"></script>
+    <script src="../../../js/theme.js"></script>
+      <script src="../../../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(false);
+        });
+    </script>
+
+</body>
+</html>

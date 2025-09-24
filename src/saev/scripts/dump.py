@@ -122,7 +122,6 @@ def worker_fn(cfg: Config):
     patch_acts_blocks = []
 
     batch_size = cfg.data.batch_size // md.n_patches_per_img * md.n_patches_per_img
-    n_imgs_per_batch = batch_size // md.n_patches_per_img
     dataloader = OrderedDataLoader(
         dataclasses.replace(cfg.data, batch_size=batch_size),
     )

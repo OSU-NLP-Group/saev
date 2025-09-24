@@ -188,7 +188,7 @@ def sample_prefixes(
     Matryoshka Sparse Autoencoders" (https://doi.org/10.48550/arXiv.2503.17547)
 
     Args:
-        sae_dim: Total number of latent dimensions
+        d_sae: Total number of latent dimensions
         n_prefixes: Number of prefixes to sample
         min_prefix_length: Minimum length of any prefix
         pareto_power: Power parameter for Pareto distribution (lower = more uniform)
