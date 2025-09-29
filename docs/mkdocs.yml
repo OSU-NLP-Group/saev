@@ -56,3 +56,7 @@ plugins:
           - ../scripts/docs.py
   - literate-nav:
       nav_file: summary.md
+
+markdown_extensions:
+  - admonition
+  - footnotes

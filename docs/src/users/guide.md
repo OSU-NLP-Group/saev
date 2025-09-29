@@ -9,9 +9,8 @@
 
 `saev` helps with steps 1, 2 and 3.
 
-```{note}
-`saev` assumes you are running on NVIDIA GPUs. On a multi-GPU system, prefix your commands with `CUDA_VISIBLE_DEVICES=X` to run on GPU X.
-```
+!!! note
+  `saev` assumes you are running on NVIDIA GPUs. On a multi-GPU system, prefix your commands with `CUDA_VISIBLE_DEVICES=X` to run on GPU X.
 
 ## Record ViT Activations to Disk
 
