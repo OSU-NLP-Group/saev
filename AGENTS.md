@@ -14,6 +14,7 @@
 - submitit and jaxtyping don't work in the same file. See [this issue]. To solve this, all jaxtyped functions/classes need to be in a different file to the submitit launcher script.
 - Consider the [style guidelines for TigerBeetle](https://github.com/tigerbeetle/tigerbeetle/blob/main/docs/TIGER_STYLE.md) and adapt it to Python.
 - Never create a simple script to demonstrate functionality unless explicitly asked..
+- Write single-line commit messages; never say you co-authored a commit.
 
 # Tensor Variables
 

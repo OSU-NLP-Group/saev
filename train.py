@@ -19,6 +19,7 @@ import dataclasses
 import json
 import logging
 import os.path
+import pathlib
 import time
 import tomllib
 import typing
@@ -35,7 +36,7 @@ from torch import Tensor
 import saev.data.shuffled
 import saev.utils.scheduling
 import saev.utils.wandb
-from saev import helpers, nn
+from saev import disk, helpers, nn
 
 logger = logging.getLogger("train.py")
 
@@ -81,8 +82,12 @@ class Config:
     """Tag to add to WandB run."""
     log_every: int = 25
     """How often to log to WandB."""
-    ckpt_path: str = os.path.join(".", "checkpoints")
-    """Where to save checkpoints."""
+    run_root: str = os.path.join(".", "runs")
+    """Root directory for runs (typically $SAEV_NFS/saev/runs)."""
+    shards_dpath: str = ""
+    """Path to shards directory (typically $SAEV_SCRATCH/saev/shards/<shard_hash>)."""
+    dataset_dpath: str = ""
+    """Path to dataset directory."""
 
     device: typing.Literal["cuda", "cpu"] = "cuda"
     """Hardware device."""
@@ -147,11 +152,15 @@ def worker_fn(cfgs: list[Config]) -> list[str]:
             metric.n_almost_dead / sae.cfg.d_sae * 100,
         )
 
-        ckpt_fpath = os.path.join(cfg.ckpt_path, id, "sae.pt")
-        nn.dump(ckpt_fpath, sae)
-        logger.info("Dumped checkpoint to '%s'.", ckpt_fpath)
-        cfg_fpath = os.path.join(cfg.ckpt_path, id, "config.json")
-        with open(cfg_fpath, "w") as fd:
+        run = disk.Run.new(
+            id,
+            pathlib.Path(cfg.shards_dpath),
+            pathlib.Path(cfg.dataset_dpath),
+            run_root=pathlib.Path(cfg.run_root),
+        )
+        nn.dump(run.ckpt, sae)
+        logger.info("Dumped checkpoint to '%s'.", run.ckpt)
+        with open(run.root / "checkpoint" / "config.json", "w") as fd:
             json.dump(dataclasses.asdict(cfg), fd, indent=4)
 
     return ids
@@ -473,7 +482,9 @@ CANNOT_PARALLELIZE = set([
     "wandb_project",
     "tag",
     "log_every",
-    "ckpt_path",
+    "run_root",
+    "shards_dpath",
+    "dataset_dpath",
     "device",
     "slurm_acct",
     "slurm_partition",

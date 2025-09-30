@@ -15,33 +15,60 @@ class Run:
     Represents an SAE training run and some associated data.
 
     Args:
-        root: Root directory, should be $SAEV_NFS/saev/runs/<run_id>.
-        new: Whether this a new run. If it is, child directories will be created. If it's *not* a new run, the constructor will assert that the expected directories and files exist.
+        root: Root directory, should be $SAEV_NFS/saev/runs/<run_id>. Assumes the run already exists and validates the structure. Use `Run.new()` to create a new run.
     """
 
-    def __init__(self, root: pathlib.Path, new: bool = False):
+    def __init__(self, root: pathlib.Path):
         self.root = root
 
-        if new:
-            self.root.mkdir(parents=True, exist_ok=True)
-            (self.root / "checkpoint").mkdir(exist_ok=True)
-            (self.root / "links").mkdir(exist_ok=True)
-            (self.root / "inference").mkdir(exist_ok=True)
-        else:
-            if not self.root.exists():
-                raise FileNotFoundError(f"Run directory does not exist: {self.root}")
-            if not (self.root / "checkpoint").exists():
-                raise FileNotFoundError(
-                    f"Checkpoint directory does not exist: {self.root / 'checkpoint'}"
-                )
-            if not (self.root / "links").exists():
-                raise FileNotFoundError(
-                    f"Links directory does not exist: {self.root / 'links'}"
-                )
-            if not (self.root / "inference").exists():
-                raise FileNotFoundError(
-                    f"Inference directory does not exist: {self.root / 'inference'}"
-                )
+        if not self.root.exists():
+            raise FileNotFoundError(
+                f"Run directory does not exist: {self.root}. Use Run.new() to create a new run."
+            )
+        if not (self.root / "checkpoint").exists():
+            raise FileNotFoundError(
+                f"Checkpoint directory does not exist: {self.root / 'checkpoint'}. Use Run.new() to create a new run."
+            )
+        if not (self.root / "links").exists():
+            raise FileNotFoundError(
+                f"Links directory does not exist: {self.root / 'links'}. Use Run.new() to create a new run."
+            )
+        if not (self.root / "inference").exists():
+            raise FileNotFoundError(
+                f"Inference directory does not exist: {self.root / 'inference'}. Use Run.new() to create a new run."
+            )
+
+    @classmethod
+    def new(
+        cls,
+        run_id: str,
+        shards: pathlib.Path,
+        dataset: pathlib.Path,
+        *,
+        run_root: pathlib.Path,
+    ) -> "Run":
+        """
+        Create a new run with directory structure and symlinks.
+
+        Args:
+            run_id: The run ID (typically from wandb).
+            shards: Absolute path to the shards directory (typically $SAEV_SCRATCH/saev/shards/<shard_hash>).
+            dataset: Absolute path to the dataset directory.
+            run_root: Root directory for runs (typically $SAEV_NFS/saev/runs).
+
+        Returns:
+            A new Run instance with all directories and symlinks created.
+        """
+        root = run_root / run_id
+        root.mkdir(parents=True)
+        (root / "checkpoint").mkdir()
+        (root / "links").mkdir()
+        (root / "inference").mkdir()
+
+        (root / "links" / "shards").symlink_to(shards)
+        (root / "links" / "dataset").symlink_to(dataset)
+
+        return cls(root)
 
     @property
     def run_id(self) -> str:

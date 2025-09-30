@@ -14,6 +14,7 @@ import dataclasses
 import json
 import logging
 import os
+import pathlib
 import tomllib
 import typing as tp
 
@@ -37,13 +38,10 @@ logger = logging.getLogger("activations.py")
 class Config:
     """Configuration for computing image activations."""
 
-    # Disk
-    ckpt: str = os.path.join(".", "checkpoints", "sae.pt")
+    run: pathlib.Path = os.path.Join(".", "runs", "abcdefg")
     """Path to the sae.pt file."""
     data: OrderedConfig = OrderedConfig()
     """Data configuration"""
-    dump_to: str = os.path.join(".", "data")
-    """Where to save data."""
 
     n_dists: int = 25
     """Number of features to save distributions for."""

@@ -1,12 +1,16 @@
-# src/saev/data/writers.py
+# src/saev/data/shards.py
+"""
+Library code for reading and writing sharded activations to disk.
+"""
+
 import dataclasses
 import hashlib
 import json
 import logging
 import math
 import os
+import pathlib
 import typing as tp
-from collections.abc import Callable
 
 import beartype
 import einops
@@ -15,10 +19,6 @@ import torch
 from jaxtyping import Float, UInt8, jaxtyped
 from PIL import Image
 from torch import Tensor
-
-from saev import helpers
-
-from . import datasets
 
 logger = logging.getLogger(__name__)
 
@@ -92,51 +92,6 @@ def pixel_to_patch_labels(
         tp.assert_never(pixel_agg)
 
     return patch_labels.to(torch.uint8)
-
-
-@beartype.beartype
-@dataclasses.dataclass(frozen=True)
-class Config:
-    """Configuration for calculating and saving ViT activations."""
-
-    data: datasets.Config = dataclasses.field(default_factory=datasets.Imagenet)
-    """Which dataset to use."""
-    dump_to: str = os.path.join(".", "shards")
-    """Where to write shards."""
-    vit_family: tp.Literal["clip", "siglip", "dinov2", "dinov3", "fake-clip"] = "clip"
-    """Which model family."""
-    vit_ckpt: str = "ViT-L-14/openai"
-    """Specific model checkpoint."""
-    vit_batch_size: int = 1024
-    """Batch size for ViT inference."""
-    n_workers: int = 8
-    """Number of dataloader workers."""
-    d_vit: int = 1024
-    """Dimension of the ViT activations (depends on model)."""
-    vit_layers: list[int] = dataclasses.field(default_factory=lambda: [-2])
-    """Which layers to save. By default, the second-to-last layer."""
-    n_patches_per_img: int = 256
-    """Number of ViT patches per image (depends on model)."""
-    cls_token: bool = True
-    """Whether the model has a [CLS] token."""
-    pixel_agg: tp.Literal["majority", "prefer-fg"] = "majority"
-    max_patches_per_shard: int = 2_400_000
-    """Maximum number of activations per shard; 2.4M is approximately 10GB for 1024-dimensional 4-byte activations."""
-
-    ssl: bool = True
-    """Whether to use SSL."""
-
-    # Hardware
-    device: str = "cuda"
-    """Which device to use."""
-    n_hours: float = 24.0
-    """Slurm job length."""
-    slurm_acct: str = ""
-    """Slurm account string."""
-    slurm_partition: str = ""
-    """Slurm partition."""
-    log_to: str = "./logs"
-    """Where to log Slurm job stdout/stderr."""
 
 
 @jaxtyped(typechecker=beartype.beartype)
@@ -240,11 +195,11 @@ class LabelsWriter:
     current_idx: int
     has_written: bool
 
-    def __init__(self, cfg: Config):
+    def __init__(self, root: pathlib.Path, *, n_patches_per_img: int, n_imgs: int):
         self.logger = logging.getLogger("labels-writer")
-        self.root = get_acts_dir(cfg)
-        self.n_patches_per_img = cfg.n_patches_per_img
-        self.n_imgs = cfg.data.n_imgs
+        self.root = root
+        self.n_patches_per_img = n_patches_per_img
+        self.n_imgs = n_imgs
         self.has_written = False
         self.current_idx = 0
 
@@ -288,21 +243,6 @@ class LabelsWriter:
             self.logger.info("Flushed labels to '%s'.", self.labels_path)
 
 
-@beartype.beartype
-def _is_segmentation_dataset(data_cfg: datasets.Config) -> bool:
-    """
-    Check if a dataset configuration is for a segmentation dataset.
-
-    Args:
-        data_cfg: Dataset configuration
-
-    Returns:
-        True if this is a segmentation dataset that should have labels.bin
-    """
-    # Check if it's FakeSeg or SegFolder
-    return isinstance(data_cfg, (datasets.FakeSeg, datasets.SegFolder))
-
-
 @jaxtyped(typechecker=beartype.beartype)
 class ShardWriter:
     """
@@ -317,29 +257,36 @@ class ShardWriter:
     filled: int
     labels_writer: LabelsWriter
 
-    def __init__(self, cfg: Config):
+    def __init__(
+        self,
+        root: pathlib.Path,
+        *,
+        d_vit: int,
+        n_imgs: int,
+        n_patches_per_img: int,
+        cls_token: bool,
+        vit_layers: list[int],
+        max_patches_per_shard: int,
+    ):
         self.logger = logging.getLogger("shard-writer")
 
-        self.root = get_acts_dir(cfg)
+        self.root = root
 
-        n_patches_per_img = cfg.n_patches_per_img
-        if cfg.cls_token:
+        if cls_token:
             n_patches_per_img += 1
+
         self.n_imgs_per_shard = (
-            cfg.max_patches_per_shard // len(cfg.vit_layers) // n_patches_per_img
+            max_patches_per_shard // len(vit_layers) // n_patches_per_img
         )
-        self.shape = (
-            self.n_imgs_per_shard,
-            len(cfg.vit_layers),
-            n_patches_per_img,
-            cfg.d_vit,
-        )
+        self.shape = (self.n_imgs_per_shard, len(vit_layers), n_patches_per_img, d_vit)
 
         # builder for shard manifest
         self._shards: ShardInfo = ShardInfo()
 
         # Always initialize labels writer (it handles non-seg datasets internally)
-        self.labels_writer = LabelsWriter(cfg)
+        self.labels_writer = LabelsWriter(
+            root, n_patches_per_img=n_patches_per_img, n_imgs=n_imgs
+        )
 
         self.shard = -1
         self.acts = None
@@ -459,28 +406,6 @@ class ShardWriter:
 
 
 @beartype.beartype
-def get_acts_dir(cfg: Config) -> str:
-    """
-    Return the activations directory based on the relevant values of a config.
-    Also saves a metadata.json file to that directory for human reference.
-
-    Args:
-        cfg: Config for experiment.
-
-    Returns:
-        Directory to where activations should be dumped/loaded from.
-    """
-    metadata = Metadata.from_cfg(cfg)
-
-    acts_dir = os.path.join(cfg.dump_to, metadata.hash)
-    os.makedirs(acts_dir, exist_ok=True)
-
-    metadata.dump(acts_dir)
-
-    return acts_dir
-
-
-@beartype.beartype
 @dataclasses.dataclass(frozen=True)
 class Metadata:
     vit_family: tp.Literal["clip", "siglip", "dinov2", "dinov3", "fake-clip"]
@@ -498,29 +423,8 @@ class Metadata:
 
     def __post_init__(self):
         # Check that at least one image per shard can fit.
-        assert self.n_imgs_per_shard >= 1, (
-            "At least one image per shard must fit; increase max_patches_per_shard."
-        )
-
-    @classmethod
-    def from_cfg(cls, cfg: Config) -> "Metadata":
-        # Only include pixel_agg for segmentation datasets
-        pixel_agg = None
-        if _is_segmentation_dataset(cfg.data):
-            pixel_agg = cfg.pixel_agg
-
-        return cls(
-            cfg.vit_family,
-            cfg.vit_ckpt,
-            tuple(cfg.vit_layers),
-            cfg.n_patches_per_img,
-            cfg.cls_token,
-            cfg.d_vit,
-            cfg.data.n_imgs,
-            cfg.max_patches_per_shard,
-            {**dataclasses.asdict(cfg.data), "__class__": cfg.data.__class__.__name__},
-            pixel_agg,
-        )
+        msg = "At least one image per shard must fit; increase max_patches_per_shard."
+        assert self.n_imgs_per_shard >= 1, msg
 
     @classmethod
     def load(cls, shard_root: str) -> "Metadata":
@@ -610,300 +514,3 @@ class ShardInfo:
 
     def __iter__(self):
         yield from self.shards
-
-
-@beartype.beartype
-def get_dataloader(
-    cfg: Config,
-    *,
-    img_tr: Callable | None = None,
-    seg_tr: Callable | None = None,
-    sample_tr: Callable | None = None,
-) -> torch.utils.data.DataLoader:
-    """
-    Get a dataloader for a default map-style dataset.
-
-    Args:
-        cfg: Config.
-        img_tr: Image transform to be applied to each image.
-        seg_tr: Segmentation transform to be applied to masks.
-        sample_tr: Transform to be applied to sample dicts.
-
-    Returns:
-        A PyTorch Dataloader that yields dictionaries with `'image'` keys containing image batches, `'index'` keys containing original dataset indices and `'label'` keys containing label batches.
-    """
-    dataset = datasets.get_dataset(
-        cfg.data, img_transform=img_tr, seg_transform=seg_tr, sample_transform=sample_tr
-    )
-
-    dataloader = torch.utils.data.DataLoader(
-        dataset=dataset,
-        batch_size=cfg.vit_batch_size,
-        drop_last=False,
-        num_workers=cfg.n_workers,
-        persistent_workers=cfg.n_workers > 0,
-        shuffle=False,
-        pin_memory=False,
-    )
-    return dataloader
-
-
-@beartype.beartype
-def worker_fn(cfg: Config):
-    """
-    Args:
-        cfg: Config for activations.
-    """
-    from . import models
-
-    if torch.cuda.is_available():
-        # This enables tf32 on Ampere GPUs which is only 8% slower than
-        # float16 and almost as accurate as float32
-        # This was a default in pytorch until 1.12
-        torch.backends.cuda.matmul.allow_tf32 = True
-        torch.backends.cudnn.benchmark = True
-        torch.backends.cudnn.deterministic = False
-
-    log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
-    logging.basicConfig(level=logging.INFO, format=log_format)
-    logger = logging.getLogger("worker_fn")
-
-    if cfg.device == "cuda" and not torch.cuda.is_available():
-        logger.warning("No CUDA device available, using CPU.")
-        cfg = dataclasses.replace(cfg, device="cpu")
-
-    vit_cls = models.load_vit_cls(cfg.vit_family)
-    vit_instance = vit_cls(cfg.vit_ckpt).to(cfg.device)
-    vit = RecordedVisionTransformer(
-        vit_instance, cfg.n_patches_per_img, cfg.cls_token, cfg.vit_layers
-    )
-
-    img_tr, sample_tr = vit_cls.make_transforms(cfg.vit_ckpt, cfg.n_patches_per_img)
-
-    seg_tr = None
-    if _is_segmentation_dataset(cfg.data):
-        # For segmentation datasets, create a transform that converts pixels to patches
-        # Use make_resize with NEAREST interpolation for segmentation masks
-        seg_resize_tr = vit_cls.make_resize(
-            cfg.vit_ckpt, cfg.n_patches_per_img, scale=1.0, resample=Image.NEAREST
-        )
-
-        def seg_to_patches(seg):
-            """Transform that resizes segmentation and converts to patch labels."""
-
-            # Convert to patch labels
-            return pixel_to_patch_labels(
-                seg_resize_tr(seg),
-                cfg.n_patches_per_img,
-                patch_size=vit_instance.patch_size,
-                pixel_agg=cfg.pixel_agg,
-                bg_label=cfg.data.bg_label,
-            )
-
-        seg_tr = seg_to_patches
-
-    dataloader = get_dataloader(cfg, img_tr=img_tr, seg_tr=seg_tr, sample_tr=sample_tr)
-
-    n_batches = math.ceil(cfg.data.n_imgs / cfg.vit_batch_size)
-    logger.info("Dumping %d batches of %d examples.", n_batches, cfg.vit_batch_size)
-
-    vit = vit.to(cfg.device)
-    # vit = torch.compile(vit)
-
-    # Use context manager for proper cleanup
-    with ShardWriter(cfg) as writer:
-        i = 0
-        # Calculate and write ViT activations.
-        with torch.inference_mode():
-            for batch in helpers.progress(dataloader, total=n_batches):
-                imgs = batch.get("image").to(cfg.device)
-                grid = batch.get("grid")
-                if grid is not None:
-                    grid = grid.to(cfg.device)
-                    out, cache = vit(imgs, grid=grid)
-                else:
-                    out, cache = vit(imgs)
-                # cache has shape [batch size, n layers, n patches + 1, d vit]
-                del out
-
-                # Write activations and labels (if present) in one call
-                patch_labels = batch.get("patch_labels")
-                if patch_labels is not None:
-                    logger.debug(
-                        f"Found patch_labels in batch: shape={patch_labels.shape if hasattr(patch_labels, 'shape') else 'unknown'}"
-                    )
-                    # Ensure correct shape
-                    assert patch_labels.shape == (len(cache), cfg.n_patches_per_img)
-                else:
-                    logger.debug(f"No patch_labels in batch. Keys: {batch.keys()}")
-
-                writer.write_batch(cache, i, patch_labels=patch_labels)
-
-                i += len(cache)
-
-
-@beartype.beartype
-class IndexLookup:
-    """
-    Index <-> shard helper.
-
-    `map()`      – turn a global dataset index into precise physical offsets.
-    `length()`   – dataset size for a particular (patches, layer) view.
-
-    Parameters
-    ----------
-    metadata : Metadata
-        Pre-computed dataset statistics (images, patches, layers, shard size).
-    patches: 'cls' | 'image' | 'all'
-    layer: int | 'all'
-    """
-
-    def __init__(
-        self,
-        metadata: Metadata,
-        patches: tp.Literal["cls", "image", "all"],
-        layer: int | tp.Literal["all"],
-    ):
-        if not metadata.cls_token and patches == "cls":
-            raise ValueError("Cannot return [CLS] token if one isn't present.")
-
-        self.metadata = metadata
-        self.patches = patches
-
-        if isinstance(layer, int) and layer not in metadata.layers:
-            raise ValueError(f"Layer {layer} not in {metadata.layers}.")
-        self.layer = layer
-        self.layer_to_idx = {layer: i for i, layer in enumerate(metadata.layers)}
-
-    def map_global(self, i: int) -> tuple[int, tuple[int, int, int]]:
-        """
-        Return
-        -------
-        (
-            shard_i,
-            index in shard (img_i_in_shard, layer_i, token_i)
-        )
-        """
-        n = self.length()
-
-        if i < 0 or i >= n:
-            raise IndexError(f"{i=} out of range [0, {n})")
-
-        match (self.patches, self.layer):
-            case ("cls", "all"):
-                # For CLS token with all layers, i represents (img_idx * n_layers + layer_idx)
-                n_layers = len(self.metadata.layers)
-                img_i = i // n_layers
-                layer_idx = i % n_layers
-                shard_i, img_i_in_shard = self.map_img(img_i)
-                # CLS token is at position 0
-                return shard_i, (img_i_in_shard, layer_idx, 0)
-            case ("cls", int()):
-                # For CLS token with specific layer, i is the image index
-                img_i = i
-                shard_i, img_i_in_shard = self.map_img(img_i)
-                # CLS token is at position 0
-                return shard_i, (img_i_in_shard, self.layer_to_idx[self.layer], 0)
-            case ("image", int()):
-                # For image patches with specific layer, i is (img_idx * n_patches_per_img + patch_idx)
-                img_i = i // self.metadata.n_patches_per_img
-                token_i = i % self.metadata.n_patches_per_img
-
-                shard_i, img_i_in_shard = self.map_img(img_i)
-                return shard_i, (img_i_in_shard, self.layer_to_idx[self.layer], token_i)
-            case ("image", "all"):
-                # For image patches with all layers
-                # Total patches per image across all layers
-                total_patches_per_img = self.metadata.n_patches_per_img * len(
-                    self.metadata.layers
-                )
-
-                # Calculate which image and which patch within that image across all layers
-                img_i = i // total_patches_per_img
-                remainder = i % total_patches_per_img
-
-                # Calculate which layer and which patch within that layer
-                layer_idx = remainder // self.metadata.n_patches_per_img
-                token_i = remainder % self.metadata.n_patches_per_img
-
-                shard_i, img_i_in_shard = self.map_img(img_i)
-                return shard_i, (img_i_in_shard, layer_idx, token_i)
-            case ("all", int()):
-                n_tokens_per_img = self.metadata.n_patches_per_img + (
-                    1 if self.metadata.cls_token else 0
-                )
-                img_i = i // n_tokens_per_img
-                token_i = i % n_tokens_per_img
-                shard_i, img_i_in_shard = self.map_img(img_i)
-                return shard_i, (img_i_in_shard, self.layer_to_idx[self.layer], token_i)
-            case ("all", "all"):
-                # For all tokens (CLS + patches) with all layers
-                # Calculate total tokens per image across all layers
-                n_tokens_per_img = self.metadata.n_patches_per_img + (
-                    1 if self.metadata.cls_token else 0
-                )
-                total_tokens_per_img = n_tokens_per_img * len(self.metadata.layers)
-
-                # Calculate which image and which token within that image
-                img_i = i // total_tokens_per_img
-                remainder = i % total_tokens_per_img
-
-                # Calculate which layer and which token within that layer
-                layer_idx = remainder // n_tokens_per_img
-                token_i = remainder % n_tokens_per_img
-
-                # Map to physical location
-                shard_i, img_i_in_shard = self.map_img(img_i)
-                return shard_i, (img_i_in_shard, layer_idx, token_i)
-
-            case _:
-                tp.assert_never((self.patches, self.layer))
-
-    def map_img(self, img_i: int) -> tuple[int, int]:
-        """
-        Return
-        -------
-        (shard_i, img_i_in_shard)
-        """
-        if img_i < 0 or img_i >= self.metadata.n_imgs:
-            raise IndexError(f"{img_i=} out of range [0, {self.metadata.n_imgs})")
-
-        # Calculate which shard contains this image
-        shard_i = img_i // self.metadata.n_imgs_per_shard
-        img_i_in_shard = img_i % self.metadata.n_imgs_per_shard
-
-        return shard_i, img_i_in_shard
-
-    def length(self) -> int:
-        match (self.patches, self.layer):
-            case ("cls", "all"):
-                # Return a CLS token from a random image and random layer.
-                return self.metadata.n_imgs * len(self.metadata.layers)
-            case ("cls", int()):
-                # Return a CLS token from a random image and fixed layer.
-                return self.metadata.n_imgs
-            case ("image", int()):
-                # Return a patch from a random image, fixed layer, and random patch.
-                return self.metadata.n_imgs * (self.metadata.n_patches_per_img)
-                return self.metadata.n_imgs * (self.metadata.n_patches_per_img)
-            case ("image", "all"):
-                # Return a patch from a random image, random layer and random patch.
-                return (
-                    self.metadata.n_imgs
-                    * len(self.metadata.layers)
-                    * self.metadata.n_patches_per_img
-                )
-            case ("all", int()):
-                # Return a patch from a random image, specific layer and random patch.
-                return self.metadata.n_imgs * (
-                    self.metadata.n_patches_per_img + int(self.metadata.cls_token)
-                )
-            case ("all", "all"):
-                # Return a patch from a random image, random layer and random patch.
-                return (
-                    self.metadata.n_imgs
-                    * len(self.metadata.layers)
-                    * (self.metadata.n_patches_per_img + int(self.metadata.cls_token))
-                )
-            case _:
-                tp.assert_never((self.patches, self.layer))
