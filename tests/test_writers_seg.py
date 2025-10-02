@@ -4,8 +4,7 @@ import numpy as np
 import torch
 from PIL import Image
 
-import saev.data.datasets as dsets
-import saev.data.writers as writers
+from saev.data import datasets, writers
 
 
 def test_labels_bin_is_generated(tmp_path):
@@ -17,7 +16,7 @@ def test_labels_bin_is_generated(tmp_path):
     # Use fake-clip which properly handles the tiny test model
     # The tiny model uses 8x8 images with 2x2 patches = 4x4 = 16 patches
     cfg = writers.Config(
-        data=dsets.FakeSeg(n_imgs=4, n_patches_per_img=16, n_classes=3, bg_label=0),
+        data=datasets.FakeSeg(n_imgs=4, n_patches_per_img=16, n_classes=3, bg_label=0),
         dump_to=str(tmp_path),
         n_patches_per_img=16,
         vit_layers=[-2],
@@ -53,7 +52,7 @@ def test_labels_bin_is_generated(tmp_path):
 def test_labels_bin_shape_and_dtype(tmp_path):
     """Test that labels.bin has the correct shape and dtype."""
     cfg = writers.Config(
-        data=dsets.FakeSeg(n_imgs=2, n_patches_per_img=16, n_classes=3),
+        data=datasets.FakeSeg(n_imgs=2, n_patches_per_img=16, n_classes=3),
         dump_to=str(tmp_path),
         n_patches_per_img=16,
         vit_layers=[-2],
@@ -82,7 +81,7 @@ def test_labels_bin_value_range(tmp_path):
     """Test that labels.bin contains valid class indices."""
     n_classes = 5
     cfg = writers.Config(
-        data=dsets.FakeSeg(n_imgs=3, n_patches_per_img=16, n_classes=n_classes),
+        data=datasets.FakeSeg(n_imgs=3, n_patches_per_img=16, n_classes=n_classes),
         dump_to=str(tmp_path),
         n_patches_per_img=16,
         vit_layers=[-2],
@@ -111,7 +110,7 @@ def test_labels_bin_value_range(tmp_path):
 def test_labels_bin_with_cls_token(tmp_path):
     """Test that labels.bin works correctly even when CLS token is used."""
     cfg = writers.Config(
-        data=dsets.FakeSeg(n_imgs=2, n_patches_per_img=16, n_classes=3),
+        data=datasets.FakeSeg(n_imgs=2, n_patches_per_img=16, n_classes=3),
         dump_to=str(tmp_path),
         n_patches_per_img=16,  # This is image patches, not including CLS
         vit_layers=[-2],
@@ -139,7 +138,7 @@ def test_labels_bin_with_cls_token(tmp_path):
 def test_labels_bin_multi_shard(tmp_path):
     """Test that labels.bin works correctly with multiple shards."""
     cfg = writers.Config(
-        data=dsets.FakeSeg(n_imgs=10, n_patches_per_img=16, n_classes=4),
+        data=datasets.FakeSeg(n_imgs=10, n_patches_per_img=16, n_classes=4),
         dump_to=str(tmp_path),
         n_patches_per_img=16,
         vit_layers=[-2, -1],  # Multiple layers (tiny model only has 2 layers)
@@ -170,7 +169,7 @@ def test_labels_bin_multi_shard(tmp_path):
 def test_no_labels_bin_for_non_seg_dataset(tmp_path):
     """Test that labels.bin is NOT created for non-segmentation datasets."""
     cfg = writers.Config(
-        data=dsets.Fake(n_imgs=2),  # Regular Fake, not FakeSeg
+        data=datasets.Fake(n_imgs=2),  # Regular Fake, not FakeSeg
         dump_to=str(tmp_path),
         n_patches_per_img=16,
         vit_layers=[-2],

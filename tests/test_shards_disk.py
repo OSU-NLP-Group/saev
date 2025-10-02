@@ -3,7 +3,7 @@ import os
 
 import pytest
 
-from saev.data.writers import Metadata, ShardInfo
+from saev.data.shards import Metadata, ShardInfo
 
 
 @pytest.fixture(scope="session")

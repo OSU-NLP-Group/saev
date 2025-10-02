@@ -1,9 +1,10 @@
 """
 On OSC, with the fish shell:
 
-for shards in /fs/scratch/PAS2136/samuelstevens/cache/saev/*; uv run pytest tests/test_writers.py --shards $shards; end
+for shards in /fs/scratch/PAS2136/samuelstevens/cache/saev/*; uv run pytest tests/test_shards*.py --shards $shards; end
 """
 
+import dataclasses
 import json
 import os
 import pathlib
@@ -15,13 +16,10 @@ from hypothesis import assume, given, reject, settings
 from hypothesis import strategies as st
 
 from saev.data import Dataset, IndexedConfig, datasets, models
-from saev.data.writers import (
-    Config,
-    IndexLookup,
+from saev.data.shards import (
     Metadata,
-    RecordedVisionTransformer,
+    RecordedTransformer,
     ShardWriter,
-    get_acts_dir,
     get_dataloader,
     worker_fn,
 )
@@ -44,10 +42,10 @@ def metadatas(draw) -> Metadata:
                     )
                 )
             ),
-            n_patches_per_img=draw(st.integers(min_value=1, max_value=512)),
+            patches_per_ex=draw(st.integers(min_value=1, max_value=512)),
             cls_token=draw(st.booleans()),
             d_vit=512,
-            n_imgs=draw(st.integers(min_value=1, max_value=10_000_000)),
+            n_ex=draw(st.integers(min_value=1, max_value=10_000_000)),
             max_patches_per_shard=draw(st.integers(min_value=1, max_value=200_000_000)),
             data={"__class__": "Fake"},
         )
@@ -56,9 +54,9 @@ def metadatas(draw) -> Metadata:
 
 
 @st.composite
-def writers_configs(draw) -> Config:
-    return Config(
-        data=datasets.Fake(n_imgs=1024),
+def worker_fn_kwargs(draw) -> dict[str, object]:
+    return dict(
+        data=datasets.Fake(n_ex=1024),
         vit_family=draw(st.sampled_from(["clip", "siglip", "dinov2"])),
     )
 
@@ -73,18 +71,15 @@ def layers():
 
 @pytest.mark.slow
 def test_dataloader_batches(tmp_path):
-    cfg = Config(
-        data=datasets.Fake(n_imgs=10),
-        vit_ckpt="ViT-B-32/openai",
-        d_vit=768,
-        vit_layers=[-2, -1],
-        n_patches_per_img=49,
-        vit_batch_size=8,
-        dump_to=str(tmp_path),
+    vit_cls = models.load_vit_cls("clip")
+    img_tr, sample_tr = vit_cls.make_transforms("ViT-B-32/openai", 49)
+    dataloader = get_dataloader(
+        datasets.Fake(n_ex=10),
+        batch_size=8,
+        n_workers=0,
+        img_tr=img_tr,
+        sample_tr=sample_tr,
     )
-    vit_cls = models.load_vit_cls(cfg.vit_family)
-    img_tr, sample_tr = vit_cls.make_transforms(cfg.vit_ckpt, cfg.n_patches_per_img)
-    dataloader = get_dataloader(cfg, img_tr=img_tr, sample_tr=sample_tr)
     batch = next(iter(dataloader))
 
     assert isinstance(batch, dict)
@@ -97,27 +92,31 @@ def test_dataloader_batches(tmp_path):
 
 @pytest.mark.slow
 def test_shard_writer_and_dataset_e2e(tmp_path):
-    cfg = Config(
-        data=datasets.Fake(n_imgs=128),
-        vit_family="clip",
-        vit_ckpt="hf-hub:hf-internal-testing/tiny-open-clip-model",
-        d_vit=128,
-        n_patches_per_img=16,
-        vit_layers=[-2, -1],
-        vit_batch_size=8,
+    data_cfg = datasets.Fake(n_ex=128)
+    md = Metadata(
+        family="clip",
+        ckpt="hf-hub:hf-internal-testing/tiny-open-clip-model",
+        layers=(-2, -1),
+        patches_per_ex=16,
+        cls_token=True,
+        d_model=128,
+        n_ex=data_cfg.n_ex,
+        patches_per_shard=128,
+        data={**dataclasses.asdict(data_cfg), "__class__": data_cfg.__class__.__name__},
+    )
+    vit_cls = models.load_vit_cls(md.family)
+    img_tr, sample_tr = vit_cls.make_transforms(md.ckpt, md.patches_per_ex)
+    vit = RecordedTransformer(
+        vit_cls(md.ckpt), md.patches_per_ex, md.cls_token, md.layers
+    )
+    dataloader = get_dataloader(
+        data_cfg,
+        batch_size=8,
         n_workers=8,
-        dump_to=str(tmp_path),
+        img_tr=img_tr,
+        sample_tr=sample_tr,
     )
-    vit_cls = models.load_vit_cls(cfg.vit_family)
-    img_tr, sample_tr = vit_cls.make_transforms(cfg.vit_ckpt, cfg.n_patches_per_img)
-    vit = RecordedVisionTransformer(
-        vit_cls(cfg.vit_ckpt),
-        cfg.n_patches_per_img,
-        cfg.cls_token,
-        cfg.vit_layers,
-    )
-    dataloader = get_dataloader(cfg, img_tr=img_tr, sample_tr=sample_tr)
-    writer = ShardWriter(cfg)
+    writer = ShardWriter(tmp_path / md.hash, md)
     dataset = Dataset(
         IndexedConfig(shard_root=get_acts_dir(cfg), patches="cls", layer=-1)
     )
@@ -138,131 +137,9 @@ def test_shard_writer_and_dataset_e2e(tmp_path):
         print(f"Batch {b} matched.")
 
 
-@given(metadatas(), st.data())
-def test_api_surface(metadata, data):
-    if metadata.cls_token:
-        patches = data.draw(st.sampled_from(["cls", "all", "image"]))
-    else:
-        patches = data.draw(st.sampled_from(["all", "image"]))
-    layer = data.draw(st.sampled_from([*metadata.layers, "all"]))
-
-    il = IndexLookup(metadata, patches, layer)
-
-    assert hasattr(il, "map_global")
-    assert hasattr(il, "map_img")
-    assert hasattr(il, "length")
-
-
-@given(metadatas(), st.data())
-def test_roundtrip(metadata, data):
-    if metadata.cls_token:
-        patches = data.draw(st.sampled_from(["cls", "all", "image"]))
-    else:
-        patches = data.draw(st.sampled_from(["all", "image"]))
-
-    layer = data.draw(st.sampled_from([*metadata.layers, "all"]))
-
-    il = IndexLookup(metadata, patches, layer)
-
-    length = il.length()
-    assert 1 <= length
-
-    i = data.draw(st.integers(min_value=0, max_value=length - 1))
-
-    sh_i, (img_i_in_sh, layer_i, token_i) = il.map_global(i)
-
-    # Basic invariants
-    assert 0 <= sh_i < metadata.n_shards
-    assert 0 <= img_i_in_sh < metadata.n_imgs_per_shard
-
-
-@given(metadatas(), st.data())
-def test_length_always_nonnegative(metadata, data):
-    if metadata.cls_token:
-        patches = data.draw(st.sampled_from(["cls", "all", "image"]))
-    else:
-        patches = data.draw(st.sampled_from(["all", "image"]))
-    layer = data.draw(st.sampled_from([*metadata.layers, "all"]))
-
-    il = IndexLookup(metadata, patches, layer)
-
-    assert il.length() >= 0
-
-
-@given(metadatas(), st.data())
-def test_negative_index_raises(metadata, data):
-    if metadata.cls_token:
-        patches = data.draw(st.sampled_from(["cls", "all", "image"]))
-    else:
-        patches = data.draw(st.sampled_from(["all", "image"]))
-    layer = data.draw(st.sampled_from([*metadata.layers, "all"]))
-
-    il = IndexLookup(metadata, patches, layer)
-
-    with pytest.raises(IndexError):
-        il.map_global(-1)
-
-    with pytest.raises(IndexError):
-        il.map_img(-1)
-
-
-@given(metadatas(), st.data())
-def test_index_equal_length_raises(metadata, data):
-    if metadata.cls_token:
-        patches = data.draw(st.sampled_from(["cls", "all", "image"]))
-    else:
-        patches = data.draw(st.sampled_from(["all", "image"]))
-    layer = data.draw(st.sampled_from([*metadata.layers, "all"]))
-
-    il = IndexLookup(metadata, patches, layer)
-    length = il.length()
-
-    with pytest.raises(IndexError):
-        il.map_global(length)
-
-
-@given(
-    layers=st.sets(st.integers(min_value=0, max_value=24), min_size=1, max_size=24),
-    n_patches_per_img=st.integers(min_value=1, max_value=256),
-    data=st.data(),
-)
-def test_missing_layer(layers, n_patches_per_img, data):
-    missing_layer = data.draw(
-        st.sampled_from([i for i in range(25) if i not in layers]),
-        label="missing_layer",
-    )
-
-    layers = tuple(sorted(layers))
-
-    md = Metadata(
-        n_imgs=10_000,
-        n_patches_per_img=n_patches_per_img,
-        layers=layers,
-        max_patches_per_shard=200_000_000,
-        vit_family="clip",
-        vit_ckpt="ckpt",
-        cls_token=False,
-        d_vit=512,
-        data={"__class__": "Fake"},
-    )
-
-    with pytest.raises(Exception):
-        # IndexLookup should complain
-        IndexLookup(md, "cls", missing_layer)
-
-
-@given(md=metadatas(), patches=patches())
-def test_missing_cls_token(md, patches):
-    if not md.cls_token and patches == "cls":
-        with pytest.raises(Exception):
-            IndexLookup(md, patches, md.layers[0])
-    else:
-        IndexLookup(md, patches, md.layers[0])
-
-
 def test_shards_json_is_emitted(tmp_path):
     cfg = Config(
-        data=datasets.Fake(n_imgs=10),
+        data=datasets.Fake(n_ex=10),
         dump_to=str(tmp_path),
         vit_layers=[0],
         n_patches_per_img=16,
@@ -293,8 +170,8 @@ def test_shards_json_is_emitted(tmp_path):
         assert entry["n_imgs"] > 0 and isinstance(entry["n_imgs"], int)
 
 
-@given(cfg=writers_configs())
-def test_metadata_json_has_required_keys(cfg):
+@given(kwargs=worker_fn_kwargs())
+def test_metadata_json_has_required_keys(kwargs):
     # We cannot use the tmp_path fixture because of Hypothesis.
     # See https://hypothesis.readthedocs.io/en/latest/reference/api.html#hypothesis.HealthCheck.function_scoped_fixture
     with tempfile.TemporaryDirectory() as tmp_path:
@@ -345,14 +222,14 @@ def test_shard_size_consistency(max_patches, n_patches, n_layers, cls_token):
     # See https://hypothesis.readthedocs.io/en/latest/reference/api.html#hypothesis.HealthCheck.function_scoped_fixture
     with tempfile.TemporaryDirectory() as tmp_path:
         md = Metadata(
-            vit_family="clip",
-            vit_ckpt="ckpt",
+            family="clip",
+            ckpt="ckpt",
             layers=tuple(range(n_layers)),
-            n_patches_per_img=n_patches,
+            patches_per_ex=n_patches,
             cls_token=cls_token,
-            d_vit=1,
-            n_imgs=1,
-            max_patches_per_shard=max_patches,
+            d_model=1,
+            n_ex=1,
+            patches_per_shard=max_patches,
             data={"__class__": "Fake"},
         )
         # compute _spec_ value
@@ -362,7 +239,7 @@ def test_shard_size_consistency(max_patches, n_patches, n_layers, cls_token):
         assert md.n_imgs_per_shard == spec_nv
         # via ShardWriter logic
         cfg = Config(
-            data=datasets.Fake(n_imgs=128),
+            data=datasets.Fake(n_ex=128),
             dump_to=str(tmp_path),
             vit_layers=list(range(n_layers)),
             n_patches_per_img=n_patches,

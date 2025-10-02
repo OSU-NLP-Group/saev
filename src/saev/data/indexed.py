@@ -9,7 +9,7 @@ import torch
 from jaxtyping import Float, jaxtyped
 from torch import Tensor
 
-from . import writers
+from . import shards
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +54,7 @@ class Dataset(torch.utils.data.Dataset):
         patch_label: int
 
     cfg: Config
-    metadata: writers.Metadata
+    metadata: shards.Metadata
     layer_index: int
 
     def __init__(self, cfg: Config):
@@ -62,10 +62,10 @@ class Dataset(torch.utils.data.Dataset):
         if not os.path.isdir(self.cfg.shard_root):
             raise RuntimeError(f"Activations are not saved at '{self.cfg.shard_root}'.")
 
-        self.metadata = writers.Metadata.load(self.cfg.shard_root)
+        self.metadata = shards.Metadata.load(self.cfg.shard_root)
 
         # Validate shard files exist
-        shard_info = writers.ShardInfo.load(self.cfg.shard_root)
+        shard_info = shards.ShardInfo.load(self.cfg.shard_root)
         for shard in shard_info:
             shard_path = os.path.join(self.cfg.shard_root, shard.name)
             if not os.path.exists(shard_path):

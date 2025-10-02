@@ -13,9 +13,9 @@ from .indexed import Config as IndexedConfig
 from .indexed import Dataset
 from .ordered import Config as OrderedConfig
 from .ordered import DataLoader as OrderedDataLoader
+from .shards import Metadata
 from .shuffled import Config as ShuffledConfig
 from .shuffled import DataLoader as ShuffledDataLoader
-from .writers import Metadata
 
 __all__ = [
     "IndexedConfig",

@@ -24,7 +24,7 @@ class Imagenet:
     """Dataset split. For the default ImageNet-1K dataset, can either be 'train', 'validation' or 'test'."""
 
     @property
-    def n_imgs(self) -> int:
+    def n_ex(self) -> int:
         """Number of images in the dataset. Calculated on the fly, but is non-trivial to calculate because it requires loading the dataset. If you need to reference this number very often, cache it in a local variable."""
         import datasets
 
@@ -43,8 +43,8 @@ class ImageFolder:
     """Where the class folders with images are stored. Can be a glob pattern to match multiple directories."""
 
     @property
-    def n_imgs(self) -> int:
-        """Number of images in the dataset. Calculated on the fly, but is non-trivial to calculate because it requires walking the directory structure. If you need to reference this number very often, cache it in a local variable."""
+    def n_ex(self) -> int:
+        """Number of examples in the dataset. Calculated on the fly, but is non-trivial to calculate because it requires walking the directory structure. If you need to reference this number very often, cache it in a local variable."""
         # Use the same image extensions as torchvision's ImageFolder
         img_extensions = tuple(torchvision.datasets.folder.IMG_EXTENSIONS)
         n = 0
@@ -68,8 +68,8 @@ class SegFolder:
     """Background label."""
 
     @property
-    def n_imgs(self) -> int:
-        """Number of images in the dataset. Calculated on the fly by counting image files in root/images/split."""
+    def n_ex(self) -> int:
+        """Number of examples in the dataset. Calculated on the fly by counting image files in root/images/split."""
         # Use the same image extensions as torchvision's ImageFolder
         img_extensions = tuple(torchvision.datasets.folder.IMG_EXTENSIONS)
 
@@ -88,7 +88,7 @@ class SegFolder:
 @beartype.beartype
 @dataclasses.dataclass(frozen=True)
 class Fake:
-    n_imgs: int = 10
+    n_ex: int = 10
 
 
 @beartype.beartype
@@ -100,8 +100,8 @@ class FakeSeg:
     mimicking the behavior of real segmentation datasets like SegFolder.
     """
 
-    n_imgs: int = 10
-    """Number of images."""
+    n_ex: int = 10
+    """Number of examples."""
     n_patches_per_img: int = 16
     """Number of patches per image."""
     n_classes: int = 3
@@ -115,7 +115,11 @@ Config = Imagenet | ImageFolder | SegFolder | Fake | FakeSeg
 
 @beartype.beartype
 def get_dataset(
-    cfg: Config, *, img_transform, seg_transform=None, sample_transform=None
+    cfg: Config,
+    *,
+    img_transform: Callable,
+    seg_transform: Callable | None = None,
+    sample_transform: Callable | None = None,
 ):
     """
     Gets the dataset for the current experiment; delegates construction to dataset-specific functions.
@@ -363,12 +367,12 @@ class SegFolderDataset(torch.utils.data.Dataset):
 
 class FakeDataset(torch.utils.data.Dataset):
     def __init__(self, cfg: Fake, *, img_transform=None, sample_transform=None):
-        self.n_imgs = cfg.n_imgs
+        self.n_ex = cfg.n_ex
         self.img_transform = img_transform
         self.sample_transform = sample_transform
 
     def __len__(self):
-        return self.n_imgs
+        return self.n_ex
 
     def __getitem__(self, i):
         img = Image.new("RGB", (256, 256))
@@ -406,7 +410,7 @@ class FakeSegDataset(torch.utils.data.Dataset):
         self.sample_transform = sample_transform
 
     def __len__(self) -> int:
-        return self.cfg.n_imgs
+        return self.cfg.n_ex
 
     def __getitem__(self, i: int) -> dict[str, object]:
         import numpy as np
@@ -460,3 +464,18 @@ class FakeSegDataset(torch.utils.data.Dataset):
             sample = self.sample_transform(sample)
 
         return sample
+
+
+@beartype.beartype
+def is_seg_dataset(data_cfg: Config) -> bool:
+    """
+    Check if a dataset configuration is for a segmentation dataset.
+
+    Args:
+        data_cfg: Dataset configuration
+
+    Returns:
+        True if this is a segmentation dataset that should have labels.bin
+    """
+    # Check if it's FakeSeg or SegFolder
+    return isinstance(data_cfg, (FakeSeg, SegFolder))

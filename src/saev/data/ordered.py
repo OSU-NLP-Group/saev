@@ -37,7 +37,7 @@ import torch.multiprocessing as mp
 from jaxtyping import Float, Int, jaxtyped
 from torch import Tensor
 
-from . import writers
+from . import shards
 
 
 @beartype.beartype
@@ -65,7 +65,7 @@ class Config:
 
 @beartype.beartype
 class ImageOutOfBoundsError(Exception):
-    def __init__(self, metadata: writers.Metadata, i: int):
+    def __init__(self, metadata: shards.Metadata, i: int):
         self.metadata = metadata
         self.i = i
 
@@ -77,7 +77,7 @@ class ImageOutOfBoundsError(Exception):
 @beartype.beartype
 def _manager_main(
     cfg: Config,
-    metadata: writers.Metadata,
+    metadata: shards.Metadata,
     batch_queue: Queue[dict[str, torch.Tensor]],
     stop_event: Event,
     err_queue: Queue[tuple[str, str]],
@@ -106,7 +106,7 @@ def _manager_main(
 
     try:
         # Load shard info to get actual distribution
-        shard_info = writers.ShardInfo.load(cfg.shard_root)
+        shard_info = shards.ShardInfo.load(cfg.shard_root)
         layer_i = metadata.layers.index(cfg.layer)
 
         # Check if labels.bin exists
@@ -254,10 +254,10 @@ class DataLoader:
         if not os.path.isdir(self.cfg.shard_root):
             raise RuntimeError(f"Activations are not saved at '{self.cfg.shard_root}'.")
 
-        self.metadata = writers.Metadata.load(self.cfg.shard_root)
+        self.metadata = shards.Metadata.load(self.cfg.shard_root)
 
         # Validate shard files exist
-        shard_info = writers.ShardInfo.load(self.cfg.shard_root)
+        shard_info = shards.ShardInfo.load(self.cfg.shard_root)
         for shard in shard_info:
             shard_path = os.path.join(self.cfg.shard_root, shard.name)
             if not os.path.exists(shard_path):

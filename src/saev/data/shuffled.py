@@ -22,7 +22,7 @@ from torch import Tensor
 
 from saev import helpers
 
-from . import buffers, writers
+from . import buffers, shards
 
 
 @beartype.beartype
@@ -66,7 +66,7 @@ class Config:
 
 @beartype.beartype
 class ImageOutOfBoundsError(Exception):
-    def __init__(self, metadata: writers.Metadata, i: int):
+    def __init__(self, metadata: shards.Metadata, i: int):
         self.metadata = metadata
         self.i = i
 
@@ -79,7 +79,7 @@ class ImageOutOfBoundsError(Exception):
 def _io_worker(
     worker_id: int,
     cfg: Config,
-    metadata: writers.Metadata,
+    metadata: shards.Metadata,
     work_queue: queue.Queue[int | None],
     reservoir: buffers.ReservoirBuffer,
     stop_event: threading.Event,
@@ -96,7 +96,7 @@ def _io_worker(
     logger.info(f"I/O worker {worker_id} started.")
 
     layer_i = metadata.layers.index(cfg.layer)
-    shard_info = writers.ShardInfo.load(cfg.shard_root)
+    shard_info = shards.ShardInfo.load(cfg.shard_root)
 
     # Pre-conditions
     assert cfg.patches == "image"
@@ -214,7 +214,7 @@ def _io_worker(
 @beartype.beartype
 def _manager_main(
     cfg: Config,
-    metadata: writers.Metadata,
+    metadata: shards.Metadata,
     reservoir: buffers.ReservoirBuffer,
     stop_event: Event,
     err_queue: Queue[tuple[str, str]],
@@ -320,10 +320,10 @@ class DataLoader:
         if self.cfg.scale_norm:
             raise NotImplementedError("scale_norm not implemented.")
 
-        self.metadata = writers.Metadata.load(self.cfg.shard_root)
+        self.metadata = shards.Metadata.load(self.cfg.shard_root)
 
         # Validate shard files exist
-        shard_info = writers.ShardInfo.load(self.cfg.shard_root)
+        shard_info = shards.ShardInfo.load(self.cfg.shard_root)
         for shard in shard_info:
             shard_path = os.path.join(self.cfg.shard_root, shard.name)
             if not os.path.exists(shard_path):

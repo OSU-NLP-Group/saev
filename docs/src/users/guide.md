@@ -1,16 +1,16 @@
 # Guide
 
+This guide explains how to transition from the ADE20K demo to using `saev` with your own custom datasets.
+
+Here are the steps:
+
 1. Record ViT activations and save them to disk.
 2. Train SAEs on the activations.
-3. Visualize the learned features from the trained SAEs.
-4. (your job) Propose trends and patterns in the visualized features.
-5. (your job, supported by code) Construct datasets to test your hypothesized trends.
-6. Confirm/reject hypotheses using `probing` package.
-
-`saev` helps with steps 1, 2 and 3.
+3. Evaluate the SAE checkpoints.
+4. Visualize the learned features from the trained SAEs.
 
 !!! note
-  `saev` assumes you are running on NVIDIA GPUs. On a multi-GPU system, prefix your commands with `CUDA_VISIBLE_DEVICES=X` to run on GPU X.
+    `saev` assumes you are running on NVIDIA GPUs. On a multi-GPU system, prefix your commands with `CUDA_VISIBLE_DEVICES=X` to run on GPU X.
 
 ## Record ViT Activations to Disk
 
@@ -21,14 +21,14 @@ To save activations to disk, we need to specify:
 3. Where on disk and how we would like to save activations.
 4. Which images we want to save activations for.
 
-The `saev.activations` module does all of this for us.
+The `scripts/shards.py` script does all of this for us.
 
-Run `uv run python -m saev activations --help` to see all the configuration.
+Run `uv run scripts/launch.py shards --help` to see all the configuration.
 
 In practice, you might run:
 
 ```sh
-uv run python -m saev.data \
+uv run scripts/launch.py shards \
   --vit-family siglip \
   --vit-ckpt hf-hub:timm/ViT-L-16-SigLIP2-256 \
   --d-vit 1024 \

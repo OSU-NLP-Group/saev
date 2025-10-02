@@ -39,6 +39,8 @@ nav:
       - Inference: users/inference.md
   - Developers:
       - Contributing: developers/contributing.md
+      - Shard Protocol: developers/protocol.md
+      - Disk Layout: developers/disk-layout.md
   - API: api/
   
 plugins:
@@ -50,7 +52,7 @@ plugins:
           options:
             docstring_style: google
             merge_init_into_class: true
-            show_root_heading: true
+            show_root_heading: false
   - gen-files:
         scripts:
           - ../scripts/docs.py
