@@ -102,7 +102,7 @@ class FakeSeg:
 
     n_ex: int = 10
     """Number of examples."""
-    n_patches_per_img: int = 16
+    patches_per_img: int = 16
     """Number of patches per image."""
     n_classes: int = 3
     """Number of segmentation classes."""
@@ -425,7 +425,7 @@ class FakeSegDataset(torch.utils.data.Dataset):
 
         # Create a pattern that will result in different labels per patch
         # Assuming patches are created by dividing the image into a grid
-        patch_grid_size = int(np.sqrt(self.cfg.n_patches_per_img))
+        patch_grid_size = int(np.sqrt(self.cfg.patches_per_img))
         patch_size = img_size // patch_grid_size
 
         for y in range(0, img_size, patch_size):

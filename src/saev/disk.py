@@ -10,6 +10,60 @@ import beartype
 
 
 @beartype.beartype
+def is_run_root(path: pathlib.Path) -> bool:
+    """
+    Check if `path` is a valid run root directory.
+
+    A valid run root ends with `saev/runs` and exists as a directory.
+
+    Args:
+        path: Path to check.
+
+    Returns:
+        True if path is a directory ending in saev/runs.
+    """
+    return path.is_dir() and path.parts[-2:] == ("saev", "runs")
+
+
+@beartype.beartype
+def is_shards_root(path: pathlib.Path) -> bool:
+    """
+    Check if `path` is a valid shards root directory.
+
+    A valid shards root ends with `saev/shards` and exists as a directory.
+
+    Args:
+        path: Path to check.
+
+    Returns:
+        True if path is a directory ending in saev/shards.
+    """
+    return path.is_dir() and path.parts[-2:] == ("saev", "shards")
+
+
+@beartype.beartype
+def is_shards_dir(path: pathlib.Path) -> bool:
+    """
+    Check if `path` is a specific shards directory.
+
+    A valid shards directory ends with `saev/shards/<hash>` for any hash value, exists as a directory, and contains the required files (metadata.json, shards.json, labels.bin).
+
+    Args:
+        path: Path to check.
+
+    Returns:
+        True if path is a directory ending in saev/shards/<hash> with required files.
+    """
+    if not path.is_dir():
+        return False
+
+    if len(path.parts) < 3 or path.parts[-3:-1] != ("saev", "shards"):
+        return False
+
+    return True
+
+
+@beartype.beartype
 class Run:
     """
     Represents an SAE training run and some associated data.
@@ -42,7 +96,7 @@ class Run:
     def new(
         cls,
         run_id: str,
-        shards: pathlib.Path,
+        shards_dir: pathlib.Path,
         dataset: pathlib.Path,
         *,
         run_root: pathlib.Path,
@@ -52,7 +106,7 @@ class Run:
 
         Args:
             run_id: The run ID (typically from wandb).
-            shards: Absolute path to the shards directory (typically $SAEV_SCRATCH/saev/shards/<shard_hash>).
+            shards_dir: Absolute path to the shards directory (typically $SAEV_SCRATCH/saev/shards/<shard_hash>).
             dataset: Absolute path to the dataset directory.
             run_root: Root directory for runs (typically $SAEV_NFS/saev/runs).
 
@@ -65,7 +119,7 @@ class Run:
         (root / "links").mkdir()
         (root / "inference").mkdir()
 
-        (root / "links" / "shards").symlink_to(shards)
+        (root / "links" / "shards").symlink_to(shards_dir)
         (root / "links" / "dataset").symlink_to(dataset)
 
         return cls(root)

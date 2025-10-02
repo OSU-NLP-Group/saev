@@ -1,13 +1,11 @@
 from collections.abc import Callable
 
 import beartype
-import open_clip
 import torch
 from jaxtyping import Float, jaxtyped
 from PIL import Image
 from torch import Tensor
 
-from .. import helpers
 from . import models
 
 
@@ -17,6 +15,10 @@ class Vit(models.VisionTransformer, torch.nn.Module):
 
     def __init__(self, ckpt: str):
         super().__init__()
+
+        import open_clip
+
+        from .. import helpers
 
         if ckpt.startswith("hf-hub:"):
             clip, _ = open_clip.create_model_from_pretrained(
@@ -63,6 +65,10 @@ class Vit(models.VisionTransformer, torch.nn.Module):
         ckpt: str, n_patches_per_img: int
     ) -> tuple[Callable, Callable | None]:
         """Create transforms for preprocessing: (img_transform, sample_transform | None)."""
+        import open_clip
+
+        from .. import helpers
+
         if ckpt.startswith("hf-hub:"):
             _, img_transform = open_clip.create_model_from_pretrained(
                 ckpt, cache_dir=helpers.get_cache_dir()

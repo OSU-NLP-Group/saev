@@ -430,6 +430,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -479,6 +483,52 @@
   
   <span class="md-ellipsis">
     Contributing
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../developers/protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Shard Protocol
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../developers/disk-layout/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Disk Layout
     
   </span>
   
@@ -655,29 +705,6 @@
   
   <span class="md-ellipsis">
     saev.data
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../data/__main__/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    saev.data.main
     
   </span>
   
@@ -902,6 +929,29 @@
   
   
     <li class="md-nav__item">
+      <a href="../../data/shards/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.data.shards
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../data/shuffled/" class="md-nav__link">
         
   
@@ -971,12 +1021,12 @@
   
   
     <li class="md-nav__item">
-      <a href="../../data/writers/" class="md-nav__link">
+      <a href="../../disk/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
-    saev.data.writers
+    saev.disk
     
   </span>
   
@@ -1092,10 +1142,9 @@
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="modeling">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
+</li>
+      
+        <li class="md-nav__item">
   <a href="#saev.nn.modeling.BatchTopK" class="md-nav__link">
     <span class="md-ellipsis">
       BatchTopK
@@ -1118,8 +1167,8 @@
     </nav>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#saev.nn.modeling.BatchTopKActivation" class="md-nav__link">
     <span class="md-ellipsis">
       BatchTopKActivation
@@ -1142,8 +1191,8 @@
     </nav>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#saev.nn.modeling.Relu" class="md-nav__link">
     <span class="md-ellipsis">
       Relu
@@ -1151,8 +1200,8 @@
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#saev.nn.modeling.SparseAutoencoder" class="md-nav__link">
     <span class="md-ellipsis">
       SparseAutoencoder
@@ -1202,8 +1251,8 @@
     </nav>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#saev.nn.modeling.SparseAutoencoderConfig" class="md-nav__link">
     <span class="md-ellipsis">
       SparseAutoencoderConfig
@@ -1262,8 +1311,8 @@
     </nav>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#saev.nn.modeling.TopK" class="md-nav__link">
     <span class="md-ellipsis">
       TopK
@@ -1286,8 +1335,8 @@
     </nav>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#saev.nn.modeling.TopKActivation" class="md-nav__link">
     <span class="md-ellipsis">
       TopKActivation
@@ -1310,8 +1359,8 @@
     </nav>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#saev.nn.modeling.dump" class="md-nav__link">
     <span class="md-ellipsis">
       dump
@@ -1319,18 +1368,13 @@
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#saev.nn.modeling.load" class="md-nav__link">
     <span class="md-ellipsis">
       load
     </span>
   </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
@@ -1510,12 +1554,7 @@
 
 
 
-<h2 id="saev.nn.modeling" class="doc doc-heading">
-            <code>saev.nn.modeling</code>
-
-
-</h2>
-
+<a id="saev.nn.modeling"></a>
     <div class="doc doc-contents first">
 
         <p>Neural network architectures for sparse autoencoders.</p>
@@ -1543,14 +1582,14 @@
 
 
 
-<h3 id="saev.nn.modeling.BatchTopK" class="doc doc-heading">
+<h2 id="saev.nn.modeling.BatchTopK" class="doc doc-heading">
               <code class="highlight language-python"><span class="n">BatchTopK</span><span class="p">(</span><span class="n">top_k</span><span class="o">=</span><span class="mi">32</span><span class="p">)</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
   </span>
 
-</h3>
+</h2>
 
 
     <div class="doc doc-contents ">
@@ -1578,7 +1617,7 @@
 
 
 
-<h4 id="saev.nn.modeling.BatchTopK.top_k" class="doc doc-heading">
+<h3 id="saev.nn.modeling.BatchTopK.top_k" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">top_k</span> <span class="o">=</span> <span class="mi">32</span></code>
 
   <span class="doc doc-labels">
@@ -1586,7 +1625,7 @@
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -1612,10 +1651,10 @@
 
 
 
-<h3 id="saev.nn.modeling.BatchTopKActivation" class="doc doc-heading">
+<h2 id="saev.nn.modeling.BatchTopKActivation" class="doc doc-heading">
               <code class="highlight language-python"><span class="n">BatchTopKActivation</span><span class="p">(</span><span class="n">cfg</span><span class="o">=</span><span class="n">BatchTopK</span><span class="p">())</span></code>
 
-</h3>
+</h2>
 
 
     <div class="doc doc-contents ">
@@ -1661,10 +1700,10 @@ Applies top-k selection per sample in the batch.</p>
 <div class="doc doc-object doc-function">
 
 
-<h4 id="saev.nn.modeling.BatchTopKActivation.forward" class="doc doc-heading">
+<h3 id="saev.nn.modeling.BatchTopKActivation.forward" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">forward</span><span class="p">(</span><span class="n">x</span><span class="p">)</span></code>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -1725,14 +1764,14 @@ Applies top-k selection per sample in the batch.</p>
 
 
 
-<h3 id="saev.nn.modeling.Relu" class="doc doc-heading">
+<h2 id="saev.nn.modeling.Relu" class="doc doc-heading">
               <code class="highlight language-python"><span class="n">Relu</span><span class="p">()</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
   </span>
 
-</h3>
+</h2>
 
 
     <div class="doc doc-contents ">
@@ -1773,10 +1812,10 @@ Applies top-k selection per sample in the batch.</p>
 
 
 
-<h3 id="saev.nn.modeling.SparseAutoencoder" class="doc doc-heading">
+<h2 id="saev.nn.modeling.SparseAutoencoder" class="doc doc-heading">
               <code class="highlight language-python"><span class="n">SparseAutoencoder</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span></code>
 
-</h3>
+</h2>
 
 
     <div class="doc doc-contents ">
@@ -1820,14 +1859,14 @@ Applies top-k selection per sample in the batch.</p>
     <span class="bp">self</span><span class="o">.</span><span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;sae(seed=</span><span class="si">{</span><span class="n">cfg</span><span class="o">.</span><span class="n">seed</span><span class="si">}</span><span class="s2">)&quot;</span><span class="p">)</span>
 
     <span class="bp">self</span><span class="o">.</span><span class="n">W_enc</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span>
-        <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">kaiming_uniform_</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">d_vit</span><span class="p">,</span> <span class="n">cfg</span><span class="o">.</span><span class="n">d_sae</span><span class="p">))</span>
+        <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">kaiming_uniform_</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">d_model</span><span class="p">,</span> <span class="n">cfg</span><span class="o">.</span><span class="n">d_sae</span><span class="p">))</span>
     <span class="p">)</span>
     <span class="bp">self</span><span class="o">.</span><span class="n">b_enc</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">d_sae</span><span class="p">))</span>
 
     <span class="bp">self</span><span class="o">.</span><span class="n">W_dec</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span>
-        <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">kaiming_uniform_</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">d_sae</span><span class="p">,</span> <span class="n">cfg</span><span class="o">.</span><span class="n">d_vit</span><span class="p">))</span>
+        <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">kaiming_uniform_</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">d_sae</span><span class="p">,</span> <span class="n">cfg</span><span class="o">.</span><span class="n">d_model</span><span class="p">))</span>
     <span class="p">)</span>
-    <span class="bp">self</span><span class="o">.</span><span class="n">b_dec</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">d_vit</span><span class="p">))</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">b_dec</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">d_model</span><span class="p">))</span>
 
     <span class="bp">self</span><span class="o">.</span><span class="n">normalize_w_dec</span><span class="p">()</span>
 
@@ -1851,10 +1890,10 @@ Applies top-k selection per sample in the batch.</p>
 <div class="doc doc-object doc-function">
 
 
-<h4 id="saev.nn.modeling.SparseAutoencoder.decode" class="doc doc-heading">
+<h3 id="saev.nn.modeling.SparseAutoencoder.decode" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">decode</span><span class="p">(</span><span class="n">f_x</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">prefixes</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -2031,12 +2070,12 @@ Applies top-k selection per sample in the batch.</p>
         <span class="n">block_f_x</span> <span class="o">=</span> <span class="n">f_x</span><span class="p">[:,</span> <span class="n">start</span><span class="p">:</span><span class="n">end</span><span class="p">]</span>
         <span class="n">block_W_dec</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">W_dec</span><span class="p">[</span><span class="n">start</span><span class="p">:</span><span class="n">end</span><span class="p">,</span> <span class="p">:]</span>
 
-        <span class="c1"># Compute block output: (batch, d_sae_block) @ (d_sae_block, d_vit) -&gt; (batch, d_vit)</span>
-        <span class="c1"># Note: W_dec is (d_sae, d_vit), so block_W_dec is (block_size, d_vit)</span>
+        <span class="c1"># Compute block output: (batch, d_sae_block) @ (d_sae_block, d_model) -&gt; (batch, d_model)</span>
+        <span class="c1"># Note: W_dec is (d_sae, d_model), so block_W_dec is (block_size, d_model)</span>
         <span class="n">block_output</span> <span class="o">=</span> <span class="n">einops</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span>
             <span class="n">block_f_x</span><span class="p">,</span>
             <span class="n">block_W_dec</span><span class="p">,</span>
-            <span class="s2">&quot;... d_sae_block, d_sae_block d_vit -&gt; ... d_vit&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;... d_sae_block, d_sae_block d_model -&gt; ... d_model&quot;</span><span class="p">,</span>
         <span class="p">)</span>
 
         <span class="c1"># Add bias only to the first block</span>
@@ -2058,10 +2097,10 @@ Applies top-k selection per sample in the batch.</p>
 <div class="doc doc-object doc-function">
 
 
-<h4 id="saev.nn.modeling.SparseAutoencoder.forward" class="doc doc-heading">
+<h3 id="saev.nn.modeling.SparseAutoencoder.forward" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">forward</span><span class="p">(</span><span class="n">x</span><span class="p">)</span></code>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -2089,7 +2128,7 @@ Applies top-k selection per sample in the batch.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>a batch of ViT activations.</p>
+                <p>a batch of transformer activations.</p>
               </div>
             </td>
             <td>
@@ -2121,7 +2160,7 @@ Applies top-k selection per sample in the batch.</p>
 <span class="sd">    Given x, calculates the reconstructed x_hat and the intermediate activations f_x.</span>
 
 <span class="sd">    Arguments:</span>
-<span class="sd">        x: a batch of ViT activations.</span>
+<span class="sd">        x: a batch of transformer activations.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">f_x</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
     <span class="n">x_hat</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">f_x</span><span class="p">)</span>
@@ -2136,10 +2175,10 @@ Applies top-k selection per sample in the batch.</p>
 <div class="doc doc-object doc-function">
 
 
-<h4 id="saev.nn.modeling.SparseAutoencoder.normalize_w_dec" class="doc doc-heading">
+<h3 id="saev.nn.modeling.SparseAutoencoder.normalize_w_dec" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">normalize_w_dec</span><span class="p">()</span></code>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -2171,16 +2210,16 @@ Applies top-k selection per sample in the batch.</p>
 <div class="doc doc-object doc-function">
 
 
-<h4 id="saev.nn.modeling.SparseAutoencoder.remove_parallel_grads" class="doc doc-heading">
+<h3 id="saev.nn.modeling.SparseAutoencoder.remove_parallel_grads" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">remove_parallel_grads</span><span class="p">()</span></code>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
 
         <p>Update grads so that they remove the parallel component
-    (d_sae, d_vit) shape</p>
+    (d_sae, d_model) shape</p>
 
 
             <details class="quote">
@@ -2208,7 +2247,7 @@ Applies top-k selection per sample in the batch.</p>
 <span class="k">def</span><span class="w"> </span><span class="nf">remove_parallel_grads</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Update grads so that they remove the parallel component</span>
-<span class="sd">        (d_sae, d_vit) shape</span>
+<span class="sd">        (d_sae, d_model) shape</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">remove_parallel_grads</span><span class="p">:</span>
         <span class="k">return</span>
@@ -2216,13 +2255,13 @@ Applies top-k selection per sample in the batch.</p>
     <span class="n">parallel_component</span> <span class="o">=</span> <span class="n">einops</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">W_dec</span><span class="o">.</span><span class="n">grad</span><span class="p">,</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">W_dec</span><span class="o">.</span><span class="n">data</span><span class="p">,</span>
-        <span class="s2">&quot;d_sae d_vit, d_sae d_vit -&gt; d_sae&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;d_sae d_model, d_sae d_model -&gt; d_sae&quot;</span><span class="p">,</span>
     <span class="p">)</span>
 
     <span class="bp">self</span><span class="o">.</span><span class="n">W_dec</span><span class="o">.</span><span class="n">grad</span> <span class="o">-=</span> <span class="n">einops</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span>
         <span class="n">parallel_component</span><span class="p">,</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">W_dec</span><span class="o">.</span><span class="n">data</span><span class="p">,</span>
-        <span class="s2">&quot;d_sae, d_sae d_vit -&gt; d_sae d_vit&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;d_sae, d_sae d_model -&gt; d_sae d_model&quot;</span><span class="p">,</span>
     <span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
@@ -2242,14 +2281,14 @@ Applies top-k selection per sample in the batch.</p>
 
 
 
-<h3 id="saev.nn.modeling.SparseAutoencoderConfig" class="doc doc-heading">
-              <code class="highlight language-python"><span class="n">SparseAutoencoderConfig</span><span class="p">(</span><span class="n">d_vit</span><span class="o">=</span><span class="mi">1024</span><span class="p">,</span> <span class="n">exp_factor</span><span class="o">=</span><span class="mi">16</span><span class="p">,</span> <span class="n">n_reinit_samples</span><span class="o">=</span><span class="mi">1024</span> <span class="o">*</span> <span class="mi">16</span> <span class="o">*</span> <span class="mi">32</span><span class="p">,</span> <span class="n">remove_parallel_grads</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">normalize_w_dec</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">activation</span><span class="o">=</span><span class="n">Relu</span><span class="p">())</span></code>
+<h2 id="saev.nn.modeling.SparseAutoencoderConfig" class="doc doc-heading">
+              <code class="highlight language-python"><span class="n">SparseAutoencoderConfig</span><span class="p">(</span><span class="n">d_model</span><span class="o">=</span><span class="mi">1024</span><span class="p">,</span> <span class="n">exp_factor</span><span class="o">=</span><span class="mi">16</span><span class="p">,</span> <span class="n">n_reinit_samples</span><span class="o">=</span><span class="mi">1024</span> <span class="o">*</span> <span class="mi">16</span> <span class="o">*</span> <span class="mi">32</span><span class="p">,</span> <span class="n">remove_parallel_grads</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">normalize_w_dec</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">activation</span><span class="o">=</span><span class="n">Relu</span><span class="p">())</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
   </span>
 
-</h3>
+</h2>
 
 
     <div class="doc doc-contents ">
@@ -2277,7 +2316,7 @@ Applies top-k selection per sample in the batch.</p>
 
 
 
-<h4 id="saev.nn.modeling.SparseAutoencoderConfig.exp_factor" class="doc doc-heading">
+<h3 id="saev.nn.modeling.SparseAutoencoderConfig.exp_factor" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">exp_factor</span> <span class="o">=</span> <span class="mi">16</span></code>
 
   <span class="doc doc-labels">
@@ -2285,7 +2324,7 @@ Applies top-k selection per sample in the batch.</p>
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -2300,7 +2339,7 @@ Applies top-k selection per sample in the batch.</p>
 
 
 
-<h4 id="saev.nn.modeling.SparseAutoencoderConfig.n_reinit_samples" class="doc doc-heading">
+<h3 id="saev.nn.modeling.SparseAutoencoderConfig.n_reinit_samples" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">n_reinit_samples</span> <span class="o">=</span> <span class="mi">1024</span> <span class="o">*</span> <span class="mi">16</span> <span class="o">*</span> <span class="mi">32</span></code>
 
   <span class="doc doc-labels">
@@ -2308,7 +2347,7 @@ Applies top-k selection per sample in the batch.</p>
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -2323,7 +2362,7 @@ Applies top-k selection per sample in the batch.</p>
 
 
 
-<h4 id="saev.nn.modeling.SparseAutoencoderConfig.normalize_w_dec" class="doc doc-heading">
+<h3 id="saev.nn.modeling.SparseAutoencoderConfig.normalize_w_dec" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">normalize_w_dec</span> <span class="o">=</span> <span class="kc">True</span></code>
 
   <span class="doc doc-labels">
@@ -2331,7 +2370,7 @@ Applies top-k selection per sample in the batch.</p>
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -2346,7 +2385,7 @@ Applies top-k selection per sample in the batch.</p>
 
 
 
-<h4 id="saev.nn.modeling.SparseAutoencoderConfig.remove_parallel_grads" class="doc doc-heading">
+<h3 id="saev.nn.modeling.SparseAutoencoderConfig.remove_parallel_grads" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">remove_parallel_grads</span> <span class="o">=</span> <span class="kc">True</span></code>
 
   <span class="doc doc-labels">
@@ -2354,7 +2393,7 @@ Applies top-k selection per sample in the batch.</p>
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -2369,7 +2408,7 @@ Applies top-k selection per sample in the batch.</p>
 
 
 
-<h4 id="saev.nn.modeling.SparseAutoencoderConfig.seed" class="doc doc-heading">
+<h3 id="saev.nn.modeling.SparseAutoencoderConfig.seed" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">seed</span> <span class="o">=</span> <span class="mi">0</span></code>
 
   <span class="doc doc-labels">
@@ -2377,7 +2416,7 @@ Applies top-k selection per sample in the batch.</p>
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -2403,14 +2442,14 @@ Applies top-k selection per sample in the batch.</p>
 
 
 
-<h3 id="saev.nn.modeling.TopK" class="doc doc-heading">
+<h2 id="saev.nn.modeling.TopK" class="doc doc-heading">
               <code class="highlight language-python"><span class="n">TopK</span><span class="p">(</span><span class="n">top_k</span><span class="o">=</span><span class="mi">32</span><span class="p">)</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
   </span>
 
-</h3>
+</h2>
 
 
     <div class="doc doc-contents ">
@@ -2438,7 +2477,7 @@ Applies top-k selection per sample in the batch.</p>
 
 
 
-<h4 id="saev.nn.modeling.TopK.top_k" class="doc doc-heading">
+<h3 id="saev.nn.modeling.TopK.top_k" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">top_k</span> <span class="o">=</span> <span class="mi">32</span></code>
 
   <span class="doc doc-labels">
@@ -2446,7 +2485,7 @@ Applies top-k selection per sample in the batch.</p>
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -2472,10 +2511,10 @@ Applies top-k selection per sample in the batch.</p>
 
 
 
-<h3 id="saev.nn.modeling.TopKActivation" class="doc doc-heading">
+<h2 id="saev.nn.modeling.TopKActivation" class="doc doc-heading">
               <code class="highlight language-python"><span class="n">TopKActivation</span><span class="p">(</span><span class="n">cfg</span><span class="o">=</span><span class="n">TopK</span><span class="p">())</span></code>
 
-</h3>
+</h2>
 
 
     <div class="doc doc-contents ">
@@ -2520,10 +2559,10 @@ Applies top-k selection per sample in the batch.</p>
 <div class="doc doc-object doc-function">
 
 
-<h4 id="saev.nn.modeling.TopKActivation.forward" class="doc doc-heading">
+<h3 id="saev.nn.modeling.TopKActivation.forward" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">forward</span><span class="p">(</span><span class="n">x</span><span class="p">)</span></code>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -2576,10 +2615,10 @@ Applies top-k selection per sample in the batch.</p>
 <div class="doc doc-object doc-function">
 
 
-<h3 id="saev.nn.modeling.dump" class="doc doc-heading">
+<h2 id="saev.nn.modeling.dump" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">dump</span><span class="p">(</span><span class="n">fpath</span><span class="p">,</span> <span class="n">sae</span><span class="p">)</span></code>
 
-</h3>
+</h2>
 
 
     <div class="doc doc-contents ">
@@ -2704,10 +2743,10 @@ Applies top-k selection per sample in the batch.</p>
 <div class="doc doc-object doc-function">
 
 
-<h3 id="saev.nn.modeling.load" class="doc doc-heading">
+<h2 id="saev.nn.modeling.load" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">load</span><span class="p">(</span><span class="n">fpath</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s1">&#39;cpu&#39;</span><span class="p">)</span></code>
 
-</h3>
+</h2>
 
 
     <div class="doc doc-contents ">

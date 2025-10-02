@@ -14,7 +14,7 @@
         <link rel="prev" href="../../colors/">
       
       
-        <link rel="next" href="../__main__/">
+        <link rel="next" href="../buffers/">
       
       
       <link rel="icon" href="../../../assets/images/favicon.png">
@@ -430,6 +430,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -479,6 +483,52 @@
   
   <span class="md-ellipsis">
     Contributing
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../developers/protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Shard Protocol
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../developers/disk-layout/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Disk Layout
     
   </span>
   
@@ -701,10 +751,9 @@
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="data">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
+</li>
+      
+        <li class="md-nav__item">
   <a href="#saev.data.Dataset" class="md-nav__link">
     <span class="md-ellipsis">
       Dataset
@@ -745,8 +794,8 @@
     </nav>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#saev.data.IndexedConfig" class="md-nav__link">
     <span class="md-ellipsis">
       IndexedConfig
@@ -754,8 +803,8 @@
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#saev.data.Metadata" class="md-nav__link">
     <span class="md-ellipsis">
       Metadata
@@ -766,9 +815,63 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#saev.data.Metadata.n_imgs_per_shard" class="md-nav__link">
+  <a href="#saev.data.Metadata.ex_per_shard" class="md-nav__link">
     <span class="md-ellipsis">
-      n_imgs_per_shard
+      ex_per_shard
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.data.Metadata.hash" class="md-nav__link">
+    <span class="md-ellipsis">
+      hash
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.data.Metadata.n_shards" class="md-nav__link">
+    <span class="md-ellipsis">
+      n_shards
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.data.Metadata.shard_shape" class="md-nav__link">
+    <span class="md-ellipsis">
+      shard_shape
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.data.Metadata.tokens_per_ex" class="md-nav__link">
+    <span class="md-ellipsis">
+      tokens_per_ex
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.data.Metadata.dump" class="md-nav__link">
+    <span class="md-ellipsis">
+      dump
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.data.Metadata.load" class="md-nav__link">
+    <span class="md-ellipsis">
+      load
     </span>
   </a>
   
@@ -778,8 +881,8 @@
     </nav>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#saev.data.OrderedConfig" class="md-nav__link">
     <span class="md-ellipsis">
       OrderedConfig
@@ -865,8 +968,8 @@
     </nav>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#saev.data.OrderedDataLoader" class="md-nav__link">
     <span class="md-ellipsis">
       OrderedDataLoader
@@ -907,8 +1010,8 @@
     </nav>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#saev.data.ShuffledConfig" class="md-nav__link">
     <span class="md-ellipsis">
       ShuffledConfig
@@ -1021,8 +1124,8 @@
     </nav>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#saev.data.ShuffledDataLoader" class="md-nav__link">
     <span class="md-ellipsis">
       ShuffledDataLoader
@@ -1063,8 +1166,8 @@
     </nav>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#saev.data.make_ordered_config" class="md-nav__link">
     <span class="md-ellipsis">
       make_ordered_config
@@ -1072,39 +1175,11 @@
   </a>
   
 </li>
-        
-      </ul>
-    </nav>
-  
-</li>
       
     </ul>
   
 </nav>
       
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../__main__/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    saev.data.main
-    
-  </span>
-  
-
-      </a>
     </li>
   
 
@@ -1324,6 +1399,29 @@
   
   
     <li class="md-nav__item">
+      <a href="../shards/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.data.shards
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../shuffled/" class="md-nav__link">
         
   
@@ -1393,12 +1491,12 @@
   
   
     <li class="md-nav__item">
-      <a href="../writers/" class="md-nav__link">
+      <a href="../../disk/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
-    saev.data.writers
+    saev.disk
     
   </span>
   
@@ -1645,12 +1743,7 @@
 
 
 
-<h2 id="saev.data" class="doc doc-heading">
-            <code>saev.data</code>
-
-
-</h2>
-
+<a id="saev.data"></a>
     <div class="doc doc-contents first">
 
         <p>.. include:: ./protocol.md</p>
@@ -1679,10 +1772,10 @@
 
 
 
-<h3 id="saev.data.Dataset" class="doc doc-heading">
+<h2 id="saev.data.Dataset" class="doc doc-heading">
               <code class="highlight language-python"><span class="n">Dataset</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span></code>
 
-</h3>
+</h2>
 
 
     <div class="doc doc-contents ">
@@ -1706,7 +1799,7 @@
           <tr class="doc-section-item">
             <td><code><span title="saev.data.Dataset.cfg">cfg</span></code></td>
             <td>
-                  <code><a class="autorefs autorefs-internal" title="Config(shard_root=os.path.join('.', 'shards'), patches='image', layer=-2, seed=17, debug=False)
+                  <code><a class="autorefs autorefs-internal" title="Config(shards=pathlib.Path('./shards'), patches='image', layer=-2, seed=17, debug=False)
 
   
       dataclass
@@ -1721,11 +1814,11 @@
           <tr class="doc-section-item">
             <td><code><span title="saev.data.Dataset.metadata">metadata</span></code></td>
             <td>
-                  <code><a class="autorefs autorefs-internal" title="Metadata(vit_family, vit_ckpt, layers, n_patches_per_img, cls_token, d_vit, n_imgs, max_patches_per_shard, data, pixel_agg=None, dtype='float32', protocol='1.1')
+                  <code><a class="autorefs autorefs-internal" title="Metadata(*, family, ckpt, layers, patches_per_ex, cls_token, d_model, n_ex, patches_per_shard, data, pixel_agg=None, dtype='float32', protocol='2.0')
 
   
       dataclass
-   (saev.data.writers.Metadata)" href="../writers/#saev.data.writers.Metadata">Metadata</a></code>
+   (saev.data.shards.Metadata)" href="../shards/#saev.data.shards.Metadata">Metadata</a></code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -1756,8 +1849,7 @@
 
                   <details class="quote">
                     <summary>Source code in <code>src/saev/data/indexed.py</code></summary>
-                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">60</span>
-<span class="normal">61</span>
+                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">61</span>
 <span class="normal">62</span>
 <span class="normal">63</span>
 <span class="normal">64</span>
@@ -1786,22 +1878,23 @@
 <span class="normal">87</span>
 <span class="normal">88</span>
 <span class="normal">89</span>
-<span class="normal">90</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">Config</span><span class="p">):</span>
+<span class="normal">90</span>
+<span class="normal">91</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">Config</span><span class="p">):</span>
     <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span> <span class="o">=</span> <span class="n">cfg</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shard_root</span><span class="p">):</span>
-        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Activations are not saved at &#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shard_root</span><span class="si">}</span><span class="s2">&#39;.&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shards</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Activations are not saved at &#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shards</span><span class="si">}</span><span class="s2">&#39;.&quot;</span><span class="p">)</span>
 
-    <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span> <span class="o">=</span> <span class="n">writers</span><span class="o">.</span><span class="n">Metadata</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shard_root</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span> <span class="o">=</span> <span class="n">shards</span><span class="o">.</span><span class="n">Metadata</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shards</span><span class="p">)</span>
 
     <span class="c1"># Validate shard files exist</span>
-    <span class="n">shard_info</span> <span class="o">=</span> <span class="n">writers</span><span class="o">.</span><span class="n">ShardInfo</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shard_root</span><span class="p">)</span>
+    <span class="n">shard_info</span> <span class="o">=</span> <span class="n">shards</span><span class="o">.</span><span class="n">ShardInfo</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shards</span><span class="p">)</span>
     <span class="k">for</span> <span class="n">shard</span> <span class="ow">in</span> <span class="n">shard_info</span><span class="p">:</span>
-        <span class="n">shard_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shard_root</span><span class="p">,</span> <span class="n">shard</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+        <span class="n">shard_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shards</span><span class="p">,</span> <span class="n">shard</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">shard_path</span><span class="p">):</span>
             <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Shard file not found: </span><span class="si">{</span><span class="n">shard_path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
     <span class="c1"># Check if labels.bin exists</span>
-    <span class="n">labels_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shard_root</span><span class="p">,</span> <span class="s2">&quot;labels.bin&quot;</span><span class="p">)</span>
+    <span class="n">labels_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shards</span><span class="p">,</span> <span class="s2">&quot;labels.bin&quot;</span><span class="p">)</span>
     <span class="bp">self</span><span class="o">.</span><span class="n">labels_mmap</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">labels_path</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">labels_mmap</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">memmap</span><span class="p">(</span>
@@ -1834,14 +1927,14 @@
 
 
 
-<h4 id="saev.data.Dataset.d_vit" class="doc doc-heading">
+<h3 id="saev.data.Dataset.d_vit" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">d_vit</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-property"><code>property</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -1858,11 +1951,11 @@
 
 
 
-<h4 id="saev.data.Dataset.Example" class="doc doc-heading">
+<h3 id="saev.data.Dataset.Example" class="doc doc-heading">
             <code>Example</code>
 
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -1905,10 +1998,10 @@
 <div class="doc doc-object doc-function">
 
 
-<h4 id="saev.data.Dataset.__len__" class="doc doc-heading">
+<h3 id="saev.data.Dataset.__len__" class="doc doc-heading">
             <code class="highlight language-python"><span class="fm">__len__</span><span class="p">()</span></code>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -1918,8 +2011,7 @@
 
             <details class="quote">
               <summary>Source code in <code>src/saev/data/indexed.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">185</span>
-<span class="normal">186</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">186</span>
 <span class="normal">187</span>
 <span class="normal">188</span>
 <span class="normal">189</span>
@@ -1940,7 +2032,8 @@
 <span class="normal">204</span>
 <span class="normal">205</span>
 <span class="normal">206</span>
-<span class="normal">207</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__len__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="normal">207</span>
+<span class="normal">208</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__len__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Dataset length depends on `patches` and `layer`.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -1981,14 +2074,14 @@
 
 
 
-<h3 id="saev.data.IndexedConfig" class="doc doc-heading">
-              <code class="highlight language-python"><span class="n">IndexedConfig</span><span class="p">(</span><span class="n">shard_root</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">,</span> <span class="s1">&#39;shards&#39;</span><span class="p">),</span> <span class="n">patches</span><span class="o">=</span><span class="s1">&#39;image&#39;</span><span class="p">,</span> <span class="n">layer</span><span class="o">=-</span><span class="mi">2</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">17</span><span class="p">,</span> <span class="n">debug</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></code>
+<h2 id="saev.data.IndexedConfig" class="doc doc-heading">
+              <code class="highlight language-python"><span class="n">IndexedConfig</span><span class="p">(</span><span class="n">shards</span><span class="o">=</span><span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="s1">&#39;./shards&#39;</span><span class="p">),</span> <span class="n">patches</span><span class="o">=</span><span class="s1">&#39;image&#39;</span><span class="p">,</span> <span class="n">layer</span><span class="o">=-</span><span class="mi">2</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">17</span><span class="p">,</span> <span class="n">debug</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
   </span>
 
-</h3>
+</h2>
 
 
     <div class="doc doc-contents ">
@@ -2008,9 +2101,9 @@
       </thead>
       <tbody>
           <tr class="doc-section-item">
-            <td><code><span title="saev.data.IndexedConfig.shard_root">shard_root</span></code></td>
+            <td><code><span title="saev.data.IndexedConfig.shards">shards</span></code></td>
             <td>
-                  <code><span title="str">str</span></code>
+                  <code><span title="pathlib.Path">Path</span></code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -2098,18 +2191,228 @@
 
 
 
-<h3 id="saev.data.Metadata" class="doc doc-heading">
-              <code class="highlight language-python"><span class="n">Metadata</span><span class="p">(</span><span class="n">vit_family</span><span class="p">,</span> <span class="n">vit_ckpt</span><span class="p">,</span> <span class="n">layers</span><span class="p">,</span> <span class="n">n_patches_per_img</span><span class="p">,</span> <span class="n">cls_token</span><span class="p">,</span> <span class="n">d_vit</span><span class="p">,</span> <span class="n">n_imgs</span><span class="p">,</span> <span class="n">max_patches_per_shard</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">pixel_agg</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;float32&#39;</span><span class="p">,</span> <span class="n">protocol</span><span class="o">=</span><span class="s1">&#39;1.1&#39;</span><span class="p">)</span></code>
+<h2 id="saev.data.Metadata" class="doc doc-heading">
+              <code class="highlight language-python"><span class="n">Metadata</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">family</span><span class="p">,</span> <span class="n">ckpt</span><span class="p">,</span> <span class="n">layers</span><span class="p">,</span> <span class="n">patches_per_ex</span><span class="p">,</span> <span class="n">cls_token</span><span class="p">,</span> <span class="n">d_model</span><span class="p">,</span> <span class="n">n_ex</span><span class="p">,</span> <span class="n">patches_per_shard</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">pixel_agg</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;float32&#39;</span><span class="p">,</span> <span class="n">protocol</span><span class="o">=</span><span class="s1">&#39;2.0&#39;</span><span class="p">)</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
   </span>
 
-</h3>
+</h2>
 
 
     <div class="doc doc-contents ">
 
+
+        <p>Metadata for a sharded set of transformer activations.</p>
+<p>Important: <code>patches_per_ex</code> refers only to image patches (excluding [CLS]). Use the <code>tokens_per_ex</code> property when calculating storage dimensions or tensor shapes, as it includes [CLS] if present.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>family</code>
+            </td>
+            <td>
+                  <code><span title="typing.Literal">Literal</span>[&#39;clip&#39;, &#39;siglip&#39;, &#39;dinov2&#39;, &#39;dinov3&#39;, &#39;fake-clip&#39;]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The transformer family.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>ckpt</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The transformer checkpoint.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>layers</code>
+            </td>
+            <td>
+                  <code><span title="tuple">tuple</span>[<span title="int">int</span>, ...]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Which layers were saved.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>patches_per_ex</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The number of patches (not including the [CLS] token) per example.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>cls_token</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Whether the transformer has a [CLS] token as well.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>d_model</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Model hidden dimension.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>n_ex</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Number of examples.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>patches_per_shard</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The maximum number of patches per shard.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>data</code>
+            </td>
+            <td>
+                  <code><span title="dict">dict</span>[<span title="str">str</span>, <span title="object">object</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A dictionary describing the original dataset.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>pixel_agg</code>
+            </td>
+            <td>
+                  <code><span title="typing.Literal">Literal</span>[&#39;majority&#39;, &#39;prefer-fg&#39;, None]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>(only for segmentation datasets) how the pixel-level segmentation labels were aggregated to patch-level labels.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>dtype</code>
+            </td>
+            <td>
+                  <code><span title="typing.Literal">Literal</span>[&#39;float32&#39;]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>How activations are stored.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;float32&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>protocol</code>
+            </td>
+            <td>
+                  <code><span title="typing.Literal">Literal</span>[&#39;1.0.0&#39;, &#39;1.1&#39;, &#39;2.0&#39;]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Protocol version.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;2.0&#39;</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
 
 
@@ -2133,19 +2436,19 @@
 
 
 
-<h4 id="saev.data.Metadata.n_imgs_per_shard" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">n_imgs_per_shard</span></code>
+<h3 id="saev.data.Metadata.ex_per_shard" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">ex_per_shard</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-property"><code>property</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
 
-        <p>Calculate the number of images per shard based on the protocol.</p>
+        <p>The number of examples per shard based on the protocol.</p>
 
 
     <p><span class="doc-section-title">Returns:</span></p>
@@ -2163,7 +2466,187 @@
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Number of images that fit in a shard.</p>
+                <p>Number of examples that fit in a shard.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="saev.data.Metadata.hash" class="doc doc-heading">
+            <code class="highlight language-python"><span class="nb">hash</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>SHA256 hash of the metadata configuration.</p>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Hexadecimal hash string uniquely identifying this configuration.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="saev.data.Metadata.n_shards" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">n_shards</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Total number of shards needed to store all examples.</p>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Number of shards required.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="saev.data.Metadata.shard_shape" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">shard_shape</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Shape of each shard file.</p>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="tuple">tuple</span>[<span title="int">int</span>, <span title="int">int</span>, <span title="int">int</span>, <span title="int">int</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Tuple of (examples_per_shard, n_layers, tokens_per_example, d_model).</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="saev.data.Metadata.tokens_per_ex" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">tokens_per_ex</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Total number of tokens per example including [CLS] token if present.</p>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Number of patches plus one if [CLS] token is included.</p>
               </div>
             </td>
           </tr>
@@ -2177,6 +2660,164 @@
 
 
 
+<div class="doc doc-object doc-function">
+
+
+<h3 id="saev.data.Metadata.dump" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">dump</span><span class="p">(</span><span class="n">shards_root</span><span class="p">)</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Dumps a Metadata object to a metadata.json file in shards_root / hash.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>shards_root</code>
+            </td>
+            <td>
+                  <code><span title="pathlib.Path">Path</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Path to $SAEV_SCRATCH/saev/shards as described in <a href="../../../developers/disk-layout/">disk-layout.md</a>.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+            <details class="quote">
+              <summary>Source code in <code>src/saev/data/shards.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">86</span>
+<span class="normal">87</span>
+<span class="normal">88</span>
+<span class="normal">89</span>
+<span class="normal">90</span>
+<span class="normal">91</span>
+<span class="normal">92</span>
+<span class="normal">93</span>
+<span class="normal">94</span>
+<span class="normal">95</span>
+<span class="normal">96</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">dump</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">shards_root</span><span class="p">:</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Dumps a Metadata object to a metadata.json file in shards_root / hash.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        shards_root: Path to $SAEV_SCRATCH/saev/shards as described in [disk-layout.md](../../developers/disk-layout.md).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">assert</span> <span class="n">disk</span><span class="o">.</span><span class="n">is_shards_root</span><span class="p">(</span><span class="n">shards_root</span><span class="p">)</span>
+    <span class="p">(</span><span class="n">shards_root</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">hash</span><span class="p">)</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">shards_root</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">hash</span> <span class="o">/</span> <span class="s2">&quot;metadata.json&quot;</span><span class="p">,</span> <span class="s2">&quot;w&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">fd</span><span class="p">:</span>
+        <span class="n">json</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">dataclasses</span><span class="o">.</span><span class="n">asdict</span><span class="p">(</span><span class="bp">self</span><span class="p">),</span> <span class="n">fd</span><span class="p">,</span> <span class="n">indent</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="saev.data.Metadata.load" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">load</span><span class="p">(</span><span class="n">shards_dir</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-classmethod"><code>classmethod</code></small>
+  </span>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Loads a Metadata object from a metadata.json file in shards_dir.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>shards_dir</code>
+            </td>
+            <td>
+                  <code><span title="pathlib.Path">Path</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Path to $SAEV_SCRATCH/saev/shards/<hash> as described in <a href="../../../developers/disk-layout/">disk-layout.md</a>.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+            <details class="quote">
+              <summary>Source code in <code>src/saev/data/shards.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">71</span>
+<span class="normal">72</span>
+<span class="normal">73</span>
+<span class="normal">74</span>
+<span class="normal">75</span>
+<span class="normal">76</span>
+<span class="normal">77</span>
+<span class="normal">78</span>
+<span class="normal">79</span>
+<span class="normal">80</span>
+<span class="normal">81</span>
+<span class="normal">82</span>
+<span class="normal">83</span>
+<span class="normal">84</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@classmethod</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">load</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">shards_dir</span><span class="p">:</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;Metadata&quot;</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Loads a Metadata object from a metadata.json file in shards_dir.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        shards_dir: Path to $SAEV_SCRATCH/saev/shards/&lt;hash&gt; as described in [disk-layout.md](../../developers/disk-layout.md).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">assert</span> <span class="n">disk</span><span class="o">.</span><span class="n">is_shards_dir</span><span class="p">(</span><span class="n">shards_dir</span><span class="p">)</span>
+
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">shards_dir</span> <span class="o">/</span> <span class="s2">&quot;metadata.json&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">fd</span><span class="p">:</span>
+        <span class="n">dct</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">fd</span><span class="p">)</span>
+    <span class="n">dct</span><span class="p">[</span><span class="s2">&quot;layers&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">dct</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;layers&quot;</span><span class="p">))</span>
+    <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="o">**</span><span class="n">dct</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
 
 
   </div>
@@ -2189,14 +2830,14 @@
 
 
 
-<h3 id="saev.data.OrderedConfig" class="doc doc-heading">
+<h2 id="saev.data.OrderedConfig" class="doc doc-heading">
               <code class="highlight language-python"><span class="n">OrderedConfig</span><span class="p">(</span><span class="n">shard_root</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">,</span> <span class="s1">&#39;shards&#39;</span><span class="p">),</span> <span class="n">patches</span><span class="o">=</span><span class="s1">&#39;image&#39;</span><span class="p">,</span> <span class="n">layer</span><span class="o">=-</span><span class="mi">2</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">1024</span> <span class="o">*</span> <span class="mi">16</span><span class="p">,</span> <span class="n">batch_timeout_s</span><span class="o">=</span><span class="mf">30.0</span><span class="p">,</span> <span class="n">drop_last</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">buffer_size</span><span class="o">=</span><span class="mi">64</span><span class="p">,</span> <span class="n">debug</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
   </span>
 
-</h3>
+</h2>
 
 
     <div class="doc doc-contents ">
@@ -2226,7 +2867,7 @@
 
 
 
-<h4 id="saev.data.OrderedConfig.batch_size" class="doc doc-heading">
+<h3 id="saev.data.OrderedConfig.batch_size" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">batch_size</span> <span class="o">=</span> <span class="mi">1024</span> <span class="o">*</span> <span class="mi">16</span></code>
 
   <span class="doc doc-labels">
@@ -2234,7 +2875,7 @@
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -2249,7 +2890,7 @@
 
 
 
-<h4 id="saev.data.OrderedConfig.batch_timeout_s" class="doc doc-heading">
+<h3 id="saev.data.OrderedConfig.batch_timeout_s" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">batch_timeout_s</span> <span class="o">=</span> <span class="mf">30.0</span></code>
 
   <span class="doc doc-labels">
@@ -2257,7 +2898,7 @@
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -2272,7 +2913,7 @@
 
 
 
-<h4 id="saev.data.OrderedConfig.buffer_size" class="doc doc-heading">
+<h3 id="saev.data.OrderedConfig.buffer_size" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">buffer_size</span> <span class="o">=</span> <span class="mi">64</span></code>
 
   <span class="doc doc-labels">
@@ -2280,7 +2921,7 @@
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -2295,7 +2936,7 @@
 
 
 
-<h4 id="saev.data.OrderedConfig.debug" class="doc doc-heading">
+<h3 id="saev.data.OrderedConfig.debug" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">debug</span> <span class="o">=</span> <span class="kc">False</span></code>
 
   <span class="doc doc-labels">
@@ -2303,7 +2944,7 @@
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -2318,7 +2959,7 @@
 
 
 
-<h4 id="saev.data.OrderedConfig.drop_last" class="doc doc-heading">
+<h3 id="saev.data.OrderedConfig.drop_last" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">drop_last</span> <span class="o">=</span> <span class="kc">False</span></code>
 
   <span class="doc doc-labels">
@@ -2326,7 +2967,7 @@
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -2341,7 +2982,7 @@
 
 
 
-<h4 id="saev.data.OrderedConfig.layer" class="doc doc-heading">
+<h3 id="saev.data.OrderedConfig.layer" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">layer</span> <span class="o">=</span> <span class="o">-</span><span class="mi">2</span></code>
 
   <span class="doc doc-labels">
@@ -2349,7 +2990,7 @@
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -2364,7 +3005,7 @@
 
 
 
-<h4 id="saev.data.OrderedConfig.patches" class="doc doc-heading">
+<h3 id="saev.data.OrderedConfig.patches" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">patches</span> <span class="o">=</span> <span class="s1">&#39;image&#39;</span></code>
 
   <span class="doc doc-labels">
@@ -2372,7 +3013,7 @@
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -2387,7 +3028,7 @@
 
 
 
-<h4 id="saev.data.OrderedConfig.shard_root" class="doc doc-heading">
+<h3 id="saev.data.OrderedConfig.shard_root" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">shard_root</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">,</span> <span class="s1">&#39;shards&#39;</span><span class="p">)</span></code>
 
   <span class="doc doc-labels">
@@ -2395,7 +3036,7 @@
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -2421,10 +3062,10 @@
 
 
 
-<h3 id="saev.data.OrderedDataLoader" class="doc doc-heading">
+<h2 id="saev.data.OrderedDataLoader" class="doc doc-heading">
               <code class="highlight language-python"><span class="n">OrderedDataLoader</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span></code>
 
-</h3>
+</h2>
 
 
     <div class="doc doc-contents ">
@@ -2470,10 +3111,10 @@
     <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shard_root</span><span class="p">):</span>
         <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Activations are not saved at &#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shard_root</span><span class="si">}</span><span class="s2">&#39;.&quot;</span><span class="p">)</span>
 
-    <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span> <span class="o">=</span> <span class="n">writers</span><span class="o">.</span><span class="n">Metadata</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shard_root</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span> <span class="o">=</span> <span class="n">shards</span><span class="o">.</span><span class="n">Metadata</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shard_root</span><span class="p">)</span>
 
     <span class="c1"># Validate shard files exist</span>
-    <span class="n">shard_info</span> <span class="o">=</span> <span class="n">writers</span><span class="o">.</span><span class="n">ShardInfo</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shard_root</span><span class="p">)</span>
+    <span class="n">shard_info</span> <span class="o">=</span> <span class="n">shards</span><span class="o">.</span><span class="n">ShardInfo</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shard_root</span><span class="p">)</span>
     <span class="k">for</span> <span class="n">shard</span> <span class="ow">in</span> <span class="n">shard_info</span><span class="p">:</span>
         <span class="n">shard_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shard_root</span><span class="p">,</span> <span class="n">shard</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">shard_path</span><span class="p">):</span>
@@ -2509,11 +3150,11 @@
 
 
 
-<h4 id="saev.data.OrderedDataLoader.ExampleBatch" class="doc doc-heading">
+<h3 id="saev.data.OrderedDataLoader.ExampleBatch" class="doc doc-heading">
             <code>ExampleBatch</code>
 
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -2556,10 +3197,10 @@
 <div class="doc doc-object doc-function">
 
 
-<h4 id="saev.data.OrderedDataLoader.__iter__" class="doc doc-heading">
+<h3 id="saev.data.OrderedDataLoader.__iter__" class="doc doc-heading">
             <code class="highlight language-python"><span class="fm">__iter__</span><span class="p">()</span></code>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -2663,10 +3304,10 @@
 <div class="doc doc-object doc-function">
 
 
-<h4 id="saev.data.OrderedDataLoader.__len__" class="doc doc-heading">
+<h3 id="saev.data.OrderedDataLoader.__len__" class="doc doc-heading">
             <code class="highlight language-python"><span class="fm">__len__</span><span class="p">()</span></code>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -2705,14 +3346,14 @@
 
 
 
-<h3 id="saev.data.ShuffledConfig" class="doc doc-heading">
+<h2 id="saev.data.ShuffledConfig" class="doc doc-heading">
               <code class="highlight language-python"><span class="n">ShuffledConfig</span><span class="p">(</span><span class="n">shard_root</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">,</span> <span class="s1">&#39;shards&#39;</span><span class="p">),</span> <span class="n">patches</span><span class="o">=</span><span class="s1">&#39;image&#39;</span><span class="p">,</span> <span class="n">layer</span><span class="o">=-</span><span class="mi">2</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">1024</span> <span class="o">*</span> <span class="mi">16</span><span class="p">,</span> <span class="n">drop_last</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">scale_norm</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">ignore_labels</span><span class="o">=</span><span class="nb">list</span><span class="p">(),</span> <span class="n">n_threads</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">buffer_size</span><span class="o">=</span><span class="mi">64</span><span class="p">,</span> <span class="n">batch_timeout_s</span><span class="o">=</span><span class="mf">30.0</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">17</span><span class="p">,</span> <span class="n">debug</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">log_every_s</span><span class="o">=</span><span class="mf">30.0</span><span class="p">)</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
   </span>
 
-</h3>
+</h2>
 
 
     <div class="doc doc-contents ">
@@ -2778,7 +3419,7 @@
 
 
 
-<h4 id="saev.data.ShuffledConfig.batch_size" class="doc doc-heading">
+<h3 id="saev.data.ShuffledConfig.batch_size" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">batch_size</span> <span class="o">=</span> <span class="mi">1024</span> <span class="o">*</span> <span class="mi">16</span></code>
 
   <span class="doc doc-labels">
@@ -2786,7 +3427,7 @@
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -2801,7 +3442,7 @@
 
 
 
-<h4 id="saev.data.ShuffledConfig.batch_timeout_s" class="doc doc-heading">
+<h3 id="saev.data.ShuffledConfig.batch_timeout_s" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">batch_timeout_s</span> <span class="o">=</span> <span class="mf">30.0</span></code>
 
   <span class="doc doc-labels">
@@ -2809,7 +3450,7 @@
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -2824,7 +3465,7 @@
 
 
 
-<h4 id="saev.data.ShuffledConfig.buffer_size" class="doc doc-heading">
+<h3 id="saev.data.ShuffledConfig.buffer_size" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">buffer_size</span> <span class="o">=</span> <span class="mi">64</span></code>
 
   <span class="doc doc-labels">
@@ -2832,7 +3473,7 @@
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -2847,7 +3488,7 @@
 
 
 
-<h4 id="saev.data.ShuffledConfig.debug" class="doc doc-heading">
+<h3 id="saev.data.ShuffledConfig.debug" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">debug</span> <span class="o">=</span> <span class="kc">False</span></code>
 
   <span class="doc doc-labels">
@@ -2855,7 +3496,7 @@
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -2870,7 +3511,7 @@
 
 
 
-<h4 id="saev.data.ShuffledConfig.drop_last" class="doc doc-heading">
+<h3 id="saev.data.ShuffledConfig.drop_last" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">drop_last</span> <span class="o">=</span> <span class="kc">False</span></code>
 
   <span class="doc doc-labels">
@@ -2878,7 +3519,7 @@
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -2893,7 +3534,7 @@
 
 
 
-<h4 id="saev.data.ShuffledConfig.ignore_labels" class="doc doc-heading">
+<h3 id="saev.data.ShuffledConfig.ignore_labels" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">ignore_labels</span> <span class="o">=</span> <span class="n">dataclasses</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">list</span><span class="p">)</span></code>
 
   <span class="doc doc-labels">
@@ -2901,7 +3542,7 @@
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -2916,7 +3557,7 @@
 
 
 
-<h4 id="saev.data.ShuffledConfig.layer" class="doc doc-heading">
+<h3 id="saev.data.ShuffledConfig.layer" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">layer</span> <span class="o">=</span> <span class="o">-</span><span class="mi">2</span></code>
 
   <span class="doc doc-labels">
@@ -2924,7 +3565,7 @@
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -2939,7 +3580,7 @@
 
 
 
-<h4 id="saev.data.ShuffledConfig.log_every_s" class="doc doc-heading">
+<h3 id="saev.data.ShuffledConfig.log_every_s" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">log_every_s</span> <span class="o">=</span> <span class="mf">30.0</span></code>
 
   <span class="doc doc-labels">
@@ -2947,7 +3588,7 @@
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -2962,7 +3603,7 @@
 
 
 
-<h4 id="saev.data.ShuffledConfig.n_threads" class="doc doc-heading">
+<h3 id="saev.data.ShuffledConfig.n_threads" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">n_threads</span> <span class="o">=</span> <span class="mi">4</span></code>
 
   <span class="doc doc-labels">
@@ -2970,7 +3611,7 @@
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -2985,7 +3626,7 @@
 
 
 
-<h4 id="saev.data.ShuffledConfig.scale_norm" class="doc doc-heading">
+<h3 id="saev.data.ShuffledConfig.scale_norm" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">scale_norm</span> <span class="o">=</span> <span class="kc">False</span></code>
 
   <span class="doc doc-labels">
@@ -2993,7 +3634,7 @@
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -3008,7 +3649,7 @@
 
 
 
-<h4 id="saev.data.ShuffledConfig.seed" class="doc doc-heading">
+<h3 id="saev.data.ShuffledConfig.seed" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">seed</span> <span class="o">=</span> <span class="mi">17</span></code>
 
   <span class="doc doc-labels">
@@ -3016,7 +3657,7 @@
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -3042,10 +3683,10 @@
 
 
 
-<h3 id="saev.data.ShuffledDataLoader" class="doc doc-heading">
+<h2 id="saev.data.ShuffledDataLoader" class="doc doc-heading">
               <code class="highlight language-python"><span class="n">ShuffledDataLoader</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span></code>
 
-</h3>
+</h2>
 
 
     <div class="doc doc-contents ">
@@ -3112,10 +3753,10 @@
     <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">scale_norm</span><span class="p">:</span>
         <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;scale_norm not implemented.&quot;</span><span class="p">)</span>
 
-    <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span> <span class="o">=</span> <span class="n">writers</span><span class="o">.</span><span class="n">Metadata</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shard_root</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span> <span class="o">=</span> <span class="n">shards</span><span class="o">.</span><span class="n">Metadata</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shard_root</span><span class="p">)</span>
 
     <span class="c1"># Validate shard files exist</span>
-    <span class="n">shard_info</span> <span class="o">=</span> <span class="n">writers</span><span class="o">.</span><span class="n">ShardInfo</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shard_root</span><span class="p">)</span>
+    <span class="n">shard_info</span> <span class="o">=</span> <span class="n">shards</span><span class="o">.</span><span class="n">ShardInfo</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shard_root</span><span class="p">)</span>
     <span class="k">for</span> <span class="n">shard</span> <span class="ow">in</span> <span class="n">shard_info</span><span class="p">:</span>
         <span class="n">shard_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shard_root</span><span class="p">,</span> <span class="n">shard</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">shard_path</span><span class="p">):</span>
@@ -3150,11 +3791,11 @@
 
 
 
-<h4 id="saev.data.ShuffledDataLoader.ExampleBatch" class="doc doc-heading">
+<h3 id="saev.data.ShuffledDataLoader.ExampleBatch" class="doc doc-heading">
             <code>ExampleBatch</code>
 
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -3197,10 +3838,10 @@
 <div class="doc doc-object doc-function">
 
 
-<h4 id="saev.data.ShuffledDataLoader.__iter__" class="doc doc-heading">
+<h3 id="saev.data.ShuffledDataLoader.__iter__" class="doc doc-heading">
             <code class="highlight language-python"><span class="fm">__iter__</span><span class="p">()</span></code>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -3304,10 +3945,10 @@
 <div class="doc doc-object doc-function">
 
 
-<h4 id="saev.data.ShuffledDataLoader.__len__" class="doc doc-heading">
+<h3 id="saev.data.ShuffledDataLoader.__len__" class="doc doc-heading">
             <code class="highlight language-python"><span class="fm">__len__</span><span class="p">()</span></code>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -3340,10 +3981,10 @@
 <div class="doc doc-object doc-function">
 
 
-<h3 id="saev.data.make_ordered_config" class="doc doc-heading">
+<h2 id="saev.data.make_ordered_config" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">make_ordered_config</span><span class="p">(</span><span class="n">shuffled_cfg</span><span class="p">,</span> <span class="o">**</span><span class="n">overrides</span><span class="p">)</span></code>
 
-</h3>
+</h2>
 
 
     <div class="doc doc-contents ">
@@ -3450,13 +4091,13 @@
         
         
           
-          <a href="../__main__/" class="md-footer__link md-footer__link--next" aria-label="Next: saev.data.main">
+          <a href="../buffers/" class="md-footer__link md-footer__link--next" aria-label="Next: saev.data.buffers">
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 Next
               </span>
               <div class="md-ellipsis">
-                saev.data.main
+                saev.data.buffers
               </div>
             </div>
             <div class="md-footer__button md-icon">

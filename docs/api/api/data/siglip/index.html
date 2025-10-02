@@ -430,6 +430,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -479,6 +483,52 @@
   
   <span class="md-ellipsis">
     Contributing
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../developers/protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Shard Protocol
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../developers/disk-layout/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Disk Layout
     
   </span>
   
@@ -655,29 +705,6 @@
   
   <span class="md-ellipsis">
     saev.data
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../__main__/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    saev.data.main
     
   </span>
   
@@ -902,6 +929,29 @@
   
   
     <li class="md-nav__item">
+      <a href="../shards/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.data.shards
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../shuffled/" class="md-nav__link">
         
   
@@ -977,10 +1027,9 @@
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="siglip">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
+</li>
+      
+        <li class="md-nav__item">
   <a href="#saev.data.siglip.Vit" class="md-nav__link">
     <span class="md-ellipsis">
       Vit
@@ -1005,11 +1054,6 @@
       make_transforms
     </span>
   </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
         
@@ -1057,12 +1101,12 @@
   
   
     <li class="md-nav__item">
-      <a href="../writers/" class="md-nav__link">
+      <a href="../../disk/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
-    saev.data.writers
+    saev.disk
     
   </span>
   
@@ -1309,12 +1353,7 @@
 
 
 
-<h2 id="saev.data.siglip" class="doc doc-heading">
-            <code>saev.data.siglip</code>
-
-
-</h2>
-
+<a id="saev.data.siglip"></a>
     <div class="doc doc-contents first">
 
 
@@ -1340,10 +1379,10 @@
 
 
 
-<h3 id="saev.data.siglip.Vit" class="doc doc-heading">
+<h2 id="saev.data.siglip.Vit" class="doc doc-heading">
               <code class="highlight language-python"><span class="n">Vit</span><span class="p">(</span><span class="n">ckpt</span><span class="p">)</span></code>
 
-</h3>
+</h2>
 
 
     <div class="doc doc-contents ">
@@ -1418,14 +1457,14 @@
 <div class="doc doc-object doc-function">
 
 
-<h4 id="saev.data.siglip.Vit.make_resize" class="doc doc-heading">
+<h3 id="saev.data.siglip.Vit.make_resize" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">make_resize</span><span class="p">(</span><span class="n">ckpt</span><span class="p">,</span> <span class="n">n_patches_per_img</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">resample</span><span class="o">=</span><span class="n">Image</span><span class="o">.</span><span class="n">LANCZOS</span><span class="p">)</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-staticmethod"><code>staticmethod</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -1479,14 +1518,14 @@
 <div class="doc doc-object doc-function">
 
 
-<h4 id="saev.data.siglip.Vit.make_transforms" class="doc doc-heading">
+<h3 id="saev.data.siglip.Vit.make_transforms" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">make_transforms</span><span class="p">(</span><span class="n">ckpt</span><span class="p">,</span> <span class="n">n_patches_per_img</span><span class="p">)</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-staticmethod"><code>staticmethod</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">

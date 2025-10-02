@@ -21,6 +21,7 @@ from jaxtyping import Float, UInt8, jaxtyped
 from PIL import Image
 from torch import Tensor
 
+from .. import disk
 from . import datasets
 
 logger = logging.getLogger(__name__)
@@ -29,6 +30,26 @@ logger = logging.getLogger(__name__)
 @beartype.beartype
 @dataclasses.dataclass(frozen=True, kw_only=True)
 class Metadata:
+    """
+    Metadata for a sharded set of transformer activations.
+
+    Important: `patches_per_ex` refers only to image patches (excluding [CLS]). Use the `tokens_per_ex` property when calculating storage dimensions or tensor shapes, as it includes [CLS] if present.
+
+    Args:
+        family: The transformer family.
+        ckpt: The transformer checkpoint.
+        layers: Which layers were saved.
+        patches_per_ex: The number of patches (not including the [CLS] token) per example.
+        cls_token: Whether the transformer has a [CLS] token as well.
+        d_model: Model hidden dimension.
+        n_ex: Number of examples.
+        patches_per_shard: The maximum number of patches per shard.
+        data: A dictionary describing the original dataset.
+        pixel_agg: (only for segmentation datasets) how the pixel-level segmentation labels were aggregated to patch-level labels.
+        dtype: How activations are stored.
+        protocol: Protocol version.
+    """
+
     family: tp.Literal["clip", "siglip", "dinov2", "dinov3", "fake-clip"]
     ckpt: str
     layers: tuple[int, ...]
@@ -40,7 +61,7 @@ class Metadata:
     data: dict[str, object]
     pixel_agg: tp.Literal["majority", "prefer-fg", None] = None
     dtype: tp.Literal["float32"] = "float32"
-    protocol: tp.Literal["1.0.0", "1.1"] = "1.1"
+    protocol: tp.Literal["1.0.0", "1.1", "2.0"] = "2.0"
 
     def __post_init__(self):
         # Check that at least one image per shard can fit.
@@ -48,54 +69,117 @@ class Metadata:
         assert self.ex_per_shard >= 1, msg
 
     @classmethod
-    def load(cls, shard_root: str) -> "Metadata":
-        with open(os.path.join(shard_root, "metadata.json")) as fd:
+    def load(cls, shards_dir: pathlib.Path) -> "Metadata":
+        """
+        Loads a Metadata object from a metadata.json file in shards_dir.
+
+        Args:
+            shards_dir: Path to $SAEV_SCRATCH/saev/shards/<hash> as described in [disk-layout.md](../../developers/disk-layout.md).
+        """
+        assert disk.is_shards_dir(shards_dir)
+
+        with open(shards_dir / "metadata.json") as fd:
             dct = json.load(fd)
         dct["layers"] = tuple(dct.pop("layers"))
         return cls(**dct)
 
-    def dump(self, shard_root: str):
-        with open(os.path.join(shard_root, "metadata.json"), "w") as fd:
+    def dump(self, shards_root: pathlib.Path):
+        """
+        Dumps a Metadata object to a metadata.json file in shards_root / hash.
+
+        Args:
+            shards_root: Path to $SAEV_SCRATCH/saev/shards as described in [disk-layout.md](../../developers/disk-layout.md).
+        """
+        assert disk.is_shards_root(shards_root)
+        (shards_root / self.hash).mkdir(exist_ok=True)
+        with open(shards_root / self.hash / "metadata.json", "w") as fd:
             json.dump(dataclasses.asdict(self), fd, indent=4)
 
     @property
     def hash(self) -> str:
+        """
+        SHA256 hash of the metadata configuration.
+
+        Returns:
+            Hexadecimal hash string uniquely identifying this configuration.
+        """
         cfg_bytes = json.dumps(
             dataclasses.asdict(self), sort_keys=True, separators=(",", ":")
         ).encode("utf-8")
         return hashlib.sha256(cfg_bytes).hexdigest()
 
     @property
-    def n_tokens_per_ex(self) -> int:
+    def tokens_per_ex(self) -> int:
+        """
+        Total number of tokens per example including [CLS] token if present.
+
+        Returns:
+            Number of patches plus one if [CLS] token is included.
+        """
         return self.patches_per_ex + int(self.cls_token)
 
     @property
     def n_shards(self) -> int:
+        """
+        Total number of shards needed to store all examples.
+
+        Returns:
+            Number of shards required.
+        """
         return math.ceil(self.n_ex / self.ex_per_shard)
 
     @property
     def ex_per_shard(self) -> int:
         """
-        Calculate the number of images per shard based on the protocol.
+        The number of examples per shard based on the protocol.
 
         Returns:
-            Number of images that fit in a shard.
+            Number of examples that fit in a shard.
         """
-        n_tokens_per_ex = self.patches_per_ex + (1 if self.cls_token else 0)
-        return self.patches_per_shard // (n_tokens_per_ex * len(self.layers))
+        return self.patches_per_shard // (self.tokens_per_ex * len(self.layers))
 
     @property
     def shard_shape(self) -> tuple[int, int, int, int]:
+        """
+        Shape of each shard file.
+
+        Returns:
+            Tuple of (examples_per_shard, n_layers, tokens_per_example, d_model).
+        """
         return (
             self.ex_per_shard,
             len(self.layers),
-            self.n_tokens_per_ex,
+            self.tokens_per_ex,
             self.d_model,
         )
 
 
 @jaxtyped(typechecker=beartype.beartype)
 class RecordedTransformer(torch.nn.Module):
+    """
+    A wrapper around a transformer model that records intermediate layer activations during forward passes.
+
+    Args:
+        model: The transformer model to wrap.
+        patches_per_ex: Number of patches (excluding [CLS] token) per example.
+        cls_token: Whether to record the [CLS] token in addition to image patches.
+        layers: Which transformer layers to record activations from.
+
+    Attributes:
+        model: The wrapped transformer model.
+        patches_per_ex: Number of patches per example (excluding [CLS] token).
+        cls_token: Whether the [CLS] token is included in recorded activations.
+        layers: Tuple of layer indices being recorded.
+        patches: Patch indices to extract from model outputs.
+        logger: Logger instance for this recorder.
+    """
+
+    model: torch.nn.Module
+    patches_per_ex: int
+    cls_token: bool
+    layers: Sequence[int]
+    patches: slice
+
     _storage: Float[Tensor, "batch n_layers all_patches dim"] | None
     _i: int
 
@@ -146,17 +230,22 @@ class RecordedTransformer(torch.nn.Module):
             # Model has CLS token but we don't want to store it - skip first token
             selected_output = selected_output[:, 1:, :]
 
+        # Verify we're storing the right number of tokens (patches + cls if enabled)
+        expected_tokens = self.patches_per_ex + (1 if self.cls_token else 0)
+        assert selected_output.shape[1] == expected_tokens, (
+            f"Shape mismatch: got {selected_output.shape[1]} tokens, "
+            f"expected {expected_tokens} (patches_per_ex={self.patches_per_ex}, cls_token={self.cls_token})"
+        )
+
         self._storage[:, self._i] = selected_output.detach()
         self._i += 1
 
     def _empty_storage(self, batch: int, dim: int, device: torch.device):
-        patches_per_ex = self.patches_per_ex
+        total_tokens = self.patches_per_ex
         if self.cls_token:
-            patches_per_ex += 1
+            total_tokens += 1
 
-        return torch.zeros(
-            (batch, len(self.layers), patches_per_ex, dim), device=device
-        )
+        return torch.zeros((batch, len(self.layers), total_tokens, dim), device=device)
 
     def reset(self):
         self._i = 0
@@ -183,26 +272,36 @@ class RecordedTransformer(torch.nn.Module):
 class LabelsWriter:
     """
     LabelsWriter handles writing patch-level segmentation labels to a single binary file.
+
+    Args:
+        shards_dir: The shard directory; $SAEV_SCRATCH/saev/shards/<hash>
+        patches_per_ex: Number of patches per example.
+        n_ex: Number of examples.
+
+    Attributes:
+        labels: The integer patch labels.
+        labels_path: Where the integer patch labels are stored.
+        patches_per_ex: Number of patches per example.
+        n_ex: Number of examples.
+        has_written: Whether we have written any data to `self.labels`.
     """
 
-    labels: UInt8[np.ndarray, "n_ex n_patches"] | None
-    labels_path: str
+    labels: UInt8[np.ndarray, "n_ex n_patches"]
+    labels_path: pathlib.Path
     patches_per_ex: int
     n_ex: int
-    current_idx: int
     has_written: bool
 
-    def __init__(self, root: pathlib.Path, *, patches_per_ex: int, n_ex: int):
+    def __init__(self, shards_dir: pathlib.Path, *, patches_per_ex: int, n_ex: int):
+        assert disk.is_shards_dir(shards_dir)
         self.logger = logging.getLogger("labels-writer")
-        self.root = root
         self.patches_per_ex = patches_per_ex
         self.n_ex = n_ex
         self.has_written = False
-        self.current_idx = 0
 
         # Always create memory-mapped file for labels
         # If nothing is written, it will be deleted in flush()
-        self.labels_path = os.path.join(self.root, "labels.bin")
+        self.labels_path = shards_dir / "labels.bin"
         self.labels = np.memmap(
             self.labels_path,
             mode="w+",
@@ -230,12 +329,11 @@ class LabelsWriter:
         assert batch_labels.dtype == np.uint8
 
         self.labels[start_idx : start_idx + batch_size] = batch_labels
-        self.current_idx = start_idx + batch_size
         self.has_written = True
 
     def flush(self) -> None:
         """Flush the memory-mapped file to disk if anything was written."""
-        if self.labels is not None and self.has_written:
+        if self.has_written:
             self.labels.flush()
             self.logger.info("Flushed labels to '%s'.", self.labels_path)
 
@@ -244,20 +342,37 @@ class LabelsWriter:
 class ShardWriter:
     """
     ShardWriter is a stateful object that handles sharded activation writing to disk.
+
+    Args:
+        shards_root: The $SAEV_SCRATCH/saev/shards path.
+        md: The Metadata object for these shards.
+
+    Attributes:
+        shards: The  $SAEV_SCRATCH/saev/shards/<hash>.
+        shape:
+        shard:
+        acts_path:
+        acts:
+        filled:
+        labels_writer: The LabelsWriter writer.
     """
 
-    root: str
+    shards: pathlib.Path
     shape: tuple[int, int, int, int]
     shard: int
-    acts_path: str
+    acts_path: pathlib.Path
     acts: Float[np.ndarray, "ex_per_shard n_layers all_patches d_model"] | None
     filled: int
     labels_writer: LabelsWriter
 
-    def __init__(self, root: pathlib.Path, md: Metadata):
+    def __init__(self, shards_root: pathlib.Path, md: Metadata):
+        assert disk.is_shards_root(shards_root)
+
         self.logger = logging.getLogger("shard-writer")
 
-        self.root = root
+        self.shards_dir = shards_root / md.hash
+        self.shards_dir.mkdir(exist_ok=True)
+
         patches_per_ex = md.patches_per_ex
         if md.cls_token:
             patches_per_ex += 1
@@ -270,7 +385,7 @@ class ShardWriter:
 
         # Always initialize labels writer (it handles non-seg datasets internally)
         self.labels_writer = LabelsWriter(
-            root, patches_per_ex=patches_per_ex, n_ex=md.n_ex
+            self.shards_dir, patches_per_ex=patches_per_ex, n_ex=md.n_ex
         )
 
         self.shard = -1
@@ -283,7 +398,7 @@ class ShardWriter:
         start_idx: int,
         patch_labels: UInt8[Tensor, "batch n_patches"] | None = None,
     ) -> None:
-        """Write a batch of activations and optionally patch labels.
+        """Write a batch of activations and (optionally) patch labels.
 
         Args:
             activations: Batch of activations to write.
@@ -353,7 +468,7 @@ class ShardWriter:
             self._shards.append(
                 Shard(name=os.path.basename(self.acts_path), n_ex=self.filled)
             )
-            self._shards.dump(self.root)
+            self._shards.dump(self.shards_dir)
 
         self.acts = None
 
@@ -381,7 +496,7 @@ class ShardWriter:
 
         self.shard += 1
         self._count = 0
-        self.acts_path = os.path.join(self.root, f"acts{self.shard:06}.bin")
+        self.acts_path = self.shards_dir / f"acts{self.shard:06}.bin"
         self.acts = np.memmap(
             self.acts_path, mode="w+", dtype=np.float32, shape=self.shape
         )
@@ -394,7 +509,11 @@ class ShardWriter:
 @dataclasses.dataclass(frozen=True)
 class Shard:
     """
-    A single shard entry in shards.json, recording the filename and number of images.
+    A single shard entry in shards.json, recording the filename and number of examples.
+
+    Attributes:
+        name: The filename of the shard (e.g., "acts000000.bin").
+        n_ex: Number of examples stored in this shard.
     """
 
     name: str
@@ -405,19 +524,25 @@ class Shard:
 @dataclasses.dataclass(frozen=True)
 class ShardInfo:
     """
-    A read-only container for shard metadata as recorded in shards.json.
+    A container for shard metadata as recorded in shards.json.
+
+    Args:
+        shards: A list of Shard objects.
     """
 
     shards: list[Shard] = dataclasses.field(default_factory=list)
 
     @classmethod
-    def load(cls, shard_path: str) -> "ShardInfo":
-        with open(os.path.join(shard_path, "shards.json")) as fd:
+    def load(cls, shards_dir: pathlib.Path) -> "ShardInfo":
+        assert disk.is_shards_dir(shards_dir)
+        with open(shards_dir / "shards.json") as fd:
             data = json.load(fd)
+
         return cls([Shard(**entry) for entry in data])
 
-    def dump(self, fpath: str) -> None:
-        with open(os.path.join(fpath, "shards.json"), "w") as fd:
+    def dump(self, shards_dir: pathlib.Path) -> None:
+        assert disk.is_shards_dir(shards_dir)
+        with open(shards_dir / "shards.json", "w") as fd:
             json.dump([dataclasses.asdict(s) for s in self.shards], fd, indent=2)
 
     def append(self, shard: Shard):
@@ -446,10 +571,10 @@ def worker_fn(
     batch_size: int,
     n_workers: int,
     patches_per_shard: int,
-    pixel_agg: tp.Literal["majority", "prefer-fg", None],
     shards_root: pathlib.Path,
     device: str,
-):
+    pixel_agg: tp.Literal["majority", "prefer-fg", None] = None,
+) -> pathlib.Path:
     """
     Args:
         family: Transformer family (dinov2, dinov3, clip, etc).
@@ -465,6 +590,9 @@ def worker_fn(
         pixel_agg: Optional method for aggregating segmentation label pixels.
         shards_root: Where to save shards. Should end with 'shards'. See [disk-layout.md](../../developers/disk-layout.md); this is $SAEV_SCRATCH/saev/shards.
         device: Device for doing the computation.
+
+    Returns:
+        Path to the shard root.
     """
     from saev import helpers
     from saev.data import models
@@ -484,6 +612,8 @@ def worker_fn(
     if device == "cuda" and not torch.cuda.is_available():
         logger.warning("No CUDA device available, using CPU.")
         device = "cpu"
+
+    assert shards_root.name == "shards"
 
     md = Metadata(
         family=family,
@@ -507,8 +637,6 @@ def worker_fn(
     if datasets.is_seg_dataset(data):
         # For segmentation datasets, create a transform that converts pixels to patches
         # Use make_resize with NEAREST interpolation for segmentation masks
-        from PIL import Image
-
         seg_resize_tr = model_cls.make_resize(
             ckpt, patches_per_ex, scale=1.0, resample=Image.NEAREST
         )
@@ -541,11 +669,10 @@ def worker_fn(
 
     model = model.to(device)
 
-    (shards_root / md.hash).mkdir(exist_ok=True)
-    md.dump(shards_root / md.hash)
+    md.dump(shards_root)
 
     # Use context manager for proper cleanup
-    with ShardWriter(shards_root / md.hash, md) as writer:
+    with ShardWriter(shards_root, md) as writer:
         i = 0
         # Calculate and write transformer activations.
         with torch.inference_mode():
@@ -577,6 +704,8 @@ def worker_fn(
                 writer.write_batch(cache, i, patch_labels=patch_labels)
 
                 i += len(cache)
+
+    return shards_root / md.hash
 
 
 @beartype.beartype

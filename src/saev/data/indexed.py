@@ -1,6 +1,7 @@
 import dataclasses
 import logging
 import os
+import pathlib
 import typing
 
 import beartype
@@ -20,14 +21,14 @@ class Config:
     """Configuration for loading indexed activation data from disk
 
     Attributes:
-        shard_root: Directory with .bin shards and a metadata.json file.
+        shards: Directory with .bin shards and a metadata.json file.
         patches: Which kinds of patches to use. 'cls' indicates just the [CLS] token (if any). 'image' indicates it will return image patches. 'all' returns all patches.
         layer: Which ViT layer(s) to read from disk. ``-2`` selects the second-to-last layer. ``"all"`` enumerates every recorded layer.
         seed: Random seed.
         debug: Whether the dataloader process should log debug messages.
     """
 
-    shard_root: str = os.path.join(".", "shards")
+    shards: pathlib.Path = pathlib.Path("./shards")
     patches: typing.Literal["cls", "image", "all"] = "image"
     layer: int | typing.Literal["all"] = -2
     seed: int = 17
@@ -59,20 +60,20 @@ class Dataset(torch.utils.data.Dataset):
 
     def __init__(self, cfg: Config):
         self.cfg = cfg
-        if not os.path.isdir(self.cfg.shard_root):
-            raise RuntimeError(f"Activations are not saved at '{self.cfg.shard_root}'.")
+        if not os.path.isdir(self.cfg.shards):
+            raise RuntimeError(f"Activations are not saved at '{self.cfg.shards}'.")
 
-        self.metadata = shards.Metadata.load(self.cfg.shard_root)
+        self.metadata = shards.Metadata.load(self.cfg.shards)
 
         # Validate shard files exist
-        shard_info = shards.ShardInfo.load(self.cfg.shard_root)
+        shard_info = shards.ShardInfo.load(self.cfg.shards)
         for shard in shard_info:
-            shard_path = os.path.join(self.cfg.shard_root, shard.name)
+            shard_path = os.path.join(self.cfg.shards, shard.name)
             if not os.path.exists(shard_path):
                 raise FileNotFoundError(f"Shard file not found: {shard_path}")
 
         # Check if labels.bin exists
-        labels_path = os.path.join(self.cfg.shard_root, "labels.bin")
+        labels_path = os.path.join(self.cfg.shards, "labels.bin")
         self.labels_mmap = None
         if os.path.exists(labels_path):
             self.labels_mmap = np.memmap(
@@ -131,7 +132,7 @@ class Dataset(torch.utils.data.Dataset):
                 shard = image_i // n_imgs_per_shard
                 img_pos_in_shard = image_i % n_imgs_per_shard
 
-                acts_fpath = os.path.join(self.cfg.shard_root, f"acts{shard:06}.bin")
+                acts_fpath = os.path.join(self.cfg.shards, f"acts{shard:06}.bin")
                 shape = (
                     n_imgs_per_shard,
                     len(self.metadata.layers),
@@ -171,7 +172,7 @@ class Dataset(torch.utils.data.Dataset):
         )
         shard = i // n_imgs_per_shard
         pos = i % n_imgs_per_shard
-        acts_fpath = os.path.join(self.cfg.shard_root, f"acts{shard:06}.bin")
+        acts_fpath = os.path.join(self.cfg.shards, f"acts{shard:06}.bin")
         shape = (
             n_imgs_per_shard,
             len(self.metadata.layers),

@@ -14,7 +14,7 @@
         <link rel="prev" href="../siglip/">
       
       
-        <link rel="next" href="../writers/">
+        <link rel="next" href="../../disk/">
       
       
       <link rel="icon" href="../../../assets/images/favicon.png">
@@ -430,6 +430,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -479,6 +483,52 @@
   
   <span class="md-ellipsis">
     Contributing
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../developers/protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Shard Protocol
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../developers/disk-layout/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Disk Layout
     
   </span>
   
@@ -655,29 +705,6 @@
   
   <span class="md-ellipsis">
     saev.data
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../__main__/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    saev.data.main
     
   </span>
   
@@ -902,6 +929,29 @@
   
   
     <li class="md-nav__item">
+      <a href="../shards/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.data.shards
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../shuffled/" class="md-nav__link">
         
   
@@ -1000,10 +1050,9 @@
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="transforms">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
+</li>
+      
+        <li class="md-nav__item">
   <a href="#saev.data.transforms.conv2d_to_tokens" class="md-nav__link">
     <span class="md-ellipsis">
       conv2d_to_tokens
@@ -1011,8 +1060,8 @@
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#saev.data.transforms.resize_to_patch_grid" class="md-nav__link">
     <span class="md-ellipsis">
       resize_to_patch_grid
@@ -1020,18 +1069,13 @@
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#saev.data.transforms.unfolded_conv2d" class="md-nav__link">
     <span class="md-ellipsis">
       unfolded_conv2d
     </span>
   </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
@@ -1051,12 +1095,12 @@
   
   
     <li class="md-nav__item">
-      <a href="../writers/" class="md-nav__link">
+      <a href="../../disk/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
-    saev.data.writers
+    saev.disk
     
   </span>
   
@@ -1303,12 +1347,7 @@
 
 
 
-<h2 id="saev.data.transforms" class="doc doc-heading">
-            <code>saev.data.transforms</code>
-
-
-</h2>
-
+<a id="saev.data.transforms"></a>
     <div class="doc doc-contents first">
 
 
@@ -1334,10 +1373,10 @@
 <div class="doc doc-object doc-function">
 
 
-<h3 id="saev.data.transforms.conv2d_to_tokens" class="doc doc-heading">
+<h2 id="saev.data.transforms.conv2d_to_tokens" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">conv2d_to_tokens</span><span class="p">(</span><span class="n">x_bchw</span><span class="p">,</span> <span class="n">conv</span><span class="p">)</span></code>
 
-</h3>
+</h2>
 
 
     <div class="doc doc-contents ">
@@ -1369,10 +1408,10 @@
 <div class="doc doc-object doc-function">
 
 
-<h3 id="saev.data.transforms.resize_to_patch_grid" class="doc doc-heading">
+<h2 id="saev.data.transforms.resize_to_patch_grid" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">resize_to_patch_grid</span><span class="p">(</span><span class="n">img</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="n">resample</span><span class="o">=</span><span class="n">Image</span><span class="o">.</span><span class="n">LANCZOS</span><span class="p">)</span></code>
 
-</h3>
+</h2>
 
 
     <div class="doc doc-contents ">
@@ -1473,10 +1512,10 @@
 <div class="doc doc-object doc-function">
 
 
-<h3 id="saev.data.transforms.unfolded_conv2d" class="doc doc-heading">
+<h2 id="saev.data.transforms.unfolded_conv2d" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">unfolded_conv2d</span><span class="p">(</span><span class="n">x_bchw</span><span class="p">,</span> <span class="n">conv</span><span class="p">)</span></code>
 
-</h3>
+</h2>
 
 
     <div class="doc doc-contents ">
@@ -1609,13 +1648,13 @@ Requires: stride == kernel_size, padding == 0, groups == 1, dilation == 1.</p>
         
         
           
-          <a href="../writers/" class="md-footer__link md-footer__link--next" aria-label="Next: saev.data.writers">
+          <a href="../../disk/" class="md-footer__link md-footer__link--next" aria-label="Next: saev.disk">
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 Next
               </span>
               <div class="md-ellipsis">
-                saev.data.writers
+                saev.disk
               </div>
             </div>
             <div class="md-footer__button md-icon">

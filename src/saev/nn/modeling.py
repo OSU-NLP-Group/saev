@@ -44,7 +44,7 @@ ActivationConfig = Relu | TopK | BatchTopK
 @beartype.beartype
 @dataclasses.dataclass(frozen=True)
 class SparseAutoencoderConfig:
-    d_vit: int = 1024
+    d_model: int = 1024
     exp_factor: int = 16
     """Expansion factor for SAE."""
     n_reinit_samples: int = 1024 * 16 * 32
@@ -59,7 +59,7 @@ class SparseAutoencoderConfig:
 
     @property
     def d_sae(self) -> int:
-        return self.d_vit * self.exp_factor
+        return self.d_model * self.exp_factor
 
 
 @jaxtyped(typechecker=beartype.beartype)
@@ -75,14 +75,14 @@ class SparseAutoencoder(torch.nn.Module):
         self.logger = logging.getLogger(f"sae(seed={cfg.seed})")
 
         self.W_enc = torch.nn.Parameter(
-            torch.nn.init.kaiming_uniform_(torch.empty(cfg.d_vit, cfg.d_sae))
+            torch.nn.init.kaiming_uniform_(torch.empty(cfg.d_model, cfg.d_sae))
         )
         self.b_enc = torch.nn.Parameter(torch.zeros(cfg.d_sae))
 
         self.W_dec = torch.nn.Parameter(
-            torch.nn.init.kaiming_uniform_(torch.empty(cfg.d_sae, cfg.d_vit))
+            torch.nn.init.kaiming_uniform_(torch.empty(cfg.d_sae, cfg.d_model))
         )
-        self.b_dec = torch.nn.Parameter(torch.zeros(cfg.d_vit))
+        self.b_dec = torch.nn.Parameter(torch.zeros(cfg.d_model))
 
         self.normalize_w_dec()
 
@@ -95,7 +95,7 @@ class SparseAutoencoder(torch.nn.Module):
         Given x, calculates the reconstructed x_hat and the intermediate activations f_x.
 
         Arguments:
-            x: a batch of ViT activations.
+            x: a batch of transformer activations.
         """
         f_x = self.encode(x)
         x_hat = self.decode(f_x)
@@ -104,7 +104,7 @@ class SparseAutoencoder(torch.nn.Module):
 
     def encode(self, x: Float[Tensor, "batch d_model"]) -> Float[Tensor, "batch d_sae"]:
         h_pre = (
-            einops.einsum(x, self.W_enc, "... d_vit, d_vit d_sae -> ... d_sae")
+            einops.einsum(x, self.W_enc, "... d_model, d_model d_sae -> ... d_sae")
             + self.b_enc
         )
         f_x = self.activation(h_pre)
@@ -150,12 +150,12 @@ class SparseAutoencoder(torch.nn.Module):
             block_f_x = f_x[:, start:end]
             block_W_dec = self.W_dec[start:end, :]
 
-            # Compute block output: (batch, d_sae_block) @ (d_sae_block, d_vit) -> (batch, d_vit)
-            # Note: W_dec is (d_sae, d_vit), so block_W_dec is (block_size, d_vit)
+            # Compute block output: (batch, d_sae_block) @ (d_sae_block, d_model) -> (batch, d_model)
+            # Note: W_dec is (d_sae, d_model), so block_W_dec is (block_size, d_model)
             block_output = einops.einsum(
                 block_f_x,
                 block_W_dec,
-                "... d_sae_block, d_sae_block d_vit -> ... d_vit",
+                "... d_sae_block, d_sae_block d_model -> ... d_model",
             )
 
             # Add bias only to the first block
@@ -181,7 +181,7 @@ class SparseAutoencoder(torch.nn.Module):
     def remove_parallel_grads(self):
         """
         Update grads so that they remove the parallel component
-            (d_sae, d_vit) shape
+            (d_sae, d_model) shape
         """
         if not self.cfg.remove_parallel_grads:
             return
@@ -189,13 +189,13 @@ class SparseAutoencoder(torch.nn.Module):
         parallel_component = einops.einsum(
             self.W_dec.grad,
             self.W_dec.data,
-            "d_sae d_vit, d_sae d_vit -> d_sae",
+            "d_sae d_model, d_sae d_model -> d_sae",
         )
 
         self.W_dec.grad -= einops.einsum(
             parallel_component,
             self.W_dec.data,
-            "d_sae, d_sae d_vit -> d_sae d_vit",
+            "d_sae, d_sae d_model -> d_sae d_model",
         )
 
 

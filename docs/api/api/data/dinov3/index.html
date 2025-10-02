@@ -430,6 +430,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -479,6 +483,52 @@
   
   <span class="md-ellipsis">
     Contributing
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../developers/protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Shard Protocol
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../developers/disk-layout/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Disk Layout
     
   </span>
   
@@ -672,29 +722,6 @@
   
   
     <li class="md-nav__item">
-      <a href="../__main__/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    saev.data.main
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
       <a href="../buffers/" class="md-nav__link">
         
   
@@ -839,10 +866,9 @@
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="dinov3">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
+</li>
+      
+        <li class="md-nav__item">
   <a href="#saev.data.dinov3.Config" class="md-nav__link">
     <span class="md-ellipsis">
       Config
@@ -1036,8 +1062,8 @@
     </nav>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#saev.data.dinov3.PatchEmbed" class="md-nav__link">
     <span class="md-ellipsis">
       PatchEmbed
@@ -1045,8 +1071,8 @@
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#saev.data.dinov3.Vit" class="md-nav__link">
     <span class="md-ellipsis">
       Vit
@@ -1071,11 +1097,6 @@
       make_transforms
     </span>
   </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
         
@@ -1192,6 +1213,29 @@
   
   
     <li class="md-nav__item">
+      <a href="../shards/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.data.shards
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../shuffled/" class="md-nav__link">
         
   
@@ -1261,12 +1305,12 @@
   
   
     <li class="md-nav__item">
-      <a href="../writers/" class="md-nav__link">
+      <a href="../../disk/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
-    saev.data.writers
+    saev.disk
     
   </span>
   
@@ -1513,12 +1557,7 @@
 
 
 
-<h2 id="saev.data.dinov3" class="doc doc-heading">
-            <code>saev.data.dinov3</code>
-
-
-</h2>
-
+<a id="saev.data.dinov3"></a>
     <div class="doc doc-contents first">
 
 
@@ -1544,14 +1583,14 @@
 
 
 
-<h3 id="saev.data.dinov3.Config" class="doc doc-heading">
+<h2 id="saev.data.dinov3.Config" class="doc doc-heading">
               <code class="highlight language-python"><span class="n">Config</span><span class="p">(</span><span class="n">img_size</span><span class="o">=</span><span class="mi">224</span><span class="p">,</span> <span class="n">patch_size</span><span class="o">=</span><span class="mi">16</span><span class="p">,</span> <span class="n">in_chans</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">pos_embed_rope_base</span><span class="o">=</span><span class="mf">100.0</span><span class="p">,</span> <span class="n">pos_embed_rope_min_period</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">pos_embed_rope_max_period</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">pos_embed_rope_normalize_coords</span><span class="o">=</span><span class="s1">&#39;separate&#39;</span><span class="p">,</span> <span class="n">pos_embed_rope_dtype</span><span class="o">=</span><span class="s1">&#39;bf16&#39;</span><span class="p">,</span> <span class="n">embed_dim</span><span class="o">=</span><span class="mi">768</span><span class="p">,</span> <span class="n">depth</span><span class="o">=</span><span class="mi">12</span><span class="p">,</span> <span class="n">num_heads</span><span class="o">=</span><span class="mi">12</span><span class="p">,</span> <span class="n">ffn_ratio</span><span class="o">=</span><span class="mf">4.0</span><span class="p">,</span> <span class="n">qkv_bias</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">ffn_layer</span><span class="o">=</span><span class="s1">&#39;mlp&#39;</span><span class="p">,</span> <span class="n">ffn_bias</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">proj_bias</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">n_storage_tokens</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">mask_k_bias</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">untie_global_and_local_cls_norm</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
   </span>
 
-</h3>
+</h2>
 
 
     <div class="doc doc-contents ">
@@ -1579,7 +1618,7 @@
 
 
 
-<h4 id="saev.data.dinov3.Config.depth" class="doc doc-heading">
+<h3 id="saev.data.dinov3.Config.depth" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">depth</span> <span class="o">=</span> <span class="mi">12</span></code>
 
   <span class="doc doc-labels">
@@ -1587,7 +1626,7 @@
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -1602,7 +1641,7 @@
 
 
 
-<h4 id="saev.data.dinov3.Config.device" class="doc doc-heading">
+<h3 id="saev.data.dinov3.Config.device" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">device</span> <span class="o">=</span> <span class="kc">None</span></code>
 
   <span class="doc doc-labels">
@@ -1610,7 +1649,7 @@
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -1625,7 +1664,7 @@
 
 
 
-<h4 id="saev.data.dinov3.Config.embed_dim" class="doc doc-heading">
+<h3 id="saev.data.dinov3.Config.embed_dim" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">embed_dim</span> <span class="o">=</span> <span class="mi">768</span></code>
 
   <span class="doc doc-labels">
@@ -1633,7 +1672,7 @@
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -1648,7 +1687,7 @@
 
 
 
-<h4 id="saev.data.dinov3.Config.ffn_bias" class="doc doc-heading">
+<h3 id="saev.data.dinov3.Config.ffn_bias" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">ffn_bias</span> <span class="o">=</span> <span class="kc">True</span></code>
 
   <span class="doc doc-labels">
@@ -1656,7 +1695,7 @@
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -1671,7 +1710,7 @@
 
 
 
-<h4 id="saev.data.dinov3.Config.ffn_layer" class="doc doc-heading">
+<h3 id="saev.data.dinov3.Config.ffn_layer" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">ffn_layer</span> <span class="o">=</span> <span class="s1">&#39;mlp&#39;</span></code>
 
   <span class="doc doc-labels">
@@ -1679,7 +1718,7 @@
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -1694,7 +1733,7 @@
 
 
 
-<h4 id="saev.data.dinov3.Config.ffn_ratio" class="doc doc-heading">
+<h3 id="saev.data.dinov3.Config.ffn_ratio" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">ffn_ratio</span> <span class="o">=</span> <span class="mf">4.0</span></code>
 
   <span class="doc doc-labels">
@@ -1702,7 +1741,7 @@
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -1717,7 +1756,7 @@
 
 
 
-<h4 id="saev.data.dinov3.Config.img_size" class="doc doc-heading">
+<h3 id="saev.data.dinov3.Config.img_size" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">img_size</span> <span class="o">=</span> <span class="mi">224</span></code>
 
   <span class="doc doc-labels">
@@ -1725,7 +1764,7 @@
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -1740,7 +1779,7 @@
 
 
 
-<h4 id="saev.data.dinov3.Config.in_chans" class="doc doc-heading">
+<h3 id="saev.data.dinov3.Config.in_chans" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">in_chans</span> <span class="o">=</span> <span class="mi">3</span></code>
 
   <span class="doc doc-labels">
@@ -1748,7 +1787,7 @@
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -1763,7 +1802,7 @@
 
 
 
-<h4 id="saev.data.dinov3.Config.mask_k_bias" class="doc doc-heading">
+<h3 id="saev.data.dinov3.Config.mask_k_bias" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">mask_k_bias</span> <span class="o">=</span> <span class="kc">False</span></code>
 
   <span class="doc doc-labels">
@@ -1771,7 +1810,7 @@
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -1786,7 +1825,7 @@
 
 
 
-<h4 id="saev.data.dinov3.Config.n_storage_tokens" class="doc doc-heading">
+<h3 id="saev.data.dinov3.Config.n_storage_tokens" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">n_storage_tokens</span> <span class="o">=</span> <span class="mi">0</span></code>
 
   <span class="doc doc-labels">
@@ -1794,7 +1833,7 @@
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -1809,7 +1848,7 @@
 
 
 
-<h4 id="saev.data.dinov3.Config.num_heads" class="doc doc-heading">
+<h3 id="saev.data.dinov3.Config.num_heads" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">num_heads</span> <span class="o">=</span> <span class="mi">12</span></code>
 
   <span class="doc doc-labels">
@@ -1817,7 +1856,7 @@
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -1832,7 +1871,7 @@
 
 
 
-<h4 id="saev.data.dinov3.Config.patch_size" class="doc doc-heading">
+<h3 id="saev.data.dinov3.Config.patch_size" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">patch_size</span> <span class="o">=</span> <span class="mi">16</span></code>
 
   <span class="doc doc-labels">
@@ -1840,7 +1879,7 @@
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -1855,7 +1894,7 @@
 
 
 
-<h4 id="saev.data.dinov3.Config.pos_embed_rope_base" class="doc doc-heading">
+<h3 id="saev.data.dinov3.Config.pos_embed_rope_base" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">pos_embed_rope_base</span> <span class="o">=</span> <span class="mf">100.0</span></code>
 
   <span class="doc doc-labels">
@@ -1863,7 +1902,7 @@
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -1878,7 +1917,7 @@
 
 
 
-<h4 id="saev.data.dinov3.Config.pos_embed_rope_dtype" class="doc doc-heading">
+<h3 id="saev.data.dinov3.Config.pos_embed_rope_dtype" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">pos_embed_rope_dtype</span> <span class="o">=</span> <span class="s1">&#39;bf16&#39;</span></code>
 
   <span class="doc doc-labels">
@@ -1886,7 +1925,7 @@
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -1901,7 +1940,7 @@
 
 
 
-<h4 id="saev.data.dinov3.Config.pos_embed_rope_max_period" class="doc doc-heading">
+<h3 id="saev.data.dinov3.Config.pos_embed_rope_max_period" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">pos_embed_rope_max_period</span> <span class="o">=</span> <span class="kc">None</span></code>
 
   <span class="doc doc-labels">
@@ -1909,7 +1948,7 @@
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -1924,7 +1963,7 @@
 
 
 
-<h4 id="saev.data.dinov3.Config.pos_embed_rope_min_period" class="doc doc-heading">
+<h3 id="saev.data.dinov3.Config.pos_embed_rope_min_period" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">pos_embed_rope_min_period</span> <span class="o">=</span> <span class="kc">None</span></code>
 
   <span class="doc doc-labels">
@@ -1932,7 +1971,7 @@
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -1947,7 +1986,7 @@
 
 
 
-<h4 id="saev.data.dinov3.Config.pos_embed_rope_normalize_coords" class="doc doc-heading">
+<h3 id="saev.data.dinov3.Config.pos_embed_rope_normalize_coords" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">pos_embed_rope_normalize_coords</span> <span class="o">=</span> <span class="s1">&#39;separate&#39;</span></code>
 
   <span class="doc doc-labels">
@@ -1955,7 +1994,7 @@
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -1970,7 +2009,7 @@
 
 
 
-<h4 id="saev.data.dinov3.Config.proj_bias" class="doc doc-heading">
+<h3 id="saev.data.dinov3.Config.proj_bias" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">proj_bias</span> <span class="o">=</span> <span class="kc">True</span></code>
 
   <span class="doc doc-labels">
@@ -1978,7 +2017,7 @@
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -1993,7 +2032,7 @@
 
 
 
-<h4 id="saev.data.dinov3.Config.qkv_bias" class="doc doc-heading">
+<h3 id="saev.data.dinov3.Config.qkv_bias" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">qkv_bias</span> <span class="o">=</span> <span class="kc">True</span></code>
 
   <span class="doc doc-labels">
@@ -2001,7 +2040,7 @@
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -2016,7 +2055,7 @@
 
 
 
-<h4 id="saev.data.dinov3.Config.untie_global_and_local_cls_norm" class="doc doc-heading">
+<h3 id="saev.data.dinov3.Config.untie_global_and_local_cls_norm" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">untie_global_and_local_cls_norm</span> <span class="o">=</span> <span class="kc">False</span></code>
 
   <span class="doc doc-labels">
@@ -2024,7 +2063,7 @@
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -2050,10 +2089,10 @@
 
 
 
-<h3 id="saev.data.dinov3.PatchEmbed" class="doc doc-heading">
+<h2 id="saev.data.dinov3.PatchEmbed" class="doc doc-heading">
               <code class="highlight language-python"><span class="n">PatchEmbed</span><span class="p">(</span><span class="n">img_size</span><span class="o">=</span><span class="mi">224</span><span class="p">,</span> <span class="n">patch_size</span><span class="o">=</span><span class="mi">16</span><span class="p">,</span> <span class="n">in_chans</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">embed_dim</span><span class="o">=</span><span class="mi">768</span><span class="p">,</span> <span class="n">flatten_embedding</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></code>
 
-</h3>
+</h2>
 
 
     <div class="doc doc-contents ">
@@ -2234,10 +2273,10 @@
 
 
 
-<h3 id="saev.data.dinov3.Vit" class="doc doc-heading">
+<h2 id="saev.data.dinov3.Vit" class="doc doc-heading">
               <code class="highlight language-python"><span class="n">Vit</span><span class="p">(</span><span class="n">ckpt</span><span class="p">)</span></code>
 
-</h3>
+</h2>
 
 
     <div class="doc doc-contents ">
@@ -2286,14 +2325,14 @@
 <div class="doc doc-object doc-function">
 
 
-<h4 id="saev.data.dinov3.Vit.make_resize" class="doc doc-heading">
+<h3 id="saev.data.dinov3.Vit.make_resize" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">make_resize</span><span class="p">(</span><span class="n">ckpt</span><span class="p">,</span> <span class="n">n_patches_per_img</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">resample</span><span class="o">=</span><span class="n">Image</span><span class="o">.</span><span class="n">LANCZOS</span><span class="p">)</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-staticmethod"><code>staticmethod</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -2345,14 +2384,14 @@
 <div class="doc doc-object doc-function">
 
 
-<h4 id="saev.data.dinov3.Vit.make_transforms" class="doc doc-heading">
+<h3 id="saev.data.dinov3.Vit.make_transforms" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">make_transforms</span><span class="p">(</span><span class="n">ckpt</span><span class="p">,</span> <span class="n">n_patches_per_img</span><span class="p">)</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-staticmethod"><code>staticmethod</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">

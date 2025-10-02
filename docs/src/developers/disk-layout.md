@@ -2,8 +2,8 @@
 
 There are two main locations:
 
-1. `$SAEV_SCRATCH/saev`: where we store transformer activations.
-2. `$SAEV_NFS/saev`: where we store checkpoints and other computed intermediate stuff like example images, probe1d results, etc.
+1. `$SAEV_SCRATCH/saev/shards`: where we store transformer activations (referred to as `shards_root` in the codebase).
+2. `$SAEV_NFS/saev/runs`: where we store checkpoints and other computed intermediate stuff like example images, probe1d results, etc. (referred to as `runs_root` in the codebase).
 
 Visually, these are:
 

@@ -35,12 +35,12 @@ def test_metadata_n_shards_matches_disk(shard_root):
     assert metadata.n_shards == actual_shards
 
 
-def test_metadata_n_imgs_per_shard_matches_disk(shard_root):
-    """Test that Metadata.n_imgs_per_shard matches both our math and shards.json."""
+def test_metadata_ex_per_shard_matches_disk(shard_root):
+    """Test that Metadata.ex_per_shard matches both our math and shards.json."""
     # Load metadata from the directory
     metadata = Metadata.load(shard_root)
     shard_info = ShardInfo.load(shard_root)
 
     for shard in shard_info[:-1]:
-        assert metadata.n_imgs_per_shard == shard.n_imgs
-    assert metadata.n_imgs_per_shard >= shard_info[-1].n_imgs
+        assert metadata.ex_per_shard == shard.n_ex
+    assert metadata.ex_per_shard >= shard_info[-1].n_ex

@@ -562,6 +562,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -611,6 +615,52 @@
   
   <span class="md-ellipsis">
     Contributing
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developers/protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Shard Protocol
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developers/disk-layout/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Disk Layout
     
   </span>
   
@@ -784,29 +834,6 @@
   
   <span class="md-ellipsis">
     saev.data
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../api/data/__main__/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    saev.data.main
     
   </span>
   
@@ -1031,6 +1058,29 @@
   
   
     <li class="md-nav__item">
+      <a href="../../api/data/shards/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.data.shards
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../api/data/shuffled/" class="md-nav__link">
         
   
@@ -1100,12 +1150,12 @@
   
   
     <li class="md-nav__item">
-      <a href="../../api/data/writers/" class="md-nav__link">
+      <a href="../../api/disk/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
-    saev.data.writers
+    saev.disk
     
   </span>
   
@@ -1347,19 +1397,18 @@
 
 
 <h1 id="guide">Guide</h1>
+<p>This guide explains how to transition from the ADE20K demo to using <code>saev</code> with your own custom datasets.</p>
+<p>Here are the steps:</p>
 <ol>
 <li>Record ViT activations and save them to disk.</li>
 <li>Train SAEs on the activations.</li>
+<li>Evaluate the SAE checkpoints.</li>
 <li>Visualize the learned features from the trained SAEs.</li>
-<li>(your job) Propose trends and patterns in the visualized features.</li>
-<li>(your job, supported by code) Construct datasets to test your hypothesized trends.</li>
-<li>Confirm/reject hypotheses using <code>probing</code> package.</li>
 </ol>
-<p><code>saev</code> helps with steps 1, 2 and 3.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-</div>
 <p><code>saev</code> assumes you are running on NVIDIA GPUs. On a multi-GPU system, prefix your commands with <code>CUDA_VISIBLE_DEVICES=X</code> to run on GPU X.</p>
+</div>
 <h2 id="record-vit-activations-to-disk">Record ViT Activations to Disk</h2>
 <p>To save activations to disk, we need to specify:</p>
 <ol>
@@ -1368,10 +1417,10 @@
 <li>Where on disk and how we would like to save activations.</li>
 <li>Which images we want to save activations for.</li>
 </ol>
-<p>The <code>saev.activations</code> module does all of this for us.</p>
-<p>Run <code>uv run python -m saev activations --help</code> to see all the configuration.</p>
+<p>The <code>scripts/shards.py</code> script does all of this for us.</p>
+<p>Run <code>uv run scripts/launch.py shards --help</code> to see all the configuration.</p>
 <p>In practice, you might run:</p>
-<pre><code class="language-sh">uv run python -m saev.data \
+<pre><code class="language-sh">uv run scripts/launch.py shards \
   --vit-family siglip \
   --vit-ckpt hf-hub:timm/ViT-L-16-SigLIP2-256 \
   --d-vit 1024 \

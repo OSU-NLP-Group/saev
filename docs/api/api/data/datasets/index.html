@@ -430,6 +430,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -479,6 +483,52 @@
   
   <span class="md-ellipsis">
     Contributing
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../developers/protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Shard Protocol
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../developers/disk-layout/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Disk Layout
     
   </span>
   
@@ -672,29 +722,6 @@
   
   
     <li class="md-nav__item">
-      <a href="../__main__/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    saev.data.main
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
       <a href="../buffers/" class="md-nav__link">
         
   
@@ -793,10 +820,9 @@
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="datasets">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
+</li>
+      
+        <li class="md-nav__item">
   <a href="#saev.data.datasets.FakeSeg" class="md-nav__link">
     <span class="md-ellipsis">
       FakeSeg
@@ -825,18 +851,18 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#saev.data.datasets.FakeSeg.n_imgs" class="md-nav__link">
+  <a href="#saev.data.datasets.FakeSeg.n_ex" class="md-nav__link">
     <span class="md-ellipsis">
-      n_imgs
+      n_ex
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#saev.data.datasets.FakeSeg.n_patches_per_img" class="md-nav__link">
+  <a href="#saev.data.datasets.FakeSeg.patches_per_img" class="md-nav__link">
     <span class="md-ellipsis">
-      n_patches_per_img
+      patches_per_img
     </span>
   </a>
   
@@ -846,8 +872,8 @@
     </nav>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#saev.data.datasets.FakeSegDataset" class="md-nav__link">
     <span class="md-ellipsis">
       FakeSegDataset
@@ -855,8 +881,8 @@
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#saev.data.datasets.ImageFolder" class="md-nav__link">
     <span class="md-ellipsis">
       ImageFolder
@@ -867,9 +893,9 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#saev.data.datasets.ImageFolder.n_imgs" class="md-nav__link">
+  <a href="#saev.data.datasets.ImageFolder.n_ex" class="md-nav__link">
     <span class="md-ellipsis">
-      n_imgs
+      n_ex
     </span>
   </a>
   
@@ -888,8 +914,8 @@
     </nav>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#saev.data.datasets.ImageFolderDataset" class="md-nav__link">
     <span class="md-ellipsis">
       ImageFolderDataset
@@ -912,8 +938,8 @@
     </nav>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#saev.data.datasets.Imagenet" class="md-nav__link">
     <span class="md-ellipsis">
       Imagenet
@@ -924,9 +950,9 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#saev.data.datasets.Imagenet.n_imgs" class="md-nav__link">
+  <a href="#saev.data.datasets.Imagenet.n_ex" class="md-nav__link">
     <span class="md-ellipsis">
-      n_imgs
+      n_ex
     </span>
   </a>
   
@@ -954,8 +980,8 @@
     </nav>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#saev.data.datasets.SegFolder" class="md-nav__link">
     <span class="md-ellipsis">
       SegFolder
@@ -984,9 +1010,9 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#saev.data.datasets.SegFolder.n_imgs" class="md-nav__link">
+  <a href="#saev.data.datasets.SegFolder.n_ex" class="md-nav__link">
     <span class="md-ellipsis">
-      n_imgs
+      n_ex
     </span>
   </a>
   
@@ -1014,8 +1040,8 @@
     </nav>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#saev.data.datasets.get_dataset" class="md-nav__link">
     <span class="md-ellipsis">
       get_dataset
@@ -1023,9 +1049,13 @@
   </a>
   
 </li>
-        
-      </ul>
-    </nav>
+      
+        <li class="md-nav__item">
+  <a href="#saev.data.datasets.is_seg_dataset" class="md-nav__link">
+    <span class="md-ellipsis">
+      is_seg_dataset
+    </span>
+  </a>
   
 </li>
       
@@ -1183,6 +1213,29 @@
   
   
     <li class="md-nav__item">
+      <a href="../shards/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.data.shards
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../shuffled/" class="md-nav__link">
         
   
@@ -1252,12 +1305,12 @@
   
   
     <li class="md-nav__item">
-      <a href="../writers/" class="md-nav__link">
+      <a href="../../disk/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
-    saev.data.writers
+    saev.disk
     
   </span>
   
@@ -1504,12 +1557,7 @@
 
 
 
-<h2 id="saev.data.datasets" class="doc doc-heading">
-            <code>saev.data.datasets</code>
-
-
-</h2>
-
+<a id="saev.data.datasets"></a>
     <div class="doc doc-contents first">
 
 
@@ -1535,14 +1583,14 @@
 
 
 
-<h3 id="saev.data.datasets.FakeSeg" class="doc doc-heading">
-              <code class="highlight language-python"><span class="n">FakeSeg</span><span class="p">(</span><span class="n">n_imgs</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">n_patches_per_img</span><span class="o">=</span><span class="mi">16</span><span class="p">,</span> <span class="n">n_classes</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">bg_label</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span></code>
+<h2 id="saev.data.datasets.FakeSeg" class="doc doc-heading">
+              <code class="highlight language-python"><span class="n">FakeSeg</span><span class="p">(</span><span class="n">n_ex</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">patches_per_img</span><span class="o">=</span><span class="mi">16</span><span class="p">,</span> <span class="n">n_classes</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">bg_label</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
   </span>
 
-</h3>
+</h2>
 
 
     <div class="doc doc-contents ">
@@ -1574,7 +1622,7 @@ mimicking the behavior of real segmentation datasets like SegFolder.</p>
 
 
 
-<h4 id="saev.data.datasets.FakeSeg.bg_label" class="doc doc-heading">
+<h3 id="saev.data.datasets.FakeSeg.bg_label" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">bg_label</span> <span class="o">=</span> <span class="mi">0</span></code>
 
   <span class="doc doc-labels">
@@ -1582,7 +1630,7 @@ mimicking the behavior of real segmentation datasets like SegFolder.</p>
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -1597,7 +1645,7 @@ mimicking the behavior of real segmentation datasets like SegFolder.</p>
 
 
 
-<h4 id="saev.data.datasets.FakeSeg.n_classes" class="doc doc-heading">
+<h3 id="saev.data.datasets.FakeSeg.n_classes" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">n_classes</span> <span class="o">=</span> <span class="mi">3</span></code>
 
   <span class="doc doc-labels">
@@ -1605,7 +1653,7 @@ mimicking the behavior of real segmentation datasets like SegFolder.</p>
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -1620,20 +1668,20 @@ mimicking the behavior of real segmentation datasets like SegFolder.</p>
 
 
 
-<h4 id="saev.data.datasets.FakeSeg.n_imgs" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">n_imgs</span> <span class="o">=</span> <span class="mi">10</span></code>
+<h3 id="saev.data.datasets.FakeSeg.n_ex" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">n_ex</span> <span class="o">=</span> <span class="mi">10</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
 
-        <p>Number of images.</p>
+        <p>Number of examples.</p>
 
     </div>
 
@@ -1643,15 +1691,15 @@ mimicking the behavior of real segmentation datasets like SegFolder.</p>
 
 
 
-<h4 id="saev.data.datasets.FakeSeg.n_patches_per_img" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">n_patches_per_img</span> <span class="o">=</span> <span class="mi">16</span></code>
+<h3 id="saev.data.datasets.FakeSeg.patches_per_img" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">patches_per_img</span> <span class="o">=</span> <span class="mi">16</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -1677,10 +1725,10 @@ mimicking the behavior of real segmentation datasets like SegFolder.</p>
 
 
 
-<h3 id="saev.data.datasets.FakeSegDataset" class="doc doc-heading">
+<h2 id="saev.data.datasets.FakeSegDataset" class="doc doc-heading">
               <code class="highlight language-python"><span class="n">FakeSegDataset</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">img_transform</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">seg_transform</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">sample_transform</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
 
-</h3>
+</h2>
 
 
     <div class="doc doc-contents ">
@@ -1708,18 +1756,18 @@ mimicking the behavior of real segmentation datasets like SegFolder.</p>
 
                   <details class="quote">
                     <summary>Source code in <code>src/saev/data/datasets.py</code></summary>
-                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">395</span>
-<span class="normal">396</span>
-<span class="normal">397</span>
-<span class="normal">398</span>
-<span class="normal">399</span>
+                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">399</span>
 <span class="normal">400</span>
 <span class="normal">401</span>
 <span class="normal">402</span>
 <span class="normal">403</span>
 <span class="normal">404</span>
 <span class="normal">405</span>
-<span class="normal">406</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+<span class="normal">406</span>
+<span class="normal">407</span>
+<span class="normal">408</span>
+<span class="normal">409</span>
+<span class="normal">410</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
     <span class="bp">self</span><span class="p">,</span>
     <span class="n">cfg</span><span class="p">:</span> <span class="n">FakeSeg</span><span class="p">,</span>
     <span class="o">*</span><span class="p">,</span>
@@ -1759,14 +1807,14 @@ mimicking the behavior of real segmentation datasets like SegFolder.</p>
 
 
 
-<h3 id="saev.data.datasets.ImageFolder" class="doc doc-heading">
+<h2 id="saev.data.datasets.ImageFolder" class="doc doc-heading">
               <code class="highlight language-python"><span class="n">ImageFolder</span><span class="p">(</span><span class="n">root</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">,</span> <span class="s1">&#39;data&#39;</span><span class="p">,</span> <span class="s1">&#39;split&#39;</span><span class="p">))</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
   </span>
 
-</h3>
+</h2>
 
 
     <div class="doc doc-contents ">
@@ -1796,19 +1844,19 @@ mimicking the behavior of real segmentation datasets like SegFolder.</p>
 
 
 
-<h4 id="saev.data.datasets.ImageFolder.n_imgs" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">n_imgs</span></code>
+<h3 id="saev.data.datasets.ImageFolder.n_ex" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">n_ex</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-property"><code>property</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
 
-        <p>Number of images in the dataset. Calculated on the fly, but is non-trivial to calculate because it requires walking the directory structure. If you need to reference this number very often, cache it in a local variable.</p>
+        <p>Number of examples in the dataset. Calculated on the fly, but is non-trivial to calculate because it requires walking the directory structure. If you need to reference this number very often, cache it in a local variable.</p>
 
     </div>
 
@@ -1818,7 +1866,7 @@ mimicking the behavior of real segmentation datasets like SegFolder.</p>
 
 
 
-<h4 id="saev.data.datasets.ImageFolder.root" class="doc doc-heading">
+<h3 id="saev.data.datasets.ImageFolder.root" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">root</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">,</span> <span class="s1">&#39;data&#39;</span><span class="p">,</span> <span class="s1">&#39;split&#39;</span><span class="p">)</span></code>
 
   <span class="doc doc-labels">
@@ -1826,7 +1874,7 @@ mimicking the behavior of real segmentation datasets like SegFolder.</p>
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -1852,10 +1900,10 @@ mimicking the behavior of real segmentation datasets like SegFolder.</p>
 
 
 
-<h3 id="saev.data.datasets.ImageFolderDataset" class="doc doc-heading">
+<h2 id="saev.data.datasets.ImageFolderDataset" class="doc doc-heading">
               <code class="highlight language-python"><span class="n">ImageFolderDataset</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">sample_transform</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></code>
 
-</h3>
+</h2>
 
 
     <div class="doc doc-contents ">
@@ -1872,9 +1920,9 @@ mimicking the behavior of real segmentation datasets like SegFolder.</p>
 
                   <details class="quote">
                     <summary>Source code in <code>src/saev/data/datasets.py</code></summary>
-                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">209</span>
-<span class="normal">210</span>
-<span class="normal">211</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">sample_transform</span><span class="p">:</span> <span class="n">Callable</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">213</span>
+<span class="normal">214</span>
+<span class="normal">215</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">sample_transform</span><span class="p">:</span> <span class="n">Callable</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
     <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
     <span class="bp">self</span><span class="o">.</span><span class="n">sample_transform</span> <span class="o">=</span> <span class="n">sample_transform</span>
 </code></pre></div></td></tr></table></div>
@@ -1896,10 +1944,10 @@ mimicking the behavior of real segmentation datasets like SegFolder.</p>
 <div class="doc doc-object doc-function">
 
 
-<h4 id="saev.data.datasets.ImageFolderDataset.__getitem__" class="doc doc-heading">
+<h3 id="saev.data.datasets.ImageFolderDataset.__getitem__" class="doc doc-heading">
             <code class="highlight language-python"><span class="fm">__getitem__</span><span class="p">(</span><span class="n">index</span><span class="p">)</span></code>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -1962,11 +2010,7 @@ mimicking the behavior of real segmentation datasets like SegFolder.</p>
 
             <details class="quote">
               <summary>Source code in <code>src/saev/data/datasets.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">213</span>
-<span class="normal">214</span>
-<span class="normal">215</span>
-<span class="normal">216</span>
-<span class="normal">217</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">217</span>
 <span class="normal">218</span>
 <span class="normal">219</span>
 <span class="normal">220</span>
@@ -1987,7 +2031,11 @@ mimicking the behavior of real segmentation datasets like SegFolder.</p>
 <span class="normal">235</span>
 <span class="normal">236</span>
 <span class="normal">237</span>
-<span class="normal">238</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">index</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">object</span><span class="p">]:</span>
+<span class="normal">238</span>
+<span class="normal">239</span>
+<span class="normal">240</span>
+<span class="normal">241</span>
+<span class="normal">242</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">index</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">object</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Args:</span>
 <span class="sd">        index: Index</span>
@@ -2031,14 +2079,14 @@ mimicking the behavior of real segmentation datasets like SegFolder.</p>
 
 
 
-<h3 id="saev.data.datasets.Imagenet" class="doc doc-heading">
+<h2 id="saev.data.datasets.Imagenet" class="doc doc-heading">
               <code class="highlight language-python"><span class="n">Imagenet</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;ILSVRC/imagenet-1k&#39;</span><span class="p">,</span> <span class="n">split</span><span class="o">=</span><span class="s1">&#39;train&#39;</span><span class="p">)</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
   </span>
 
-</h3>
+</h2>
 
 
     <div class="doc doc-contents ">
@@ -2068,14 +2116,14 @@ mimicking the behavior of real segmentation datasets like SegFolder.</p>
 
 
 
-<h4 id="saev.data.datasets.Imagenet.n_imgs" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">n_imgs</span></code>
+<h3 id="saev.data.datasets.Imagenet.n_ex" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">n_ex</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-property"><code>property</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -2090,7 +2138,7 @@ mimicking the behavior of real segmentation datasets like SegFolder.</p>
 
 
 
-<h4 id="saev.data.datasets.Imagenet.name" class="doc doc-heading">
+<h3 id="saev.data.datasets.Imagenet.name" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">name</span> <span class="o">=</span> <span class="s1">&#39;ILSVRC/imagenet-1k&#39;</span></code>
 
   <span class="doc doc-labels">
@@ -2098,7 +2146,7 @@ mimicking the behavior of real segmentation datasets like SegFolder.</p>
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -2113,7 +2161,7 @@ mimicking the behavior of real segmentation datasets like SegFolder.</p>
 
 
 
-<h4 id="saev.data.datasets.Imagenet.split" class="doc doc-heading">
+<h3 id="saev.data.datasets.Imagenet.split" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">split</span> <span class="o">=</span> <span class="s1">&#39;train&#39;</span></code>
 
   <span class="doc doc-labels">
@@ -2121,7 +2169,7 @@ mimicking the behavior of real segmentation datasets like SegFolder.</p>
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -2147,14 +2195,14 @@ mimicking the behavior of real segmentation datasets like SegFolder.</p>
 
 
 
-<h3 id="saev.data.datasets.SegFolder" class="doc doc-heading">
+<h2 id="saev.data.datasets.SegFolder" class="doc doc-heading">
               <code class="highlight language-python"><span class="n">SegFolder</span><span class="p">(</span><span class="n">root</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">,</span> <span class="s1">&#39;data&#39;</span><span class="p">,</span> <span class="s1">&#39;segdataset&#39;</span><span class="p">),</span> <span class="n">split</span><span class="o">=</span><span class="s1">&#39;training&#39;</span><span class="p">,</span> <span class="n">img_label_fname</span><span class="o">=</span><span class="s1">&#39;sceneCategories.txt&#39;</span><span class="p">,</span> <span class="n">bg_label</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
   </span>
 
-</h3>
+</h2>
 
 
     <div class="doc doc-contents ">
@@ -2182,7 +2230,7 @@ mimicking the behavior of real segmentation datasets like SegFolder.</p>
 
 
 
-<h4 id="saev.data.datasets.SegFolder.bg_label" class="doc doc-heading">
+<h3 id="saev.data.datasets.SegFolder.bg_label" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">bg_label</span> <span class="o">=</span> <span class="mi">0</span></code>
 
   <span class="doc doc-labels">
@@ -2190,7 +2238,7 @@ mimicking the behavior of real segmentation datasets like SegFolder.</p>
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -2205,7 +2253,7 @@ mimicking the behavior of real segmentation datasets like SegFolder.</p>
 
 
 
-<h4 id="saev.data.datasets.SegFolder.img_label_fname" class="doc doc-heading">
+<h3 id="saev.data.datasets.SegFolder.img_label_fname" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">img_label_fname</span> <span class="o">=</span> <span class="s1">&#39;sceneCategories.txt&#39;</span></code>
 
   <span class="doc doc-labels">
@@ -2213,7 +2261,7 @@ mimicking the behavior of real segmentation datasets like SegFolder.</p>
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -2228,19 +2276,19 @@ mimicking the behavior of real segmentation datasets like SegFolder.</p>
 
 
 
-<h4 id="saev.data.datasets.SegFolder.n_imgs" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">n_imgs</span></code>
+<h3 id="saev.data.datasets.SegFolder.n_ex" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">n_ex</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-property"><code>property</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
 
-        <p>Number of images in the dataset. Calculated on the fly by counting image files in root/images/split.</p>
+        <p>Number of examples in the dataset. Calculated on the fly by counting image files in root/images/split.</p>
 
     </div>
 
@@ -2250,7 +2298,7 @@ mimicking the behavior of real segmentation datasets like SegFolder.</p>
 
 
 
-<h4 id="saev.data.datasets.SegFolder.root" class="doc doc-heading">
+<h3 id="saev.data.datasets.SegFolder.root" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">root</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">,</span> <span class="s1">&#39;data&#39;</span><span class="p">,</span> <span class="s1">&#39;segdataset&#39;</span><span class="p">)</span></code>
 
   <span class="doc doc-labels">
@@ -2258,7 +2306,7 @@ mimicking the behavior of real segmentation datasets like SegFolder.</p>
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -2273,7 +2321,7 @@ mimicking the behavior of real segmentation datasets like SegFolder.</p>
 
 
 
-<h4 id="saev.data.datasets.SegFolder.split" class="doc doc-heading">
+<h3 id="saev.data.datasets.SegFolder.split" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">split</span> <span class="o">=</span> <span class="s1">&#39;training&#39;</span></code>
 
   <span class="doc doc-labels">
@@ -2281,7 +2329,7 @@ mimicking the behavior of real segmentation datasets like SegFolder.</p>
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -2307,10 +2355,10 @@ mimicking the behavior of real segmentation datasets like SegFolder.</p>
 <div class="doc doc-object doc-function">
 
 
-<h3 id="saev.data.datasets.get_dataset" class="doc doc-heading">
+<h2 id="saev.data.datasets.get_dataset" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">get_dataset</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">img_transform</span><span class="p">,</span> <span class="n">seg_transform</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">sample_transform</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
 
-</h3>
+</h2>
 
 
     <div class="doc doc-contents ">
@@ -2350,6 +2398,7 @@ mimicking the behavior of real segmentation datasets like SegFolder.</p>
                 <code>img_transform</code>
             </td>
             <td>
+                  <code><span title="collections.abc.Callable">Callable</span></code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -2365,6 +2414,7 @@ mimicking the behavior of real segmentation datasets like SegFolder.</p>
                 <code>seg_transform</code>
             </td>
             <td>
+                  <code><span title="collections.abc.Callable">Callable</span> | None</code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -2380,6 +2430,7 @@ mimicking the behavior of real segmentation datasets like SegFolder.</p>
                 <code>sample_transform</code>
             </td>
             <td>
+                  <code><span title="collections.abc.Callable">Callable</span> | None</code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -2448,9 +2499,17 @@ mimicking the behavior of real segmentation datasets like SegFolder.</p>
 <span class="normal">163</span>
 <span class="normal">164</span>
 <span class="normal">165</span>
-<span class="normal">166</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@beartype</span><span class="o">.</span><span class="n">beartype</span>
+<span class="normal">166</span>
+<span class="normal">167</span>
+<span class="normal">168</span>
+<span class="normal">169</span>
+<span class="normal">170</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@beartype</span><span class="o">.</span><span class="n">beartype</span>
 <span class="k">def</span><span class="w"> </span><span class="nf">get_dataset</span><span class="p">(</span>
-    <span class="n">cfg</span><span class="p">:</span> <span class="n">Config</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">img_transform</span><span class="p">,</span> <span class="n">seg_transform</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">sample_transform</span><span class="o">=</span><span class="kc">None</span>
+    <span class="n">cfg</span><span class="p">:</span> <span class="n">Config</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">img_transform</span><span class="p">:</span> <span class="n">Callable</span><span class="p">,</span>
+    <span class="n">seg_transform</span><span class="p">:</span> <span class="n">Callable</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">sample_transform</span><span class="p">:</span> <span class="n">Callable</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Gets the dataset for the current experiment; delegates construction to dataset-specific functions.</span>
@@ -2499,6 +2558,107 @@ mimicking the behavior of real segmentation datasets like SegFolder.</p>
         <span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="n">typing</span><span class="o">.</span><span class="n">assert_never</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="saev.data.datasets.is_seg_dataset" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">is_seg_dataset</span><span class="p">(</span><span class="n">data_cfg</span><span class="p">)</span></code>
+
+</h2>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Check if a dataset configuration is for a segmentation dataset.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>data_cfg</code>
+            </td>
+            <td>
+                  <code><span title="saev.data.datasets.Config">Config</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Dataset configuration</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>True if this is a segmentation dataset that should have labels.bin</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+            <details class="quote">
+              <summary>Source code in <code>src/saev/data/datasets.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">469</span>
+<span class="normal">470</span>
+<span class="normal">471</span>
+<span class="normal">472</span>
+<span class="normal">473</span>
+<span class="normal">474</span>
+<span class="normal">475</span>
+<span class="normal">476</span>
+<span class="normal">477</span>
+<span class="normal">478</span>
+<span class="normal">479</span>
+<span class="normal">480</span>
+<span class="normal">481</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@beartype</span><span class="o">.</span><span class="n">beartype</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">is_seg_dataset</span><span class="p">(</span><span class="n">data_cfg</span><span class="p">:</span> <span class="n">Config</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Check if a dataset configuration is for a segmentation dataset.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        data_cfg: Dataset configuration</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        True if this is a segmentation dataset that should have labels.bin</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Check if it&#39;s FakeSeg or SegFolder</span>
+    <span class="k">return</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">data_cfg</span><span class="p">,</span> <span class="p">(</span><span class="n">FakeSeg</span><span class="p">,</span> <span class="n">SegFolder</span><span class="p">))</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>

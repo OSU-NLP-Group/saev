@@ -1110,3 +1110,23 @@ Then I can work on evaluating class-level probes in a memory-efficient manner.
 # 09/24/2025
 
 I have activations. Let's try to evaluate ADE20K probes.
+
+# 09/30/2025
+
+I'm doing a big refactor.
+I need to update the tests.
+Then I want to add the next two commands below:
+
+```sh
+uv run scripts/launch.py shards  # runs scripts/shards.py
+```
+
+```sh
+uv run scripts/launch.py doctor <run_dir>   # validates symlinks and required files.
+```
+
+# 10/02/205
+
+Boringly, I simply need to train an SAE on ADE20K.
+This implies a training and a validation split.
+This also implies that we have the correct disk layout.

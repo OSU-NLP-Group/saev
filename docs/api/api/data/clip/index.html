@@ -430,6 +430,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -479,6 +483,52 @@
   
   <span class="md-ellipsis">
     Contributing
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../developers/protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Shard Protocol
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../developers/disk-layout/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Disk Layout
     
   </span>
   
@@ -672,29 +722,6 @@
   
   
     <li class="md-nav__item">
-      <a href="../__main__/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    saev.data.main
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
       <a href="../buffers/" class="md-nav__link">
         
   
@@ -770,10 +797,9 @@
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="clip">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
+</li>
+      
+        <li class="md-nav__item">
   <a href="#saev.data.clip.Vit" class="md-nav__link">
     <span class="md-ellipsis">
       Vit
@@ -798,11 +824,6 @@
       make_transforms
     </span>
   </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
         
@@ -988,6 +1009,29 @@
   
   
     <li class="md-nav__item">
+      <a href="../shards/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.data.shards
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../shuffled/" class="md-nav__link">
         
   
@@ -1057,12 +1101,12 @@
   
   
     <li class="md-nav__item">
-      <a href="../writers/" class="md-nav__link">
+      <a href="../../disk/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
-    saev.data.writers
+    saev.disk
     
   </span>
   
@@ -1309,12 +1353,7 @@
 
 
 
-<h2 id="saev.data.clip" class="doc doc-heading">
-            <code>saev.data.clip</code>
-
-
-</h2>
-
+<a id="saev.data.clip"></a>
     <div class="doc doc-contents first">
 
 
@@ -1340,10 +1379,10 @@
 
 
 
-<h3 id="saev.data.clip.Vit" class="doc doc-heading">
+<h2 id="saev.data.clip.Vit" class="doc doc-heading">
               <code class="highlight language-python"><span class="n">Vit</span><span class="p">(</span><span class="n">ckpt</span><span class="p">)</span></code>
 
-</h3>
+</h2>
 
 
     <div class="doc doc-contents ">
@@ -1360,7 +1399,9 @@
 
                   <details class="quote">
                     <summary>Source code in <code>src/saev/data/clip.py</code></summary>
-                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">18</span>
+                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">16</span>
+<span class="normal">17</span>
+<span class="normal">18</span>
 <span class="normal">19</span>
 <span class="normal">20</span>
 <span class="normal">21</span>
@@ -1379,8 +1420,14 @@
 <span class="normal">34</span>
 <span class="normal">35</span>
 <span class="normal">36</span>
-<span class="normal">37</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ckpt</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+<span class="normal">37</span>
+<span class="normal">38</span>
+<span class="normal">39</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ckpt</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
     <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+
+    <span class="kn">import</span><span class="w"> </span><span class="nn">open_clip</span>
+
+    <span class="kn">from</span><span class="w"> </span><span class="nn">..</span><span class="w"> </span><span class="kn">import</span> <span class="n">helpers</span>
 
     <span class="k">if</span> <span class="n">ckpt</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;hf-hub:&quot;</span><span class="p">):</span>
         <span class="n">clip</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">open_clip</span><span class="o">.</span><span class="n">create_model_from_pretrained</span><span class="p">(</span>
@@ -1416,14 +1463,14 @@
 
 
 
-<h4 id="saev.data.clip.Vit.patch_size" class="doc doc-heading">
+<h3 id="saev.data.clip.Vit.patch_size" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">patch_size</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-property"><code>property</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -1440,14 +1487,14 @@
 <div class="doc doc-object doc-function">
 
 
-<h4 id="saev.data.clip.Vit.make_transforms" class="doc doc-heading">
+<h3 id="saev.data.clip.Vit.make_transforms" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">make_transforms</span><span class="p">(</span><span class="n">ckpt</span><span class="p">,</span> <span class="n">n_patches_per_img</span><span class="p">)</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-staticmethod"><code>staticmethod</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -1457,9 +1504,7 @@
 
             <details class="quote">
               <summary>Source code in <code>src/saev/data/clip.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">61</span>
-<span class="normal">62</span>
-<span class="normal">63</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">63</span>
 <span class="normal">64</span>
 <span class="normal">65</span>
 <span class="normal">66</span>
@@ -1471,11 +1516,21 @@
 <span class="normal">72</span>
 <span class="normal">73</span>
 <span class="normal">74</span>
-<span class="normal">75</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@staticmethod</span>
+<span class="normal">75</span>
+<span class="normal">76</span>
+<span class="normal">77</span>
+<span class="normal">78</span>
+<span class="normal">79</span>
+<span class="normal">80</span>
+<span class="normal">81</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@staticmethod</span>
 <span class="k">def</span><span class="w"> </span><span class="nf">make_transforms</span><span class="p">(</span>
     <span class="n">ckpt</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">n_patches_per_img</span><span class="p">:</span> <span class="nb">int</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Callable</span><span class="p">,</span> <span class="n">Callable</span> <span class="o">|</span> <span class="kc">None</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Create transforms for preprocessing: (img_transform, sample_transform | None).&quot;&quot;&quot;</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">open_clip</span>
+
+    <span class="kn">from</span><span class="w"> </span><span class="nn">..</span><span class="w"> </span><span class="kn">import</span> <span class="n">helpers</span>
+
     <span class="k">if</span> <span class="n">ckpt</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;hf-hub:&quot;</span><span class="p">):</span>
         <span class="n">_</span><span class="p">,</span> <span class="n">img_transform</span> <span class="o">=</span> <span class="n">open_clip</span><span class="o">.</span><span class="n">create_model_from_pretrained</span><span class="p">(</span>
             <span class="n">ckpt</span><span class="p">,</span> <span class="n">cache_dir</span><span class="o">=</span><span class="n">helpers</span><span class="o">.</span><span class="n">get_cache_dir</span><span class="p">()</span>

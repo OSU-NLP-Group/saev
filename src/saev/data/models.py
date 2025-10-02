@@ -65,26 +65,26 @@ class VisionTransformer(abc.ABC):
         """Run forward pass on batch of images."""
 
 
-_global_vit_registry: dict[str, type[VisionTransformer]] = {}
+_global_model_registry: dict[str, type[VisionTransformer]] = {}
 
 
 @beartype.beartype
-def load_vit_cls(family: str) -> type[VisionTransformer]:
+def load_model_cls(family: str) -> type[VisionTransformer]:
     """Load a ViT family class."""
-    if family not in _global_vit_registry:
+    if family not in _global_model_registry:
         raise ValueError(f"Family '{family}' not found.")
 
-    return _global_vit_registry[family]
+    return _global_model_registry[family]
 
 
 @beartype.beartype
 def register_family(cls: type[VisionTransformer]):
     """Register a new ViT family class."""
-    if cls.family in _global_vit_registry:
+    if cls.family in _global_model_registry:
         logger.warning("Overwriting key '%s' in registry.", cls.family)
-    _global_vit_registry[cls.family] = cls
+    _global_model_registry[cls.family] = cls
 
 
 def list_families() -> list[str]:
     """List all ViT family names."""
-    return list(_global_vit_registry.keys())
+    return list(_global_model_registry.keys())

@@ -300,12 +300,12 @@ def train(
                     dead_pct = ((f_x.abs() > 1e-8).sum(0) == 0).float().mean()
 
                     # Dictionary coherence: max |<w_i, w_j>| for i != j
-                    W = sae.W_dec  # (d_sae, d_vit)
+                    W = sae.W_dec  # (d_sae, d_model)
                     # Normalize each row (each SAE feature)
                     W_norm = W / W.norm(dim=1, keepdim=True)
                     coherence = (W_norm @ W_norm.T).abs().triu(1).max()
 
-                    # Average decoder row L2 norm (since W_dec is d_sae x d_vit)
+                    # Average decoder row L2 norm (since W_dec is d_sae x d_model)
                     avg_w_row_norm = sae.W_dec.norm(dim=1).mean()
 
                     metric = {
@@ -491,7 +491,7 @@ CANNOT_PARALLELIZE = set([
     "n_hours",
     "log_to",
     "sae.exp_factor",
-    "sae.d_vit",
+    "sae.d_model",
 ])
 
 

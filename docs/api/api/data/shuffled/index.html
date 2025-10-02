@@ -11,7 +11,7 @@
         <link rel="canonical" href="https://osu-nlp-group.github.io/saev/api/api/data/shuffled/">
       
       
-        <link rel="prev" href="../ordered/">
+        <link rel="prev" href="../shards/">
       
       
         <link rel="next" href="../siglip/">
@@ -430,6 +430,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -479,6 +483,52 @@
   
   <span class="md-ellipsis">
     Contributing
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../developers/protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Shard Protocol
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../developers/disk-layout/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Disk Layout
     
   </span>
   
@@ -655,29 +705,6 @@
   
   <span class="md-ellipsis">
     saev.data
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../__main__/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    saev.data.main
     
   </span>
   
@@ -899,6 +926,29 @@
                 
   
   
+  
+  
+    <li class="md-nav__item">
+      <a href="../shards/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.data.shards
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
     
   
   
@@ -954,10 +1004,9 @@
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="shuffled">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
+</li>
+      
+        <li class="md-nav__item">
   <a href="#saev.data.shuffled.Config" class="md-nav__link">
     <span class="md-ellipsis">
       Config
@@ -1070,8 +1119,8 @@
     </nav>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#saev.data.shuffled.DataLoader" class="md-nav__link">
     <span class="md-ellipsis">
       DataLoader
@@ -1105,11 +1154,6 @@
       __len__
     </span>
   </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
         
@@ -1180,12 +1224,12 @@
   
   
     <li class="md-nav__item">
-      <a href="../writers/" class="md-nav__link">
+      <a href="../../disk/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
-    saev.data.writers
+    saev.disk
     
   </span>
   
@@ -1432,12 +1476,7 @@
 
 
 
-<h2 id="saev.data.shuffled" class="doc doc-heading">
-            <code>saev.data.shuffled</code>
-
-
-</h2>
-
+<a id="saev.data.shuffled"></a>
     <div class="doc doc-contents first">
 
 
@@ -1463,14 +1502,14 @@
 
 
 
-<h3 id="saev.data.shuffled.Config" class="doc doc-heading">
+<h2 id="saev.data.shuffled.Config" class="doc doc-heading">
               <code class="highlight language-python"><span class="n">Config</span><span class="p">(</span><span class="n">shard_root</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">,</span> <span class="s1">&#39;shards&#39;</span><span class="p">),</span> <span class="n">patches</span><span class="o">=</span><span class="s1">&#39;image&#39;</span><span class="p">,</span> <span class="n">layer</span><span class="o">=-</span><span class="mi">2</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">1024</span> <span class="o">*</span> <span class="mi">16</span><span class="p">,</span> <span class="n">drop_last</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">scale_norm</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">ignore_labels</span><span class="o">=</span><span class="nb">list</span><span class="p">(),</span> <span class="n">n_threads</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">buffer_size</span><span class="o">=</span><span class="mi">64</span><span class="p">,</span> <span class="n">batch_timeout_s</span><span class="o">=</span><span class="mf">30.0</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">17</span><span class="p">,</span> <span class="n">debug</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">log_every_s</span><span class="o">=</span><span class="mf">30.0</span><span class="p">)</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
   </span>
 
-</h3>
+</h2>
 
 
     <div class="doc doc-contents ">
@@ -1536,7 +1575,7 @@
 
 
 
-<h4 id="saev.data.shuffled.Config.batch_size" class="doc doc-heading">
+<h3 id="saev.data.shuffled.Config.batch_size" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">batch_size</span> <span class="o">=</span> <span class="mi">1024</span> <span class="o">*</span> <span class="mi">16</span></code>
 
   <span class="doc doc-labels">
@@ -1544,7 +1583,7 @@
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -1559,7 +1598,7 @@
 
 
 
-<h4 id="saev.data.shuffled.Config.batch_timeout_s" class="doc doc-heading">
+<h3 id="saev.data.shuffled.Config.batch_timeout_s" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">batch_timeout_s</span> <span class="o">=</span> <span class="mf">30.0</span></code>
 
   <span class="doc doc-labels">
@@ -1567,7 +1606,7 @@
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -1582,7 +1621,7 @@
 
 
 
-<h4 id="saev.data.shuffled.Config.buffer_size" class="doc doc-heading">
+<h3 id="saev.data.shuffled.Config.buffer_size" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">buffer_size</span> <span class="o">=</span> <span class="mi">64</span></code>
 
   <span class="doc doc-labels">
@@ -1590,7 +1629,7 @@
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -1605,7 +1644,7 @@
 
 
 
-<h4 id="saev.data.shuffled.Config.debug" class="doc doc-heading">
+<h3 id="saev.data.shuffled.Config.debug" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">debug</span> <span class="o">=</span> <span class="kc">False</span></code>
 
   <span class="doc doc-labels">
@@ -1613,7 +1652,7 @@
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -1628,7 +1667,7 @@
 
 
 
-<h4 id="saev.data.shuffled.Config.drop_last" class="doc doc-heading">
+<h3 id="saev.data.shuffled.Config.drop_last" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">drop_last</span> <span class="o">=</span> <span class="kc">False</span></code>
 
   <span class="doc doc-labels">
@@ -1636,7 +1675,7 @@
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -1651,7 +1690,7 @@
 
 
 
-<h4 id="saev.data.shuffled.Config.ignore_labels" class="doc doc-heading">
+<h3 id="saev.data.shuffled.Config.ignore_labels" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">ignore_labels</span> <span class="o">=</span> <span class="n">dataclasses</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">list</span><span class="p">)</span></code>
 
   <span class="doc doc-labels">
@@ -1659,7 +1698,7 @@
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -1674,7 +1713,7 @@
 
 
 
-<h4 id="saev.data.shuffled.Config.layer" class="doc doc-heading">
+<h3 id="saev.data.shuffled.Config.layer" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">layer</span> <span class="o">=</span> <span class="o">-</span><span class="mi">2</span></code>
 
   <span class="doc doc-labels">
@@ -1682,7 +1721,7 @@
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -1697,7 +1736,7 @@
 
 
 
-<h4 id="saev.data.shuffled.Config.log_every_s" class="doc doc-heading">
+<h3 id="saev.data.shuffled.Config.log_every_s" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">log_every_s</span> <span class="o">=</span> <span class="mf">30.0</span></code>
 
   <span class="doc doc-labels">
@@ -1705,7 +1744,7 @@
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -1720,7 +1759,7 @@
 
 
 
-<h4 id="saev.data.shuffled.Config.n_threads" class="doc doc-heading">
+<h3 id="saev.data.shuffled.Config.n_threads" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">n_threads</span> <span class="o">=</span> <span class="mi">4</span></code>
 
   <span class="doc doc-labels">
@@ -1728,7 +1767,7 @@
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -1743,7 +1782,7 @@
 
 
 
-<h4 id="saev.data.shuffled.Config.scale_norm" class="doc doc-heading">
+<h3 id="saev.data.shuffled.Config.scale_norm" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">scale_norm</span> <span class="o">=</span> <span class="kc">False</span></code>
 
   <span class="doc doc-labels">
@@ -1751,7 +1790,7 @@
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -1766,7 +1805,7 @@
 
 
 
-<h4 id="saev.data.shuffled.Config.seed" class="doc doc-heading">
+<h3 id="saev.data.shuffled.Config.seed" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">seed</span> <span class="o">=</span> <span class="mi">17</span></code>
 
   <span class="doc doc-labels">
@@ -1774,7 +1813,7 @@
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -1800,10 +1839,10 @@
 
 
 
-<h3 id="saev.data.shuffled.DataLoader" class="doc doc-heading">
+<h2 id="saev.data.shuffled.DataLoader" class="doc doc-heading">
               <code class="highlight language-python"><span class="n">DataLoader</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span></code>
 
-</h3>
+</h2>
 
 
     <div class="doc doc-contents ">
@@ -1870,10 +1909,10 @@
     <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">scale_norm</span><span class="p">:</span>
         <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;scale_norm not implemented.&quot;</span><span class="p">)</span>
 
-    <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span> <span class="o">=</span> <span class="n">writers</span><span class="o">.</span><span class="n">Metadata</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shard_root</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span> <span class="o">=</span> <span class="n">shards</span><span class="o">.</span><span class="n">Metadata</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shard_root</span><span class="p">)</span>
 
     <span class="c1"># Validate shard files exist</span>
-    <span class="n">shard_info</span> <span class="o">=</span> <span class="n">writers</span><span class="o">.</span><span class="n">ShardInfo</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shard_root</span><span class="p">)</span>
+    <span class="n">shard_info</span> <span class="o">=</span> <span class="n">shards</span><span class="o">.</span><span class="n">ShardInfo</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shard_root</span><span class="p">)</span>
     <span class="k">for</span> <span class="n">shard</span> <span class="ow">in</span> <span class="n">shard_info</span><span class="p">:</span>
         <span class="n">shard_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shard_root</span><span class="p">,</span> <span class="n">shard</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">shard_path</span><span class="p">):</span>
@@ -1908,11 +1947,11 @@
 
 
 
-<h4 id="saev.data.shuffled.DataLoader.ExampleBatch" class="doc doc-heading">
+<h3 id="saev.data.shuffled.DataLoader.ExampleBatch" class="doc doc-heading">
             <code>ExampleBatch</code>
 
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -1955,10 +1994,10 @@
 <div class="doc doc-object doc-function">
 
 
-<h4 id="saev.data.shuffled.DataLoader.__iter__" class="doc doc-heading">
+<h3 id="saev.data.shuffled.DataLoader.__iter__" class="doc doc-heading">
             <code class="highlight language-python"><span class="fm">__iter__</span><span class="p">()</span></code>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -2062,10 +2101,10 @@
 <div class="doc doc-object doc-function">
 
 
-<h4 id="saev.data.shuffled.DataLoader.__len__" class="doc doc-heading">
+<h3 id="saev.data.shuffled.DataLoader.__len__" class="doc doc-heading">
             <code class="highlight language-python"><span class="fm">__len__</span><span class="p">()</span></code>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -2139,7 +2178,7 @@
       <nav class="md-footer__inner md-grid" aria-label="Footer" >
         
           
-          <a href="../ordered/" class="md-footer__link md-footer__link--prev" aria-label="Previous: saev.data.ordered">
+          <a href="../shards/" class="md-footer__link md-footer__link--prev" aria-label="Previous: saev.data.shards">
             <div class="md-footer__button md-icon">
               
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
@@ -2149,7 +2188,7 @@
                 Previous
               </span>
               <div class="md-ellipsis">
-                saev.data.ordered
+                saev.data.shards
               </div>
             </div>
           </a>

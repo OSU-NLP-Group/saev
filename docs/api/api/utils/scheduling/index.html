@@ -430,6 +430,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -479,6 +483,52 @@
   
   <span class="md-ellipsis">
     Contributing
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../developers/protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Shard Protocol
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../developers/disk-layout/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Disk Layout
     
   </span>
   
@@ -655,29 +705,6 @@
   
   <span class="md-ellipsis">
     saev.data
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../data/__main__/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    saev.data.main
     
   </span>
   
@@ -902,6 +929,29 @@
   
   
     <li class="md-nav__item">
+      <a href="../../data/shards/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.data.shards
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../data/shuffled/" class="md-nav__link">
         
   
@@ -971,12 +1021,12 @@
   
   
     <li class="md-nav__item">
-      <a href="../../data/writers/" class="md-nav__link">
+      <a href="../../disk/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
-    saev.data.writers
+    saev.disk
     
   </span>
   
@@ -1161,10 +1211,9 @@
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="scheduling">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
+</li>
+      
+        <li class="md-nav__item">
   <a href="#saev.utils.scheduling.BatchLimiter" class="md-nav__link">
     <span class="md-ellipsis">
       BatchLimiter
@@ -1187,8 +1236,8 @@
     </nav>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#saev.utils.scheduling.Warmup" class="md-nav__link">
     <span class="md-ellipsis">
       Warmup
@@ -1196,18 +1245,13 @@
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#saev.utils.scheduling.WarmupCosine" class="md-nav__link">
     <span class="md-ellipsis">
       WarmupCosine
     </span>
   </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
@@ -1318,12 +1362,7 @@
 
 
 
-<h2 id="saev.utils.scheduling" class="doc doc-heading">
-            <code>saev.utils.scheduling</code>
-
-
-</h2>
-
+<a id="saev.utils.scheduling"></a>
     <div class="doc doc-contents first">
 
 
@@ -1349,10 +1388,10 @@
 
 
 
-<h3 id="saev.utils.scheduling.BatchLimiter" class="doc doc-heading">
+<h2 id="saev.utils.scheduling.BatchLimiter" class="doc doc-heading">
               <code class="highlight language-python"><span class="n">BatchLimiter</span><span class="p">(</span><span class="n">dataloader</span><span class="p">,</span> <span class="n">n_samples</span><span class="p">)</span></code>
 
-</h3>
+</h2>
 
 
     <div class="doc doc-contents ">
@@ -1395,10 +1434,10 @@
 <div class="doc doc-object doc-function">
 
 
-<h4 id="saev.utils.scheduling.BatchLimiter.__getattr__" class="doc doc-heading">
+<h3 id="saev.utils.scheduling.BatchLimiter.__getattr__" class="doc doc-heading">
             <code class="highlight language-python"><span class="fm">__getattr__</span><span class="p">(</span><span class="n">name</span><span class="p">)</span></code>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -1447,10 +1486,10 @@
 
 
 
-<h3 id="saev.utils.scheduling.Warmup" class="doc doc-heading">
+<h2 id="saev.utils.scheduling.Warmup" class="doc doc-heading">
               <code class="highlight language-python"><span class="n">Warmup</span><span class="p">(</span><span class="n">init</span><span class="p">,</span> <span class="n">final</span><span class="p">,</span> <span class="n">n_steps</span><span class="p">)</span></code>
 
-</h3>
+</h2>
 
 
     <div class="doc doc-contents ">
@@ -1506,10 +1545,10 @@
 
 
 
-<h3 id="saev.utils.scheduling.WarmupCosine" class="doc doc-heading">
+<h2 id="saev.utils.scheduling.WarmupCosine" class="doc doc-heading">
               <code class="highlight language-python"><span class="n">WarmupCosine</span><span class="p">(</span><span class="n">init</span><span class="p">,</span> <span class="n">n_warmup</span><span class="p">,</span> <span class="n">peak</span><span class="p">,</span> <span class="n">n_steps</span><span class="p">,</span> <span class="n">final</span><span class="p">)</span></code>
 
-</h3>
+</h2>
 
 
     <div class="doc doc-contents ">

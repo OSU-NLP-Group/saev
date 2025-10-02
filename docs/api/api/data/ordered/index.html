@@ -14,7 +14,7 @@
         <link rel="prev" href="../models/">
       
       
-        <link rel="next" href="../shuffled/">
+        <link rel="next" href="../shards/">
       
       
       <link rel="icon" href="../../../assets/images/favicon.png">
@@ -430,6 +430,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -479,6 +483,52 @@
   
   <span class="md-ellipsis">
     Contributing
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../developers/protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Shard Protocol
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../developers/disk-layout/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Disk Layout
     
   </span>
   
@@ -655,29 +705,6 @@
   
   <span class="md-ellipsis">
     saev.data
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../__main__/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    saev.data.main
     
   </span>
   
@@ -931,10 +958,9 @@
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="ordered">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
+</li>
+      
+        <li class="md-nav__item">
   <a href="#saev.data.ordered.Config" class="md-nav__link">
     <span class="md-ellipsis">
       Config
@@ -1020,8 +1046,8 @@
     </nav>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#saev.data.ordered.DataLoader" class="md-nav__link">
     <span class="md-ellipsis">
       DataLoader
@@ -1062,16 +1088,34 @@
     </nav>
   
 </li>
-        
-      </ul>
-    </nav>
-  
-</li>
       
     </ul>
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../shards/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.data.shards
+    
+  </span>
+  
+
+      </a>
     </li>
   
 
@@ -1153,12 +1197,12 @@
   
   
     <li class="md-nav__item">
-      <a href="../writers/" class="md-nav__link">
+      <a href="../../disk/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
-    saev.data.writers
+    saev.disk
     
   </span>
   
@@ -1405,12 +1449,7 @@
 
 
 
-<h2 id="saev.data.ordered" class="doc doc-heading">
-            <code>saev.data.ordered</code>
-
-
-</h2>
-
+<a id="saev.data.ordered"></a>
     <div class="doc doc-contents first">
 
         <p>Ordered (sequential) dataloader for activation data.</p>
@@ -1458,14 +1497,14 @@ for batch in dataloader:
 
 
 
-<h3 id="saev.data.ordered.Config" class="doc doc-heading">
+<h2 id="saev.data.ordered.Config" class="doc doc-heading">
               <code class="highlight language-python"><span class="n">Config</span><span class="p">(</span><span class="n">shard_root</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">,</span> <span class="s1">&#39;shards&#39;</span><span class="p">),</span> <span class="n">patches</span><span class="o">=</span><span class="s1">&#39;image&#39;</span><span class="p">,</span> <span class="n">layer</span><span class="o">=-</span><span class="mi">2</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">1024</span> <span class="o">*</span> <span class="mi">16</span><span class="p">,</span> <span class="n">batch_timeout_s</span><span class="o">=</span><span class="mf">30.0</span><span class="p">,</span> <span class="n">drop_last</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">buffer_size</span><span class="o">=</span><span class="mi">64</span><span class="p">,</span> <span class="n">debug</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
   </span>
 
-</h3>
+</h2>
 
 
     <div class="doc doc-contents ">
@@ -1495,7 +1534,7 @@ for batch in dataloader:
 
 
 
-<h4 id="saev.data.ordered.Config.batch_size" class="doc doc-heading">
+<h3 id="saev.data.ordered.Config.batch_size" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">batch_size</span> <span class="o">=</span> <span class="mi">1024</span> <span class="o">*</span> <span class="mi">16</span></code>
 
   <span class="doc doc-labels">
@@ -1503,7 +1542,7 @@ for batch in dataloader:
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -1518,7 +1557,7 @@ for batch in dataloader:
 
 
 
-<h4 id="saev.data.ordered.Config.batch_timeout_s" class="doc doc-heading">
+<h3 id="saev.data.ordered.Config.batch_timeout_s" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">batch_timeout_s</span> <span class="o">=</span> <span class="mf">30.0</span></code>
 
   <span class="doc doc-labels">
@@ -1526,7 +1565,7 @@ for batch in dataloader:
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -1541,7 +1580,7 @@ for batch in dataloader:
 
 
 
-<h4 id="saev.data.ordered.Config.buffer_size" class="doc doc-heading">
+<h3 id="saev.data.ordered.Config.buffer_size" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">buffer_size</span> <span class="o">=</span> <span class="mi">64</span></code>
 
   <span class="doc doc-labels">
@@ -1549,7 +1588,7 @@ for batch in dataloader:
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -1564,7 +1603,7 @@ for batch in dataloader:
 
 
 
-<h4 id="saev.data.ordered.Config.debug" class="doc doc-heading">
+<h3 id="saev.data.ordered.Config.debug" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">debug</span> <span class="o">=</span> <span class="kc">False</span></code>
 
   <span class="doc doc-labels">
@@ -1572,7 +1611,7 @@ for batch in dataloader:
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -1587,7 +1626,7 @@ for batch in dataloader:
 
 
 
-<h4 id="saev.data.ordered.Config.drop_last" class="doc doc-heading">
+<h3 id="saev.data.ordered.Config.drop_last" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">drop_last</span> <span class="o">=</span> <span class="kc">False</span></code>
 
   <span class="doc doc-labels">
@@ -1595,7 +1634,7 @@ for batch in dataloader:
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -1610,7 +1649,7 @@ for batch in dataloader:
 
 
 
-<h4 id="saev.data.ordered.Config.layer" class="doc doc-heading">
+<h3 id="saev.data.ordered.Config.layer" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">layer</span> <span class="o">=</span> <span class="o">-</span><span class="mi">2</span></code>
 
   <span class="doc doc-labels">
@@ -1618,7 +1657,7 @@ for batch in dataloader:
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -1633,7 +1672,7 @@ for batch in dataloader:
 
 
 
-<h4 id="saev.data.ordered.Config.patches" class="doc doc-heading">
+<h3 id="saev.data.ordered.Config.patches" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">patches</span> <span class="o">=</span> <span class="s1">&#39;image&#39;</span></code>
 
   <span class="doc doc-labels">
@@ -1641,7 +1680,7 @@ for batch in dataloader:
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -1656,7 +1695,7 @@ for batch in dataloader:
 
 
 
-<h4 id="saev.data.ordered.Config.shard_root" class="doc doc-heading">
+<h3 id="saev.data.ordered.Config.shard_root" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">shard_root</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">,</span> <span class="s1">&#39;shards&#39;</span><span class="p">)</span></code>
 
   <span class="doc doc-labels">
@@ -1664,7 +1703,7 @@ for batch in dataloader:
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -1690,10 +1729,10 @@ for batch in dataloader:
 
 
 
-<h3 id="saev.data.ordered.DataLoader" class="doc doc-heading">
+<h2 id="saev.data.ordered.DataLoader" class="doc doc-heading">
               <code class="highlight language-python"><span class="n">DataLoader</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span></code>
 
-</h3>
+</h2>
 
 
     <div class="doc doc-contents ">
@@ -1739,10 +1778,10 @@ for batch in dataloader:
     <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shard_root</span><span class="p">):</span>
         <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Activations are not saved at &#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shard_root</span><span class="si">}</span><span class="s2">&#39;.&quot;</span><span class="p">)</span>
 
-    <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span> <span class="o">=</span> <span class="n">writers</span><span class="o">.</span><span class="n">Metadata</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shard_root</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span> <span class="o">=</span> <span class="n">shards</span><span class="o">.</span><span class="n">Metadata</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shard_root</span><span class="p">)</span>
 
     <span class="c1"># Validate shard files exist</span>
-    <span class="n">shard_info</span> <span class="o">=</span> <span class="n">writers</span><span class="o">.</span><span class="n">ShardInfo</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shard_root</span><span class="p">)</span>
+    <span class="n">shard_info</span> <span class="o">=</span> <span class="n">shards</span><span class="o">.</span><span class="n">ShardInfo</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shard_root</span><span class="p">)</span>
     <span class="k">for</span> <span class="n">shard</span> <span class="ow">in</span> <span class="n">shard_info</span><span class="p">:</span>
         <span class="n">shard_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shard_root</span><span class="p">,</span> <span class="n">shard</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">shard_path</span><span class="p">):</span>
@@ -1778,11 +1817,11 @@ for batch in dataloader:
 
 
 
-<h4 id="saev.data.ordered.DataLoader.ExampleBatch" class="doc doc-heading">
+<h3 id="saev.data.ordered.DataLoader.ExampleBatch" class="doc doc-heading">
             <code>ExampleBatch</code>
 
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -1825,10 +1864,10 @@ for batch in dataloader:
 <div class="doc doc-object doc-function">
 
 
-<h4 id="saev.data.ordered.DataLoader.__iter__" class="doc doc-heading">
+<h3 id="saev.data.ordered.DataLoader.__iter__" class="doc doc-heading">
             <code class="highlight language-python"><span class="fm">__iter__</span><span class="p">()</span></code>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -1932,10 +1971,10 @@ for batch in dataloader:
 <div class="doc doc-object doc-function">
 
 
-<h4 id="saev.data.ordered.DataLoader.__len__" class="doc doc-heading">
+<h3 id="saev.data.ordered.DataLoader.__len__" class="doc doc-heading">
             <code class="highlight language-python"><span class="fm">__len__</span><span class="p">()</span></code>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -2032,13 +2071,13 @@ for batch in dataloader:
         
         
           
-          <a href="../shuffled/" class="md-footer__link md-footer__link--next" aria-label="Next: saev.data.shuffled">
+          <a href="../shards/" class="md-footer__link md-footer__link--next" aria-label="Next: saev.data.shards">
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 Next
               </span>
               <div class="md-ellipsis">
-                saev.data.shuffled
+                saev.data.shards
               </div>
             </div>
             <div class="md-footer__button md-icon">

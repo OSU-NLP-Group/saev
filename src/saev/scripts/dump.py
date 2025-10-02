@@ -38,7 +38,7 @@ logger = logging.getLogger("activations.py")
 class Config:
     """Configuration for computing image activations."""
 
-    run: pathlib.Path = os.path.Join(".", "runs", "abcdefg")
+    run: pathlib.Path = pathlib.Path("./runs/abcdefg")
     """Path to the sae.pt file."""
     data: OrderedConfig = OrderedConfig()
     """Data configuration"""

@@ -430,6 +430,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -479,6 +483,52 @@
   
   <span class="md-ellipsis">
     Contributing
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../developers/protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Shard Protocol
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../developers/disk-layout/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Disk Layout
     
   </span>
   
@@ -655,29 +705,6 @@
   
   <span class="md-ellipsis">
     saev.data
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../__main__/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    saev.data.main
     
   </span>
   
@@ -908,10 +935,9 @@
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="models">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
+</li>
+      
+        <li class="md-nav__item">
   <a href="#saev.data.models.VisionTransformer" class="md-nav__link">
     <span class="md-ellipsis">
       VisionTransformer
@@ -979,8 +1005,8 @@
     </nav>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#saev.data.models.list_families" class="md-nav__link">
     <span class="md-ellipsis">
       list_families
@@ -988,27 +1014,22 @@
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
-  <a href="#saev.data.models.load_vit_cls" class="md-nav__link">
+      
+        <li class="md-nav__item">
+  <a href="#saev.data.models.load_model_cls" class="md-nav__link">
     <span class="md-ellipsis">
-      load_vit_cls
+      load_model_cls
     </span>
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#saev.data.models.register_family" class="md-nav__link">
     <span class="md-ellipsis">
       register_family
     </span>
   </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
@@ -1034,6 +1055,29 @@
   
   <span class="md-ellipsis">
     saev.data.ordered
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../shards/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.data.shards
     
   </span>
   
@@ -1120,12 +1164,12 @@
   
   
     <li class="md-nav__item">
-      <a href="../writers/" class="md-nav__link">
+      <a href="../../disk/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
-    saev.data.writers
+    saev.disk
     
   </span>
   
@@ -1372,12 +1416,7 @@
 
 
 
-<h2 id="saev.data.models" class="doc doc-heading">
-            <code>saev.data.models</code>
-
-
-</h2>
-
+<a id="saev.data.models"></a>
     <div class="doc doc-contents first">
 
 
@@ -1403,11 +1442,11 @@
 
 
 
-<h3 id="saev.data.models.VisionTransformer" class="doc doc-heading">
+<h2 id="saev.data.models.VisionTransformer" class="doc doc-heading">
             <code>VisionTransformer</code>
 
 
-</h3>
+</h2>
 
 
     <div class="doc doc-contents ">
@@ -1439,7 +1478,7 @@
 
 
 
-<h4 id="saev.data.models.VisionTransformer.patch_size" class="doc doc-heading">
+<h3 id="saev.data.models.VisionTransformer.patch_size" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">patch_size</span></code>
 
   <span class="doc doc-labels">
@@ -1447,7 +1486,7 @@
       <small class="doc doc-label doc-label-property"><code>property</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -1464,14 +1503,14 @@
 <div class="doc doc-object doc-function">
 
 
-<h4 id="saev.data.models.VisionTransformer.forward" class="doc doc-heading">
+<h3 id="saev.data.models.VisionTransformer.forward" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">forward</span><span class="p">(</span><span class="n">batch</span><span class="p">)</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-abstractmethod"><code>abstractmethod</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -1499,14 +1538,14 @@
 <div class="doc doc-object doc-function">
 
 
-<h4 id="saev.data.models.VisionTransformer.get_patches" class="doc doc-heading">
+<h3 id="saev.data.models.VisionTransformer.get_patches" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">get_patches</span><span class="p">(</span><span class="n">n_patches_per_img</span><span class="p">)</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-abstractmethod"><code>abstractmethod</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -1530,14 +1569,14 @@
 <div class="doc doc-object doc-function">
 
 
-<h4 id="saev.data.models.VisionTransformer.get_residuals" class="doc doc-heading">
+<h3 id="saev.data.models.VisionTransformer.get_residuals" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">get_residuals</span><span class="p">()</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-abstractmethod"><code>abstractmethod</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -1561,7 +1600,7 @@
 <div class="doc doc-object doc-function">
 
 
-<h4 id="saev.data.models.VisionTransformer.make_resize" class="doc doc-heading">
+<h3 id="saev.data.models.VisionTransformer.make_resize" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">make_resize</span><span class="p">(</span><span class="n">ckpt</span><span class="p">,</span> <span class="n">n_patches_per_img</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">resample</span><span class="o">=</span><span class="n">Image</span><span class="o">.</span><span class="n">LANCZOS</span><span class="p">)</span></code>
 
   <span class="doc doc-labels">
@@ -1569,7 +1608,7 @@
       <small class="doc doc-label doc-label-staticmethod"><code>staticmethod</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -1607,7 +1646,7 @@
 <div class="doc doc-object doc-function">
 
 
-<h4 id="saev.data.models.VisionTransformer.make_transforms" class="doc doc-heading">
+<h3 id="saev.data.models.VisionTransformer.make_transforms" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">make_transforms</span><span class="p">(</span><span class="n">ckpt</span><span class="p">,</span> <span class="n">n_patches_per_img</span><span class="p">)</span></code>
 
   <span class="doc doc-labels">
@@ -1615,7 +1654,7 @@
       <small class="doc doc-label doc-label-staticmethod"><code>staticmethod</code></small>
   </span>
 
-</h4>
+</h3>
 
 
     <div class="doc doc-contents ">
@@ -1654,10 +1693,10 @@
 <div class="doc doc-object doc-function">
 
 
-<h3 id="saev.data.models.list_families" class="doc doc-heading">
+<h2 id="saev.data.models.list_families" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">list_families</span><span class="p">()</span></code>
 
-</h3>
+</h2>
 
 
     <div class="doc doc-contents ">
@@ -1671,7 +1710,7 @@
 <span class="normal">89</span>
 <span class="normal">90</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">list_families</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;List all ViT family names.&quot;&quot;&quot;</span>
-    <span class="k">return</span> <span class="nb">list</span><span class="p">(</span><span class="n">_global_vit_registry</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+    <span class="k">return</span> <span class="nb">list</span><span class="p">(</span><span class="n">_global_model_registry</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -1681,10 +1720,10 @@
 <div class="doc doc-object doc-function">
 
 
-<h3 id="saev.data.models.load_vit_cls" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">load_vit_cls</span><span class="p">(</span><span class="n">family</span><span class="p">)</span></code>
+<h2 id="saev.data.models.load_model_cls" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">load_model_cls</span><span class="p">(</span><span class="n">family</span><span class="p">)</span></code>
 
-</h3>
+</h2>
 
 
     <div class="doc doc-contents ">
@@ -1701,12 +1740,12 @@
 <span class="normal">75</span>
 <span class="normal">76</span>
 <span class="normal">77</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@beartype</span><span class="o">.</span><span class="n">beartype</span>
-<span class="k">def</span><span class="w"> </span><span class="nf">load_vit_cls</span><span class="p">(</span><span class="n">family</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">type</span><span class="p">[</span><span class="n">VisionTransformer</span><span class="p">]:</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">load_model_cls</span><span class="p">(</span><span class="n">family</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">type</span><span class="p">[</span><span class="n">VisionTransformer</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Load a ViT family class.&quot;&quot;&quot;</span>
-    <span class="k">if</span> <span class="n">family</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">_global_vit_registry</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">family</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">_global_model_registry</span><span class="p">:</span>
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Family &#39;</span><span class="si">{</span><span class="n">family</span><span class="si">}</span><span class="s2">&#39; not found.&quot;</span><span class="p">)</span>
 
-    <span class="k">return</span> <span class="n">_global_vit_registry</span><span class="p">[</span><span class="n">family</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">_global_model_registry</span><span class="p">[</span><span class="n">family</span><span class="p">]</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -1716,10 +1755,10 @@
 <div class="doc doc-object doc-function">
 
 
-<h3 id="saev.data.models.register_family" class="doc doc-heading">
+<h2 id="saev.data.models.register_family" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">register_family</span><span class="p">(</span><span class="bp">cls</span><span class="p">)</span></code>
 
-</h3>
+</h2>
 
 
     <div class="doc doc-contents ">
@@ -1737,9 +1776,9 @@
 <span class="normal">85</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@beartype</span><span class="o">.</span><span class="n">beartype</span>
 <span class="k">def</span><span class="w"> </span><span class="nf">register_family</span><span class="p">(</span><span class="bp">cls</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">VisionTransformer</span><span class="p">]):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Register a new ViT family class.&quot;&quot;&quot;</span>
-    <span class="k">if</span> <span class="bp">cls</span><span class="o">.</span><span class="n">family</span> <span class="ow">in</span> <span class="n">_global_vit_registry</span><span class="p">:</span>
+    <span class="k">if</span> <span class="bp">cls</span><span class="o">.</span><span class="n">family</span> <span class="ow">in</span> <span class="n">_global_model_registry</span><span class="p">:</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Overwriting key &#39;</span><span class="si">%s</span><span class="s2">&#39; in registry.&quot;</span><span class="p">,</span> <span class="bp">cls</span><span class="o">.</span><span class="n">family</span><span class="p">)</span>
-    <span class="n">_global_vit_registry</span><span class="p">[</span><span class="bp">cls</span><span class="o">.</span><span class="n">family</span><span class="p">]</span> <span class="o">=</span> <span class="bp">cls</span>
+    <span class="n">_global_model_registry</span><span class="p">[</span><span class="bp">cls</span><span class="o">.</span><span class="n">family</span><span class="p">]</span> <span class="o">=</span> <span class="bp">cls</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>

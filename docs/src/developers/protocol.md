@@ -64,19 +64,19 @@ A single array of `shard` objects, each of which has the following fields:
 
 ---
 
-## 3 Shard sizing maths
+## 3. Shard sizing maths
 
 ```python
 tokens_per_ex = patches_per_ex + (1 if cls_token else 0)
 
-ex_per_shard = floor(max_patches_per_shard / (tokens_per_ex * len(layers)))
+ex_per_shard = floor(patches_per_shard / (tokens_per_ex * len(layers)))
 
 shape_per_shard = (
-    ex_per_shard, len(layers), tokens_per_ex, d_vit,
+    ex_per_shard, len(layers), tokens_per_ex, d_model,
 )
 ```
 
-*`patches_per_shard` is a **budget** (default ~2.4 M) chosen so a shard is approximately 10 GiB for Float32 @ `d_vit = 1024`.*
+*`patches_per_shard` is a **budget** (default ~2.4 M) chosen so a shard is approximately 10 GiB for Float32 @ `d_model = 1024`.*
 
 *The last shard will have a smaller value for `ex_per_shard`; this value is documented in `n_ex` in `shards.json`*
 
@@ -84,7 +84,7 @@ shape_per_shard = (
 
 ## 4. Data Layout and Global Indexing
 
-The entire dataset of activations is treated as a single logical 4D tensor with the shape `(n_ex, len(layers), tokens_per_ex, d_vit)`. This logical tensor is C-contiguous with axes ordered `[Example, Layer, Token, Dimension]`.
+The entire dataset of activations is treated as a single logical 4D tensor with the shape `(n_ex, len(layers), tokens_per_ex, d_model)`. This logical tensor is C-contiguous with axes ordered `[Example, Layer, Token, Dimension]`.
 
 Physically, this tensor is split along the first axis (`Example`) into multiple shards, where each shard is a single binary file. The number of examples in each shard is constant, except for the final shard, which may be smaller.
 
@@ -97,7 +97,7 @@ Let the parameters from `metadata.json` be:
 * L = `len(layers)`
 * P = `patches_per_ex`
 * T = `P + (1 if cls_token else 0)` (Total tokens per example)
-* D = `d_vit`
+* D = `d_model`
 * S = `n_ex` from `shards.json` or `ex_per_shard` from Section 3 (shard sizing).
 
 ### 4.2 Coordinate Transformations
@@ -119,8 +119,8 @@ The physical location is found as follows:
     * `layer_idx = layers.index(layer)`
     A reader must raise an error if `layer` is not in `layers`.
 
-3.  **Calculate Offset:** The data within a shard is a 4D tensor of shape `(S, L, T, D)`. The offset to the first byte of the desired activation vector `[ex_in_shard, layer_in_list_idx, token_idx]` is:
-    * `offset_in_vectors = (ex_in_shard * L * T) + (layer_in_list_idx * T) + token_idx`
+3.  **Calculate Offset:** The data within a shard is a 4D tensor of shape `(S, L, T, D)`. The offset to the first byte of the desired activation vector `[ex_in_shard, layer_idx , token_idx]` is:
+    * `offset_in_vectors = (ex_in_shard * L * T) + (layer_idx * T) + token_idx`
     * `offset_in_bytes = offset_in_vectors * D * 4` (assuming 4 bytes for `float32`)
 
 A reader can then seek to `offset_in_bytes` and read $D \times 4$ bytes to retrieve the vector.

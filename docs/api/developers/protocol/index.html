@@ -8,28 +8,28 @@
       
       
       
-        <link rel="canonical" href="https://osu-nlp-group.github.io/saev/api/api/data/__main__/">
+        <link rel="canonical" href="https://osu-nlp-group.github.io/saev/api/developers/protocol/">
       
       
-        <link rel="prev" href="../saev.data/">
+        <link rel="prev" href="../contributing/">
       
       
-        <link rel="next" href="../buffers/">
+        <link rel="next" href="../disk-layout/">
       
       
-      <link rel="icon" href="../../../assets/images/favicon.png">
+      <link rel="icon" href="../../assets/images/favicon.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.20">
     
     
       
-        <title>saev.data.main - saev</title>
+        <title>Shard Protocol - saev</title>
       
     
     
-      <link rel="stylesheet" href="../../../assets/stylesheets/main.e53b48f4.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.e53b48f4.min.css">
       
         
-        <link rel="stylesheet" href="../../../assets/stylesheets/palette.06af60db.min.css">
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.06af60db.min.css">
       
       
 
@@ -42,11 +42,11 @@
       
     
     
-      <link rel="stylesheet" href="../../../assets/_mkdocstrings.css">
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
     
-      <link rel="stylesheet" href="../../../stylesheets/extra.css">
+      <link rel="stylesheet" href="../../stylesheets/extra.css">
     
-    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
 
@@ -70,7 +70,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#saev.data.__main__" class="md-skip">
+        <a href="#saev-sharded-activation-file-protocol" class="md-skip">
           Skip to content
         </a>
       
@@ -84,7 +84,7 @@
 
 <header class="md-header" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="../../.." title="saev" class="md-header__button md-logo" aria-label="saev" data-md-component="logo">
+    <a href="../.." title="saev" class="md-header__button md-logo" aria-label="saev" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -104,7 +104,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              saev.data.main
+              Shard Protocol
             
           </span>
         </div>
@@ -179,7 +179,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="../../.." class="md-tabs__link">
+      <a href="../.." class="md-tabs__link">
         
   
   
@@ -200,7 +200,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../../users/guide/" class="md-tabs__link">
+        <a href="../../users/guide/" class="md-tabs__link">
           
   
   
@@ -218,11 +218,13 @@
   
   
   
+    
+  
   
     
     
-      <li class="md-tabs__item">
-        <a href="../../../developers/contributing/" class="md-tabs__link">
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../contributing/" class="md-tabs__link">
           
   
   
@@ -240,13 +242,11 @@
   
   
   
-    
-  
   
     
     
-      <li class="md-tabs__item md-tabs__item--active">
-        <a href="../../saev/" class="md-tabs__link">
+      <li class="md-tabs__item">
+        <a href="../../api/saev/" class="md-tabs__link">
           
   
   
@@ -284,7 +284,7 @@
 
 <nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="../../.." title="saev" class="md-nav__button md-logo" aria-label="saev" data-md-component="logo">
+    <a href="../.." title="saev" class="md-nav__button md-logo" aria-label="saev" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -302,7 +302,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../.." class="md-nav__link">
+      <a href="../.." class="md-nav__link">
         
   
   
@@ -373,7 +373,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../users/guide/" class="md-nav__link">
+      <a href="../../users/guide/" class="md-nav__link">
         
   
   
@@ -396,7 +396,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../users/inference/" class="md-nav__link">
+      <a href="../../users/inference/" class="md-nav__link">
         
   
   
@@ -423,135 +423,12 @@
       
   
   
-  
-  
-    
-    
-      
-        
-      
-    
-    
-    
-      
-      
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
-        
-          
-          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
-            
-  
-  
-  <span class="md-ellipsis">
-    Developers
-    
-  </span>
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3">
-            <span class="md-nav__icon md-icon"></span>
-            Developers
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../developers/contributing/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    Contributing
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-    
-      
-      
-  
-  
     
   
   
   
     
     
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
       
         
       
@@ -573,15 +450,15 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
         
           
-          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
             
   
   
   <span class="md-ellipsis">
-    API
+    Developers
     
   </span>
   
@@ -589,10 +466,10 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_4">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
             <span class="md-nav__icon md-icon"></span>
-            API
+            Developers
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
@@ -603,58 +480,12 @@
   
   
     <li class="md-nav__item">
-      <a href="../../saev/" class="md-nav__link">
+      <a href="../contributing/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
-    saev
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../colors/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    saev.colors
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../saev.data/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    saev.data
+    Contributing
     
   </span>
   
@@ -678,13 +509,15 @@
       <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
       
       
+        
+      
       
         <label class="md-nav__link md-nav__link--active" for="__toc">
           
   
   
   <span class="md-ellipsis">
-    saev.data.main
+    Shard Protocol
     
   </span>
   
@@ -697,7 +530,7 @@
   
   
   <span class="md-ellipsis">
-    saev.data.main
+    Shard Protocol
     
   </span>
   
@@ -710,6 +543,8 @@
   
   
   
+    
+  
   
     <label class="md-nav__title" for="__toc">
       <span class="md-nav__icon md-icon"></span>
@@ -718,19 +553,37 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#saev.data.__main__" class="md-nav__link">
+  <a href="#1-directory-layout" class="md-nav__link">
     <span class="md-ellipsis">
-      __main__
+      1. Directory layout
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="__main__">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-json-file-schemas" class="md-nav__link">
+    <span class="md-ellipsis">
+      2. JSON file schemas
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. JSON file schemas">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#saev.data.__main__.main" class="md-nav__link">
+  <a href="#21-metadatajson" class="md-nav__link">
     <span class="md-ellipsis">
-      main
+      2.1. metadata.json
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#22-shardsjson" class="md-nav__link">
+    <span class="md-ellipsis">
+      2.2. shards.json
     </span>
   </a>
   
@@ -738,6 +591,66 @@
         
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-shard-sizing-maths" class="md-nav__link">
+    <span class="md-ellipsis">
+      3. Shard sizing maths
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-data-layout-and-global-indexing" class="md-nav__link">
+    <span class="md-ellipsis">
+      4. Data Layout and Global Indexing
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4. Data Layout and Global Indexing">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#41-definitions" class="md-nav__link">
+    <span class="md-ellipsis">
+      4.1 Definitions
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#42-coordinate-transformations" class="md-nav__link">
+    <span class="md-ellipsis">
+      4.2 Coordinate Transformations
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#43-token-axis-layout" class="md-nav__link">
+    <span class="md-ellipsis">
+      4.3 Token Axis Layout
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-versioning-compatibility" class="md-nav__link">
+    <span class="md-ellipsis">
+      5 Versioning &amp; compatibility
+    </span>
+  </a>
   
 </li>
       
@@ -757,7 +670,203 @@
   
   
     <li class="md-nav__item">
-      <a href="../buffers/" class="md-nav__link">
+      <a href="../disk-layout/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Disk Layout
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    API
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            API
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/saev/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/colors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.colors
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/data/saev.data/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.data
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/data/buffers/" class="md-nav__link">
         
   
   
@@ -780,7 +889,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../clip/" class="md-nav__link">
+      <a href="../../api/data/clip/" class="md-nav__link">
         
   
   
@@ -803,7 +912,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../datasets/" class="md-nav__link">
+      <a href="../../api/data/datasets/" class="md-nav__link">
         
   
   
@@ -826,7 +935,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../dinov2/" class="md-nav__link">
+      <a href="../../api/data/dinov2/" class="md-nav__link">
         
   
   
@@ -849,7 +958,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../dinov3/" class="md-nav__link">
+      <a href="../../api/data/dinov3/" class="md-nav__link">
         
   
   
@@ -872,7 +981,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../fake_clip/" class="md-nav__link">
+      <a href="../../api/data/fake_clip/" class="md-nav__link">
         
   
   
@@ -895,7 +1004,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../indexed/" class="md-nav__link">
+      <a href="../../api/data/indexed/" class="md-nav__link">
         
   
   
@@ -918,7 +1027,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../models/" class="md-nav__link">
+      <a href="../../api/data/models/" class="md-nav__link">
         
   
   
@@ -941,7 +1050,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../ordered/" class="md-nav__link">
+      <a href="../../api/data/ordered/" class="md-nav__link">
         
   
   
@@ -964,7 +1073,30 @@
   
   
     <li class="md-nav__item">
-      <a href="../shuffled/" class="md-nav__link">
+      <a href="../../api/data/shards/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.data.shards
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/data/shuffled/" class="md-nav__link">
         
   
   
@@ -987,7 +1119,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../siglip/" class="md-nav__link">
+      <a href="../../api/data/siglip/" class="md-nav__link">
         
   
   
@@ -1010,7 +1142,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../transforms/" class="md-nav__link">
+      <a href="../../api/data/transforms/" class="md-nav__link">
         
   
   
@@ -1033,12 +1165,12 @@
   
   
     <li class="md-nav__item">
-      <a href="../writers/" class="md-nav__link">
+      <a href="../../api/disk/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
-    saev.data.writers
+    saev.disk
     
   </span>
   
@@ -1056,7 +1188,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../helpers/" class="md-nav__link">
+      <a href="../../api/helpers/" class="md-nav__link">
         
   
   
@@ -1079,7 +1211,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../nn/saev.nn/" class="md-nav__link">
+      <a href="../../api/nn/saev.nn/" class="md-nav__link">
         
   
   
@@ -1102,7 +1234,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../nn/modeling/" class="md-nav__link">
+      <a href="../../api/nn/modeling/" class="md-nav__link">
         
   
   
@@ -1125,7 +1257,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../nn/objectives/" class="md-nav__link">
+      <a href="../../api/nn/objectives/" class="md-nav__link">
         
   
   
@@ -1148,7 +1280,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../utils/saev.utils/" class="md-nav__link">
+      <a href="../../api/utils/saev.utils/" class="md-nav__link">
         
   
   
@@ -1171,7 +1303,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../utils/scheduling/" class="md-nav__link">
+      <a href="../../api/utils/scheduling/" class="md-nav__link">
         
   
   
@@ -1194,7 +1326,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../utils/statistics/" class="md-nav__link">
+      <a href="../../api/utils/statistics/" class="md-nav__link">
         
   
   
@@ -1217,7 +1349,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../utils/wandb/" class="md-nav__link">
+      <a href="../../api/utils/wandb/" class="md-nav__link">
         
   
   
@@ -1240,7 +1372,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../viz/" class="md-nav__link">
+      <a href="../../api/viz/" class="md-nav__link">
         
   
   
@@ -1279,189 +1411,201 @@
 
 
 
-  <h1>saev.data.main</h1>
+<h1 id="saev-sharded-activation-file-protocol">saev Sharded Activation File Protocol</h1>
+<p>saev caches activations to disk rather than run ViT or LLM inference when training SAEs.
+Gemma Scope makes this decision as well (see Section 3.3.2 of https://arxiv.org/pdf/2408.05147).
+<code>saev.data</code> has a specific protocol to support this in on <a href="https://www.osc.edu">OSC</a>, a super computer center, and take advantage of OSC's specific disk performance. </p>
+<p>Goal: loss-lessly persist very large Transformer (ViT or LLM) activations in a form that is:</p>
+<ul>
+<li>mem-mappable</li>
+<li>Parameterized solely by the <em>experiment configuration</em> (<code>scripts/shards.py:Config</code>)</li>
+<li>Referenced by a content-hash, so identical configs collide, divergent ones never do</li>
+<li>Can be read quickly in a random order for training, and can be read (slowly) with random-access for visuals.</li>
+</ul>
+<p>This document is the single normative source. Any divergence in code is a <strong>bug</strong>.</p>
+<hr />
+<h2 id="1-directory-layout">1. Directory layout</h2>
+<pre><code>&lt;dump_to&gt;/&lt;HASH&gt;/
+    metadata.json    # UTF-8 JSON, human-readable, describes data-generating config
+    shards.json      # UTF-8 JSON, human-readable, describes shards.
+    acts000000.bin   # shard 0
+    acts000001.bin   # shard 1
+    ...
+    actsNNNNNN.bin   # shard NNNNNN  (zero-padded width=6)
+    labels.bin       # patch labels (optional)
+</code></pre>
+<p><em><code>HASH</code> = <code>sha256(json.dumps(metadata, sort_keys=True, separators=(',', ':')).encode('utf-8'))</code></em>
+Guards against silent config drift.</p>
+<hr />
+<h2 id="2-json-file-schemas">2. JSON file schemas</h2>
+<h3 id="21-metadatajson">2.1. <code>metadata.json</code></h3>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>semantic</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>family</code></td>
+<td>string</td>
+<td><code>"clip" \| "siglip" \| "dinov2"</code></td>
+</tr>
+<tr>
+<td><code>ckpt</code></td>
+<td>string</td>
+<td>model identifier (OpenCLIP, HF, etc.)</td>
+</tr>
+<tr>
+<td><code>layers</code></td>
+<td>int[]</td>
+<td>ViT residual‐block indices recorded</td>
+</tr>
+<tr>
+<td><code>patches_per_ex</code></td>
+<td>int</td>
+<td><strong>example patches only</strong> (excludes CLS)</td>
+</tr>
+<tr>
+<td><code>cls_token</code></td>
+<td>bool</td>
+<td><code>true</code> -&gt; patch 0 is CLS, else no CLS</td>
+</tr>
+<tr>
+<td><code>d_model</code></td>
+<td>int</td>
+<td>activation dimensionality</td>
+</tr>
+<tr>
+<td><code>n_ex</code></td>
+<td>int</td>
+<td>total examples in dataset</td>
+</tr>
+<tr>
+<td><code>patches_per_shard</code></td>
+<td>int</td>
+<td><strong>logical</strong> activations per shard (see #3)</td>
+</tr>
+<tr>
+<td><code>data</code></td>
+<td>object</td>
+<td>opaque dataset description</td>
+</tr>
+<tr>
+<td><code>dtype</code></td>
+<td>string</td>
+<td>numpy dtype. Fixed <code>"float32"</code> for now.</td>
+</tr>
+<tr>
+<td><code>protocol</code></td>
+<td>string</td>
+<td><code>"2.0"</code> (shards after big refactor)</td>
+</tr>
+</tbody>
+</table>
+<p>The <code>data</code> object is <code>dataclasses.asdict(cfg.data)</code>, with an additional <code>__class__</code> field with <code>cfg.data.__class__.__name__</code> as the value.</p>
+<h3 id="22-shardsjson">2.2. <code>shards.json</code></h3>
+<p>A single array of <code>shard</code> objects, each of which has the following fields:</p>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>semantic</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>name</td>
+<td>string</td>
+<td>shard filename (<code>acts000000.bin</code>).</td>
+</tr>
+<tr>
+<td>n_ex</td>
+<td>int</td>
+<td>the number of examples in the shard.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="3-shard-sizing-maths">3. Shard sizing maths</h2>
+<pre><code class="language-python">tokens_per_ex = patches_per_ex + (1 if cls_token else 0)
 
-<div class="doc doc-object doc-module">
+ex_per_shard = floor(patches_per_shard / (tokens_per_ex * len(layers)))
 
-
-
-<h2 id="saev.data.__main__" class="doc doc-heading">
-            <code>saev.data.__main__</code>
-
-
-</h2>
-
-    <div class="doc doc-contents first">
-
-        <p>To save lots of activations, we want to do things in parallel, with lots of slurm jobs, and save multiple files, rather than just one.</p>
-<p>This module handles that additional complexity.</p>
-<p>Conceptually, activations are either thought of as</p>
+shape_per_shard = (
+    ex_per_shard, len(layers), tokens_per_ex, d_model,
+)
+</code></pre>
+<p><em><code>patches_per_shard</code> is a </em><em>budget</em><em> (default ~2.4 M) chosen so a shard is approximately 10 GiB for Float32 @ <code>d_model = 1024</code>.</em></p>
+<p><em>The last shard will have a smaller value for <code>ex_per_shard</code>; this value is documented in <code>n_ex</code> in <code>shards.json</code></em></p>
+<hr />
+<h2 id="4-data-layout-and-global-indexing">4. Data Layout and Global Indexing</h2>
+<p>The entire dataset of activations is treated as a single logical 4D tensor with the shape <code>(n_ex, len(layers), tokens_per_ex, d_model)</code>. This logical tensor is C-contiguous with axes ordered <code>[Example, Layer, Token, Dimension]</code>.</p>
+<p>Physically, this tensor is split along the first axis (<code>Example</code>) into multiple shards, where each shard is a single binary file. The number of examples in each shard is constant, except for the final shard, which may be smaller.</p>
+<p>To locate an arbitrary activation vector, a reader must convert a logical coordinate (<code>global_ex_idx</code>, <code>layer_value</code>, <code>token_idx</code>) into a file path and an offset within that file.</p>
+<h3 id="41-definitions">4.1 Definitions</h3>
+<p>Let the parameters from <code>metadata.json</code> be:</p>
+<ul>
+<li>L = <code>len(layers)</code></li>
+<li>P = <code>patches_per_ex</code></li>
+<li>T = <code>P + (1 if cls_token else 0)</code> (Total tokens per example)</li>
+<li>D = <code>d_model</code></li>
+<li>S = <code>n_ex</code> from <code>shards.json</code> or <code>ex_per_shard</code> from Section 3 (shard sizing).</li>
+</ul>
+<h3 id="42-coordinate-transformations">4.2 Coordinate Transformations</h3>
+<p>Given a logical coordinate:</p>
+<ul>
+<li><code>global_ex_idx</code>: integer, with <code>0 &lt;= global_ex_idx &lt; n_ex</code></li>
+<li><code>layer</code>: integer, must be an element of <code>layers</code></li>
+<li><code>token_idx</code>: integer, <code>0 &lt;= token_idx &lt; T</code></li>
+</ul>
+<p>The physical location is found as follows:</p>
 <ol>
-<li>A single [n_imgs x n_layers x (n_patches + 1), d_vit] tensor. This is a <em>dataset</em></li>
-<li>Multiple [n_imgs_per_shard, n_layers, (n_patches + 1), d_vit] tensors. This is a set of sharded activations.</li>
+<li>
+<p><strong>Identify Shard:</strong></p>
+<ul>
+<li><code>shard_idx = global_ex_idx // S</code></li>
+<li><code>ex_in_shard = global_ex_idx % S</code>
+The target file is <code>acts{shard_idx:06d}.bin</code>.</li>
+</ul>
+</li>
+<li>
+<p><strong>Identify Layer Index:</strong> The stored data contains a subset of the ViT's layers. The logical <code>layer_value</code> must be mapped to its index in the stored <code>layers</code> array.</p>
+<ul>
+<li><code>layer_idx = layers.index(layer)</code>
+A reader must raise an error if <code>layer</code> is not in <code>layers</code>.</li>
+</ul>
+</li>
+<li>
+<p><strong>Calculate Offset:</strong> The data within a shard is a 4D tensor of shape <code>(S, L, T, D)</code>. The offset to the first byte of the desired activation vector <code>[ex_in_shard, layer_idx , token_idx]</code> is:</p>
+<ul>
+<li><code>offset_in_vectors = (ex_in_shard * L * T) + (layer_idx * T) + token_idx</code></li>
+<li><code>offset_in_bytes = offset_in_vectors * D * 4</code> (assuming 4 bytes for <code>float32</code>)</li>
+</ul>
+</li>
 </ol>
-
-
-
-
-
-
-
-
-
-
-  <div class="doc doc-children">
-
-
-
-
-
-
-
-
-
-
-<div class="doc doc-object doc-function">
-
-
-<h3 id="saev.data.__main__.main" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">main</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span></code>
-
-</h3>
-
-
-    <div class="doc doc-contents ">
-
-        <p>Save ViT activations for use later on.</p>
-
-
-<p><span class="doc-section-title">Parameters:</span></p>
-    <table>
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>Type</th>
-          <th>Description</th>
-          <th>Default</th>
-        </tr>
-      </thead>
-      <tbody>
-          <tr class="doc-section-item">
-            <td>
-                <code>cfg</code>
-            </td>
-            <td>
-                  <code><span title="typing.Annotated">Annotated</span>[<a class="autorefs autorefs-internal" title="Config(data=datasets.Imagenet(), dump_to=os.path.join('.', 'shards'), vit_family='clip', vit_ckpt='ViT-L-14/openai', vit_batch_size=1024, n_workers=8, d_vit=1024, vit_layers=(lambda: [-2])(), n_patches_per_img=256, cls_token=True, pixel_agg='majority', max_patches_per_shard=2400000, ssl=True, device='cuda', n_hours=24.0, slurm_acct='', slurm_partition='', log_to='./logs')
-
-  
-      dataclass
-   (saev.data.writers.Config)" href="../writers/#saev.data.writers.Config">Config</a>, <span title="tyro.conf.arg">arg</span>(name=&#39;&#39;)]</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Configuration for activations.</p>
-              </div>
-            </td>
-            <td>
-                <em>required</em>
-            </td>
-          </tr>
-      </tbody>
-    </table>
-
-
-            <details class="quote">
-              <summary>Source code in <code>src/saev/data/__main__.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">26</span>
-<span class="normal">27</span>
-<span class="normal">28</span>
-<span class="normal">29</span>
-<span class="normal">30</span>
-<span class="normal">31</span>
-<span class="normal">32</span>
-<span class="normal">33</span>
-<span class="normal">34</span>
-<span class="normal">35</span>
-<span class="normal">36</span>
-<span class="normal">37</span>
-<span class="normal">38</span>
-<span class="normal">39</span>
-<span class="normal">40</span>
-<span class="normal">41</span>
-<span class="normal">42</span>
-<span class="normal">43</span>
-<span class="normal">44</span>
-<span class="normal">45</span>
-<span class="normal">46</span>
-<span class="normal">47</span>
-<span class="normal">48</span>
-<span class="normal">49</span>
-<span class="normal">50</span>
-<span class="normal">51</span>
-<span class="normal">52</span>
-<span class="normal">53</span>
-<span class="normal">54</span>
-<span class="normal">55</span>
-<span class="normal">56</span>
-<span class="normal">57</span>
-<span class="normal">58</span>
-<span class="normal">59</span>
-<span class="normal">60</span>
-<span class="normal">61</span>
-<span class="normal">62</span>
-<span class="normal">63</span>
-<span class="normal">64</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@beartype</span><span class="o">.</span><span class="n">beartype</span>
-<span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">(</span><span class="n">cfg</span><span class="p">:</span> <span class="n">typing</span><span class="o">.</span><span class="n">Annotated</span><span class="p">[</span><span class="n">writers</span><span class="o">.</span><span class="n">Config</span><span class="p">,</span> <span class="n">tyro</span><span class="o">.</span><span class="n">conf</span><span class="o">.</span><span class="n">arg</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">)]):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Save ViT activations for use later on.</span>
-
-<span class="sd">    Args:</span>
-<span class="sd">        cfg: Configuration for activations.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s2">&quot;dump&quot;</span><span class="p">)</span>
-
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">cfg</span><span class="o">.</span><span class="n">ssl</span><span class="p">:</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Ignoring SSL certs. Try not to do this!&quot;</span><span class="p">)</span>
-        <span class="c1"># https://github.com/openai/whisper/discussions/734#discussioncomment-4491761</span>
-        <span class="c1"># Ideally we don&#39;t have to disable SSL but we are only downloading weights.</span>
-        <span class="kn">import</span><span class="w"> </span><span class="nn">ssl</span>
-
-        <span class="n">ssl</span><span class="o">.</span><span class="n">_create_default_https_context</span> <span class="o">=</span> <span class="n">ssl</span><span class="o">.</span><span class="n">_create_unverified_context</span>
-
-    <span class="c1"># Actually record activations.</span>
-    <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">slurm_acct</span><span class="p">:</span>
-        <span class="kn">import</span><span class="w"> </span><span class="nn">submitit</span>
-
-        <span class="n">executor</span> <span class="o">=</span> <span class="n">submitit</span><span class="o">.</span><span class="n">SlurmExecutor</span><span class="p">(</span><span class="n">folder</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">log_to</span><span class="p">)</span>
-        <span class="n">executor</span><span class="o">.</span><span class="n">update_parameters</span><span class="p">(</span>
-            <span class="n">time</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">n_hours</span> <span class="o">*</span> <span class="mi">60</span><span class="p">),</span>
-            <span class="n">partition</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">slurm_partition</span><span class="p">,</span>
-            <span class="n">gpus_per_node</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
-            <span class="n">ntasks_per_node</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
-            <span class="n">cpus_per_task</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">n_workers</span> <span class="o">+</span> <span class="mi">4</span><span class="p">,</span>
-            <span class="n">stderr_to_stdout</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-            <span class="n">account</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">slurm_acct</span><span class="p">,</span>
-        <span class="p">)</span>
-
-        <span class="n">job</span> <span class="o">=</span> <span class="n">executor</span><span class="o">.</span><span class="n">submit</span><span class="p">(</span><span class="n">writers</span><span class="o">.</span><span class="n">worker_fn</span><span class="p">,</span> <span class="n">cfg</span><span class="p">)</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Running job &#39;</span><span class="si">%s</span><span class="s2">&#39;.&quot;</span><span class="p">,</span> <span class="n">job</span><span class="o">.</span><span class="n">job_id</span><span class="p">)</span>
-        <span class="n">job</span><span class="o">.</span><span class="n">result</span><span class="p">()</span>
-
-    <span class="k">else</span><span class="p">:</span>
-        <span class="n">writers</span><span class="o">.</span><span class="n">worker_fn</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
-</code></pre></div></td></tr></table></div>
-            </details>
-    </div>
-
-</div>
-
-
-
-  </div>
-
-    </div>
-
-</div>
+<p>A reader can then seek to <code>offset_in_bytes</code> and read $D \times 4$ bytes to retrieve the vector.</p>
+<p><em>Alternatively, rather than calculate the offset, readers can memmap the shard, then use Numpy indexing to get the activation vector.</em></p>
+<h3 id="43-token-axis-layout">4.3 Token Axis Layout</h3>
+<p>The <code>token</code> axis of length $T$ is ordered as follows:
+* If <code>cls_token</code> is <code>true</code>:
+    * Index <code>0</code>: [CLS] token activation
+    * Indices <code>1</code> to $P$: Patch token activations
+* If <code>cls_token</code> is <code>false</code>:
+    * Indices <code>0</code> to $P-1$: Patch token activations</p>
+<p>The relative order of patch tokens is preserved exactly as produced by the upstream Vision Transformer.</p>
+<hr />
+<h2 id="5-versioning-compatibility">5 Versioning &amp; compatibility</h2>
+<ul>
+<li><strong>Major changes</strong> (shape reorder, dtype switch, new required JSON keys) increment the major protocol version number at the top of this document and must emit a <em>breaking</em> warning in loader code.</li>
+<li><strong>Minor, backward-compatible additions</strong> (new optional JSON key) merely update this doc and the minor protocol version number.</li>
+</ul>
+<hr />
+<p>That's it.
+Anything else you find in code that contradicts this document, fix the code or update the spec.</p>
 
 
 
@@ -1499,7 +1643,7 @@
       <nav class="md-footer__inner md-grid" aria-label="Footer" >
         
           
-          <a href="../saev.data/" class="md-footer__link md-footer__link--prev" aria-label="Previous: saev.data">
+          <a href="../contributing/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Contributing">
             <div class="md-footer__button md-icon">
               
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
@@ -1509,20 +1653,20 @@
                 Previous
               </span>
               <div class="md-ellipsis">
-                saev.data
+                Contributing
               </div>
             </div>
           </a>
         
         
           
-          <a href="../buffers/" class="md-footer__link md-footer__link--next" aria-label="Next: saev.data.buffers">
+          <a href="../disk-layout/" class="md-footer__link md-footer__link--next" aria-label="Next: Disk Layout">
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 Next
               </span>
               <div class="md-ellipsis">
-                saev.data.buffers
+                Disk Layout
               </div>
             </div>
             <div class="md-footer__button md-icon">
@@ -1574,10 +1718,10 @@
     
     
       
-      <script id="__config" type="application/json">{"base": "../../..", "features": ["navigation.tabs", "navigation.path", "navigation.indexes", "navigation.expand", "toc.follow", "toc.integrate", "navigation.top", "search.suggest", "search.highlight", "content.tabs.link", "content.code.annotation", "content.code.copy", "navigation.footer", "content.action.edit"], "search": "../../../assets/javascripts/workers/search.973d3a69.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"base": "../..", "features": ["navigation.tabs", "navigation.path", "navigation.indexes", "navigation.expand", "toc.follow", "toc.integrate", "navigation.top", "search.suggest", "search.highlight", "content.tabs.link", "content.code.annotation", "content.code.copy", "navigation.footer", "content.action.edit"], "search": "../../assets/javascripts/workers/search.973d3a69.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../../assets/javascripts/bundle.f55a23d4.min.js"></script>
+      <script src="../../assets/javascripts/bundle.f55a23d4.min.js"></script>
       
     
   </body>

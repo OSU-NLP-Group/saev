@@ -92,7 +92,9 @@ def test_labels_bin_value_range():
     """Test that labels.bin contains valid class indices."""
     n_classes = 5
     with tmp_shards_root() as shards_root:
-        data_cfg = datasets.FakeSeg(n_ex=3, patches_per_img=16, n_classes=n_classes, bg_label=0)
+        data_cfg = datasets.FakeSeg(
+            n_ex=3, patches_per_img=16, n_classes=n_classes, bg_label=0
+        )
         shards_dir = worker_fn(
             family="fake-clip",
             ckpt="hf-hub:hf-internal-testing/tiny-open-clip-model",
@@ -151,7 +153,9 @@ def test_labels_bin_with_cls_token():
 def test_labels_bin_multi_shard():
     """Test that labels.bin works correctly with multiple shards."""
     with tmp_shards_root() as shards_root:
-        data_cfg = datasets.FakeSeg(n_ex=10, patches_per_img=16, n_classes=4, bg_label=0)
+        data_cfg = datasets.FakeSeg(
+            n_ex=10, patches_per_img=16, n_classes=4, bg_label=0
+        )
         shards_dir = worker_fn(
             family="fake-clip",
             ckpt="hf-hub:hf-internal-testing/tiny-open-clip-model",

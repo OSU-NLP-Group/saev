@@ -1,5 +1,4 @@
 # Performance
-
 SAEs are mostly disk-bound.
 Gemma Scope (Google SAE paper) aimed for 1 GB/s to keep their GPUS brrr'ing.
 This is pretty hard even with sequential reads, much less random access.
