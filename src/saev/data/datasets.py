@@ -1,7 +1,9 @@
+import abc
 import dataclasses
 import glob
 import logging
 import os
+import pathlib
 import typing
 from collections.abc import Callable
 
@@ -14,8 +16,23 @@ logger = logging.getLogger(__name__)
 
 
 @beartype.beartype
+class DatasetConfig(abc.ABC):
+    """Abstract base class for dataset configurations."""
+
+    @property
+    @abc.abstractmethod
+    def n_ex(self) -> int:
+        """Number of examples in the dataset."""
+
+    @property
+    @abc.abstractmethod
+    def root(self) -> pathlib.Path:
+        """Root directory path for the dataset."""
+
+
+@beartype.beartype
 @dataclasses.dataclass(frozen=True)
-class Imagenet:
+class Imagenet(DatasetConfig):
     """Configuration for HuggingFace Imagenet."""
 
     name: str = "ILSVRC/imagenet-1k"
@@ -33,13 +50,18 @@ class Imagenet:
         )
         return len(dataset)
 
+    @property
+    def root(self) -> pathlib.Path:
+        """Root directory path for the dataset."""
+        return pathlib.Path(self.name)
+
 
 @beartype.beartype
 @dataclasses.dataclass(frozen=True)
-class ImageFolder:
+class ImageFolder(DatasetConfig):
     """Configuration for a generic image folder dataset."""
 
-    root: str = os.path.join(".", "data", "split")
+    root: pathlib.Path = pathlib.Path("./data/split")
     """Where the class folders with images are stored. Can be a glob pattern to match multiple directories."""
 
     @property
@@ -48,7 +70,7 @@ class ImageFolder:
         # Use the same image extensions as torchvision's ImageFolder
         img_extensions = tuple(torchvision.datasets.folder.IMG_EXTENSIONS)
         n = 0
-        for root in glob.glob(self.root, recursive=True):
+        for root in self.root.parent.glob(self.root.name):
             for _, _, files in os.walk(root):
                 # Only count files with valid image extensions
                 n += sum(1 for f in files if f.lower().endswith(img_extensions))
@@ -57,8 +79,8 @@ class ImageFolder:
 
 @beartype.beartype
 @dataclasses.dataclass(frozen=True)
-class SegFolder:
-    root: str = os.path.join(".", "data", "segdataset")
+class SegFolder(DatasetConfig):
+    root: pathlib.Path = pathlib.Path("./data/segdataset")
     """Where the class folders with images are stored."""
     split: typing.Literal["training", "validation"] = "training"
     """Data split."""
@@ -74,8 +96,8 @@ class SegFolder:
         img_extensions = tuple(torchvision.datasets.folder.IMG_EXTENSIONS)
 
         # Look for images in root/images/split
-        img_dir = os.path.join(self.root, "images", self.split)
-        if not os.path.isdir(img_dir):
+        img_dir = self.root / "images" / self.split
+        if not img_dir.is_dir():
             return 0
 
         n = 0
@@ -87,13 +109,18 @@ class SegFolder:
 
 @beartype.beartype
 @dataclasses.dataclass(frozen=True)
-class Fake:
+class Fake(DatasetConfig):
     n_ex: int = 10
+
+    @property
+    def root(self) -> pathlib.Path:
+        """Root directory path for the dataset."""
+        return pathlib.Path("fake")
 
 
 @beartype.beartype
 @dataclasses.dataclass(frozen=True)
-class FakeSeg:
+class FakeSeg(DatasetConfig):
     """Tiny synthetic segmentation dataset for tests.
 
     Generates dummy RGB images and pixel-level segmentation masks,
@@ -108,6 +135,11 @@ class FakeSeg:
     """Number of segmentation classes."""
     bg_label: int = 0
     """Which class index is considered background."""
+
+    @property
+    def root(self) -> pathlib.Path:
+        """Root directory path for the dataset."""
+        return pathlib.Path("fake-seg")
 
 
 Config = Imagenet | ImageFolder | SegFolder | Fake | FakeSeg

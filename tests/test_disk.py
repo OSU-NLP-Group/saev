@@ -6,20 +6,20 @@ from saev.disk import Run
 
 
 @pytest.fixture
-def tmp_run_root(tmp_path):
+def tmp_runs_root(tmp_path):
     """Create a temporary run root directory."""
-    run_root = tmp_path / "runs" / "test_run_123"
-    return run_root
+    runs_root = tmp_path / "runs"
+    return runs_root
 
 
 @pytest.fixture
-def populated_run_root(tmp_path):
+def populated_runs_root(tmp_path):
     """Create a populated run directory with all expected structure."""
-    run_root = tmp_path / "runs" / "test_run_456"
-    run_root.mkdir(parents=True)
+    runs_root = tmp_path / "runs" / "test_run_456"
+    runs_root.mkdir(parents=True)
 
     # Create checkpoint directory with sae.pt and config.json
-    checkpoint = run_root / "checkpoint"
+    checkpoint = runs_root / "checkpoint"
     checkpoint.mkdir()
     (checkpoint / "sae.pt").touch()
     (checkpoint / "config.json").write_text(
@@ -27,166 +27,213 @@ def populated_run_root(tmp_path):
     )
 
     # Create links directory
-    links = run_root / "links"
+    links = runs_root / "links"
     links.mkdir()
 
-    # Create shard directory structure
-    scratch = tmp_path / "scratch" / "shards" / "abc123"
-    scratch.mkdir(parents=True)
-    (scratch / "metadata.json").touch()
-    (scratch / "acts000000.bin").touch()
-    (scratch / "labels.bin").touch()
+    # Create train shard directory structure
+    train_scratch = tmp_path / "scratch" / "shards" / "abc123"
+    train_scratch.mkdir(parents=True)
+    (train_scratch / "metadata.json").touch()
+    (train_scratch / "acts000000.bin").touch()
+    (train_scratch / "labels.bin").touch()
 
-    # Create dataset directory
-    dataset = tmp_path / "datasets" / "butterflies"
-    dataset.mkdir(parents=True)
+    # Create val shard directory structure
+    val_scratch = tmp_path / "scratch" / "shards" / "def456"
+    val_scratch.mkdir(parents=True)
+    (val_scratch / "metadata.json").touch()
+    (val_scratch / "acts000000.bin").touch()
+    (val_scratch / "labels.bin").touch()
+
+    # Create train dataset directory
+    train_dataset = tmp_path / "datasets" / "butterflies-train"
+    train_dataset.mkdir(parents=True)
+
+    # Create val dataset directory
+    val_dataset = tmp_path / "datasets" / "butterflies-val"
+    val_dataset.mkdir(parents=True)
 
     # Create symlinks
-    (links / "shards").symlink_to(scratch)
-    (links / "dataset").symlink_to(dataset)
+    (links / "train-shards").symlink_to(train_scratch)
+    (links / "train-dataset").symlink_to(train_dataset)
+    (links / "val-shards").symlink_to(val_scratch)
+    (links / "val-dataset").symlink_to(val_dataset)
 
     # Create inference directory
-    inference = run_root / "inference"
+    inference = runs_root / "inference"
     inference.mkdir()
 
-    return run_root
+    return runs_root
 
 
 def test_new_run_creates_directories(tmp_path):
     """Test that creating a new run creates all expected directories."""
-    run_root = tmp_path / "runs"
-    shards_dpath = tmp_path / "scratch" / "shards" / "abc123"
-    shards_dpath.mkdir(parents=True)
-    dataset_dpath = tmp_path / "datasets" / "butterflies"
-    dataset_dpath.mkdir(parents=True)
+    runs_root = tmp_path / "runs"
+    train_shards_dpath = tmp_path / "scratch" / "shards" / "abc123"
+    train_shards_dpath.mkdir(parents=True)
+    val_shards_dpath = tmp_path / "scratch" / "shards" / "def456"
+    val_shards_dpath.mkdir(parents=True)
+    train_dataset_dpath = tmp_path / "datasets" / "butterflies-train"
+    train_dataset_dpath.mkdir(parents=True)
+    val_dataset_dpath = tmp_path / "datasets" / "butterflies-val"
+    val_dataset_dpath.mkdir(parents=True)
 
-    run = Run.new("test_run_123", shards_dpath, dataset_dpath, run_root=run_root)
+    run = Run.new(
+        run_id="test_run_123",
+        train_shards_dir=train_shards_dpath,
+        train_dataset=train_dataset_dpath,
+        val_shards_dir=val_shards_dpath,
+        val_dataset=val_dataset_dpath,
+        runs_root=runs_root,
+    )
 
     assert run.root.exists()
     assert (run.root / "checkpoint").exists()
     assert (run.root / "links").exists()
     assert (run.root / "inference").exists()
-    assert (run.root / "links" / "shards").is_symlink()
-    assert (run.root / "links" / "dataset").is_symlink()
-    assert run.shards == shards_dpath
-    assert run.dataset == dataset_dpath
+    assert (run.root / "links" / "train-shards").is_symlink()
+    assert (run.root / "links" / "train-dataset").is_symlink()
+    assert (run.root / "links" / "val-shards").is_symlink()
+    assert (run.root / "links" / "val-dataset").is_symlink()
+    assert run.train_shards == train_shards_dpath
+    assert run.train_dataset == train_dataset_dpath
+    assert run.val_shards == val_shards_dpath
+    assert run.val_dataset == val_dataset_dpath
 
 
-def test_existing_run_validates_structure(populated_run_root):
+def test_existing_run_validates_structure(populated_runs_root):
     """Test that an existing run validates its directory structure."""
-    run = Run(populated_run_root)
+    run = Run(populated_runs_root)
 
     assert run.ckpt.exists()
-    assert run.shards.exists()
-    assert run.dataset.exists()
+    assert run.train_shards.exists()
+    assert run.val_shards.exists()
+    assert run.train_dataset.exists()
+    assert run.val_dataset.exists()
     assert run.inference.exists()
 
 
-def test_run_id_property(populated_run_root):
+def test_run_id_property(populated_runs_root):
     """Test that run_id returns the directory name."""
-    run = Run(populated_run_root)
+    run = Run(populated_runs_root)
 
     assert run.run_id == "test_run_456"
 
 
-def test_config_property_loads_json(populated_run_root):
+def test_config_property_loads_json(populated_runs_root):
     """Test that config property loads the checkpoint config.json."""
-    run = Run(populated_run_root)
+    run = Run(populated_runs_root)
 
     config = run.config
     assert config["lr"] == 0.001
     assert config["epochs"] == 10
 
 
-def test_ckpt_property_returns_checkpoint_path(populated_run_root):
+def test_ckpt_property_returns_checkpoint_path(populated_runs_root):
     """Test that ckpt property returns path to sae.pt."""
-    run = Run(populated_run_root)
+    run = Run(populated_runs_root)
 
-    assert run.ckpt == populated_run_root / "checkpoint" / "sae.pt"
+    assert run.ckpt == populated_runs_root / "checkpoint" / "sae.pt"
     assert run.ckpt.exists()
 
 
-def test_shards_property_resolves_symlink(populated_run_root):
+def test_shards_property_resolves_symlink(populated_runs_root):
     """Test that shards property resolves the symlink correctly."""
-    run = Run(populated_run_root)
+    run = Run(populated_runs_root)
 
-    assert run.shards.is_absolute()
-    assert (run.shards / "metadata.json").exists()
-    assert (run.shards / "acts000000.bin").exists()
-    assert (run.shards / "labels.bin").exists()
+    assert run.train_shards.is_absolute()
+    assert (run.train_shards / "metadata.json").exists()
+    assert (run.train_shards / "acts000000.bin").exists()
+    assert (run.train_shards / "labels.bin").exists()
+
+    assert run.val_shards.is_absolute()
+    assert (run.val_shards / "metadata.json").exists()
+    assert (run.val_shards / "acts000000.bin").exists()
+    assert (run.val_shards / "labels.bin").exists()
 
 
-def test_dataset_property_resolves_symlink(populated_run_root):
+def test_dataset_property_resolves_symlink(populated_runs_root):
     """Test that dataset property resolves the dataset symlink correctly."""
-    run = Run(populated_run_root)
+    run = Run(populated_runs_root)
 
-    assert run.dataset.is_absolute()
-    assert run.dataset.exists()
-    assert run.dataset.name == "butterflies"
+    assert run.train_dataset.is_absolute()
+    assert run.train_dataset.exists()
+    assert run.train_dataset.name == "butterflies-train"
+
+    assert run.val_dataset.is_absolute()
+    assert run.val_dataset.exists()
+    assert run.val_dataset.name == "butterflies-val"
 
 
-def test_inference_property_returns_inference_dir(populated_run_root):
+def test_inference_property_returns_inference_dir(populated_runs_root):
     """Test that inference property returns the inference directory."""
-    run = Run(populated_run_root)
+    run = Run(populated_runs_root)
 
-    assert run.inference == populated_run_root / "inference"
+    assert run.inference == populated_runs_root / "inference"
     assert run.inference.exists()
 
 
 def test_existing_run_missing_checkpoint_raises(tmp_path):
     """Test that loading an existing run without checkpoint raises an error."""
-    run_root = tmp_path / "runs" / "broken_run"
-    run_root.mkdir(parents=True)
-    (run_root / "links").mkdir()
-    (run_root / "inference").mkdir()
+    runs_root = tmp_path / "runs" / "broken_run"
+    runs_root.mkdir(parents=True)
+    (runs_root / "links").mkdir()
+    (runs_root / "inference").mkdir()
 
     with pytest.raises(FileNotFoundError, match="Use Run.new()"):
-        Run(run_root)
+        Run(runs_root)
 
 
 def test_existing_run_missing_links_raises(tmp_path):
     """Test that loading an existing run without links directory raises an error."""
-    run_root = tmp_path / "runs" / "broken_run"
-    run_root.mkdir(parents=True)
-    checkpoint = run_root / "checkpoint"
+    runs_root = tmp_path / "runs" / "broken_run"
+    runs_root.mkdir(parents=True)
+    checkpoint = runs_root / "checkpoint"
     checkpoint.mkdir()
     (checkpoint / "sae.pt").touch()
-    (run_root / "inference").mkdir()
+    (runs_root / "inference").mkdir()
 
     with pytest.raises(FileNotFoundError, match="Use Run.new()"):
-        Run(run_root)
+        Run(runs_root)
 
 
 def test_run_missing_root_raises(tmp_path):
     """Test that Run() raises helpful error for missing directory."""
-    run_root = tmp_path / "runs" / "nonexistent"
+    runs_root = tmp_path / "runs" / "nonexistent"
 
     with pytest.raises(FileNotFoundError, match="Use Run.new()"):
-        Run(run_root)
+        Run(runs_root)
 
 
 def test_config_property_missing_config_raises(tmp_path):
     """Test that accessing config without config.json raises an error."""
-    run_root = tmp_path / "runs" / "no_config_run"
-    run_root.mkdir(parents=True)
-    checkpoint = run_root / "checkpoint"
+    runs_root = tmp_path / "runs" / "no_config_run"
+    runs_root.mkdir(parents=True)
+    checkpoint = runs_root / "checkpoint"
     checkpoint.mkdir()
     (checkpoint / "sae.pt").touch()
 
-    links = run_root / "links"
+    links = runs_root / "links"
     links.mkdir()
 
-    scratch = tmp_path / "scratch" / "shards" / "xyz789"
-    scratch.mkdir(parents=True)
-    (links / "shards").symlink_to(scratch)
+    train_scratch = tmp_path / "scratch" / "shards" / "xyz789"
+    train_scratch.mkdir(parents=True)
+    (links / "train-shards").symlink_to(train_scratch)
 
-    dataset = tmp_path / "datasets" / "test"
-    dataset.mkdir(parents=True)
-    (links / "dataset").symlink_to(dataset)
+    val_scratch = tmp_path / "scratch" / "shards" / "uvw012"
+    val_scratch.mkdir(parents=True)
+    (links / "val-shards").symlink_to(val_scratch)
 
-    (run_root / "inference").mkdir()
+    train_dataset = tmp_path / "datasets" / "test-train"
+    train_dataset.mkdir(parents=True)
+    (links / "train-dataset").symlink_to(train_dataset)
 
-    run = Run(run_root)
+    val_dataset = tmp_path / "datasets" / "test-val"
+    val_dataset.mkdir(parents=True)
+    (links / "val-dataset").symlink_to(val_dataset)
+
+    (runs_root / "inference").mkdir()
+
+    run = Run(runs_root)
 
     with pytest.raises(FileNotFoundError):
         _ = run.config

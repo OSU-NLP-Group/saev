@@ -9,10 +9,10 @@ Patch labels are provided if there is a labels.bin file on disk.
 See the design decisions in src/saev/data/performance.md.
 
 Usage:
-    >>> cfg = Config(shard_root="./shards", layer=13, batch_size=4096)
+    >>> cfg = Config(shards="./shards", layer=13, batch_size=4096)
     >>> dataloader = DataLoader(cfg)
     >>> for batch in dataloader:
-    ...     activations = batch["act"]  # [batch_size, d_vit]
+    ...     activations = batch["act"]  # [batch_size, d_model]
     ...     image_indices = batch["image_i"]  # [batch_size]
     ...     patch_indices = batch["patch_i"]  # [batch_size]
     ...     patch_labels = batch["patch_labels"]  # [batch_size]
@@ -23,6 +23,7 @@ import dataclasses
 import logging
 import math
 import os
+import pathlib
 import queue
 import time
 import traceback
@@ -45,7 +46,7 @@ from . import shards
 class Config:
     """Configuration for loading ordered (non-shuffled) activation data from disk."""
 
-    shard_root: str = os.path.join(".", "shards")
+    shards: pathlib.Path = pathlib.Path("$SAEV_SCRATCH/saev/shards/abcdefg")
     """Directory with .bin shards and a metadata.json file."""
     patches: typing.Literal["cls", "image", "all"] = "image"
     """Which kinds of patches to use. 'cls' indicates just the [CLS] token (if any). 'image' indicates it will return image patches. 'all' returns all patches."""
@@ -61,6 +62,8 @@ class Config:
     """Number of batches to queue in the shared-memory ring buffer. Higher values add latency but improve resilience to brief stalls."""
     debug: bool = False
     """Whether the dataloader process should log debug messages."""
+    log_every_s: float = 30.0
+    """How frequently the dataloader process should log (debug) performance messages."""
 
 
 @beartype.beartype
@@ -106,11 +109,11 @@ def _manager_main(
 
     try:
         # Load shard info to get actual distribution
-        shard_info = shards.ShardInfo.load(cfg.shard_root)
+        shard_info = shards.ShardInfo.load(cfg.shards)
         layer_i = metadata.layers.index(cfg.layer)
 
         # Check if labels.bin exists
-        labels_path = os.path.join(cfg.shard_root, "labels.bin")
+        labels_path = os.path.join(cfg.shards, "labels.bin")
         labels_mmap = None
         if os.path.exists(labels_path):
             labels_mmap = np.memmap(
@@ -180,7 +183,7 @@ def _manager_main(
 
                 # Load activation from the appropriate shard
                 fname = f"acts{shard_i:06}.bin"
-                acts_fpath = os.path.join(cfg.shard_root, fname)
+                acts_fpath = os.path.join(cfg.shards, fname)
 
                 # Open mmap for this shard if needed
                 mmap = np.memmap(
@@ -243,7 +246,7 @@ class DataLoader:
     class ExampleBatch(typing.TypedDict, total=False):
         """Individual example."""
 
-        act: Float[Tensor, "batch d_vit"]
+        act: Float[Tensor, "batch d_model"]
         image_i: Int[Tensor, " batch"]
         patch_i: Int[Tensor, " batch"]
         # Optional, only present if labels.bin exists
@@ -251,15 +254,15 @@ class DataLoader:
 
     def __init__(self, cfg: Config):
         self.cfg = cfg
-        if not os.path.isdir(self.cfg.shard_root):
-            raise RuntimeError(f"Activations are not saved at '{self.cfg.shard_root}'.")
+        if not os.path.isdir(self.cfg.shards):
+            raise RuntimeError(f"Activations are not saved at '{self.cfg.shards}'.")
 
-        self.metadata = shards.Metadata.load(self.cfg.shard_root)
+        self.metadata = shards.Metadata.load(self.cfg.shards)
 
         # Validate shard files exist
-        shard_info = shards.ShardInfo.load(self.cfg.shard_root)
+        shard_info = shards.ShardInfo.load(self.cfg.shards)
         for shard in shard_info:
-            shard_path = os.path.join(self.cfg.shard_root, shard.name)
+            shard_path = os.path.join(self.cfg.shards, shard.name)
             if not os.path.exists(shard_path):
                 raise FileNotFoundError(f"Shard file not found: {shard_path}")
 

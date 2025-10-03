@@ -11,7 +11,7 @@
         <link rel="canonical" href="https://osu-nlp-group.github.io/saev/api/api/data/saev.data/">
       
       
-        <link rel="prev" href="../../colors/">
+        <link rel="prev" href="../../configs/">
       
       
         <link rel="next" href="../buffers/">
@@ -609,6 +609,8 @@
       
         
       
+        
+      
     
     
     
@@ -682,6 +684,29 @@
   
   <span class="md-ellipsis">
     saev.colors
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.configs
     
   </span>
   
@@ -956,9 +981,9 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#saev.data.OrderedConfig.shard_root" class="md-nav__link">
+  <a href="#saev.data.OrderedConfig.shards" class="md-nav__link">
     <span class="md-ellipsis">
-      shard_root
+      shards
     </span>
   </a>
   
@@ -2831,7 +2856,7 @@
 
 
 <h2 id="saev.data.OrderedConfig" class="doc doc-heading">
-              <code class="highlight language-python"><span class="n">OrderedConfig</span><span class="p">(</span><span class="n">shard_root</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">,</span> <span class="s1">&#39;shards&#39;</span><span class="p">),</span> <span class="n">patches</span><span class="o">=</span><span class="s1">&#39;image&#39;</span><span class="p">,</span> <span class="n">layer</span><span class="o">=-</span><span class="mi">2</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">1024</span> <span class="o">*</span> <span class="mi">16</span><span class="p">,</span> <span class="n">batch_timeout_s</span><span class="o">=</span><span class="mf">30.0</span><span class="p">,</span> <span class="n">drop_last</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">buffer_size</span><span class="o">=</span><span class="mi">64</span><span class="p">,</span> <span class="n">debug</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></code>
+              <code class="highlight language-python"><span class="n">OrderedConfig</span><span class="p">(</span><span class="n">shards</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">,</span> <span class="s1">&#39;shards&#39;</span><span class="p">),</span> <span class="n">patches</span><span class="o">=</span><span class="s1">&#39;image&#39;</span><span class="p">,</span> <span class="n">layer</span><span class="o">=-</span><span class="mi">2</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">1024</span> <span class="o">*</span> <span class="mi">16</span><span class="p">,</span> <span class="n">batch_timeout_s</span><span class="o">=</span><span class="mf">30.0</span><span class="p">,</span> <span class="n">drop_last</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">buffer_size</span><span class="o">=</span><span class="mi">64</span><span class="p">,</span> <span class="n">debug</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
@@ -3028,8 +3053,8 @@
 
 
 
-<h3 id="saev.data.OrderedConfig.shard_root" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">shard_root</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">,</span> <span class="s1">&#39;shards&#39;</span><span class="p">)</span></code>
+<h3 id="saev.data.OrderedConfig.shards" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">shards</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">,</span> <span class="s1">&#39;shards&#39;</span><span class="p">)</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
@@ -3108,15 +3133,15 @@
 <span class="normal">275</span>
 <span class="normal">276</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">Config</span><span class="p">):</span>
     <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span> <span class="o">=</span> <span class="n">cfg</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shard_root</span><span class="p">):</span>
-        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Activations are not saved at &#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shard_root</span><span class="si">}</span><span class="s2">&#39;.&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shards</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Activations are not saved at &#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shards</span><span class="si">}</span><span class="s2">&#39;.&quot;</span><span class="p">)</span>
 
-    <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span> <span class="o">=</span> <span class="n">shards</span><span class="o">.</span><span class="n">Metadata</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shard_root</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span> <span class="o">=</span> <span class="n">shards</span><span class="o">.</span><span class="n">Metadata</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shards</span><span class="p">)</span>
 
     <span class="c1"># Validate shard files exist</span>
-    <span class="n">shard_info</span> <span class="o">=</span> <span class="n">shards</span><span class="o">.</span><span class="n">ShardInfo</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shard_root</span><span class="p">)</span>
+    <span class="n">shard_info</span> <span class="o">=</span> <span class="n">shards</span><span class="o">.</span><span class="n">ShardInfo</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shards</span><span class="p">)</span>
     <span class="k">for</span> <span class="n">shard</span> <span class="ow">in</span> <span class="n">shard_info</span><span class="p">:</span>
-        <span class="n">shard_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shard_root</span><span class="p">,</span> <span class="n">shard</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+        <span class="n">shard_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shards</span><span class="p">,</span> <span class="n">shard</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">shard_path</span><span class="p">):</span>
             <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Shard file not found: </span><span class="si">{</span><span class="n">shard_path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
@@ -3347,7 +3372,7 @@
 
 
 <h2 id="saev.data.ShuffledConfig" class="doc doc-heading">
-              <code class="highlight language-python"><span class="n">ShuffledConfig</span><span class="p">(</span><span class="n">shard_root</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">,</span> <span class="s1">&#39;shards&#39;</span><span class="p">),</span> <span class="n">patches</span><span class="o">=</span><span class="s1">&#39;image&#39;</span><span class="p">,</span> <span class="n">layer</span><span class="o">=-</span><span class="mi">2</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">1024</span> <span class="o">*</span> <span class="mi">16</span><span class="p">,</span> <span class="n">drop_last</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">scale_norm</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">ignore_labels</span><span class="o">=</span><span class="nb">list</span><span class="p">(),</span> <span class="n">n_threads</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">buffer_size</span><span class="o">=</span><span class="mi">64</span><span class="p">,</span> <span class="n">batch_timeout_s</span><span class="o">=</span><span class="mf">30.0</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">17</span><span class="p">,</span> <span class="n">debug</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">log_every_s</span><span class="o">=</span><span class="mf">30.0</span><span class="p">)</span></code>
+              <code class="highlight language-python"><span class="n">ShuffledConfig</span><span class="p">(</span><span class="n">shards</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">,</span> <span class="s1">&#39;shards&#39;</span><span class="p">),</span> <span class="n">patches</span><span class="o">=</span><span class="s1">&#39;image&#39;</span><span class="p">,</span> <span class="n">layer</span><span class="o">=-</span><span class="mi">2</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">1024</span> <span class="o">*</span> <span class="mi">16</span><span class="p">,</span> <span class="n">drop_last</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">scale_norm</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">ignore_labels</span><span class="o">=</span><span class="nb">list</span><span class="p">(),</span> <span class="n">n_threads</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">buffer_size</span><span class="o">=</span><span class="mi">64</span><span class="p">,</span> <span class="n">batch_timeout_s</span><span class="o">=</span><span class="mf">30.0</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">17</span><span class="p">,</span> <span class="n">debug</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">log_every_s</span><span class="o">=</span><span class="mf">30.0</span><span class="p">)</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
@@ -3373,7 +3398,7 @@
       </thead>
       <tbody>
           <tr class="doc-section-item">
-            <td><code><span title="saev.data.ShuffledConfig.shard_root">shard_root</span></code></td>
+            <td><code><span title="saev.data.ShuffledConfig.shards">shards</span></code></td>
             <td>
                   <code><span title="str">str</span></code>
             </td>
@@ -3747,18 +3772,18 @@
     <span class="bp">self</span><span class="o">.</span><span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s2">&quot;shuffled.DataLoader&quot;</span><span class="p">)</span>
     <span class="bp">self</span><span class="o">.</span><span class="n">ctx</span> <span class="o">=</span> <span class="n">mp</span><span class="o">.</span><span class="n">get_context</span><span class="p">()</span>
 
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shard_root</span><span class="p">):</span>
-        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Activations are not saved at &#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shard_root</span><span class="si">}</span><span class="s2">&#39;.&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shards</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Activations are not saved at &#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shards</span><span class="si">}</span><span class="s2">&#39;.&quot;</span><span class="p">)</span>
 
     <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">scale_norm</span><span class="p">:</span>
         <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;scale_norm not implemented.&quot;</span><span class="p">)</span>
 
-    <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span> <span class="o">=</span> <span class="n">shards</span><span class="o">.</span><span class="n">Metadata</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shard_root</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span> <span class="o">=</span> <span class="n">shards</span><span class="o">.</span><span class="n">Metadata</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shards</span><span class="p">)</span>
 
     <span class="c1"># Validate shard files exist</span>
-    <span class="n">shard_info</span> <span class="o">=</span> <span class="n">shards</span><span class="o">.</span><span class="n">ShardInfo</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shard_root</span><span class="p">)</span>
+    <span class="n">shard_info</span> <span class="o">=</span> <span class="n">shards</span><span class="o">.</span><span class="n">ShardInfo</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shards</span><span class="p">)</span>
     <span class="k">for</span> <span class="n">shard</span> <span class="ow">in</span> <span class="n">shard_info</span><span class="p">:</span>
-        <span class="n">shard_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shard_root</span><span class="p">,</span> <span class="n">shard</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+        <span class="n">shard_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shards</span><span class="p">,</span> <span class="n">shard</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">shard_path</span><span class="p">):</span>
             <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Shard file not found: </span><span class="si">{</span><span class="n">shard_path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
@@ -3767,7 +3792,7 @@
     <span class="c1"># Check if labels.bin exists for filtering</span>
     <span class="bp">self</span><span class="o">.</span><span class="n">labels_mmap</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">ignore_labels</span><span class="p">:</span>
-        <span class="n">labels_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shard_root</span><span class="p">,</span> <span class="s2">&quot;labels.bin&quot;</span><span class="p">)</span>
+        <span class="n">labels_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">shards</span><span class="p">,</span> <span class="s2">&quot;labels.bin&quot;</span><span class="p">)</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">labels_path</span><span class="p">):</span>
             <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span>
                 <span class="sa">f</span><span class="s2">&quot;ignore_labels filtering requested but labels.bin not found at </span><span class="si">{</span><span class="n">labels_path</span><span class="si">}</span><span class="s2">&quot;</span>
@@ -4074,7 +4099,7 @@
       <nav class="md-footer__inner md-grid" aria-label="Footer" >
         
           
-          <a href="../../colors/" class="md-footer__link md-footer__link--prev" aria-label="Previous: saev.colors">
+          <a href="../../configs/" class="md-footer__link md-footer__link--prev" aria-label="Previous: saev.configs">
             <div class="md-footer__button md-icon">
               
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
@@ -4084,7 +4109,7 @@
                 Previous
               </span>
               <div class="md-ellipsis">
-                saev.colors
+                saev.configs
               </div>
             </div>
           </a>

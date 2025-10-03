@@ -181,7 +181,7 @@ def test_cls_token_mode(shards_path, layer):
         example = ds[i]
         assert example["image_i"] == i
         assert example["patch_i"] == -1  # CLS tokens have patch_i = -1
-        assert example["act"].shape == (ds.d_vit,)
+        assert example["act"].shape == (ds.d_model,)
 
 
 def test_memory_usage(shards_path, layer):
@@ -304,15 +304,15 @@ def test_dataset_properties(shards_path, layer):
     cfg = IndexedConfig(shard_root=shards_path, patches="image", layer=layer)
     ds = IndexedDataset(cfg)
 
-    # Test d_vit property
-    assert ds.d_vit == ds.metadata.d_vit
-    assert ds.d_vit > 0
+    # Test d_model property
+    assert ds.d_model == ds.metadata.d_model
+    assert ds.d_model > 0
 
     # Test that transform returns a tensor
-    test_array = np.random.randn(ds.d_vit).astype(np.float32)
+    test_array = np.random.randn(ds.d_model).astype(np.float32)
     transformed = ds.transform(test_array)
     assert isinstance(transformed, torch.Tensor)
-    assert transformed.shape == (ds.d_vit,)
+    assert transformed.shape == (ds.d_model,)
     assert transformed.dtype == torch.float32
 
 
@@ -429,7 +429,7 @@ def test_patch_indices_within_bounds(shards_path, layer):
         assert 0 <= example["image_i"] < ds.metadata.n_imgs
 
         # Activation should have correct shape
-        assert example["act"].shape == (ds.d_vit,)
+        assert example["act"].shape == (ds.d_model,)
 
 
 def test_dtype_consistency(shards_path, layer):
@@ -472,7 +472,7 @@ def test_missing_shard_file_not_detected_at_init(tmp_path):
 
     # Create a small dataset with multiple shards
     n_imgs = 10
-    d_vit = 128
+    d_model = 128
     n_patches = 16
     layers = [0]
 
@@ -486,7 +486,7 @@ def test_missing_shard_file_not_detected_at_init(tmp_path):
         dump_to=str(tmp_path),
         vit_family="clip",
         vit_ckpt="hf-hub:hf-internal-testing/tiny-open-clip-model",
-        d_vit=d_vit,
+        d_model=d_model,
         vit_layers=layers,
         n_patches_per_img=n_patches,
         cls_token=True,

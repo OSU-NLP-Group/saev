@@ -1,5 +1,7 @@
 # src/saev/data/buffers.py
 import collections.abc
+import logging
+import os
 import time
 
 import beartype
@@ -125,6 +127,8 @@ class ReservoirBuffer:
 
         self.collate_fn = collate_fn
 
+        self.logger = logging.getLogger(f"reservoir({os.getpid()})")
+
     def put(
         self,
         xs: Shaped[Tensor, "n? ..."],
@@ -154,7 +158,12 @@ class ReservoirBuffer:
                     f"len(xs) = {len(xs)} != len(metadata) = {len(metadata)}"
                 )
 
-        for _ in range(n):
+        if n > self.capacity:
+            raise ValueError(
+                f"Can't put() {n} objects with a capacity of {self.capacity}"
+            )
+
+        for i in range(n):
             self.free.acquire()  # block if full
 
         with self.lock:

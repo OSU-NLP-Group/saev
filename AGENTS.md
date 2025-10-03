@@ -16,18 +16,27 @@
 - Never create a simple script to demonstrate functionality unless explicitly asked..
 - Write single-line commit messages; never say you co-authored a commit.
 
+# No hacks: ask for help instead
+
+Due to the difficulty of implementing this codebase, we must strive to keep the code high quality, clean, modular, simple and functional; more like an Agda codebase, less like a C codebase.
+Hacks and duct tape must be COMPLETELY AVOIDED, in favor of robust, simple and general solutions.
+In some cases, you will be asked to perform a seemingly impossible task, either because it is (and the developer is unaware), or because you don't grasp how to do it properly.
+In these cases, DO NOT ATTEMPT TO IMPLEMENT A HALF-BAKED SOLUTION JUST TO SATISFY THE DEVELOPER'S REQUEST.
+If the task seems too hard, be honest that you couldn't solve it in the proper way, leave the code unchanged, explain the situation to the developer and ask for further feedback and clarifications.
+The developer is a domain expert that will be able to assist you in these cases.
+
 # Tensor Variables
 
 Throughout the code, variables are annotated with shape suffixes, as [recommended by Noam Shazeer](https://medium.com/@NoamShazeer/shape-suffixes-good-coding-style-f836e72e24fd).
 
 The key for these suffixes:
 
-* b: batch size
-* w: width in patches (typically 14 or 16)
-* h: height in patches (typically 14 or 16)
-* d: ViT activation dimension (typically 768 or 1024)
-* s: SAE latent dimension (1024 x 16, etc)
-* l: Number of latents being manipulated at once (typically 1-5 at a time)
-* c: Number of classes
+- b: batch size
+- w: width in patches (typically 14 or 16)
+- h: height in patches (typically 14 or 16)
+- d: Transformer activation dimension (typically 768 or 1024)
+- s: SAE latent dimension (1024 x 16, etc)
+- l: Number of latents being manipulated at once (typically 1-5 at a time)
+- c: Number of classes
 
 For example, an activation tensor with shape (batch, width, height d_vit) is `acts_bwhd`.

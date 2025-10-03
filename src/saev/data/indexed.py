@@ -28,7 +28,7 @@ class Config:
         debug: Whether the dataloader process should log debug messages.
     """
 
-    shards: pathlib.Path = pathlib.Path("./shards")
+    shards: pathlib.Path = pathlib.Path("$SAEV_SCRATCH/saev/shards/abcdefg")
     patches: typing.Literal["cls", "image", "all"] = "image"
     layer: int | typing.Literal["all"] = -2
     seed: int = 17
@@ -49,7 +49,7 @@ class Dataset(torch.utils.data.Dataset):
     class Example(typing.TypedDict, total=False):
         """Individual example."""
 
-        act: Float[Tensor, " d_vit"]
+        act: Float[Tensor, " d_model"]
         image_i: int
         patch_i: int
         patch_label: int
@@ -90,14 +90,16 @@ class Dataset(torch.utils.data.Dataset):
             assert self.cfg.layer in self.metadata.layers, err_msg
             self.layer_index = self.metadata.layers.index(self.cfg.layer)
 
-    def transform(self, act: Float[np.ndarray, " d_vit"]) -> Float[Tensor, " d_vit"]:
+    def transform(
+        self, act: Float[np.ndarray, " d_model"]
+    ) -> Float[Tensor, " d_model"]:
         act = torch.from_numpy(act.copy())
         return act
 
     @property
-    def d_vit(self) -> int:
+    def d_model(self) -> int:
         """Dimension of the underlying vision transformer's embedding space."""
-        return self.metadata.d_vit
+        return self.metadata.d_model
 
     def __getitem__(self, i: int) -> Example:
         # Add bounds checking
@@ -137,7 +139,7 @@ class Dataset(torch.utils.data.Dataset):
                     n_imgs_per_shard,
                     len(self.metadata.layers),
                     self.metadata.n_patches_per_img + int(self.metadata.cls_token),
-                    self.metadata.d_vit,
+                    self.metadata.d_model,
                 )
                 acts = np.memmap(acts_fpath, mode="c", dtype=np.float32, shape=shape)
 
@@ -164,7 +166,7 @@ class Dataset(torch.utils.data.Dataset):
 
     def get_img_patches(
         self, i: int
-    ) -> Float[np.ndarray, "n_layers all_patches d_vit"]:
+    ) -> Float[np.ndarray, "n_layers all_patches d_model"]:
         n_imgs_per_shard = (
             self.metadata.max_patches_per_shard
             // len(self.metadata.layers)
@@ -177,7 +179,7 @@ class Dataset(torch.utils.data.Dataset):
             n_imgs_per_shard,
             len(self.metadata.layers),
             self.metadata.n_patches_per_img + int(self.metadata.cls_token),
-            self.metadata.d_vit,
+            self.metadata.d_model,
         )
         acts = np.memmap(acts_fpath, mode="c", dtype=np.float32, shape=shape)
         # Note that this is not yet copied!

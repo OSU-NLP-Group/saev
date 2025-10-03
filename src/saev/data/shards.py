@@ -45,6 +45,7 @@ class Metadata:
         n_ex: Number of examples.
         patches_per_shard: The maximum number of patches per shard.
         data: A dictionary describing the original dataset.
+        dataset: Absolute path to the root directory of the original image dataset.
         pixel_agg: (only for segmentation datasets) how the pixel-level segmentation labels were aggregated to patch-level labels.
         dtype: How activations are stored.
         protocol: Protocol version.
@@ -59,6 +60,7 @@ class Metadata:
     n_ex: int
     patches_per_shard: int
     data: dict[str, object]
+    dataset: pathlib.Path
     pixel_agg: tp.Literal["majority", "prefer-fg", None] = None
     dtype: tp.Literal["float32"] = "float32"
     protocol: tp.Literal["1.0.0", "1.1", "2.0"] = "2.0"
@@ -67,6 +69,11 @@ class Metadata:
         # Check that at least one image per shard can fit.
         msg = "At least one image per shard must fit; increase patches_per_shard."
         assert self.ex_per_shard >= 1, msg
+
+        try:
+            json.dumps(self.data)
+        except TypeError as err:
+            raise TypeError("self.data has an unhashable object") from err
 
     @classmethod
     def load(cls, shards_dir: pathlib.Path) -> "Metadata":
@@ -81,6 +88,7 @@ class Metadata:
         with open(shards_dir / "metadata.json") as fd:
             dct = json.load(fd)
         dct["layers"] = tuple(dct.pop("layers"))
+        dct["dataset"] = pathlib.Path(dct["dataset"])
         return cls(**dct)
 
     def dump(self, shards_root: pathlib.Path):
@@ -93,7 +101,9 @@ class Metadata:
         assert disk.is_shards_root(shards_root)
         (shards_root / self.hash).mkdir(exist_ok=True)
         with open(shards_root / self.hash / "metadata.json", "w") as fd:
-            json.dump(dataclasses.asdict(self), fd, indent=4)
+            dct = dataclasses.asdict(self)
+            dct["dataset"] = str(dct["dataset"])
+            json.dump(dct, fd, indent=4)
 
     @property
     def hash(self) -> str:
@@ -103,9 +113,11 @@ class Metadata:
         Returns:
             Hexadecimal hash string uniquely identifying this configuration.
         """
-        cfg_bytes = json.dumps(
-            dataclasses.asdict(self), sort_keys=True, separators=(",", ":")
-        ).encode("utf-8")
+        dct = dataclasses.asdict(self)
+        dct["dataset"] = str(dct["dataset"])
+        cfg_bytes = json.dumps(dct, sort_keys=True, separators=(",", ":")).encode(
+            "utf-8"
+        )
         return hashlib.sha256(cfg_bytes).hexdigest()
 
     @property
@@ -587,6 +599,7 @@ def worker_fn(
         batch_size: Batch size for the dataset.
         n_workers: Number of workers for loading examples fromm the dataset.
         patches_per_shard: Number of patches per disk shard.
+        dataset: Absolute path to the root directory of the original image dataset.
         pixel_agg: Optional method for aggregating segmentation label pixels.
         shards_root: Where to save shards. Should end with 'shards'. See [disk-layout.md](../../developers/disk-layout.md); this is $SAEV_SCRATCH/saev/shards.
         device: Device for doing the computation.
@@ -615,6 +628,13 @@ def worker_fn(
 
     assert shards_root.name == "shards"
 
+    # Convert every pathlib.Path to a str.
+    md_data = {**dataclasses.asdict(data), "__class__": data.__class__.__name__}
+    md_data = {
+        key: str(value) if isinstance(value, pathlib.Path) else value
+        for key, value in md_data.items()
+    }
+
     md = Metadata(
         family=family,
         ckpt=ckpt,
@@ -624,7 +644,8 @@ def worker_fn(
         d_model=d_model,
         n_ex=data.n_ex,
         patches_per_shard=patches_per_shard,
-        data={**dataclasses.asdict(data), "__class__": data.__class__.__name__},
+        data=md_data,
+        dataset=data.root,
         pixel_agg=pixel_agg if datasets.is_seg_dataset(data) else None,
     )
     model_cls = models.load_model_cls(family)

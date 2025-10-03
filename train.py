@@ -20,9 +20,9 @@ import json
 import logging
 import os.path
 import pathlib
+import sys
 import time
-import tomllib
-import typing
+import typing as tp
 
 import beartype
 import einops
@@ -33,10 +33,10 @@ import wandb
 from jaxtyping import Float
 from torch import Tensor
 
-import saev.data.shuffled
+import saev.data
 import saev.utils.scheduling
 import saev.utils.wandb
-from saev import disk, helpers, nn
+from saev import configs, disk, helpers, nn
 
 logger = logging.getLogger("train.py")
 
@@ -52,11 +52,13 @@ class Config:
     Configuration for training a sparse autoencoder on a vision transformer.
     """
 
-    data: saev.data.ShuffledConfig = saev.data.ShuffledConfig()
-    """Data configuration"""
+    train_data: saev.data.ShuffledConfig = saev.data.ShuffledConfig()
+    """Training data."""
+    val_data: saev.data.ShuffledConfig = saev.data.ShuffledConfig()
+    """Validation data."""
     n_train: int = 100_000_000
     """Number of SAE training samples."""
-    n_test: int = 10_000_000
+    n_val: int = 10_000_000
     """Number of SAE evaluation samples."""
     sae: nn.SparseAutoencoderConfig = nn.SparseAutoencoderConfig()
     """SAE configuration."""
@@ -82,14 +84,10 @@ class Config:
     """Tag to add to WandB run."""
     log_every: int = 25
     """How often to log to WandB."""
-    run_root: str = os.path.join(".", "runs")
-    """Root directory for runs (typically $SAEV_NFS/saev/runs)."""
-    shards_dpath: str = ""
-    """Path to shards directory (typically $SAEV_SCRATCH/saev/shards/<shard_hash>)."""
-    dataset_dpath: str = ""
-    """Path to dataset directory."""
+    runs_root: pathlib.Path = pathlib.Path("$SAEV_NFS/saev/runs")
+    """Root directory for runs."""
 
-    device: typing.Literal["cuda", "cpu"] = "cuda"
+    device: tp.Literal["cuda", "cpu"] = "cuda"
     """Hardware device."""
     seed: int = 42
     """Random seed."""
@@ -152,11 +150,17 @@ def worker_fn(cfgs: list[Config]) -> list[str]:
             metric.n_almost_dead / sae.cfg.d_sae * 100,
         )
 
+        # Load metadata to get dataset paths
+        train_md = saev.data.Metadata.load(cfg.train_data.shards)
+        val_md = saev.data.Metadata.load(cfg.val_data.shards)
+
         run = disk.Run.new(
             id,
-            pathlib.Path(cfg.shards_dpath),
-            pathlib.Path(cfg.dataset_dpath),
-            run_root=pathlib.Path(cfg.run_root),
+            train_shards_dir=cfg.train_data.shards,
+            train_dataset=train_md.dataset,
+            val_shards_dir=cfg.val_data.shards,
+            val_dataset=val_md.dataset,
+            runs_root=cfg.runs_root,
         )
         nn.dump(run.ckpt, sae)
         logger.info("Dumped checkpoint to '%s'.", run.ckpt)
@@ -187,7 +191,7 @@ def train(
         # This was a default in pytorch until 1.12
         torch.backends.cuda.matmul.allow_tf32 = True
 
-    dataloader = saev.data.shuffled.DataLoader(cfg.data)
+    dataloader = saev.data.ShuffledDataLoader(cfg.train_data)
     dataloader = saev.utils.scheduling.BatchLimiter(dataloader, cfg.n_train)
 
     saes, objectives, param_groups = make_saes([(c.sae, c.objective) for c in cfgs])
@@ -200,7 +204,7 @@ def train(
     wandb_configs = []
     for c in cfgs:
         cfg_dict = dataclasses.asdict(c)
-        cfg_dict["data"]["metadata"] = metadata_dict
+        cfg_dict["train_data"]["metadata"] = metadata_dict
         wandb_configs.append(cfg_dict)
 
     run = saev.utils.wandb.ParallelWandbRun(
@@ -427,8 +431,8 @@ def evaluate(
     almost_dead_lim = 1e-7
     dense_lim = 1e-2
 
-    dataloader = saev.data.shuffled.DataLoader(cfg.data)
-    dataloader = saev.utils.scheduling.BatchLimiter(dataloader, cfg.n_test)
+    dataloader = saev.data.ShuffledDataLoader(cfg.val_data)
+    dataloader = saev.utils.scheduling.BatchLimiter(dataloader, cfg.n_val)
 
     n_fired = torch.zeros((len(cfgs), saes[0].cfg.d_sae))
     values = torch.zeros((len(cfgs), saes[0].cfg.d_sae))
@@ -450,7 +454,7 @@ def evaluate(
             total_mse[i] += loss.mse.cpu()
 
     mean_values = values / n_fired
-    freqs = n_fired / cfg.n_test
+    freqs = n_fired / cfg.n_val
 
     l0 = (total_l0 / len(dataloader)).tolist()
     l1 = (total_l1 / len(dataloader)).tolist()
@@ -475,16 +479,15 @@ def evaluate(
 
 
 CANNOT_PARALLELIZE = set([
-    "data",
+    "train_data",
+    "val_data",
     "n_train",
-    "n_test",
+    "n_val",
     "track",
     "wandb_project",
     "tag",
     "log_every",
-    "run_root",
-    "shards_dpath",
-    "dataset_dpath",
+    "runs_root",
     "device",
     "slurm_acct",
     "slurm_partition",
@@ -514,7 +517,7 @@ def split_cfgs(cfgs: list[Config]) -> list[list[Config]]:
         # Create a key tuple from the values of CANNOT_PARALLELIZE keys
         key_values = []
         for key in sorted(CANNOT_PARALLELIZE):
-            key_values.append((key, make_hashable(helpers.get(dct, key))))
+            key_values.append((key, helpers.make_hashable(helpers.get(dct, key))))
         group_key = tuple(key_values)
 
         if group_key not in groups:
@@ -525,13 +528,10 @@ def split_cfgs(cfgs: list[Config]) -> list[list[Config]]:
     return list(groups.values())
 
 
-def make_hashable(obj):
-    return json.dumps(obj, sort_keys=True)
-
-
 @beartype.beartype
 def main(
-    cfg: typing.Annotated[Config, tyro.conf.arg(name="")], sweep: str | None = None
+    cfg: tp.Annotated[Config, tyro.conf.arg(name="")],
+    sweep: pathlib.Path | None = None,
 ):
     """
     Train an SAE over activations, optionally running a parallel grid search over a set of hyperparameters.
@@ -546,9 +546,12 @@ def main(
     import submitit
 
     if sweep is not None:
-        with open(sweep, "rb") as fd:
-            cfgs, errs = helpers.grid(cfg, tomllib.load(fd))
-            # TODO: Note that since we update data.seed for each cfg, they cannot be parallelized.
+        sweep_dcts = configs.load_sweep(sweep)
+        if not sweep_dcts:
+            logger.error("No valid sweeps found in '%s'.", sweep)
+            sys.exit(1)
+
+        cfgs, errs = configs.load_cfgs(cfg, default=Config(), sweep_dcts=sweep_dcts)
 
         if errs:
             for err in errs:
@@ -565,7 +568,7 @@ def main(
     if cfg.slurm_acct:
         executor = submitit.SlurmExecutor(folder=cfg.log_to)
 
-        n_cpus = cfg.data.n_threads + 4
+        n_cpus = max(cfg.train_data.n_threads, cfg.val_data.n_threads) + 4
         if cfg.mem_gb // 10 > n_cpus:
             logger.info(
                 "Using %d CPUs instead of %d to get more RAM.", cfg.mem_gb // 10, n_cpus

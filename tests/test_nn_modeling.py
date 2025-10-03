@@ -20,7 +20,7 @@ def test_factories():
 def sae_cfgs():
     return st.builds(
         modeling.SparseAutoencoderConfig,
-        d_vit=st.sampled_from([32, 64, 128]),
+        d_model=st.sampled_from([32, 64, 128]),
         exp_factor=st.sampled_from([2, 4]),
     )
 
@@ -40,7 +40,7 @@ def sae_cfgs_comprehensive():
 
     return st.builds(
         modeling.SparseAutoencoderConfig,
-        d_vit=st.sampled_from([256, 384, 512, 768, 1024]),
+        d_model=st.sampled_from([256, 384, 512, 768, 1024]),
         exp_factor=st.sampled_from([2, 4, 8, 16, 32]),
         seed=st.integers(min_value=0, max_value=100),
         normalize_w_dec=st.booleans(),
@@ -542,9 +542,9 @@ def test_gradient_magnitude_preservation():
 @given(cfg=sae_cfgs(), batch=st.integers(min_value=1, max_value=4))
 def test_sae_shapes(cfg, batch):
     sae = modeling.SparseAutoencoder(cfg)
-    x = torch.randn(batch, cfg.d_vit)
+    x = torch.randn(batch, cfg.d_model)
     x_hat, f = sae(x)
-    assert x_hat.shape == (batch, 1, cfg.d_vit)
+    assert x_hat.shape == (batch, 1, cfg.d_model)
     assert f.shape == (batch, cfg.d_sae)
 
 
@@ -569,7 +569,7 @@ def test_load_existing_checkpoint(repo_id, tmp_path):
     model = modeling.load(ckpt_path)
 
     # Smoke-test shapes & numerics
-    x = torch.randn(2, model.cfg.d_vit)
+    x = torch.randn(2, model.cfg.d_model)
     x_hat, f_x = model(x)
     assert x_hat.shape == x[:, None, :].shape
     assert f_x.shape[1] == model.cfg.d_sae
@@ -584,9 +584,9 @@ def test_dump_load_roundtrip_exhaustive(tmp_path):
 
     # Various SAE configurations - reduced set for faster testing
     sae_cfgs = [
-        {"d_vit": 256, "exp_factor": 4, "seed": 0},
-        {"d_vit": 512, "exp_factor": 8, "seed": 1, "normalize_w_dec": False},
-        {"d_vit": 384, "exp_factor": 12, "seed": 2, "remove_parallel_grads": False},
+        {"d_model": 256, "exp_factor": 4, "seed": 0},
+        {"d_model": 512, "exp_factor": 8, "seed": 1, "normalize_w_dec": False},
+        {"d_model": 384, "exp_factor": 12, "seed": 2, "remove_parallel_grads": False},
     ]
 
     for i, (act_cfg, cfg_args) in enumerate(
@@ -594,7 +594,7 @@ def test_dump_load_roundtrip_exhaustive(tmp_path):
     ):
         sae_cfg = modeling.SparseAutoencoderConfig(**cfg_args, activation=act_cfg)
         sae = modeling.SparseAutoencoder(sae_cfg)
-        _ = sae(torch.randn(2, sae_cfg.d_vit))  # touch all params once
+        _ = sae(torch.randn(2, sae_cfg.d_model))  # touch all params once
 
         ckpt = tmp_path / f"sae_{i}.pt"
         modeling.dump(str(ckpt), sae)
@@ -611,15 +611,15 @@ def test_dump_load_roundtrip_exhaustive(tmp_path):
 @pytest.mark.parametrize(
     "sae_cfg",
     [
-        modeling.SparseAutoencoderConfig(d_vit=512, exp_factor=8, seed=0),
-        modeling.SparseAutoencoderConfig(d_vit=768, exp_factor=16, seed=1),
-        modeling.SparseAutoencoderConfig(d_vit=1024, exp_factor=32, seed=2),
+        modeling.SparseAutoencoderConfig(d_model=512, exp_factor=8, seed=0),
+        modeling.SparseAutoencoderConfig(d_model=768, exp_factor=16, seed=1),
+        modeling.SparseAutoencoderConfig(d_model=1024, exp_factor=32, seed=2),
     ],
 )
 def test_dump_load_roundtrip_simple(tmp_path, sae_cfg):
     """Write → load → verify state-dict & cfg equality."""
     sae = modeling.SparseAutoencoder(sae_cfg)
-    _ = sae(torch.randn(2, sae_cfg.d_vit))  # touch all params once
+    _ = sae(torch.randn(2, sae_cfg.d_model))  # touch all params once
 
     ckpt = tmp_path / "sae.pt"
     modeling.dump(str(ckpt), sae)
@@ -641,7 +641,7 @@ def test_dump_load_roundtrip_hypothesis(sae_cfg):
 
     # Create SAE and test roundtrip
     sae = modeling.SparseAutoencoder(sae_cfg)
-    _ = sae(torch.randn(2, sae_cfg.d_vit))  # touch all params once
+    _ = sae(torch.randn(2, sae_cfg.d_model))  # touch all params once
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         ckpt = f"{tmp_dir}/sae.pt"
@@ -671,7 +671,7 @@ def test_load_local_checkpoint(request):
     assert isinstance(model.cfg, modeling.SparseAutoencoderConfig)
 
     # Test forward pass
-    x = torch.randn(2, model.cfg.d_vit)
+    x = torch.randn(2, model.cfg.d_model)
     x_hat, f_x = model(x)
 
     # Check shapes
@@ -684,7 +684,7 @@ def test_load_local_checkpoint(request):
 
     # Print some info about the loaded checkpoint
     print(f"\nLoaded checkpoint from: {ckpt_path}")
-    print(f"Model config: d_vit={model.cfg.d_vit}, d_sae={model.cfg.d_sae}")
+    print(f"Model config: d_model={model.cfg.d_model}, d_sae={model.cfg.d_sae}")
     print(f"Activation: {type(model.cfg.activation).__name__}")
     if hasattr(model.cfg.activation, "top_k"):
         print(f"Top-k value: {model.cfg.activation.top_k}")
@@ -692,7 +692,7 @@ def test_load_local_checkpoint(request):
 
 def test_remove_parallel_grads_handles_non_normalized_rows():
     cfg = modeling.SparseAutoencoderConfig(
-        d_vit=4, exp_factor=1, normalize_w_dec=False, remove_parallel_grads=True
+        d_model=4, exp_factor=1, normalize_w_dec=False, remove_parallel_grads=True
     )
     # Disable automatic normalization but keep removal on
     sae = modeling.SparseAutoencoder(cfg)

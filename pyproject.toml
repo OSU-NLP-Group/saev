@@ -39,6 +39,9 @@ build-backend = "hatchling.build"
 Homepage = "https://osu-nlp-group.github.io/saev"
 Issues = "https://github.com/OSU-NLP-Group/saev/issues"
 
+[tool.ruff]
+extend-exclude = ["tests/sweeps"]
+
 [tool.ruff.lint]
 select = ["E", "F", "I"]
 ignore = ["F722", "E402", "E501"]

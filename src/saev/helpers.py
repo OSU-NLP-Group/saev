@@ -1,15 +1,13 @@
 # src/saev/helpers.py
-import collections.abc
 import dataclasses
-import itertools
 import logging
+import math
 import os
 import pathlib
 import re
 import subprocess
 import time
-import types
-import typing as tp
+from collections.abc import Hashable, Iterable, Iterator
 
 import beartype
 
@@ -82,12 +80,7 @@ class progress:
     """
 
     def __init__(
-        self,
-        it: collections.abc.Iterable,
-        *,
-        every: int = 10,
-        desc: str = "progress",
-        total: int = 0,
+        self, it: Iterable, *, every: int = 10, desc: str = "progress", total: int = 0
     ):
         self.it = it
         self.every = max(every, 1)
@@ -184,7 +177,7 @@ class batched_idx:
         self.total_size = total_size
         self.batch_size = batch_size
 
-    def __iter__(self) -> collections.abc.Iterator[tuple[int, int]]:
+    def __iter__(self) -> Iterator[tuple[int, int]]:
         """Yield (start, end) index pairs for batching."""
         for start in range(0, self.total_size, self.batch_size):
             stop = min(start + self.batch_size, self.total_size)
@@ -193,186 +186,6 @@ class batched_idx:
     def __len__(self) -> int:
         """Return the number of batches."""
         return (self.total_size + self.batch_size - 1) // self.batch_size
-
-
-#################
-# SWEEP HELPERS #
-#################
-
-
-T = tp.TypeVar("T")
-
-
-@beartype.beartype
-def expand(config: dict[str, object]) -> collections.abc.Iterator[dict[str, object]]:
-    """Expand a nested dict that may contain lists into many dicts."""
-
-    yield from _expand_discrete(dict(config))
-
-
-@beartype.beartype
-def _expand_discrete(
-    config: dict[str, object],
-) -> collections.abc.Iterator[dict[str, object]]:
-    if not config:
-        yield {}
-        return
-
-    key, value = config.popitem()
-
-    if isinstance(value, list):
-        for c in _expand_discrete(config):
-            for v in value:
-                yield {**c, key: v}
-    elif isinstance(value, dict):
-        for c, v in itertools.product(
-            _expand_discrete(config), _expand_discrete(value)
-        ):
-            yield {**c, key: v}
-    else:
-        for c in _expand_discrete(config):
-            yield {**c, key: value}
-
-
-def _recursive_dataclass_update(obj, updates: dict[str, object], base_cfg, d: int):
-    """Recursively update nested dataclasses."""
-    if not dataclasses.is_dataclass(obj):
-        # If obj is not a dataclass, we can't update it recursively
-        return updates
-
-    result = {}
-    for key, value in updates.items():
-        if not hasattr(obj, key):
-            # Key doesn't exist on this object, pass it through
-            result[key] = value
-            continue
-
-        attr = getattr(obj, key)
-
-        if dataclasses.is_dataclass(attr) and isinstance(value, dict):
-            # Recursively update the nested dataclass
-            nested_updates = _recursive_dataclass_update(attr, value, base_cfg, d)
-
-            # Handle seed updates for nested objects
-            if hasattr(attr, "seed") and "seed" not in nested_updates:
-                base_seed = getattr(base_cfg, "seed", 0) if base_cfg else 0
-                nested_updates["seed"] = getattr(attr, "seed", 0) + base_seed + d
-
-            # Create a new instance of the nested dataclass with updates
-            result[key] = dataclasses.replace(attr, **nested_updates)
-        else:
-            # Direct assignment for non-dataclass fields or non-dict values
-            result[key] = value
-
-    return result
-
-
-@beartype.beartype
-def grid(cfg: T, sweep_dct: dict[str, object]) -> tuple[list[T], list[str]]:
-    """Generate configs from ``cfg`` according to ``sweep_dct``."""
-
-    cfgs: list[T] = []
-    errs: list[str] = []
-
-    for d, dct in enumerate(expand(sweep_dct)):
-        updates = _recursive_dataclass_update(cfg, dct, cfg, d)
-
-        if hasattr(cfg, "seed") and "seed" not in updates:
-            updates["seed"] = getattr(cfg, "seed", 0) + d
-
-        try:
-            cfgs.append(dataclasses.replace(cfg, **updates))
-        except Exception as err:
-            errs.append(str(err))
-
-    return cfgs, errs
-
-
-@beartype.beartype
-def dict_to_dataclass(data: dict, cls: type[T]) -> T:
-    """Recursively convert a dictionary to a dataclass instance."""
-    if not dataclasses.is_dataclass(cls):
-        return data
-
-    field_types = {f.name: f.type for f in dataclasses.fields(cls)}
-    kwargs = {}
-
-    for field_name, field_type in field_types.items():
-        if field_name not in data:
-            continue
-
-        value = data[field_name]
-
-        # Handle Optional types
-        origin = tp.get_origin(field_type)
-        args = tp.get_args(field_type)
-
-        # Handle tuple[str, ...]
-        if origin is tuple and args:
-            kwargs[field_name] = tuple(value) if isinstance(value, list) else value
-        # Handle list[DataclassType]
-        elif origin is list and args and dataclasses.is_dataclass(args[0]):
-            kwargs[field_name] = [dict_to_dataclass(item, args[0]) for item in value]
-        # Handle regular dataclass fields
-        elif dataclasses.is_dataclass(field_type):
-            kwargs[field_name] = dict_to_dataclass(value, field_type)
-        # Handle pathlib.Path
-        elif field_type is pathlib.Path:
-            # Required Path field - always convert
-            kwargs[field_name] = pathlib.Path(value) if value is not None else value
-        elif origin is tp.Union and pathlib.Path in args:
-            # Optional Path field (typing.Union style)
-            kwargs[field_name] = pathlib.Path(value) if value is not None else value
-        elif origin is types.UnionType and pathlib.Path in args:
-            # Optional Path field (Python 3.10+ union style with |)
-            kwargs[field_name] = pathlib.Path(value) if value is not None else value
-        else:
-            kwargs[field_name] = value
-
-    return cls(**kwargs)
-
-
-@beartype.beartype
-def get_non_default_values(obj: T, default_obj: T) -> dict:
-    """Recursively find fields that differ from defaults."""
-    # Check that obj and default_obj are instances of a dataclass.
-    assert dataclasses.is_dataclass(obj) and not isinstance(obj, type)
-    assert dataclasses.is_dataclass(default_obj) and not isinstance(default_obj, type)
-
-    obj_dict = dataclasses.asdict(obj)
-    default_dict = dataclasses.asdict(default_obj)
-
-    diff = {}
-    for key, value in obj_dict.items():
-        default_value = default_dict.get(key)
-        if value != default_value:
-            diff[key] = value
-
-    return diff
-
-
-@beartype.beartype
-def merge_configs(base: T, overrides: dict) -> T:
-    """Recursively merge override values into a base config."""
-    if not overrides:
-        return base
-
-    # Check that base is an instance of a dataclass.
-    assert dataclasses.is_dataclass(base) and not isinstance(base, type)
-
-    base_dict = dataclasses.asdict(base)
-
-    for key, value in overrides.items():
-        if key in base_dict:
-            # For nested dataclasses, merge recursively
-            if isinstance(value, dict) and dataclasses.is_dataclass(getattr(base, key)):
-                base_dict[key] = dataclasses.asdict(
-                    merge_configs(getattr(base, key), value)
-                )
-            else:
-                base_dict[key] = value
-
-    return dict_to_dataclass(base_dict, type(base))
 
 
 @beartype.beartype
@@ -523,3 +336,64 @@ def get_slurm_job_count() -> int:
     except (subprocess.SubprocessError, FileNotFoundError):
         # If we can't check, assume no jobs
         return 0
+
+
+@beartype.beartype
+def make_hashable(x: object) -> Hashable:
+    # Primitives that are already hashable and immutable
+    if x is None or isinstance(x, (bool, int, str, bytes)):
+        return x
+
+    # Floats: optionally coalesce all NaNs if you want NaN == NaN
+    if isinstance(x, float):
+        if math.isnan(x):
+            return ("float_nan",)
+        return x  # note: NaN != NaN by default
+
+    # Byte-ish things
+    if isinstance(x, (bytearray, memoryview)):
+        return bytes(x)
+
+    # Sequences
+    if isinstance(x, tuple):
+        return ("tuple", tuple(make_hashable(e) for e in x))
+    if isinstance(x, list):
+        return ("list", tuple(make_hashable(e) for e in x))
+
+    # Sets (order-insensitive)
+    if isinstance(x, set):
+        return ("set", frozenset(make_hashable(e) for e in x))
+    if isinstance(x, frozenset):
+        return ("frozenset", frozenset(make_hashable(e) for e in x))
+
+    # Mappings (order-insensitive)
+    if isinstance(x, dict):
+        return (
+            "dict",
+            frozenset((make_hashable(k), make_hashable(v)) for k, v in x.items()),
+        )
+
+    # Dataclasses (by fields)
+    if dataclasses.is_dataclass(x):
+        return (
+            "dataclass",
+            x.__class__,
+            tuple(
+                (f.name, make_hashable(getattr(x, f.name)))
+                for f in dataclasses.fields(x)
+            ),
+        )
+
+    # Generic Python objects: fall back to class + __dict__ (customize if needed)
+    if hasattr(x, "__dict__"):
+        return ("object", x.__class__, make_hashable(vars(x)))
+
+    # Objects with __slots__
+    if hasattr(x, "__slots__"):
+        items = []
+        for name in x.__slots__:
+            if hasattr(x, name):
+                items.append((name, make_hashable(getattr(x, name))))
+        return ("object_slots", x.__class__, frozenset(items))
+
+    raise TypeError(f"Unsupported type {type(x).__name__}; add a converter if needed.")

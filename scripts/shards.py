@@ -5,8 +5,8 @@ This script handles that additional complexity.
 
 Conceptually, activations are either thought of as
 
-1. A single [n_imgs x n_layers x (n_patches + 1), d_vit] tensor. This is a *dataset*
-2. Multiple [n_imgs_per_shard, n_layers, (n_patches + 1), d_vit] tensors. This is a set of sharded activations.
+1. A single [n_imgs x n_layers x (n_patches + 1), d_model] tensor. This is a *dataset*
+2. Multiple [n_imgs_per_shard, n_layers, (n_patches + 1), d_model] tensors. This is a set of sharded activations.
 """
 
 import dataclasses

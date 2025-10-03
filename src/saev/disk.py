@@ -96,31 +96,37 @@ class Run:
     def new(
         cls,
         run_id: str,
-        shards_dir: pathlib.Path,
-        dataset: pathlib.Path,
         *,
-        run_root: pathlib.Path,
+        train_shards_dir: pathlib.Path,
+        train_dataset: pathlib.Path,
+        val_shards_dir: pathlib.Path,
+        val_dataset: pathlib.Path,
+        runs_root: pathlib.Path,
     ) -> "Run":
         """
         Create a new run with directory structure and symlinks.
 
         Args:
             run_id: The run ID (typically from wandb).
-            shards_dir: Absolute path to the shards directory (typically $SAEV_SCRATCH/saev/shards/<shard_hash>).
-            dataset: Absolute path to the dataset directory.
-            run_root: Root directory for runs (typically $SAEV_NFS/saev/runs).
+            train_shards_dir: Absolute path to the train shards directory (typically $SAEV_SCRATCH/saev/shards/<shard_hash>).
+            train_dataset: Absolute path to the train dataset directory.
+            val_shards_dir: Absolute path to the val shards directory (typically $SAEV_SCRATCH/saev/shards/<shard_hash>).
+            val_dataset: Absolute path to the val dataset directory.
+            runs_root: Root directory for runs (typically $SAEV_NFS/saev/runs).
 
         Returns:
             A new Run instance with all directories and symlinks created.
         """
-        root = run_root / run_id
+        root = runs_root / run_id
         root.mkdir(parents=True)
         (root / "checkpoint").mkdir()
         (root / "links").mkdir()
         (root / "inference").mkdir()
 
-        (root / "links" / "shards").symlink_to(shards_dir)
-        (root / "links" / "dataset").symlink_to(dataset)
+        (root / "links" / "train-shards").symlink_to(train_shards_dir)
+        (root / "links" / "train-dataset").symlink_to(train_dataset)
+        (root / "links" / "val-shards").symlink_to(val_shards_dir)
+        (root / "links" / "val-dataset").symlink_to(val_dataset)
 
         return cls(root)
 
@@ -142,14 +148,24 @@ class Run:
         return self.root / "checkpoint" / "sae.pt"
 
     @property
-    def shards(self) -> pathlib.Path:
+    def val_shards(self) -> pathlib.Path:
         """Path to shard root with metadata.json and acts*.bin files."""
-        return (self.root / "links" / "shards").resolve()
+        return (self.root / "links" / "val-shards").resolve()
 
     @property
-    def dataset(self) -> pathlib.Path:
+    def train_shards(self) -> pathlib.Path:
+        """Path to shard root with metadata.json and acts*.bin files."""
+        return (self.root / "links" / "train-shards").resolve()
+
+    @property
+    def val_dataset(self) -> pathlib.Path:
         """Path to dataset root."""
-        return (self.root / "links" / "dataset").resolve()
+        return (self.root / "links" / "val-dataset").resolve()
+
+    @property
+    def train_dataset(self) -> pathlib.Path:
+        """Path to dataset root."""
+        return (self.root / "links" / "train-dataset").resolve()
 
     @property
     def inference(self) -> pathlib.Path:

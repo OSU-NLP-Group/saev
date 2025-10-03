@@ -1,5 +1,6 @@
 import dataclasses
 import itertools
+import logging
 import pathlib
 import types
 import typing as tp
@@ -9,10 +10,38 @@ import beartype
 
 T = tp.TypeVar("T")
 
+logger = logging.getLogger(__name__)
+
+
+@beartype.beartype
+def load_sweep(sweep_fpath: pathlib.Path) -> list[dict]:
+    """
+    Load a sweep file and return the list of config dicts.
+
+    Args:
+        sweep_fpath: Path to a Python file with a `make_cfgs()` function.
+
+    Returns:
+        List of config dictionaries from `make_cfgs()`. Returns empty list if any error occurs.
+    """
+    try:
+        namespace = {}
+        exec(sweep_fpath.read_text(), namespace)
+        result = namespace["make_cfgs"]()
+        if not isinstance(result, list):
+            logger.warning(
+                f"make_cfgs() in {sweep_fpath} returned {type(result).__name__}, expected list"
+            )
+            return []
+        return result
+    except Exception as err:
+        logger.warning(f"Failed to load sweep from {sweep_fpath}: {err}")
+        return []
+
 
 @beartype.beartype
 def load_cfgs(
-    override: T, *, default: T, dct: dict[str, object]
+    override: T, *, default: T, sweep_dcts: list[dict]
 ) -> tuple[list[T], list[str]]:
     """
     Load a list of configs from a combination of sources.
@@ -20,7 +49,7 @@ def load_cfgs(
     Args:
         override: Command-line overridden values.
         default: The default values for a config.
-        dct: A dictionary from a .toml or .json file that has some list values to sweep over.
+        sweep_dcts: A list of dictionaries from Python sweep files. Each dictionary may contain list values that will be expanded.
 
     Returns:
         A list of configs and a list of errors.
@@ -29,54 +58,40 @@ def load_cfgs(
     assert dataclasses.is_dataclass(override) and not isinstance(override, type)
     assert dataclasses.is_dataclass(default) and not isinstance(default, type)
 
-    # Find which fields were overridden (differ from default)
-    overridden_fields = get_non_default_values(override, default)
-
-    # Filter out overridden fields from the sweep dict
-    filtered_dct = _filter_overridden_fields(dct, overridden_fields)
-
     # If there's nothing to sweep, return just the override
-    if not filtered_dct:
+    if not sweep_dcts:
         return [override], []
 
-    # Use grid to expand the filtered dict
-    return grid(override, filtered_dct)
-
-
-@beartype.beartype
-def _filter_overridden_fields(
-    dct: dict[str, object], overridden: dict[str, object]
-) -> dict[str, object]:
-    """Remove fields from `dct` that are present in `overridden`."""
-    result = {}
-    for key, value in dct.items():
-        if key not in overridden:
-            result[key] = value
-        elif isinstance(value, dict) and isinstance(overridden.get(key), dict):
-            # Recursively filter nested dicts
-            filtered = _filter_overridden_fields(value, overridden[key])
-            if filtered:
-                result[key] = filtered
-    return result
-
-
-@beartype.beartype
-def grid(cfg: T, sweep_dct: dict[str, object]) -> tuple[list[T], list[str]]:
-    """Generate configs from ``cfg`` according to ``sweep_dct``."""
+    # Find which fields were overridden (differ from default)
+    overridden_fields = get_non_default_values(override, default)
 
     cfgs: list[T] = []
     errs: list[str] = []
 
-    for d, dct in enumerate(expand(sweep_dct)):
+    d = 0  # Global counter for seed incrementing across all expanded configs
+
+    for sweep_dct in sweep_dcts:
+        # Filter out overridden fields from this sweep dict
+        filtered_dct = _filter_overridden_fields(sweep_dct, overridden_fields)
+
+        # If there's nothing to sweep after filtering, just use override
+        if not filtered_dct:
+            cfgs.append(override)
+            d += 1
+            continue
+
+        # Apply the sweep dict to create a config
         try:
-            updates = _recursive_dataclass_update(cfg, dct, cfg, d)
+            updates = _recursive_dataclass_update(override, filtered_dct, override, d)
 
-            if hasattr(cfg, "seed") and "seed" not in updates:
-                updates["seed"] = getattr(cfg, "seed", 0) + d
+            if hasattr(override, "seed") and "seed" not in updates:
+                updates["seed"] = getattr(override, "seed", 0) + d
 
-            cfgs.append(dataclasses.replace(cfg, **updates))
+            cfgs.append(dataclasses.replace(override, **updates))
+            d += 1
         except Exception as err:
             errs.append(str(err))
+            d += 1
 
     return cfgs, errs
 
@@ -84,12 +99,12 @@ def grid(cfg: T, sweep_dct: dict[str, object]) -> tuple[list[T], list[str]]:
 @beartype.beartype
 def expand(config: dict[str, object]) -> Iterator[dict[str, object]]:
     """Expand a nested dict that may contain lists into many dicts."""
-
     yield from _expand_discrete(dict(config))
 
 
 @beartype.beartype
 def _expand_discrete(config: dict[str, object]) -> Iterator[dict[str, object]]:
+    """Recursively expand lists in a dictionary into multiple dictionaries."""
     if not config:
         yield {}
         return
@@ -108,6 +123,23 @@ def _expand_discrete(config: dict[str, object]) -> Iterator[dict[str, object]]:
     else:
         for c in _expand_discrete(config):
             yield {**c, key: value}
+
+
+@beartype.beartype
+def _filter_overridden_fields(
+    dct: dict[str, object], overridden: dict[str, object]
+) -> dict[str, object]:
+    """Remove fields from `dct` that are present in `overridden`."""
+    result = {}
+    for key, value in dct.items():
+        if key not in overridden:
+            result[key] = value
+        elif isinstance(value, dict) and isinstance(overridden.get(key), dict):
+            # Recursively filter nested dicts
+            filtered = _filter_overridden_fields(value, overridden[key])
+            if filtered:
+                result[key] = filtered
+    return result
 
 
 @beartype.beartype
@@ -228,13 +260,25 @@ def get_non_default_values(obj: T, default_obj: T) -> dict:
     assert dataclasses.is_dataclass(obj) and not isinstance(obj, type)
     assert dataclasses.is_dataclass(default_obj) and not isinstance(default_obj, type)
 
-    obj_dict = dataclasses.asdict(obj)
-    default_dict = dataclasses.asdict(default_obj)
-
     diff = {}
-    for key, value in obj_dict.items():
-        default_value = default_dict.get(key)
-        if value != default_value:
-            diff[key] = value
+    for field in dataclasses.fields(obj):
+        obj_value = getattr(obj, field.name)
+        default_value = getattr(default_obj, field.name)
+
+        if obj_value == default_value:
+            continue
+
+        # If both are dataclasses of the same type, recurse to find nested differences
+        if (
+            dataclasses.is_dataclass(obj_value)
+            and dataclasses.is_dataclass(default_value)
+            and type(obj_value) is type(default_value)
+        ):
+            nested_diff = get_non_default_values(obj_value, default_value)
+            if nested_diff:
+                diff[field.name] = nested_diff
+        else:
+            # For non-dataclass fields or different types, just record the value
+            diff[field.name] = obj_value
 
     return diff

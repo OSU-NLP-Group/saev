@@ -5,6 +5,7 @@ import dataclasses
 import logging
 import math
 import os
+import pathlib
 import queue
 import threading
 import time
@@ -31,11 +32,11 @@ class Config:
     """Configuration for loading shuffled activation data from disk.
 
     Attributes:
-        shard_root: Directory with .bin shards and a metadata.json file.
+        shards: Directory with .bin shards and a metadata.json file.
         patches: Which kinds of patches to use. 'cls' indicates just the [CLS] token (if any). 'image' indicates it will return image patches. 'all' returns all patches.
     """
 
-    shard_root: str = os.path.join(".", "shards")
+    shards: pathlib.Path = pathlib.Path("$SAEV_SCRATCH/saev/shards/abcdefg")
     patches: typing.Literal["cls", "image", "all"] = "image"
     layer: int | typing.Literal["all"] = -2
     """Which ViT layer(s) to read from disk. ``-2`` selects the second-to-last layer. ``"all"`` enumerates every recorded layer."""
@@ -65,14 +66,14 @@ class Config:
 
 
 @beartype.beartype
-class ImageOutOfBoundsError(Exception):
+class ExampleOutOfBoundsError(Exception):
     def __init__(self, metadata: shards.Metadata, i: int):
         self.metadata = metadata
         self.i = i
 
     @property
     def message(self) -> str:
-        return f"Metadata says there are {self.metadata.n_imgs} images, but we found image {self.i}."
+        return f"Metadata says there are {self.metadata.n_ex} examples, but we found example {self.i}."
 
 
 @jaxtyped(typechecker=beartype.beartype)
@@ -93,10 +94,19 @@ def _io_worker(
     See https://github.com/beartype/beartype/issues/397 for an explanation of why we use multiprocessing.queues.Queue for the type hint.
     """
     logger = logging.getLogger(f"shuffled.worker{worker_id}")
-    logger.info(f"I/O worker {worker_id} started.")
+    log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
+    level = logging.DEBUG if cfg.debug else logging.INFO
+    logging.basicConfig(level=level, format=log_format, force=True)
+    logger = logging.getLogger("shuffled.manager")
+    logger.info(
+        "I/O worker %s started (debug=%s, logging=%s).",
+        worker_id,
+        cfg.debug,
+        logging.getLevelName(logger.getEffectiveLevel()),
+    )
 
     layer_i = metadata.layers.index(cfg.layer)
-    shard_info = shards.ShardInfo.load(cfg.shard_root)
+    shard_info = shards.ShardInfo.load(cfg.shards)
 
     # Pre-conditions
     assert cfg.patches == "image"
@@ -110,6 +120,8 @@ def _io_worker(
     n_reads = 0
     t_last_report = time.time()
 
+    chunk_size = min(1024, math.ceil(cfg.batch_size * cfg.buffer_size / cfg.n_threads))
+
     while not stop_event.is_set():
         try:
             shard_i = work_queue.get(timeout=0.1)
@@ -121,26 +133,24 @@ def _io_worker(
             fname = f"acts{shard_i:06}.bin"
             logger.info("Opening %s.", fname)
 
-            img_i_offset = shard_i * metadata.n_imgs_per_shard
+            ex_i_offset = shard_i * metadata.ex_per_shard
 
-            acts_fpath = os.path.join(cfg.shard_root, fname)
+            acts_fpath = os.path.join(cfg.shards, fname)
             mmap = np.memmap(
                 acts_fpath, mode="r", dtype=np.float32, shape=metadata.shard_shape
             )
             t2 = time.perf_counter()
 
-            # Only iterate over the actual number of images in this shard
-            for start, end in helpers.batched_idx(shard_info[shard_i].n_imgs, 1024):
-                for p in range(metadata.n_patches_per_img):
+            # Only iterate over the actual number of examples in this shard
+            for start, end in helpers.batched_idx(shard_info[shard_i].n_ex, chunk_size):
+                for p in range(metadata.patches_per_ex):
                     patch_i = p + int(metadata.cls_token)
 
                     # If filtering by labels, check which samples to keep
                     if cfg.ignore_labels:
-                        # Get the labels for this batch of images and patch
-                        img_indices = np.arange(
-                            img_i_offset + start, img_i_offset + end
-                        )
-                        patch_labels = labels_mmap[img_indices, p]
+                        # Get the labels for this batch of examples and patch
+                        ex_indices = np.arange(ex_i_offset + start, ex_i_offset + end)
+                        patch_labels = labels_mmap[ex_indices, p]
 
                         # Find which samples to keep (NOT in ignore list)
                         mask = ~np.isin(patch_labels, cfg.ignore_labels)
@@ -160,7 +170,7 @@ def _io_worker(
                         # Create metadata for valid samples only
                         meta = torch.full((len(valid_indices), 2), p, dtype=torch.int32)
                         meta[:, 0] = (
-                            img_i_offset + start + torch.from_numpy(valid_indices)
+                            ex_i_offset + start + torch.from_numpy(valid_indices)
                         )
                     else:
                         # No filtering, load all
@@ -169,11 +179,11 @@ def _io_worker(
                         t1 = time.perf_counter()
 
                         meta = torch.full((end - start, 2), p, dtype=torch.int32)
-                        meta[:, 0] = img_i_offset + torch.arange(start, end)
+                        meta[:, 0] = ex_i_offset + torch.arange(start, end)
 
-                    last_img_i = meta[:, 0].max().item()
-                    if last_img_i >= metadata.n_imgs:
-                        err = ImageOutOfBoundsError(metadata, last_img_i)
+                    last_ex_i = meta[:, 0].max().item()
+                    if last_ex_i >= metadata.n_ex:
+                        err = ExampleOutOfBoundsError(metadata, last_ex_i)
                         logger.warning(err.message)
                         raise err
 
@@ -225,9 +235,13 @@ def _manager_main(
     """
     log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
     level = logging.DEBUG if cfg.debug else logging.INFO
-    logging.basicConfig(level=level, format=log_format)
+    logging.basicConfig(level=level, format=log_format, force=True)
     logger = logging.getLogger("shuffled.manager")
-    logger.info("Manager process started.")
+    logger.info(
+        "Manager process started (debug=%s, logging=%s)",
+        cfg.debug,
+        logging.getLevelName(logger.getEffectiveLevel()),
+    )
 
     # 0. PRE-CONDITIONS
     if cfg.patches != "image" or not isinstance(cfg.layer, int):
@@ -300,8 +314,8 @@ class DataLoader:
     class ExampleBatch(typing.TypedDict):
         """Individual example."""
 
-        act: Float[Tensor, "batch d_vit"]
-        image_i: Int[Tensor, " batch"]
+        act: Float[Tensor, "batch d_model"]
+        ex_i: Int[Tensor, " batch"]
         patch_i: Int[Tensor, " batch"]
 
     def __init__(self, cfg: Config):
@@ -314,18 +328,18 @@ class DataLoader:
         self.logger = logging.getLogger("shuffled.DataLoader")
         self.ctx = mp.get_context()
 
-        if not os.path.isdir(self.cfg.shard_root):
-            raise RuntimeError(f"Activations are not saved at '{self.cfg.shard_root}'.")
+        if not os.path.isdir(self.cfg.shards):
+            raise RuntimeError(f"Activations are not saved at '{self.cfg.shards}'.")
 
         if self.cfg.scale_norm:
             raise NotImplementedError("scale_norm not implemented.")
 
-        self.metadata = shards.Metadata.load(self.cfg.shard_root)
+        self.metadata = shards.Metadata.load(self.cfg.shards)
 
         # Validate shard files exist
-        shard_info = shards.ShardInfo.load(self.cfg.shard_root)
+        shard_info = shards.ShardInfo.load(self.cfg.shards)
         for shard in shard_info:
-            shard_path = os.path.join(self.cfg.shard_root, shard.name)
+            shard_path = os.path.join(self.cfg.shards, shard.name)
             if not os.path.exists(shard_path):
                 raise FileNotFoundError(f"Shard file not found: {shard_path}")
 
@@ -334,7 +348,7 @@ class DataLoader:
         # Check if labels.bin exists for filtering
         self.labels_mmap = None
         if self.cfg.ignore_labels:
-            labels_path = os.path.join(self.cfg.shard_root, "labels.bin")
+            labels_path = os.path.join(self.cfg.shards, "labels.bin")
             if not os.path.exists(labels_path):
                 raise FileNotFoundError(
                     f"ignore_labels filtering requested but labels.bin not found at {labels_path}"
@@ -373,7 +387,7 @@ class DataLoader:
         # Create the shared-memory buffers
         self.reservoir = buffers.ReservoirBuffer(
             self.cfg.buffer_size * self.cfg.batch_size,
-            (self.metadata.d_vit,),
+            (self.metadata.d_model,),
             dtype=torch.float32,
             meta_shape=(2,),
             meta_dtype=torch.int32,
@@ -386,12 +400,12 @@ class DataLoader:
         # Create labels memmap if needed
         labels_mmap = None
         if self.cfg.ignore_labels:
-            labels_path = os.path.join(self.cfg.shard_root, "labels.bin")
+            labels_path = os.path.join(self.cfg.shards, "labels.bin")
             labels_mmap = np.memmap(
                 labels_path,
                 mode="r",
                 dtype=np.uint8,
-                shape=(self.metadata.n_imgs, self.metadata.n_patches_per_img),
+                shape=(self.metadata.n_ex, self.metadata.patch_per_ex),
             )
 
         self.manager_proc = self.ctx.Process(
@@ -426,8 +440,8 @@ class DataLoader:
                     )
                     n += need
                     b += 1
-                    image_i, patch_i = meta.T
-                    yield self.ExampleBatch(act=act, image_i=image_i, patch_i=patch_i)
+                    ex_i, patch_i = meta.T
+                    yield self.ExampleBatch(act=act, ex_i=ex_i, patch_i=patch_i)
                     continue
                 except TimeoutError:
                     if self.cfg.ignore_labels:
@@ -492,16 +506,16 @@ class DataLoader:
         max_samples = 0
         match (self.cfg.patches, self.cfg.layer):
             case ("cls", "all"):
-                max_samples = self.metadata.n_imgs * len(self.metadata.layers)
+                max_samples = self.metadata.n_ex * len(self.metadata.layers)
             case ("cls", int()):
-                max_samples = self.metadata.n_imgs
+                max_samples = self.metadata.n_ex
             case ("image", int()):
-                max_samples = self.metadata.n_imgs * self.metadata.n_patches_per_img
+                max_samples = self.metadata.n_ex * self.metadata.patches_per_ex
             case ("image", "all"):
                 max_samples = (
-                    self.metadata.n_imgs
+                    self.metadata.n_ex
                     * len(self.metadata.layers)
-                    * self.metadata.n_patches_per_img
+                    * self.metadata.patches_per_ex
                 )
             case _:
                 typing.assert_never((self.cfg.patches, self.cfg.layer))
@@ -518,7 +532,7 @@ class DataLoader:
             )
 
         # Load labels and count remaining patches
-        labels_path = os.path.join(self.cfg.shard_root, "labels.bin")
+        labels_path = os.path.join(self.cfg.shards, "labels.bin")
         if not os.path.exists(labels_path):
             raise FileNotFoundError(f"labels.bin not found at {labels_path}")
 
@@ -527,7 +541,7 @@ class DataLoader:
             labels_path,
             mode="r",
             dtype=np.uint8,
-            shape=(self.metadata.n_imgs, self.metadata.n_patches_per_img),
+            shape=(self.metadata.n_ex, self.metadata.n_patches_per_ex),
         )
 
         # Count patches that are NOT in the ignore list

@@ -48,6 +48,7 @@ def metadatas(draw) -> Metadata:
             n_ex=draw(st.integers(min_value=1, max_value=10_000_000)),
             patches_per_shard=draw(st.integers(min_value=1, max_value=200_000_000)),
             data={"__class__": "Fake"},
+            dataset=pathlib.Path("/fake/dataset/path"),
         )
     except AssertionError:
         reject()
@@ -103,6 +104,7 @@ def test_shard_writer_and_dataset_e2e():
                 **dataclasses.asdict(data_cfg),
                 "__class__": data_cfg.__class__.__name__,
             },
+            dataset=pathlib.Path("/fake/dataset/path"),
         )
         md.dump(shards_root)
 
@@ -201,6 +203,7 @@ def test_metadata_json_has_required_keys(md):
             "n_ex",
             "patches_per_shard",
             "data",
+            "dataset",
             "pixel_agg",
             "dtype",
             "protocol",
@@ -237,6 +240,7 @@ def test_shard_size_consistency(patches_per_shard, patches_per_ex, n_layers, cls
         n_ex=1,
         patches_per_shard=patches_per_shard,
         data={"__class__": "Fake"},
+        dataset=pathlib.Path("/fake/dataset/path"),
     )
     # compute spec value
     n_tokens = patches_per_ex + (1 if cls_token else 0)
@@ -271,5 +275,16 @@ def test_tokens_per_ex(patches_per_ex, cls_token, expected):
         n_ex=1,
         patches_per_shard=1000,
         data={"__class__": "Fake"},
+        dataset=pathlib.Path("/fake/dataset/path"),
     )
     assert md.tokens_per_ex == expected
+
+
+@given(md=metadatas())
+def test_metadata_smoke(md):
+    """Test that all derived properties and methods on Metadata don't throw exceptions."""
+    md.hash
+    md.tokens_per_ex
+    md.n_shards
+    md.ex_per_shard
+    md.shard_shape

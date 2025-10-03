@@ -48,10 +48,13 @@ Guards against silent config drift.
 | `n_ex`               | int    | total examples in dataset                  |
 | `patches_per_shard`  | int    | **logical** activations per shard (see #3) |
 | `data`               | object | opaque dataset description                 |
+| `dataset`            | string | absolute path to original dataset root     |
 | `dtype`              | string | numpy dtype. Fixed `"float32"` for now.    |
 | `protocol`           | string | `"2.0"` (shards after big refactor)        |
 
 The `data` object is `dataclasses.asdict(cfg.data)`, with an additional `__class__` field with `cfg.data.__class__.__name__` as the value.
+
+The `dataset` field stores the absolute path to the root directory of the original image dataset, allowing runs to create symlinks back to the source images for visualization and analysis.
 
 ### 2.2. `shards.json`
 

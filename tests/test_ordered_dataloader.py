@@ -11,10 +11,9 @@ import torch
 import torch.multiprocessing as mp
 
 import saev.data
+from saev.data import OrderedConfig, OrderedDataLoader
 from saev.data.indexed import Config as IndexedConfig
 from saev.data.indexed import Dataset as IndexedDataset
-from saev.data.ordered import Config as OrderedConfig
-from saev.data.ordered import DataLoader
 
 mp.set_start_method("spawn", force=True)
 
@@ -67,21 +66,21 @@ def patch_labeled_shards_path(pytestconfig, tmp_path_factory):
     # Create test shards with labels if no real shards available
     import numpy as np
 
-    from saev.data import datasets, writers
+    from saev.data import datasets, shards
 
     tmp_path = tmp_path_factory.mktemp("labeled_shards")
 
     # Create a dataset with meaningful size
-    n_imgs = 20
+    n_ex = 20
     n_patches = 16  # 4x4 patches for tiny model
 
-    # Create activation shards
-    cfg = writers.Config(
-        data=datasets.Fake(n_imgs=n_imgs),
+    # Generate the activation shards
+    shards_dir = shards.worker_fn(
+        data=datasets.Fake(n_imgs=n_ex),
         dump_to=str(tmp_path),
         vit_family="clip",
         vit_ckpt="hf-hub:hf-internal-testing/tiny-open-clip-model",
-        d_vit=128,  # Match the tiny model's dimension
+        d_model=128,  # Match the tiny model's dimension
         vit_layers=[0],  # Use first layer for speed
         n_patches_per_img=16,  # Smaller for the tiny model
         cls_token=True,
@@ -91,20 +90,17 @@ def patch_labeled_shards_path(pytestconfig, tmp_path_factory):
         device="cpu",
     )
 
-    # Generate the activation shards
-    writers.worker_fn(cfg)
-
     # Get the actual shard directory
-    metadata = writers.Metadata.from_cfg(cfg)
+    metadata = shards.Metadata.load(shards_dir)
     shard_root = os.path.join(str(tmp_path), metadata.hash)
 
     # Create realistic labels (simulate semantic segmentation)
     labels_path = os.path.join(shard_root, "labels.bin")
-    labels = np.zeros((n_imgs, n_patches), dtype=np.uint8)
+    labels = np.zeros((n_ex, n_patches), dtype=np.uint8)
 
     # Simulate different semantic classes with spatial coherence
     np.random.seed(42)  # For reproducibility
-    for img_i in range(n_imgs):
+    for img_i in range(n_ex):
         # Create patches of different "classes" for 4x4 grid
         for patch_i in range(n_patches):
             row = patch_i // 4
@@ -126,31 +122,31 @@ def patch_labeled_shards_path(pytestconfig, tmp_path_factory):
 
 
 def test_init_smoke(ordered_cfg):
-    """Test that we can instantiate the DataLoader."""
-    DataLoader(ordered_cfg)
+    """Test that we can instantiate the OrderedDataLoader."""
+    OrderedDataLoader(ordered_cfg)
 
 
 def test_len_smoke(ordered_cfg):
-    """Test that we can get the length of the DataLoader."""
-    dl = DataLoader(ordered_cfg)
+    """Test that we can get the length of the OrderedDataLoader."""
+    dl = OrderedDataLoader(ordered_cfg)
     assert isinstance(len(dl), int)
     assert len(dl) > 0
 
 
 def test_iter_smoke(ordered_cfg):
     """Test that we can iterate and get one batch."""
-    dl = DataLoader(ordered_cfg)
+    dl = OrderedDataLoader(ordered_cfg)
     # simply iterating one element should succeed
     batch = next(iter(dl))
     assert "act" in batch and "image_i" in batch and "patch_i" in batch
-    assert batch["act"].ndim == 2  # [batch, d_vit]
+    assert batch["act"].ndim == 2  # [batch, d_model]
     assert batch["image_i"].ndim == 1  # [batch]
     assert batch["patch_i"].ndim == 1  # [batch]
 
 
 def test_batches(ordered_cfg):
     """Test that we can iterate through multiple batches."""
-    dl = DataLoader(ordered_cfg)
+    dl = OrderedDataLoader(ordered_cfg)
     it = iter(dl)
     for _ in range(8):
         batch = next(it)
@@ -161,7 +157,7 @@ def test_batches(ordered_cfg):
 def test_batch_size_matches(ordered_cfg, bs):
     """Test that batches have the correct size."""
     cfg = dataclasses.replace(ordered_cfg, batch_size=bs)
-    dl = DataLoader(cfg)
+    dl = OrderedDataLoader(cfg)
     it = iter(dl)
     for _ in range(4):
         batch = next(it)
@@ -180,7 +176,7 @@ def test_no_child_leak(ordered_cfg):
     """Loader must clean up its workers after iteration terminates."""
     before = peak_children()
 
-    dl = DataLoader(ordered_cfg)
+    dl = OrderedDataLoader(ordered_cfg)
 
     for _ in range(2):  # minimal work
         next(iter(dl))
@@ -207,7 +203,7 @@ def test_compare_with_indexed_sequential(shards_path, layer):
         layer=layer,
         batch_size=BATCH_SIZE,
     )
-    dl = DataLoader(ordered_cfg)
+    dl = OrderedDataLoader(ordered_cfg)
 
     # Setup indexed dataset
     indexed_cfg = IndexedConfig(
@@ -264,7 +260,7 @@ def test_compare_with_indexed_sequential(shards_path, layer):
 
 def test_sequential_order(ordered_cfg):
     """Test that data comes out in sequential order."""
-    dl = DataLoader(ordered_cfg)
+    dl = OrderedDataLoader(ordered_cfg)
 
     prev_img_i = -1
     prev_patch_i = -1
@@ -308,7 +304,7 @@ def test_sequential_order(ordered_cfg):
 
 def test_reproducibility(ordered_cfg):
     """Test that multiple iterations produce the same data in the same order."""
-    dl = DataLoader(ordered_cfg)
+    dl = OrderedDataLoader(ordered_cfg)
 
     # Collect first few batches from first iteration
     first_batches = []
@@ -344,12 +340,12 @@ def test_constructor_validation(ordered_cfg):
     # Test with non-existent directory
     cfg = dataclasses.replace(ordered_cfg, shard_root="/nonexistent/path")
     with pytest.raises(RuntimeError, match="Activations are not saved"):
-        DataLoader(cfg)
+        OrderedDataLoader(cfg)
 
 
 def test_properties(ordered_cfg):
-    """Test DataLoader properties."""
-    dl = DataLoader(ordered_cfg)
+    """Test OrderedDataLoader properties."""
+    dl = OrderedDataLoader(ordered_cfg)
 
     assert dl.n_batches == len(dl)
     assert dl.n_samples > 0
@@ -369,7 +365,7 @@ def test_edge_cases(ordered_cfg):
     """Test edge cases like very small batch sizes."""
     # Test with batch_size = 1
     cfg = dataclasses.replace(ordered_cfg, batch_size=1)
-    dl = DataLoader(cfg)
+    dl = OrderedDataLoader(cfg)
 
     it = iter(dl)
     for _ in range(10):
@@ -382,7 +378,7 @@ def test_edge_cases(ordered_cfg):
 def test_memory_stability(ordered_cfg):
     """Test that the dataloader doesn't leak memory over many iterations."""
     cfg = dataclasses.replace(ordered_cfg, batch_size=100)
-    dl = DataLoader(cfg)
+    dl = OrderedDataLoader(cfg)
 
     # Force garbage collection
     gc.collect()
@@ -415,7 +411,7 @@ def test_cross_shard_batches(shards_path, layer, metadata):
     """Test that batches spanning multiple shards work correctly."""
     # Use a batch size likely to span shards
     patches_per_shard = (
-        metadata.n_imgs_per_shard * metadata.n_patches_per_img / len(metadata.layers)
+        metadata.n_ex_per_shard * metadata.n_patches_per_img / len(metadata.layers)
     )
     batch_size = int(patches_per_shard * 1.5)  # Should span 2 shards
 
@@ -426,7 +422,7 @@ def test_cross_shard_batches(shards_path, layer, metadata):
         batch_size=batch_size,
         debug=True,
     )
-    dl = DataLoader(cfg)
+    dl = OrderedDataLoader(cfg)
 
     # Just verify we can iterate without errors
     it = iter(dl)
@@ -439,7 +435,7 @@ def test_timeout_handling(ordered_cfg):
     """Test batch timeout handling."""
     # Use very short timeout
     cfg = dataclasses.replace(ordered_cfg, batch_timeout_s=0.001)
-    dl = DataLoader(cfg)
+    dl = OrderedDataLoader(cfg)
 
     # Should still work, just with warnings
     it = iter(dl)
@@ -450,36 +446,36 @@ def test_timeout_handling(ordered_cfg):
 @pytest.mark.slow
 def test_ordered_dataloader_with_tiny_fake_dataset(tmp_path):
     """Test OrderedDataLoader with a very small fake dataset to ensure end behavior works."""
-    from saev.data import datasets, writers
+    from saev.data import datasets, shards
 
     # Create a tiny dataset - just 2 images
     # The tiny-open-clip-model uses 16 patches + 1 CLS token
-    n_imgs = 2
-    d_vit = 128
+    n_ex = 2
+    d_model = 128
     n_patches = 16  # Standard for this model
     layers = [0]
 
     # Create activation shards using the fake dataset
-    cfg = writers.Config(
-        data=datasets.Fake(n_imgs=n_imgs),
+    cfg = shards.Config(
+        data=datasets.Fake(n_ex=n_ex),
         dump_to=str(tmp_path),
         vit_family="clip",
         vit_ckpt="hf-hub:hf-internal-testing/tiny-open-clip-model",
-        d_vit=d_vit,
+        d_model=d_model,
         vit_layers=layers,
         n_patches_per_img=n_patches,
         cls_token=True,  # This model has CLS token
         max_patches_per_shard=1000,
-        vit_batch_size=n_imgs,  # Process all images in one batch
+        vit_batch_size=n_ex,  # Process all images in one batch
         n_workers=0,
         device="cpu",
     )
 
     # Generate the activation shards
-    writers.worker_fn(cfg)
+    shards.worker_fn(cfg)
 
     # Get the actual shard directory
-    metadata = writers.Metadata.from_cfg(cfg)
+    metadata = shards.Metadata.from_cfg(cfg)
     shard_root = os.path.join(str(tmp_path), metadata.hash)
 
     # Test with batch_size = 7 (32 total samples, so batches of 7, 7, 7, 7, 4)
@@ -492,8 +488,8 @@ def test_ordered_dataloader_with_tiny_fake_dataset(tmp_path):
     )
 
     # Check that we can calculate expected values
-    dl = DataLoader(ordered_cfg)
-    expected_samples = n_imgs * n_patches  # 2 * 16 = 32
+    dl = OrderedDataLoader(ordered_cfg)
+    expected_samples = n_ex * n_patches  # 2 * 16 = 32
     expected_batches = (expected_samples + 6) // 7  # ceil(32/7) = 5
 
     assert dl.n_samples == expected_samples
@@ -511,11 +507,11 @@ def test_ordered_dataloader_with_tiny_fake_dataset(tmp_path):
 @pytest.mark.slow
 def test_missing_shard_file_not_detected_at_init(tmp_path):
     """Test that missing shard files are NOT detected at initialization - exposes the validation gap."""
-    from saev.data import datasets, writers
+    from saev.data import datasets, shards
 
     # Create a small dataset with multiple shards
-    n_imgs = 10
-    d_vit = 128
+    n_ex = 10
+    d_model = 128
     n_patches = 16
     layers = [0]
 
@@ -524,12 +520,12 @@ def test_missing_shard_file_not_detected_at_init(tmp_path):
     max_patches_per_shard = 34  # This will create ~5 shards for 10 images
 
     # Create activation shards
-    cfg = writers.Config(
-        data=datasets.Fake(n_imgs=n_imgs),
+    cfg = shards.Config(
+        data=datasets.Fake(n_ex=n_ex),
         dump_to=str(tmp_path),
         vit_family="clip",
         vit_ckpt="hf-hub:hf-internal-testing/tiny-open-clip-model",
-        d_vit=d_vit,
+        d_model=d_model,
         vit_layers=layers,
         n_patches_per_img=n_patches,
         cls_token=True,
@@ -540,10 +536,10 @@ def test_missing_shard_file_not_detected_at_init(tmp_path):
     )
 
     # Generate the activation shards
-    writers.worker_fn(cfg)
+    shards.worker_fn(cfg)
 
     # Get the actual shard directory
-    metadata = writers.Metadata.from_cfg(cfg)
+    metadata = shards.Metadata.from_cfg(cfg)
     shard_root = os.path.join(str(tmp_path), metadata.hash)
 
     # Verify we have multiple shards
@@ -574,7 +570,7 @@ def test_missing_shard_file_not_detected_at_init(tmp_path):
         cfg = OrderedConfig(
             shard_root=shard_root, patches="image", layer=layers[0], drop_last=False
         )
-        DataLoader(cfg)
+        OrderedDataLoader(cfg)
 
 
 @pytest.mark.slow
@@ -582,21 +578,21 @@ def test_patch_labels_returned_when_available(tmp_path):
     """Test that patch labels are returned in batches when labels.bin exists."""
     import numpy as np
 
-    from saev.data import datasets, writers
+    from saev.data import datasets, shards
 
     # Create a small dataset
     n_imgs = 4
-    d_vit = 128
+    d_model = 128
     n_patches = 16
     layers = [0]
 
     # Create activation shards
-    cfg = writers.Config(
+    cfg = shards.Config(
         data=datasets.Fake(n_imgs=n_imgs),
         dump_to=str(tmp_path),
         vit_family="clip",
         vit_ckpt="hf-hub:hf-internal-testing/tiny-open-clip-model",
-        d_vit=d_vit,
+        d_model=d_model,
         vit_layers=layers,
         n_patches_per_img=n_patches,
         cls_token=True,
@@ -606,10 +602,10 @@ def test_patch_labels_returned_when_available(tmp_path):
     )
 
     # Generate the activation shards
-    writers.worker_fn(cfg)
+    shards.worker_fn(cfg)
 
     # Get the actual shard directory
-    metadata = writers.Metadata.from_cfg(cfg)
+    metadata = shards.Metadata.from_cfg(cfg)
     shard_root = os.path.join(str(tmp_path), metadata.hash)
 
     # Create synthetic labels.bin file
@@ -633,7 +629,7 @@ def test_patch_labels_returned_when_available(tmp_path):
         batch_size=8,
         drop_last=False,
     )
-    dl = DataLoader(cfg)
+    dl = OrderedDataLoader(cfg)
 
     # Iterate and check that patch labels are returned
     for batch_idx, batch in enumerate(dl):
@@ -663,21 +659,21 @@ def test_patch_labels_returned_when_available(tmp_path):
 @pytest.mark.slow
 def test_patch_labels_not_returned_when_missing(tmp_path):
     """Test that patch labels are NOT returned when labels.bin doesn't exist."""
-    from saev.data import datasets, writers
+    from saev.data import datasets, shards
 
     # Create a small dataset
     n_imgs = 2
-    d_vit = 128
+    d_model = 128
     n_patches = 16
     layers = [0]
 
     # Create activation shards
-    cfg = writers.Config(
+    cfg = shards.Config(
         data=datasets.Fake(n_imgs=n_imgs),
         dump_to=str(tmp_path),
         vit_family="clip",
         vit_ckpt="hf-hub:hf-internal-testing/tiny-open-clip-model",
-        d_vit=d_vit,
+        d_model=d_model,
         vit_layers=layers,
         n_patches_per_img=n_patches,
         cls_token=True,
@@ -687,10 +683,10 @@ def test_patch_labels_not_returned_when_missing(tmp_path):
     )
 
     # Generate the activation shards
-    writers.worker_fn(cfg)
+    shards.worker_fn(cfg)
 
     # Get the actual shard directory
-    metadata = writers.Metadata.from_cfg(cfg)
+    metadata = shards.Metadata.from_cfg(cfg)
     shard_root = os.path.join(str(tmp_path), metadata.hash)
 
     # Ensure labels.bin doesn't exist
@@ -705,7 +701,7 @@ def test_patch_labels_not_returned_when_missing(tmp_path):
         batch_size=8,
         drop_last=False,
     )
-    dl = DataLoader(cfg)
+    dl = OrderedDataLoader(cfg)
 
     # Iterate and check that patch labels are NOT in the batch
     for batch_idx, batch in enumerate(dl):
@@ -728,21 +724,21 @@ def test_no_patch_filtering_occurs(tmp_path):
     """Test that OrderedDataLoader does NOT filter patches based on labels, unlike ShuffledDataLoader."""
     import numpy as np
 
-    from saev.data import datasets, writers
+    from saev.data import datasets, shards
 
     # Create a small dataset
     n_imgs = 3
-    d_vit = 128
+    d_model = 128
     n_patches = 16
     layers = [0]
 
     # Create activation shards
-    cfg = writers.Config(
+    cfg = shards.Config(
         data=datasets.Fake(n_imgs=n_imgs),
         dump_to=str(tmp_path),
         vit_family="clip",
         vit_ckpt="hf-hub:hf-internal-testing/tiny-open-clip-model",
-        d_vit=d_vit,
+        d_model=d_model,
         vit_layers=layers,
         n_patches_per_img=n_patches,
         cls_token=True,
@@ -752,10 +748,10 @@ def test_no_patch_filtering_occurs(tmp_path):
     )
 
     # Generate the activation shards
-    writers.worker_fn(cfg)
+    shards.worker_fn(cfg)
 
     # Get the actual shard directory
-    metadata = writers.Metadata.from_cfg(cfg)
+    metadata = shards.Metadata.from_cfg(cfg)
     shard_root = os.path.join(str(tmp_path), metadata.hash)
 
     # Create synthetic labels.bin file with some patches marked for "filtering"
@@ -781,7 +777,7 @@ def test_no_patch_filtering_occurs(tmp_path):
         batch_size=100,  # Large batch to get all samples
         drop_last=False,
     )
-    dl = DataLoader(cfg)
+    dl = OrderedDataLoader(cfg)
 
     # Collect all samples
     all_samples = []
@@ -817,21 +813,21 @@ def test_patch_labels_consistency_across_batches(tmp_path):
     """Test that patch labels are consistent across multiple iterations."""
     import numpy as np
 
-    from saev.data import datasets, writers
+    from saev.data import datasets, shards
 
     # Create a small dataset
     n_imgs = 2
-    d_vit = 128
+    d_model = 128
     n_patches = 16
     layers = [0]
 
     # Create activation shards
-    cfg = writers.Config(
+    cfg = shards.Config(
         data=datasets.Fake(n_imgs=n_imgs),
         dump_to=str(tmp_path),
         vit_family="clip",
         vit_ckpt="hf-hub:hf-internal-testing/tiny-open-clip-model",
-        d_vit=d_vit,
+        d_model=d_model,
         vit_layers=layers,
         n_patches_per_img=n_patches,
         cls_token=True,
@@ -841,10 +837,10 @@ def test_patch_labels_consistency_across_batches(tmp_path):
     )
 
     # Generate the activation shards
-    writers.worker_fn(cfg)
+    shards.worker_fn(cfg)
 
     # Get the actual shard directory
-    metadata = writers.Metadata.from_cfg(cfg)
+    metadata = shards.Metadata.from_cfg(cfg)
     shard_root = os.path.join(str(tmp_path), metadata.hash)
 
     # Create synthetic labels with specific patterns
@@ -864,7 +860,7 @@ def test_patch_labels_consistency_across_batches(tmp_path):
         batch_size=4,
         drop_last=False,
     )
-    dl = DataLoader(cfg)
+    dl = OrderedDataLoader(cfg)
 
     # Collect labels from first iteration
     first_iter_labels = {}
@@ -895,21 +891,21 @@ def test_patch_labels_dtype_and_range(tmp_path):
     """Test that patch labels have correct dtype and value range."""
     import numpy as np
 
-    from saev.data import datasets, writers
+    from saev.data import datasets, shards
 
     # Create a small dataset
     n_imgs = 2
-    d_vit = 128
+    d_model = 128
     n_patches = 16
     layers = [0]
 
     # Create activation shards
-    cfg = writers.Config(
+    cfg = shards.Config(
         data=datasets.Fake(n_imgs=n_imgs),
         dump_to=str(tmp_path),
         vit_family="clip",
         vit_ckpt="hf-hub:hf-internal-testing/tiny-open-clip-model",
-        d_vit=d_vit,
+        d_model=d_model,
         vit_layers=layers,
         n_patches_per_img=n_patches,
         cls_token=True,
@@ -919,10 +915,10 @@ def test_patch_labels_dtype_and_range(tmp_path):
     )
 
     # Generate the activation shards
-    writers.worker_fn(cfg)
+    shards.worker_fn(cfg)
 
     # Get the actual shard directory
-    metadata = writers.Metadata.from_cfg(cfg)
+    metadata = shards.Metadata.from_cfg(cfg)
     shard_root = os.path.join(str(tmp_path), metadata.hash)
 
     # Create labels with full uint8 range
@@ -946,7 +942,7 @@ def test_patch_labels_dtype_and_range(tmp_path):
         batch_size=8,
         drop_last=False,
     )
-    dl = DataLoader(cfg)
+    dl = OrderedDataLoader(cfg)
 
     # Check labels in batches
     all_labels = []
@@ -978,11 +974,11 @@ def test_patch_labels_with_multiple_shards(tmp_path):
     """Test that patch labels work correctly when data spans multiple shards."""
     import numpy as np
 
-    from saev.data import datasets, writers
+    from saev.data import datasets, shards
 
     # Create dataset that will span multiple shards
     n_imgs = 6
-    d_vit = 128
+    d_model = 128
     n_patches = 16
     layers = [0]
 
@@ -990,12 +986,12 @@ def test_patch_labels_with_multiple_shards(tmp_path):
     max_patches_per_shard = 34  # ~2 images per shard
 
     # Create activation shards
-    cfg = writers.Config(
+    cfg = shards.Config(
         data=datasets.Fake(n_imgs=n_imgs),
         dump_to=str(tmp_path),
         vit_family="clip",
         vit_ckpt="hf-hub:hf-internal-testing/tiny-open-clip-model",
-        d_vit=d_vit,
+        d_model=d_model,
         vit_layers=layers,
         n_patches_per_img=n_patches,
         cls_token=True,
@@ -1006,10 +1002,10 @@ def test_patch_labels_with_multiple_shards(tmp_path):
     )
 
     # Generate the activation shards
-    writers.worker_fn(cfg)
+    shards.worker_fn(cfg)
 
     # Get the actual shard directory
-    metadata = writers.Metadata.from_cfg(cfg)
+    metadata = shards.Metadata.from_cfg(cfg)
     shard_root = os.path.join(str(tmp_path), metadata.hash)
 
     # Verify we have multiple shards
@@ -1036,7 +1032,7 @@ def test_patch_labels_with_multiple_shards(tmp_path):
         batch_size=40,  # Large enough to span shards
         drop_last=False,
     )
-    dl = DataLoader(cfg)
+    dl = OrderedDataLoader(cfg)
 
     # Verify labels are correct across shard boundaries
     for batch_idx, batch in enumerate(dl):
@@ -1084,7 +1080,7 @@ def test_real_shards_with_labels(patch_labeled_shards_path):
         batch_size=256,
         drop_last=False,
     )
-    dl = DataLoader(cfg)
+    dl = OrderedDataLoader(cfg)
 
     # Collect samples from first few batches
     samples_collected = 0
@@ -1142,7 +1138,7 @@ def test_real_shards_label_distribution(patch_labeled_shards_path):
         batch_size=512,
         drop_last=False,
     )
-    dl = DataLoader(cfg)
+    dl = OrderedDataLoader(cfg)
 
     # Collect label statistics
     label_counter = Counter()
@@ -1198,7 +1194,7 @@ def test_real_shards_sequential_order_with_labels(patch_labeled_shards_path):
         batch_size=128,
         drop_last=False,
     )
-    dl = DataLoader(cfg)
+    dl = OrderedDataLoader(cfg)
 
     # Track sequential order
     prev_img_i = -1
@@ -1276,7 +1272,7 @@ def test_real_shards_no_filtering(patch_labeled_shards_path):
         batch_size=256,
         drop_last=False,
     )
-    dl = DataLoader(cfg)
+    dl = OrderedDataLoader(cfg)
 
     # Count labels seen in dataloader for same images
     label_counts_dl = {}
@@ -1330,7 +1326,7 @@ def test_real_shards_reproducibility_with_labels(patch_labeled_shards_path):
         batch_size=256,
         drop_last=False,
     )
-    dl = DataLoader(cfg)
+    dl = OrderedDataLoader(cfg)
 
     # Collect data from first iteration
     first_iter_data = []
