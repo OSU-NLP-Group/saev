@@ -106,18 +106,47 @@ class BatchLimiter:
 
     def __iter__(self):
         self.n_seen = 0
-        while True:
+        while self.n_seen < self.n_samples:
             for batch in self.dataloader:
-                yield batch
+                # Count the actual batch size, not the configured batch_size.
+                # The actual batch may be smaller (e.g., last batch when drop_last=False).
+                actual_batch_size = self._get_batch_size(batch)
 
-                # Sometimes we underestimate because the final batch in the dataloader might not be a full batch.
-                self.n_seen += self.batch_size
-                if self.n_seen > self.n_samples:
+                # Check BEFORE yielding to avoid going over the limit
+                if self.n_seen + actual_batch_size > self.n_samples:
                     return
 
-            # We try to mitigate the above issue by ignoring the last batch if we don't have drop_last.
-            if not self.dataloader.drop_last:
-                self.n_seen -= self.batch_size
+                yield batch
+                self.n_seen += actual_batch_size
+
+    def _get_batch_size(self, batch: Any) -> int:
+        """Determine the actual size of a batch from various data structures."""
+        # Handle dict-like batches (common in custom dataloaders)
+        if isinstance(batch, dict):
+            for key in ["act", "image", "input", "data"]:
+                if key in batch:
+                    return len(batch[key])
+            # Fallback: try first value
+            first_val = next(iter(batch.values()))
+            if hasattr(first_val, "__len__"):
+                return len(first_val)
+
+        # Handle tuple/list batches from PyTorch DataLoader
+        # PyTorch returns batches as list/tuple of tensors
+        if isinstance(batch, (tuple, list)) and len(batch) > 0:
+            first_item = batch[0]
+            # Check if first item is a tensor/array with length
+            if hasattr(first_item, "__len__"):
+                return len(first_item)
+            # If it's a scalar, the list itself is the batch
+            return len(batch)
+
+        # Handle direct tensor batches
+        if hasattr(batch, "__len__"):
+            return len(batch)
+
+        # Fallback to configured batch_size if we can't determine
+        return self.batch_size
 
 
 def _plot_example_schedules():
