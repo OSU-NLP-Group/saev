@@ -1129,15 +1129,6 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#saev.disk.Run.dataset" class="md-nav__link">
-    <span class="md-ellipsis">
-      dataset
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
   <a href="#saev.disk.Run.inference" class="md-nav__link">
     <span class="md-ellipsis">
       inference
@@ -1156,9 +1147,36 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#saev.disk.Run.shards" class="md-nav__link">
+  <a href="#saev.disk.Run.train_dataset" class="md-nav__link">
     <span class="md-ellipsis">
-      shards
+      train_dataset
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.disk.Run.train_shards" class="md-nav__link">
+    <span class="md-ellipsis">
+      train_shards
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.disk.Run.val_dataset" class="md-nav__link">
+    <span class="md-ellipsis">
+      val_dataset
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.disk.Run.val_shards" class="md-nav__link">
+    <span class="md-ellipsis">
+      val_shards
     </span>
   </a>
   
@@ -1627,28 +1645,6 @@
 
 
 
-<h3 id="saev.disk.Run.dataset" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">dataset</span></code>
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-property"><code>property</code></small>
-  </span>
-
-</h3>
-
-
-    <div class="doc doc-contents ">
-
-        <p>Path to dataset root.</p>
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-attribute">
-
-
-
 <h3 id="saev.disk.Run.inference" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">inference</span></code>
 
@@ -1693,8 +1689,74 @@
 
 
 
-<h3 id="saev.disk.Run.shards" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">shards</span></code>
+<h3 id="saev.disk.Run.train_dataset" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">train_dataset</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Path to dataset root.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="saev.disk.Run.train_shards" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">train_shards</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Path to shard root with metadata.json and acts*.bin files.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="saev.disk.Run.val_dataset" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">val_dataset</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Path to dataset root.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="saev.disk.Run.val_shards" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">val_shards</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-property"><code>property</code></small>
@@ -1718,7 +1780,7 @@
 
 
 <h3 id="saev.disk.Run.new" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">new</span><span class="p">(</span><span class="n">run_id</span><span class="p">,</span> <span class="n">shards_dir</span><span class="p">,</span> <span class="n">dataset</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">run_root</span><span class="p">)</span></code>
+            <code class="highlight language-python"><span class="n">new</span><span class="p">(</span><span class="n">run_id</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">train_shards_dir</span><span class="p">,</span> <span class="n">train_dataset</span><span class="p">,</span> <span class="n">val_shards_dir</span><span class="p">,</span> <span class="n">val_dataset</span><span class="p">,</span> <span class="n">runs_root</span><span class="p">)</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-classmethod"><code>classmethod</code></small>
@@ -1761,14 +1823,14 @@
           </tr>
           <tr class="doc-section-item">
             <td>
-                <code>shards_dir</code>
+                <code>train_shards_dir</code>
             </td>
             <td>
                   <code><span title="pathlib.Path">Path</span></code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Absolute path to the shards directory (typically $SAEV_SCRATCH/saev/shards/<shard_hash>).</p>
+                <p>Absolute path to the train shards directory (typically $SAEV_SCRATCH/saev/shards/<shard_hash>).</p>
               </div>
             </td>
             <td>
@@ -1777,14 +1839,14 @@
           </tr>
           <tr class="doc-section-item">
             <td>
-                <code>dataset</code>
+                <code>train_dataset</code>
             </td>
             <td>
                   <code><span title="pathlib.Path">Path</span></code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Absolute path to the dataset directory.</p>
+                <p>Absolute path to the train dataset directory.</p>
               </div>
             </td>
             <td>
@@ -1793,7 +1855,39 @@
           </tr>
           <tr class="doc-section-item">
             <td>
-                <code>run_root</code>
+                <code>val_shards_dir</code>
+            </td>
+            <td>
+                  <code><span title="pathlib.Path">Path</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Absolute path to the val shards directory (typically $SAEV_SCRATCH/saev/shards/<shard_hash>).</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>val_dataset</code>
+            </td>
+            <td>
+                  <code><span title="pathlib.Path">Path</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Absolute path to the val dataset directory.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>runs_root</code>
             </td>
             <td>
                   <code><span title="pathlib.Path">Path</span></code>
@@ -1866,35 +1960,47 @@
 <span class="normal">122</span>
 <span class="normal">123</span>
 <span class="normal">124</span>
-<span class="normal">125</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@classmethod</span>
+<span class="normal">125</span>
+<span class="normal">126</span>
+<span class="normal">127</span>
+<span class="normal">128</span>
+<span class="normal">129</span>
+<span class="normal">130</span>
+<span class="normal">131</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@classmethod</span>
 <span class="k">def</span><span class="w"> </span><span class="nf">new</span><span class="p">(</span>
     <span class="bp">cls</span><span class="p">,</span>
     <span class="n">run_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-    <span class="n">shards_dir</span><span class="p">:</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">,</span>
-    <span class="n">dataset</span><span class="p">:</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">,</span>
     <span class="o">*</span><span class="p">,</span>
-    <span class="n">run_root</span><span class="p">:</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">,</span>
+    <span class="n">train_shards_dir</span><span class="p">:</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">,</span>
+    <span class="n">train_dataset</span><span class="p">:</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">,</span>
+    <span class="n">val_shards_dir</span><span class="p">:</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">,</span>
+    <span class="n">val_dataset</span><span class="p">:</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">,</span>
+    <span class="n">runs_root</span><span class="p">:</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;Run&quot;</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Create a new run with directory structure and symlinks.</span>
 
 <span class="sd">    Args:</span>
 <span class="sd">        run_id: The run ID (typically from wandb).</span>
-<span class="sd">        shards_dir: Absolute path to the shards directory (typically $SAEV_SCRATCH/saev/shards/&lt;shard_hash&gt;).</span>
-<span class="sd">        dataset: Absolute path to the dataset directory.</span>
-<span class="sd">        run_root: Root directory for runs (typically $SAEV_NFS/saev/runs).</span>
+<span class="sd">        train_shards_dir: Absolute path to the train shards directory (typically $SAEV_SCRATCH/saev/shards/&lt;shard_hash&gt;).</span>
+<span class="sd">        train_dataset: Absolute path to the train dataset directory.</span>
+<span class="sd">        val_shards_dir: Absolute path to the val shards directory (typically $SAEV_SCRATCH/saev/shards/&lt;shard_hash&gt;).</span>
+<span class="sd">        val_dataset: Absolute path to the val dataset directory.</span>
+<span class="sd">        runs_root: Root directory for runs (typically $SAEV_NFS/saev/runs).</span>
 
 <span class="sd">    Returns:</span>
 <span class="sd">        A new Run instance with all directories and symlinks created.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">root</span> <span class="o">=</span> <span class="n">run_root</span> <span class="o">/</span> <span class="n">run_id</span>
+    <span class="n">root</span> <span class="o">=</span> <span class="n">runs_root</span> <span class="o">/</span> <span class="n">run_id</span>
     <span class="n">root</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
     <span class="p">(</span><span class="n">root</span> <span class="o">/</span> <span class="s2">&quot;checkpoint&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">mkdir</span><span class="p">()</span>
     <span class="p">(</span><span class="n">root</span> <span class="o">/</span> <span class="s2">&quot;links&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">mkdir</span><span class="p">()</span>
     <span class="p">(</span><span class="n">root</span> <span class="o">/</span> <span class="s2">&quot;inference&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">mkdir</span><span class="p">()</span>
 
-    <span class="p">(</span><span class="n">root</span> <span class="o">/</span> <span class="s2">&quot;links&quot;</span> <span class="o">/</span> <span class="s2">&quot;shards&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">symlink_to</span><span class="p">(</span><span class="n">shards_dir</span><span class="p">)</span>
-    <span class="p">(</span><span class="n">root</span> <span class="o">/</span> <span class="s2">&quot;links&quot;</span> <span class="o">/</span> <span class="s2">&quot;dataset&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">symlink_to</span><span class="p">(</span><span class="n">dataset</span><span class="p">)</span>
+    <span class="p">(</span><span class="n">root</span> <span class="o">/</span> <span class="s2">&quot;links&quot;</span> <span class="o">/</span> <span class="s2">&quot;train-shards&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">symlink_to</span><span class="p">(</span><span class="n">train_shards_dir</span><span class="p">)</span>
+    <span class="p">(</span><span class="n">root</span> <span class="o">/</span> <span class="s2">&quot;links&quot;</span> <span class="o">/</span> <span class="s2">&quot;train-dataset&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">symlink_to</span><span class="p">(</span><span class="n">train_dataset</span><span class="p">)</span>
+    <span class="p">(</span><span class="n">root</span> <span class="o">/</span> <span class="s2">&quot;links&quot;</span> <span class="o">/</span> <span class="s2">&quot;val-shards&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">symlink_to</span><span class="p">(</span><span class="n">val_shards_dir</span><span class="p">)</span>
+    <span class="p">(</span><span class="n">root</span> <span class="o">/</span> <span class="s2">&quot;links&quot;</span> <span class="o">/</span> <span class="s2">&quot;val-dataset&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">symlink_to</span><span class="p">(</span><span class="n">val_dataset</span><span class="p">)</span>
 
     <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="n">root</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>

@@ -58,6 +58,30 @@ class Imagenet(DatasetConfig):
 
 @beartype.beartype
 @dataclasses.dataclass(frozen=True)
+class Cifar10(DatasetConfig):
+    """Configuration for HuggingFace CIFAR-10."""
+
+    name: str = "uoft-cs/cifar10"
+    """Dataset name on HuggingFace. Don't need to change this."""
+    split: str = "train"
+    """Dataset split. Can be 'train' or 'test'."""
+
+    @property
+    def n_ex(self) -> int:
+        """Number of images in the dataset. Calculated on the fly, but is non-trivial to calculate because it requires loading the dataset. If you need to reference this number very often, cache it in a local variable."""
+        import datasets
+
+        dataset = datasets.load_dataset(self.name, split=self.split)
+        return len(dataset)
+
+    @property
+    def root(self) -> pathlib.Path:
+        """Root directory path for the dataset."""
+        return pathlib.Path(self.name)
+
+
+@beartype.beartype
+@dataclasses.dataclass(frozen=True)
 class ImageFolder(DatasetConfig):
     """Configuration for a generic image folder dataset."""
 
@@ -142,7 +166,7 @@ class FakeSeg(DatasetConfig):
         return pathlib.Path("fake-seg")
 
 
-Config = Imagenet | ImageFolder | SegFolder | Fake | FakeSeg
+Config = Imagenet | Cifar10 | ImageFolder | SegFolder | Fake | FakeSeg
 
 
 @beartype.beartype
@@ -167,6 +191,10 @@ def get_dataset(
     # TODO: Can we reduce duplication? Or is it nice to see that there is no magic here?
     if isinstance(cfg, Imagenet):
         return ImagenetDataset(
+            cfg, img_transform=img_transform, sample_transform=sample_transform
+        )
+    elif isinstance(cfg, Cifar10):
+        return Cifar10Dataset(
             cfg, img_transform=img_transform, sample_transform=sample_transform
         )
     elif isinstance(cfg, SegFolder):
@@ -226,6 +254,42 @@ class ImagenetDataset(torch.utils.data.Dataset):
         sample["index"] = i
 
         sample["image"] = sample["image"].convert("RGB")
+        if self.img_transform:
+            sample["image"] = self.img_transform(sample["image"])
+        sample["target"] = sample.pop("label")
+        sample["label"] = self.labels[sample["target"]]
+
+        if self.sample_transform is not None:
+            sample = self.sample_transform(sample)
+
+        return sample
+
+    def __len__(self) -> int:
+        return len(self.hf_dataset)
+
+
+@beartype.beartype
+class Cifar10Dataset(torch.utils.data.Dataset):
+    def __init__(
+        self,
+        cfg: Cifar10,
+        *,
+        img_transform=None,
+        sample_transform: Callable | None = None,
+    ):
+        import datasets
+
+        self.hf_dataset = datasets.load_dataset(cfg.name, split=cfg.split)
+
+        self.img_transform = img_transform
+        self.sample_transform = sample_transform
+        self.labels = self.hf_dataset.info.features["label"].names
+
+    def __getitem__(self, i):
+        sample = self.hf_dataset[i]
+        sample["index"] = i
+
+        sample["image"] = sample.pop("img").convert("RGB")
         if self.img_transform:
             sample["image"] = self.img_transform(sample["image"])
         sample["target"] = sample.pop("label")

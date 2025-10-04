@@ -1368,8 +1368,10 @@
         sae.pt
         config.json
       links/                # Symlinks
-        shards              # $SCRATCH/saev/shards/&lt;shard_hash&gt;
-        dataset             # Whatever the original image dataset was
+        train-shards        # $SCRATCH/saev/shards/&lt;shard_hash&gt;
+        train-dataset       # Whatever the original image dataset was
+        val-shards          # $SCRATCH/saev/shards/&lt;shard_hash&gt;
+        val-dataset         # Whatever the original image dataset was
       inference/            # outputs from dump.py
         &lt;shard_hash&gt;/
           config.json

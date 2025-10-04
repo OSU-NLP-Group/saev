@@ -1528,7 +1528,7 @@
 
 
 <h2 id="saev.data.shuffled.Config" class="doc doc-heading">
-              <code class="highlight language-python"><span class="n">Config</span><span class="p">(</span><span class="n">shards</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">,</span> <span class="s1">&#39;shards&#39;</span><span class="p">),</span> <span class="n">patches</span><span class="o">=</span><span class="s1">&#39;image&#39;</span><span class="p">,</span> <span class="n">layer</span><span class="o">=-</span><span class="mi">2</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">1024</span> <span class="o">*</span> <span class="mi">16</span><span class="p">,</span> <span class="n">drop_last</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">scale_norm</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">ignore_labels</span><span class="o">=</span><span class="nb">list</span><span class="p">(),</span> <span class="n">n_threads</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">buffer_size</span><span class="o">=</span><span class="mi">64</span><span class="p">,</span> <span class="n">batch_timeout_s</span><span class="o">=</span><span class="mf">30.0</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">17</span><span class="p">,</span> <span class="n">debug</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">log_every_s</span><span class="o">=</span><span class="mf">30.0</span><span class="p">)</span></code>
+              <code class="highlight language-python"><span class="n">Config</span><span class="p">(</span><span class="n">shards</span><span class="o">=</span><span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="s1">&#39;$SAEV_SCRATCH/saev/shards/abcdefg&#39;</span><span class="p">),</span> <span class="n">patches</span><span class="o">=</span><span class="s1">&#39;image&#39;</span><span class="p">,</span> <span class="n">layer</span><span class="o">=-</span><span class="mi">2</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">1024</span> <span class="o">*</span> <span class="mi">16</span><span class="p">,</span> <span class="n">drop_last</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">scale_norm</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">ignore_labels</span><span class="o">=</span><span class="nb">list</span><span class="p">(),</span> <span class="n">n_threads</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">buffer_size</span><span class="o">=</span><span class="mi">64</span><span class="p">,</span> <span class="n">batch_timeout_s</span><span class="o">=</span><span class="mf">30.0</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">17</span><span class="p">,</span> <span class="n">debug</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">log_every_s</span><span class="o">=</span><span class="mf">30.0</span><span class="p">)</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
@@ -1556,7 +1556,7 @@
           <tr class="doc-section-item">
             <td><code><span title="saev.data.shuffled.Config.shards">shards</span></code></td>
             <td>
-                  <code><span title="str">str</span></code>
+                  <code><span title="pathlib.Path">Path</span></code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -1884,21 +1884,7 @@
 
                   <details class="quote">
                     <summary>Source code in <code>src/saev/data/shuffled.py</code></summary>
-                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">307</span>
-<span class="normal">308</span>
-<span class="normal">309</span>
-<span class="normal">310</span>
-<span class="normal">311</span>
-<span class="normal">312</span>
-<span class="normal">313</span>
-<span class="normal">314</span>
-<span class="normal">315</span>
-<span class="normal">316</span>
-<span class="normal">317</span>
-<span class="normal">318</span>
-<span class="normal">319</span>
-<span class="normal">320</span>
-<span class="normal">321</span>
+                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">321</span>
 <span class="normal">322</span>
 <span class="normal">323</span>
 <span class="normal">324</span>
@@ -1918,7 +1904,21 @@
 <span class="normal">338</span>
 <span class="normal">339</span>
 <span class="normal">340</span>
-<span class="normal">341</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">Config</span><span class="p">):</span>
+<span class="normal">341</span>
+<span class="normal">342</span>
+<span class="normal">343</span>
+<span class="normal">344</span>
+<span class="normal">345</span>
+<span class="normal">346</span>
+<span class="normal">347</span>
+<span class="normal">348</span>
+<span class="normal">349</span>
+<span class="normal">350</span>
+<span class="normal">351</span>
+<span class="normal">352</span>
+<span class="normal">353</span>
+<span class="normal">354</span>
+<span class="normal">355</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">Config</span><span class="p">):</span>
     <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span> <span class="o">=</span> <span class="n">cfg</span>
 
     <span class="bp">self</span><span class="o">.</span><span class="n">manager_proc</span> <span class="o">=</span> <span class="kc">None</span>
@@ -2032,21 +2032,7 @@
 
             <details class="quote">
               <summary>Source code in <code>src/saev/data/shuffled.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">411</span>
-<span class="normal">412</span>
-<span class="normal">413</span>
-<span class="normal">414</span>
-<span class="normal">415</span>
-<span class="normal">416</span>
-<span class="normal">417</span>
-<span class="normal">418</span>
-<span class="normal">419</span>
-<span class="normal">420</span>
-<span class="normal">421</span>
-<span class="normal">422</span>
-<span class="normal">423</span>
-<span class="normal">424</span>
-<span class="normal">425</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">425</span>
 <span class="normal">426</span>
 <span class="normal">427</span>
 <span class="normal">428</span>
@@ -2074,7 +2060,21 @@
 <span class="normal">450</span>
 <span class="normal">451</span>
 <span class="normal">452</span>
-<span class="normal">453</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__iter__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">collections</span><span class="o">.</span><span class="n">abc</span><span class="o">.</span><span class="n">Iterator</span><span class="p">[</span><span class="n">ExampleBatch</span><span class="p">]:</span>
+<span class="normal">453</span>
+<span class="normal">454</span>
+<span class="normal">455</span>
+<span class="normal">456</span>
+<span class="normal">457</span>
+<span class="normal">458</span>
+<span class="normal">459</span>
+<span class="normal">460</span>
+<span class="normal">461</span>
+<span class="normal">462</span>
+<span class="normal">463</span>
+<span class="normal">464</span>
+<span class="normal">465</span>
+<span class="normal">466</span>
+<span class="normal">467</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__iter__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">collections</span><span class="o">.</span><span class="n">abc</span><span class="o">.</span><span class="n">Iterator</span><span class="p">[</span><span class="n">ExampleBatch</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Yields batches.&quot;&quot;&quot;</span>
     <span class="bp">self</span><span class="o">.</span><span class="n">_start_manager</span><span class="p">()</span>
     <span class="n">n</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span>
@@ -2092,8 +2092,8 @@
                 <span class="p">)</span>
                 <span class="n">n</span> <span class="o">+=</span> <span class="n">need</span>
                 <span class="n">b</span> <span class="o">+=</span> <span class="mi">1</span>
-                <span class="n">image_i</span><span class="p">,</span> <span class="n">patch_i</span> <span class="o">=</span> <span class="n">meta</span><span class="o">.</span><span class="n">T</span>
-                <span class="k">yield</span> <span class="bp">self</span><span class="o">.</span><span class="n">ExampleBatch</span><span class="p">(</span><span class="n">act</span><span class="o">=</span><span class="n">act</span><span class="p">,</span> <span class="n">image_i</span><span class="o">=</span><span class="n">image_i</span><span class="p">,</span> <span class="n">patch_i</span><span class="o">=</span><span class="n">patch_i</span><span class="p">)</span>
+                <span class="n">ex_i</span><span class="p">,</span> <span class="n">patch_i</span> <span class="o">=</span> <span class="n">meta</span><span class="o">.</span><span class="n">T</span>
+                <span class="k">yield</span> <span class="bp">self</span><span class="o">.</span><span class="n">ExampleBatch</span><span class="p">(</span><span class="n">act</span><span class="o">=</span><span class="n">act</span><span class="p">,</span> <span class="n">ex_i</span><span class="o">=</span><span class="n">ex_i</span><span class="p">,</span> <span class="n">patch_i</span><span class="o">=</span><span class="n">patch_i</span><span class="p">)</span>
                 <span class="k">continue</span>
             <span class="k">except</span> <span class="ne">TimeoutError</span><span class="p">:</span>
                 <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">ignore_labels</span><span class="p">:</span>
@@ -2139,9 +2139,9 @@
 
             <details class="quote">
               <summary>Source code in <code>src/saev/data/shuffled.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">542</span>
-<span class="normal">543</span>
-<span class="normal">544</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__len__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">556</span>
+<span class="normal">557</span>
+<span class="normal">558</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__len__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Returns the number of batches in an epoch.&quot;&quot;&quot;</span>
     <span class="k">return</span> <span class="n">math</span><span class="o">.</span><span class="n">ceil</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_samples</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">batch_size</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>

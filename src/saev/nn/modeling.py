@@ -5,6 +5,7 @@ import io
 import json
 import logging
 import os
+import pathlib
 import typing
 
 import beartype
@@ -269,7 +270,7 @@ def get_activation(cfg: ActivationConfig) -> torch.nn.Module:
 
 
 @beartype.beartype
-def dump(fpath: str, sae: SparseAutoencoder):
+def dump(fpath: pathlib.Path, sae: SparseAutoencoder):
     """
     Save an SAE checkpoint to disk along with configuration, using the [trick from equinox](https://docs.kidger.site/equinox/examples/serialisation).
 
@@ -287,7 +288,7 @@ def dump(fpath: str, sae: SparseAutoencoder):
     }
 
     header = {
-        "schema": 2,
+        "schema": 3,
         "cfg": cfg_dict,
         "commit": helpers.current_git_commit() or "unknown",
         "lib": __version__,

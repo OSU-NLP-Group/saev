@@ -1519,6 +1519,11 @@ Guards against silent config drift.</p>
 <td>opaque dataset description</td>
 </tr>
 <tr>
+<td><code>dataset</code></td>
+<td>string</td>
+<td>absolute path to original dataset root</td>
+</tr>
+<tr>
 <td><code>dtype</code></td>
 <td>string</td>
 <td>numpy dtype. Fixed <code>"float32"</code> for now.</td>
@@ -1531,6 +1536,7 @@ Guards against silent config drift.</p>
 </tbody>
 </table>
 <p>The <code>data</code> object is <code>dataclasses.asdict(cfg.data)</code>, with an additional <code>__class__</code> field with <code>cfg.data.__class__.__name__</code> as the value.</p>
+<p>The <code>dataset</code> field stores the absolute path to the root directory of the original image dataset, allowing runs to create symlinks back to the source images for visualization and analysis.</p>
 <h3 id="22-shardsjson">2.2. <code>shards.json</code></h3>
 <p>A single array of <code>shard</code> objects, each of which has the following fields:</p>
 <table>

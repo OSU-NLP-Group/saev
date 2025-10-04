@@ -359,6 +359,15 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#quick-start" class="md-nav__link">
+    <span class="md-ellipsis">
+      Quick Start
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#why-saev" class="md-nav__link">
     <span class="md-ellipsis">
       Why saev?
@@ -1351,7 +1360,7 @@
 <p><img alt="PyPI Downloads" src="https://static.pepy.tech/badge/saev" />
 <img alt="MIT License" src="https://img.shields.io/badge/License-MIT-efefef" />
 <img alt="GitHub Repo stars" src="https://img.shields.io/github/stars/OSU-NLP-group/saev?style=flat&amp;label=GitHub%20%E2%AD%90" /></p>
-<p><strong>S</strong>parse <strong>a</strong>uto<strong>e</strong>ncoders (SAEs) for <strong>v</strong>ision transformers (ViTs), implemented in PyTorch.</p>
+<p>saev is a framework for training and evaluating <strong>S</strong>parse <strong>a</strong>uto<strong>e</strong>ncoders (SAEs) for <strong>v</strong>ision transformers (ViTs), implemented in PyTorch.</p>
 <h2 id="installation">Installation</h2>
 <p>Installation is supported with <a href="https://docs.astral.sh/uv/">uv</a>.
 saev will likely work with pure pip, conda, etc. but I will not formally support it.</p>
@@ -1359,11 +1368,29 @@ saev will likely work with pure pip, conda, etc. but I will not formally support
 <pre><code class="language-bash">uv run python -m saev --help
 </code></pre>
 <p>This will create a virtual environment and display the CLI help.</p>
+<h2 id="quick-start">Quick Start</h2>
+<p>Save some activations to disk:</p>
+<pre><code class="language-bash">uv run scripts/launch.py shards \
+  --shards-root /$SCRATCH/saev/shards \
+  --family clip \
+  --ckpt ViT-B-32/openai \
+  --layers 11 \
+  --patches-per-ex 49 \
+  --batch-size 256 \
+  data:cifar10
+</code></pre>
+<p>Read the <a href="users/guide/">guide</a> for details.</p>
 <h2 id="why-saev">Why saev?</h2>
 <p>There are plenty of alternative libraries for SAEs:</p>
 <ul>
 <li><a href="https://github.com/KempnerInstitute/overcomplete">Overcomplete</a>, primarily developed by <a href="https://thomasfel.me">Thomas Fel</a>.</li>
 </ul>
+<p>However, saev has some benefits:</p>
+<ol>
+<li>saev is more of a framework, rather than a library. The reason for this is that SAEs require lots of activations to train a relatively small neural network; while you can implement it with a simple inference loop, efficient training requires some caching on disk. This means using saev is a little more like Keras or PyTorch Lightning than Huggingface's Transformers or Datasets libraries.</li>
+<li>saev offers lots of tools for interacting with sparse autoencoders after training, including interactive notebooks and evaluations.</li>
+<li>saev includes complete code from preprints in the <code>contrib/</code> directory, along with logbooks describing how the authors used and developed saev.</li>
+</ol>
 
 
 

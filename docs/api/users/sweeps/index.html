@@ -1380,7 +1380,7 @@ def make_cfgs() -&gt; list[dict]:
     return cfgs
 </code></pre>
 <h2 id="command-line-overrides">Command-Line Overrides</h2>
-<p>Command-line arguments override sweep parameters:</p>
+<p>Command-line arguments override sweep parameters with deep merging. The precedence order is: <strong>CLI &gt; Sweep &gt; Default</strong>.</p>
 <pre><code class="language-bash">uv run train.py --sweep sweeps/my_sweep.py \
   --lr 5e-4  # Overrides all LRs in the sweep
 </code></pre>
@@ -1390,6 +1390,7 @@ def make_cfgs() -&gt; list[dict]:
   --val-data.layer 23 \
   --sae.exp-factor 16
 </code></pre>
+<p>Deep merging means that when you override a nested field, only that specific field is replaced—other fields in the nested config are preserved from the sweep or default values.</p>
 <h2 id="parallel-groups">Parallel Groups</h2>
 <p>Not all parameters can vary within a parallel sweep. Parameters that affect data loading (like <code>train_data</code>, <code>n_train</code>, <code>device</code>) must be identical across all configs in a parallel group.</p>
 <p>When configs differ in these parameters, they're automatically split into separate Slurm jobs:</p>

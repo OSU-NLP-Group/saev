@@ -959,9 +959,9 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#saev.data.indexed.Dataset.d_vit" class="md-nav__link">
+  <a href="#saev.data.indexed.Dataset.d_model" class="md-nav__link">
     <span class="md-ellipsis">
-      d_vit
+      d_model
     </span>
   </a>
   
@@ -1423,7 +1423,7 @@
 
 
 <h2 id="saev.data.indexed.Config" class="doc doc-heading">
-              <code class="highlight language-python"><span class="n">Config</span><span class="p">(</span><span class="n">shards</span><span class="o">=</span><span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="s1">&#39;./shards&#39;</span><span class="p">),</span> <span class="n">patches</span><span class="o">=</span><span class="s1">&#39;image&#39;</span><span class="p">,</span> <span class="n">layer</span><span class="o">=-</span><span class="mi">2</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">17</span><span class="p">,</span> <span class="n">debug</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></code>
+              <code class="highlight language-python"><span class="n">Config</span><span class="p">(</span><span class="n">shards</span><span class="o">=</span><span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="s1">&#39;$SAEV_SCRATCH/saev/shards/abcdefg&#39;</span><span class="p">),</span> <span class="n">patches</span><span class="o">=</span><span class="s1">&#39;image&#39;</span><span class="p">,</span> <span class="n">layer</span><span class="o">=-</span><span class="mi">2</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">17</span><span class="p">,</span> <span class="n">debug</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
@@ -1566,7 +1566,7 @@
           <tr class="doc-section-item">
             <td><code><span title="saev.data.indexed.Dataset.cfg">cfg</span></code></td>
             <td>
-                  <code><a class="autorefs autorefs-internal" title="Config(shards=pathlib.Path('./shards'), patches='image', layer=-2, seed=17, debug=False)
+                  <code><a class="autorefs autorefs-internal" title="Config(shards=pathlib.Path('$SAEV_SCRATCH/saev/shards/abcdefg'), patches='image', layer=-2, seed=17, debug=False)
 
   
       dataclass
@@ -1581,7 +1581,7 @@
           <tr class="doc-section-item">
             <td><code><span title="saev.data.indexed.Dataset.metadata">metadata</span></code></td>
             <td>
-                  <code><a class="autorefs autorefs-internal" title="Metadata(*, family, ckpt, layers, patches_per_ex, cls_token, d_model, n_ex, patches_per_shard, data, pixel_agg=None, dtype='float32', protocol='2.0')
+                  <code><a class="autorefs autorefs-internal" title="Metadata(*, family, ckpt, layers, patches_per_ex, cls_token, d_model, n_ex, patches_per_shard, data, dataset, pixel_agg=None, dtype='float32', protocol='2.0')
 
   
       dataclass
@@ -1694,8 +1694,8 @@
 
 
 
-<h3 id="saev.data.indexed.Dataset.d_vit" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">d_vit</span></code>
+<h3 id="saev.data.indexed.Dataset.d_model" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">d_model</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-property"><code>property</code></small>
@@ -1778,9 +1778,7 @@
 
             <details class="quote">
               <summary>Source code in <code>src/saev/data/indexed.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">186</span>
-<span class="normal">187</span>
-<span class="normal">188</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">188</span>
 <span class="normal">189</span>
 <span class="normal">190</span>
 <span class="normal">191</span>
@@ -1800,7 +1798,9 @@
 <span class="normal">205</span>
 <span class="normal">206</span>
 <span class="normal">207</span>
-<span class="normal">208</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__len__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="normal">208</span>
+<span class="normal">209</span>
+<span class="normal">210</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__len__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Dataset length depends on `patches` and `layer`.</span>
 <span class="sd">    &quot;&quot;&quot;</span>

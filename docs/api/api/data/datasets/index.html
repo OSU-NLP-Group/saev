@@ -848,6 +848,114 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#saev.data.datasets.Cifar10" class="md-nav__link">
+    <span class="md-ellipsis">
+      Cifar10
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Cifar10">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#saev.data.datasets.Cifar10.n_ex" class="md-nav__link">
+    <span class="md-ellipsis">
+      n_ex
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.data.datasets.Cifar10.name" class="md-nav__link">
+    <span class="md-ellipsis">
+      name
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.data.datasets.Cifar10.root" class="md-nav__link">
+    <span class="md-ellipsis">
+      root
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.data.datasets.Cifar10.split" class="md-nav__link">
+    <span class="md-ellipsis">
+      split
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#saev.data.datasets.DatasetConfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      DatasetConfig
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="DatasetConfig">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#saev.data.datasets.DatasetConfig.n_ex" class="md-nav__link">
+    <span class="md-ellipsis">
+      n_ex
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.data.datasets.DatasetConfig.root" class="md-nav__link">
+    <span class="md-ellipsis">
+      root
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#saev.data.datasets.Fake" class="md-nav__link">
+    <span class="md-ellipsis">
+      Fake
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Fake">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#saev.data.datasets.Fake.root" class="md-nav__link">
+    <span class="md-ellipsis">
+      root
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#saev.data.datasets.FakeSeg" class="md-nav__link">
     <span class="md-ellipsis">
       FakeSeg
@@ -888,6 +996,15 @@
   <a href="#saev.data.datasets.FakeSeg.patches_per_img" class="md-nav__link">
     <span class="md-ellipsis">
       patches_per_img
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.data.datasets.FakeSeg.root" class="md-nav__link">
+    <span class="md-ellipsis">
+      root
     </span>
   </a>
   
@@ -987,6 +1104,15 @@
   <a href="#saev.data.datasets.Imagenet.name" class="md-nav__link">
     <span class="md-ellipsis">
       name
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.data.datasets.Imagenet.root" class="md-nav__link">
+    <span class="md-ellipsis">
+      root
     </span>
   </a>
   
@@ -1608,6 +1734,309 @@
 
 
 
+<h2 id="saev.data.datasets.Cifar10" class="doc doc-heading">
+              <code class="highlight language-python"><span class="n">Cifar10</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;uoft-cs/cifar10&#39;</span><span class="p">,</span> <span class="n">split</span><span class="o">=</span><span class="s1">&#39;train&#39;</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+</h2>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="DatasetConfig (saev.data.datasets.DatasetConfig)" href="#saev.data.datasets.DatasetConfig">DatasetConfig</a></code></p>
+
+
+        <p>Configuration for HuggingFace CIFAR-10.</p>
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="saev.data.datasets.Cifar10.n_ex" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">n_ex</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Number of images in the dataset. Calculated on the fly, but is non-trivial to calculate because it requires loading the dataset. If you need to reference this number very often, cache it in a local variable.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="saev.data.datasets.Cifar10.name" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">name</span> <span class="o">=</span> <span class="s1">&#39;uoft-cs/cifar10&#39;</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Dataset name on HuggingFace. Don't need to change this.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="saev.data.datasets.Cifar10.root" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">root</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Root directory path for the dataset.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="saev.data.datasets.Cifar10.split" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">split</span> <span class="o">=</span> <span class="s1">&#39;train&#39;</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Dataset split. Can be 'train' or 'test'.</p>
+
+    </div>
+
+</div>
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="saev.data.datasets.DatasetConfig" class="doc doc-heading">
+            <code>DatasetConfig</code>
+
+
+</h2>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="abc.ABC">ABC</span></code></p>
+
+
+        <p>Abstract base class for dataset configurations.</p>
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="saev.data.datasets.DatasetConfig.n_ex" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">n_ex</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-abstractmethod"><code>abstractmethod</code></small>
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Number of examples in the dataset.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="saev.data.datasets.DatasetConfig.root" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">root</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-abstractmethod"><code>abstractmethod</code></small>
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Root directory path for the dataset.</p>
+
+    </div>
+
+</div>
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="saev.data.datasets.Fake" class="doc doc-heading">
+              <code class="highlight language-python"><span class="n">Fake</span><span class="p">(</span><span class="n">n_ex</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+</h2>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="DatasetConfig (saev.data.datasets.DatasetConfig)" href="#saev.data.datasets.DatasetConfig">DatasetConfig</a></code></p>
+
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="saev.data.datasets.Fake.root" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">root</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Root directory path for the dataset.</p>
+
+    </div>
+
+</div>
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
 <h2 id="saev.data.datasets.FakeSeg" class="doc doc-heading">
               <code class="highlight language-python"><span class="n">FakeSeg</span><span class="p">(</span><span class="n">n_ex</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">patches_per_img</span><span class="o">=</span><span class="mi">16</span><span class="p">,</span> <span class="n">n_classes</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">bg_label</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span></code>
 
@@ -1619,6 +2048,8 @@
 
 
     <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="DatasetConfig (saev.data.datasets.DatasetConfig)" href="#saev.data.datasets.DatasetConfig">DatasetConfig</a></code></p>
 
 
         <p>Tiny synthetic segmentation dataset for tests.</p>
@@ -1735,6 +2166,28 @@ mimicking the behavior of real segmentation datasets like SegFolder.</p>
 
 </div>
 
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="saev.data.datasets.FakeSeg.root" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">root</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Root directory path for the dataset.</p>
+
+    </div>
+
+</div>
+
 
 
 
@@ -1781,18 +2234,18 @@ mimicking the behavior of real segmentation datasets like SegFolder.</p>
 
                   <details class="quote">
                     <summary>Source code in <code>src/saev/data/datasets.py</code></summary>
-                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">399</span>
-<span class="normal">400</span>
-<span class="normal">401</span>
-<span class="normal">402</span>
-<span class="normal">403</span>
-<span class="normal">404</span>
-<span class="normal">405</span>
-<span class="normal">406</span>
-<span class="normal">407</span>
-<span class="normal">408</span>
-<span class="normal">409</span>
-<span class="normal">410</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">495</span>
+<span class="normal">496</span>
+<span class="normal">497</span>
+<span class="normal">498</span>
+<span class="normal">499</span>
+<span class="normal">500</span>
+<span class="normal">501</span>
+<span class="normal">502</span>
+<span class="normal">503</span>
+<span class="normal">504</span>
+<span class="normal">505</span>
+<span class="normal">506</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
     <span class="bp">self</span><span class="p">,</span>
     <span class="n">cfg</span><span class="p">:</span> <span class="n">FakeSeg</span><span class="p">,</span>
     <span class="o">*</span><span class="p">,</span>
@@ -1833,7 +2286,7 @@ mimicking the behavior of real segmentation datasets like SegFolder.</p>
 
 
 <h2 id="saev.data.datasets.ImageFolder" class="doc doc-heading">
-              <code class="highlight language-python"><span class="n">ImageFolder</span><span class="p">(</span><span class="n">root</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">,</span> <span class="s1">&#39;data&#39;</span><span class="p">,</span> <span class="s1">&#39;split&#39;</span><span class="p">))</span></code>
+              <code class="highlight language-python"><span class="n">ImageFolder</span><span class="p">(</span><span class="n">root</span><span class="o">=</span><span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="s1">&#39;./data/split&#39;</span><span class="p">))</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
@@ -1843,6 +2296,8 @@ mimicking the behavior of real segmentation datasets like SegFolder.</p>
 
 
     <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="DatasetConfig (saev.data.datasets.DatasetConfig)" href="#saev.data.datasets.DatasetConfig">DatasetConfig</a></code></p>
 
 
         <p>Configuration for a generic image folder dataset.</p>
@@ -1892,7 +2347,7 @@ mimicking the behavior of real segmentation datasets like SegFolder.</p>
 
 
 <h3 id="saev.data.datasets.ImageFolder.root" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">root</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">,</span> <span class="s1">&#39;data&#39;</span><span class="p">,</span> <span class="s1">&#39;split&#39;</span><span class="p">)</span></code>
+            <code class="highlight language-python"><span class="n">root</span> <span class="o">=</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="s1">&#39;./data/split&#39;</span><span class="p">)</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
@@ -1945,9 +2400,9 @@ mimicking the behavior of real segmentation datasets like SegFolder.</p>
 
                   <details class="quote">
                     <summary>Source code in <code>src/saev/data/datasets.py</code></summary>
-                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">213</span>
-<span class="normal">214</span>
-<span class="normal">215</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">sample_transform</span><span class="p">:</span> <span class="n">Callable</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">309</span>
+<span class="normal">310</span>
+<span class="normal">311</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">sample_transform</span><span class="p">:</span> <span class="n">Callable</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
     <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
     <span class="bp">self</span><span class="o">.</span><span class="n">sample_transform</span> <span class="o">=</span> <span class="n">sample_transform</span>
 </code></pre></div></td></tr></table></div>
@@ -2035,32 +2490,32 @@ mimicking the behavior of real segmentation datasets like SegFolder.</p>
 
             <details class="quote">
               <summary>Source code in <code>src/saev/data/datasets.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">217</span>
-<span class="normal">218</span>
-<span class="normal">219</span>
-<span class="normal">220</span>
-<span class="normal">221</span>
-<span class="normal">222</span>
-<span class="normal">223</span>
-<span class="normal">224</span>
-<span class="normal">225</span>
-<span class="normal">226</span>
-<span class="normal">227</span>
-<span class="normal">228</span>
-<span class="normal">229</span>
-<span class="normal">230</span>
-<span class="normal">231</span>
-<span class="normal">232</span>
-<span class="normal">233</span>
-<span class="normal">234</span>
-<span class="normal">235</span>
-<span class="normal">236</span>
-<span class="normal">237</span>
-<span class="normal">238</span>
-<span class="normal">239</span>
-<span class="normal">240</span>
-<span class="normal">241</span>
-<span class="normal">242</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">index</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">object</span><span class="p">]:</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">313</span>
+<span class="normal">314</span>
+<span class="normal">315</span>
+<span class="normal">316</span>
+<span class="normal">317</span>
+<span class="normal">318</span>
+<span class="normal">319</span>
+<span class="normal">320</span>
+<span class="normal">321</span>
+<span class="normal">322</span>
+<span class="normal">323</span>
+<span class="normal">324</span>
+<span class="normal">325</span>
+<span class="normal">326</span>
+<span class="normal">327</span>
+<span class="normal">328</span>
+<span class="normal">329</span>
+<span class="normal">330</span>
+<span class="normal">331</span>
+<span class="normal">332</span>
+<span class="normal">333</span>
+<span class="normal">334</span>
+<span class="normal">335</span>
+<span class="normal">336</span>
+<span class="normal">337</span>
+<span class="normal">338</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">index</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">object</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Args:</span>
 <span class="sd">        index: Index</span>
@@ -2115,6 +2570,8 @@ mimicking the behavior of real segmentation datasets like SegFolder.</p>
 
 
     <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="DatasetConfig (saev.data.datasets.DatasetConfig)" href="#saev.data.datasets.DatasetConfig">DatasetConfig</a></code></p>
 
 
         <p>Configuration for HuggingFace Imagenet.</p>
@@ -2186,6 +2643,28 @@ mimicking the behavior of real segmentation datasets like SegFolder.</p>
 
 
 
+<h3 id="saev.data.datasets.Imagenet.root" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">root</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Root directory path for the dataset.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
 <h3 id="saev.data.datasets.Imagenet.split" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">split</span> <span class="o">=</span> <span class="s1">&#39;train&#39;</span></code>
 
@@ -2221,7 +2700,7 @@ mimicking the behavior of real segmentation datasets like SegFolder.</p>
 
 
 <h2 id="saev.data.datasets.SegFolder" class="doc doc-heading">
-              <code class="highlight language-python"><span class="n">SegFolder</span><span class="p">(</span><span class="n">root</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">,</span> <span class="s1">&#39;data&#39;</span><span class="p">,</span> <span class="s1">&#39;segdataset&#39;</span><span class="p">),</span> <span class="n">split</span><span class="o">=</span><span class="s1">&#39;training&#39;</span><span class="p">,</span> <span class="n">img_label_fname</span><span class="o">=</span><span class="s1">&#39;sceneCategories.txt&#39;</span><span class="p">,</span> <span class="n">bg_label</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span></code>
+              <code class="highlight language-python"><span class="n">SegFolder</span><span class="p">(</span><span class="n">root</span><span class="o">=</span><span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="s1">&#39;./data/segdataset&#39;</span><span class="p">),</span> <span class="n">split</span><span class="o">=</span><span class="s1">&#39;training&#39;</span><span class="p">,</span> <span class="n">img_label_fname</span><span class="o">=</span><span class="s1">&#39;sceneCategories.txt&#39;</span><span class="p">,</span> <span class="n">bg_label</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
@@ -2231,6 +2710,8 @@ mimicking the behavior of real segmentation datasets like SegFolder.</p>
 
 
     <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="DatasetConfig (saev.data.datasets.DatasetConfig)" href="#saev.data.datasets.DatasetConfig">DatasetConfig</a></code></p>
 
 
 
@@ -2324,7 +2805,7 @@ mimicking the behavior of real segmentation datasets like SegFolder.</p>
 
 
 <h3 id="saev.data.datasets.SegFolder.root" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">root</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">,</span> <span class="s1">&#39;data&#39;</span><span class="p">,</span> <span class="s1">&#39;segdataset&#39;</span><span class="p">)</span></code>
+            <code class="highlight language-python"><span class="n">root</span> <span class="o">=</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="s1">&#39;./data/segdataset&#39;</span><span class="p">)</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
@@ -2474,61 +2955,65 @@ mimicking the behavior of real segmentation datasets like SegFolder.</p>
 
             <details class="quote">
               <summary>Source code in <code>src/saev/data/datasets.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">116</span>
-<span class="normal">117</span>
-<span class="normal">118</span>
-<span class="normal">119</span>
-<span class="normal">120</span>
-<span class="normal">121</span>
-<span class="normal">122</span>
-<span class="normal">123</span>
-<span class="normal">124</span>
-<span class="normal">125</span>
-<span class="normal">126</span>
-<span class="normal">127</span>
-<span class="normal">128</span>
-<span class="normal">129</span>
-<span class="normal">130</span>
-<span class="normal">131</span>
-<span class="normal">132</span>
-<span class="normal">133</span>
-<span class="normal">134</span>
-<span class="normal">135</span>
-<span class="normal">136</span>
-<span class="normal">137</span>
-<span class="normal">138</span>
-<span class="normal">139</span>
-<span class="normal">140</span>
-<span class="normal">141</span>
-<span class="normal">142</span>
-<span class="normal">143</span>
-<span class="normal">144</span>
-<span class="normal">145</span>
-<span class="normal">146</span>
-<span class="normal">147</span>
-<span class="normal">148</span>
-<span class="normal">149</span>
-<span class="normal">150</span>
-<span class="normal">151</span>
-<span class="normal">152</span>
-<span class="normal">153</span>
-<span class="normal">154</span>
-<span class="normal">155</span>
-<span class="normal">156</span>
-<span class="normal">157</span>
-<span class="normal">158</span>
-<span class="normal">159</span>
-<span class="normal">160</span>
-<span class="normal">161</span>
-<span class="normal">162</span>
-<span class="normal">163</span>
-<span class="normal">164</span>
-<span class="normal">165</span>
-<span class="normal">166</span>
-<span class="normal">167</span>
-<span class="normal">168</span>
-<span class="normal">169</span>
-<span class="normal">170</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@beartype</span><span class="o">.</span><span class="n">beartype</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">172</span>
+<span class="normal">173</span>
+<span class="normal">174</span>
+<span class="normal">175</span>
+<span class="normal">176</span>
+<span class="normal">177</span>
+<span class="normal">178</span>
+<span class="normal">179</span>
+<span class="normal">180</span>
+<span class="normal">181</span>
+<span class="normal">182</span>
+<span class="normal">183</span>
+<span class="normal">184</span>
+<span class="normal">185</span>
+<span class="normal">186</span>
+<span class="normal">187</span>
+<span class="normal">188</span>
+<span class="normal">189</span>
+<span class="normal">190</span>
+<span class="normal">191</span>
+<span class="normal">192</span>
+<span class="normal">193</span>
+<span class="normal">194</span>
+<span class="normal">195</span>
+<span class="normal">196</span>
+<span class="normal">197</span>
+<span class="normal">198</span>
+<span class="normal">199</span>
+<span class="normal">200</span>
+<span class="normal">201</span>
+<span class="normal">202</span>
+<span class="normal">203</span>
+<span class="normal">204</span>
+<span class="normal">205</span>
+<span class="normal">206</span>
+<span class="normal">207</span>
+<span class="normal">208</span>
+<span class="normal">209</span>
+<span class="normal">210</span>
+<span class="normal">211</span>
+<span class="normal">212</span>
+<span class="normal">213</span>
+<span class="normal">214</span>
+<span class="normal">215</span>
+<span class="normal">216</span>
+<span class="normal">217</span>
+<span class="normal">218</span>
+<span class="normal">219</span>
+<span class="normal">220</span>
+<span class="normal">221</span>
+<span class="normal">222</span>
+<span class="normal">223</span>
+<span class="normal">224</span>
+<span class="normal">225</span>
+<span class="normal">226</span>
+<span class="normal">227</span>
+<span class="normal">228</span>
+<span class="normal">229</span>
+<span class="normal">230</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@beartype</span><span class="o">.</span><span class="n">beartype</span>
 <span class="k">def</span><span class="w"> </span><span class="nf">get_dataset</span><span class="p">(</span>
     <span class="n">cfg</span><span class="p">:</span> <span class="n">Config</span><span class="p">,</span>
     <span class="o">*</span><span class="p">,</span>
@@ -2550,6 +3035,10 @@ mimicking the behavior of real segmentation datasets like SegFolder.</p>
     <span class="c1"># TODO: Can we reduce duplication? Or is it nice to see that there is no magic here?</span>
     <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">Imagenet</span><span class="p">):</span>
         <span class="k">return</span> <span class="n">ImagenetDataset</span><span class="p">(</span>
+            <span class="n">cfg</span><span class="p">,</span> <span class="n">img_transform</span><span class="o">=</span><span class="n">img_transform</span><span class="p">,</span> <span class="n">sample_transform</span><span class="o">=</span><span class="n">sample_transform</span>
+        <span class="p">)</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">Cifar10</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">Cifar10Dataset</span><span class="p">(</span>
             <span class="n">cfg</span><span class="p">,</span> <span class="n">img_transform</span><span class="o">=</span><span class="n">img_transform</span><span class="p">,</span> <span class="n">sample_transform</span><span class="o">=</span><span class="n">sample_transform</span>
         <span class="p">)</span>
     <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">SegFolder</span><span class="p">):</span>
@@ -2659,19 +3148,19 @@ mimicking the behavior of real segmentation datasets like SegFolder.</p>
 
             <details class="quote">
               <summary>Source code in <code>src/saev/data/datasets.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">469</span>
-<span class="normal">470</span>
-<span class="normal">471</span>
-<span class="normal">472</span>
-<span class="normal">473</span>
-<span class="normal">474</span>
-<span class="normal">475</span>
-<span class="normal">476</span>
-<span class="normal">477</span>
-<span class="normal">478</span>
-<span class="normal">479</span>
-<span class="normal">480</span>
-<span class="normal">481</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@beartype</span><span class="o">.</span><span class="n">beartype</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">565</span>
+<span class="normal">566</span>
+<span class="normal">567</span>
+<span class="normal">568</span>
+<span class="normal">569</span>
+<span class="normal">570</span>
+<span class="normal">571</span>
+<span class="normal">572</span>
+<span class="normal">573</span>
+<span class="normal">574</span>
+<span class="normal">575</span>
+<span class="normal">576</span>
+<span class="normal">577</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@beartype</span><span class="o">.</span><span class="n">beartype</span>
 <span class="k">def</span><span class="w"> </span><span class="nf">is_seg_dataset</span><span class="p">(</span><span class="n">data_cfg</span><span class="p">:</span> <span class="n">Config</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Check if a dataset configuration is for a segmentation dataset.</span>

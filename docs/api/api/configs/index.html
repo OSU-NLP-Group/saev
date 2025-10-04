@@ -783,18 +783,18 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#saev.configs.grid" class="md-nav__link">
+  <a href="#saev.configs.load_cfgs" class="md-nav__link">
     <span class="md-ellipsis">
-      grid
+      load_cfgs
     </span>
   </a>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#saev.configs.load_cfgs" class="md-nav__link">
+  <a href="#saev.configs.load_sweep" class="md-nav__link">
     <span class="md-ellipsis">
-      load_cfgs
+      load_sweep
     </span>
   </a>
   
@@ -1429,39 +1429,7 @@
 
             <details class="quote">
               <summary>Source code in <code>src/saev/configs.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">180</span>
-<span class="normal">181</span>
-<span class="normal">182</span>
-<span class="normal">183</span>
-<span class="normal">184</span>
-<span class="normal">185</span>
-<span class="normal">186</span>
-<span class="normal">187</span>
-<span class="normal">188</span>
-<span class="normal">189</span>
-<span class="normal">190</span>
-<span class="normal">191</span>
-<span class="normal">192</span>
-<span class="normal">193</span>
-<span class="normal">194</span>
-<span class="normal">195</span>
-<span class="normal">196</span>
-<span class="normal">197</span>
-<span class="normal">198</span>
-<span class="normal">199</span>
-<span class="normal">200</span>
-<span class="normal">201</span>
-<span class="normal">202</span>
-<span class="normal">203</span>
-<span class="normal">204</span>
-<span class="normal">205</span>
-<span class="normal">206</span>
-<span class="normal">207</span>
-<span class="normal">208</span>
-<span class="normal">209</span>
-<span class="normal">210</span>
-<span class="normal">211</span>
-<span class="normal">212</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">212</span>
 <span class="normal">213</span>
 <span class="normal">214</span>
 <span class="normal">215</span>
@@ -1470,7 +1438,39 @@
 <span class="normal">218</span>
 <span class="normal">219</span>
 <span class="normal">220</span>
-<span class="normal">221</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@beartype</span><span class="o">.</span><span class="n">beartype</span>
+<span class="normal">221</span>
+<span class="normal">222</span>
+<span class="normal">223</span>
+<span class="normal">224</span>
+<span class="normal">225</span>
+<span class="normal">226</span>
+<span class="normal">227</span>
+<span class="normal">228</span>
+<span class="normal">229</span>
+<span class="normal">230</span>
+<span class="normal">231</span>
+<span class="normal">232</span>
+<span class="normal">233</span>
+<span class="normal">234</span>
+<span class="normal">235</span>
+<span class="normal">236</span>
+<span class="normal">237</span>
+<span class="normal">238</span>
+<span class="normal">239</span>
+<span class="normal">240</span>
+<span class="normal">241</span>
+<span class="normal">242</span>
+<span class="normal">243</span>
+<span class="normal">244</span>
+<span class="normal">245</span>
+<span class="normal">246</span>
+<span class="normal">247</span>
+<span class="normal">248</span>
+<span class="normal">249</span>
+<span class="normal">250</span>
+<span class="normal">251</span>
+<span class="normal">252</span>
+<span class="normal">253</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@beartype</span><span class="o">.</span><span class="n">beartype</span>
 <span class="k">def</span><span class="w"> </span><span class="nf">dict_to_dataclass</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="bp">cls</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">T</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">T</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Recursively convert a dictionary to a dataclass instance.&quot;&quot;&quot;</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">dataclasses</span><span class="o">.</span><span class="n">is_dataclass</span><span class="p">(</span><span class="bp">cls</span><span class="p">):</span>
@@ -1534,14 +1534,12 @@
 
             <details class="quote">
               <summary>Source code in <code>src/saev/configs.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">84</span>
-<span class="normal">85</span>
-<span class="normal">86</span>
-<span class="normal">87</span>
-<span class="normal">88</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@beartype</span><span class="o">.</span><span class="n">beartype</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 99</span>
+<span class="normal">100</span>
+<span class="normal">101</span>
+<span class="normal">102</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@beartype</span><span class="o">.</span><span class="n">beartype</span>
 <span class="k">def</span><span class="w"> </span><span class="nf">expand</span><span class="p">(</span><span class="n">config</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">object</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Iterator</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">object</span><span class="p">]]:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Expand a nested dict that may contain lists into many dicts.&quot;&quot;&quot;</span>
-
     <span class="k">yield from</span> <span class="n">_expand_discrete</span><span class="p">(</span><span class="nb">dict</span><span class="p">(</span><span class="n">config</span><span class="p">))</span>
 </code></pre></div></td></tr></table></div>
             </details>
@@ -1565,37 +1563,61 @@
 
             <details class="quote">
               <summary>Source code in <code>src/saev/configs.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">224</span>
-<span class="normal">225</span>
-<span class="normal">226</span>
-<span class="normal">227</span>
-<span class="normal">228</span>
-<span class="normal">229</span>
-<span class="normal">230</span>
-<span class="normal">231</span>
-<span class="normal">232</span>
-<span class="normal">233</span>
-<span class="normal">234</span>
-<span class="normal">235</span>
-<span class="normal">236</span>
-<span class="normal">237</span>
-<span class="normal">238</span>
-<span class="normal">239</span>
-<span class="normal">240</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@beartype</span><span class="o">.</span><span class="n">beartype</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">256</span>
+<span class="normal">257</span>
+<span class="normal">258</span>
+<span class="normal">259</span>
+<span class="normal">260</span>
+<span class="normal">261</span>
+<span class="normal">262</span>
+<span class="normal">263</span>
+<span class="normal">264</span>
+<span class="normal">265</span>
+<span class="normal">266</span>
+<span class="normal">267</span>
+<span class="normal">268</span>
+<span class="normal">269</span>
+<span class="normal">270</span>
+<span class="normal">271</span>
+<span class="normal">272</span>
+<span class="normal">273</span>
+<span class="normal">274</span>
+<span class="normal">275</span>
+<span class="normal">276</span>
+<span class="normal">277</span>
+<span class="normal">278</span>
+<span class="normal">279</span>
+<span class="normal">280</span>
+<span class="normal">281</span>
+<span class="normal">282</span>
+<span class="normal">283</span>
+<span class="normal">284</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@beartype</span><span class="o">.</span><span class="n">beartype</span>
 <span class="k">def</span><span class="w"> </span><span class="nf">get_non_default_values</span><span class="p">(</span><span class="n">obj</span><span class="p">:</span> <span class="n">T</span><span class="p">,</span> <span class="n">default_obj</span><span class="p">:</span> <span class="n">T</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Recursively find fields that differ from defaults.&quot;&quot;&quot;</span>
     <span class="c1"># Check that obj and default_obj are instances of a dataclass.</span>
     <span class="k">assert</span> <span class="n">dataclasses</span><span class="o">.</span><span class="n">is_dataclass</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="nb">type</span><span class="p">)</span>
     <span class="k">assert</span> <span class="n">dataclasses</span><span class="o">.</span><span class="n">is_dataclass</span><span class="p">(</span><span class="n">default_obj</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">default_obj</span><span class="p">,</span> <span class="nb">type</span><span class="p">)</span>
 
-    <span class="n">obj_dict</span> <span class="o">=</span> <span class="n">dataclasses</span><span class="o">.</span><span class="n">asdict</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span>
-    <span class="n">default_dict</span> <span class="o">=</span> <span class="n">dataclasses</span><span class="o">.</span><span class="n">asdict</span><span class="p">(</span><span class="n">default_obj</span><span class="p">)</span>
-
     <span class="n">diff</span> <span class="o">=</span> <span class="p">{}</span>
-    <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">obj_dict</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-        <span class="n">default_value</span> <span class="o">=</span> <span class="n">default_dict</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">value</span> <span class="o">!=</span> <span class="n">default_value</span><span class="p">:</span>
-            <span class="n">diff</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
+    <span class="k">for</span> <span class="n">field</span> <span class="ow">in</span> <span class="n">dataclasses</span><span class="o">.</span><span class="n">fields</span><span class="p">(</span><span class="n">obj</span><span class="p">):</span>
+        <span class="n">obj_value</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">field</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+        <span class="n">default_value</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">default_obj</span><span class="p">,</span> <span class="n">field</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">obj_value</span> <span class="o">==</span> <span class="n">default_value</span><span class="p">:</span>
+            <span class="k">continue</span>
+
+        <span class="c1"># If both are dataclasses of the same type, recurse to find nested differences</span>
+        <span class="k">if</span> <span class="p">(</span>
+            <span class="n">dataclasses</span><span class="o">.</span><span class="n">is_dataclass</span><span class="p">(</span><span class="n">obj_value</span><span class="p">)</span>
+            <span class="ow">and</span> <span class="n">dataclasses</span><span class="o">.</span><span class="n">is_dataclass</span><span class="p">(</span><span class="n">default_value</span><span class="p">)</span>
+            <span class="ow">and</span> <span class="nb">type</span><span class="p">(</span><span class="n">obj_value</span><span class="p">)</span> <span class="ow">is</span> <span class="nb">type</span><span class="p">(</span><span class="n">default_value</span><span class="p">)</span>
+        <span class="p">):</span>
+            <span class="n">nested_diff</span> <span class="o">=</span> <span class="n">get_non_default_values</span><span class="p">(</span><span class="n">obj_value</span><span class="p">,</span> <span class="n">default_value</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">nested_diff</span><span class="p">:</span>
+                <span class="n">diff</span><span class="p">[</span><span class="n">field</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">nested_diff</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># For non-dataclass fields or different types, just record the value</span>
+            <span class="n">diff</span><span class="p">[</span><span class="n">field</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">obj_value</span>
 
     <span class="k">return</span> <span class="n">diff</span>
 </code></pre></div></td></tr></table></div>
@@ -1607,67 +1629,8 @@
 <div class="doc doc-object doc-function">
 
 
-<h2 id="saev.configs.grid" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">grid</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">sweep_dct</span><span class="p">)</span></code>
-
-</h2>
-
-
-    <div class="doc doc-contents ">
-
-        <p>Generate configs from <code>cfg</code> according to <code>sweep_dct</code>.</p>
-
-
-            <details class="quote">
-              <summary>Source code in <code>src/saev/configs.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">63</span>
-<span class="normal">64</span>
-<span class="normal">65</span>
-<span class="normal">66</span>
-<span class="normal">67</span>
-<span class="normal">68</span>
-<span class="normal">69</span>
-<span class="normal">70</span>
-<span class="normal">71</span>
-<span class="normal">72</span>
-<span class="normal">73</span>
-<span class="normal">74</span>
-<span class="normal">75</span>
-<span class="normal">76</span>
-<span class="normal">77</span>
-<span class="normal">78</span>
-<span class="normal">79</span>
-<span class="normal">80</span>
-<span class="normal">81</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@beartype</span><span class="o">.</span><span class="n">beartype</span>
-<span class="k">def</span><span class="w"> </span><span class="nf">grid</span><span class="p">(</span><span class="n">cfg</span><span class="p">:</span> <span class="n">T</span><span class="p">,</span> <span class="n">sweep_dct</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">object</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="n">T</span><span class="p">],</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Generate configs from ``cfg`` according to ``sweep_dct``.&quot;&quot;&quot;</span>
-
-    <span class="n">cfgs</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">T</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
-    <span class="n">errs</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
-
-    <span class="k">for</span> <span class="n">d</span><span class="p">,</span> <span class="n">dct</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">expand</span><span class="p">(</span><span class="n">sweep_dct</span><span class="p">)):</span>
-        <span class="k">try</span><span class="p">:</span>
-            <span class="n">updates</span> <span class="o">=</span> <span class="n">_recursive_dataclass_update</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">dct</span><span class="p">,</span> <span class="n">cfg</span><span class="p">,</span> <span class="n">d</span><span class="p">)</span>
-
-            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="s2">&quot;seed&quot;</span><span class="p">)</span> <span class="ow">and</span> <span class="s2">&quot;seed&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">updates</span><span class="p">:</span>
-                <span class="n">updates</span><span class="p">[</span><span class="s2">&quot;seed&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="s2">&quot;seed&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="o">+</span> <span class="n">d</span>
-
-            <span class="n">cfgs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">dataclasses</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="o">**</span><span class="n">updates</span><span class="p">))</span>
-        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">err</span><span class="p">:</span>
-            <span class="n">errs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">err</span><span class="p">))</span>
-
-    <span class="k">return</span> <span class="n">cfgs</span><span class="p">,</span> <span class="n">errs</span>
-</code></pre></div></td></tr></table></div>
-            </details>
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
 <h2 id="saev.configs.load_cfgs" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">load_cfgs</span><span class="p">(</span><span class="n">override</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">default</span><span class="p">,</span> <span class="n">dct</span><span class="p">)</span></code>
+            <code class="highlight language-python"><span class="n">load_cfgs</span><span class="p">(</span><span class="n">override</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">default</span><span class="p">,</span> <span class="n">sweep_dcts</span><span class="p">)</span></code>
 
 </h2>
 
@@ -1722,14 +1685,14 @@
           </tr>
           <tr class="doc-section-item">
             <td>
-                <code>dct</code>
+                <code>sweep_dcts</code>
             </td>
             <td>
-                  <code><span title="dict">dict</span>[<span title="str">str</span>, <span title="object">object</span>]</code>
+                  <code><span title="list">list</span>[<span title="dict">dict</span>]</code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>A dictionary from a .toml or .json file that has some list values to sweep over.</p>
+                <p>A list of dictionaries from Python sweep files. Each dictionary may contain list values that will be expanded.</p>
               </div>
             </td>
             <td>
@@ -1765,10 +1728,192 @@
 
             <details class="quote">
               <summary>Source code in <code>src/saev/configs.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">13</span>
-<span class="normal">14</span>
-<span class="normal">15</span>
-<span class="normal">16</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">42</span>
+<span class="normal">43</span>
+<span class="normal">44</span>
+<span class="normal">45</span>
+<span class="normal">46</span>
+<span class="normal">47</span>
+<span class="normal">48</span>
+<span class="normal">49</span>
+<span class="normal">50</span>
+<span class="normal">51</span>
+<span class="normal">52</span>
+<span class="normal">53</span>
+<span class="normal">54</span>
+<span class="normal">55</span>
+<span class="normal">56</span>
+<span class="normal">57</span>
+<span class="normal">58</span>
+<span class="normal">59</span>
+<span class="normal">60</span>
+<span class="normal">61</span>
+<span class="normal">62</span>
+<span class="normal">63</span>
+<span class="normal">64</span>
+<span class="normal">65</span>
+<span class="normal">66</span>
+<span class="normal">67</span>
+<span class="normal">68</span>
+<span class="normal">69</span>
+<span class="normal">70</span>
+<span class="normal">71</span>
+<span class="normal">72</span>
+<span class="normal">73</span>
+<span class="normal">74</span>
+<span class="normal">75</span>
+<span class="normal">76</span>
+<span class="normal">77</span>
+<span class="normal">78</span>
+<span class="normal">79</span>
+<span class="normal">80</span>
+<span class="normal">81</span>
+<span class="normal">82</span>
+<span class="normal">83</span>
+<span class="normal">84</span>
+<span class="normal">85</span>
+<span class="normal">86</span>
+<span class="normal">87</span>
+<span class="normal">88</span>
+<span class="normal">89</span>
+<span class="normal">90</span>
+<span class="normal">91</span>
+<span class="normal">92</span>
+<span class="normal">93</span>
+<span class="normal">94</span>
+<span class="normal">95</span>
+<span class="normal">96</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@beartype</span><span class="o">.</span><span class="n">beartype</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">load_cfgs</span><span class="p">(</span>
+    <span class="n">override</span><span class="p">:</span> <span class="n">T</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">default</span><span class="p">:</span> <span class="n">T</span><span class="p">,</span> <span class="n">sweep_dcts</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">]</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="n">T</span><span class="p">],</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Load a list of configs from a combination of sources.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        override: Command-line overridden values.</span>
+<span class="sd">        default: The default values for a config.</span>
+<span class="sd">        sweep_dcts: A list of dictionaries from Python sweep files. Each dictionary may contain list values that will be expanded.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        A list of configs and a list of errors.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Check that override and default are instances of a dataclass.</span>
+    <span class="k">assert</span> <span class="n">dataclasses</span><span class="o">.</span><span class="n">is_dataclass</span><span class="p">(</span><span class="n">override</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">override</span><span class="p">,</span> <span class="nb">type</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">dataclasses</span><span class="o">.</span><span class="n">is_dataclass</span><span class="p">(</span><span class="n">default</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">default</span><span class="p">,</span> <span class="nb">type</span><span class="p">)</span>
+
+    <span class="c1"># If there&#39;s nothing to sweep, return just the override</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">sweep_dcts</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">override</span><span class="p">],</span> <span class="p">[]</span>
+
+    <span class="c1"># Find which fields were overridden (differ from default)</span>
+    <span class="n">overridden_fields</span> <span class="o">=</span> <span class="n">get_non_default_values</span><span class="p">(</span><span class="n">override</span><span class="p">,</span> <span class="n">default</span><span class="p">)</span>
+
+    <span class="n">cfgs</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">T</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">errs</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="n">d</span> <span class="o">=</span> <span class="mi">0</span>  <span class="c1"># Global counter for seed incrementing across all expanded configs</span>
+
+    <span class="k">for</span> <span class="n">sweep_dct</span> <span class="ow">in</span> <span class="n">sweep_dcts</span><span class="p">:</span>
+        <span class="c1"># Filter out overridden fields from this sweep dict</span>
+        <span class="n">filtered_dct</span> <span class="o">=</span> <span class="n">_filter_overridden_fields</span><span class="p">(</span><span class="n">sweep_dct</span><span class="p">,</span> <span class="n">overridden_fields</span><span class="p">)</span>
+
+        <span class="c1"># If there&#39;s nothing to sweep after filtering, just use override</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">filtered_dct</span><span class="p">:</span>
+            <span class="n">cfgs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">override</span><span class="p">)</span>
+            <span class="n">d</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">continue</span>
+
+        <span class="c1"># Apply the sweep dict to create a config</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">updates</span> <span class="o">=</span> <span class="n">_recursive_dataclass_update</span><span class="p">(</span><span class="n">override</span><span class="p">,</span> <span class="n">filtered_dct</span><span class="p">,</span> <span class="n">override</span><span class="p">,</span> <span class="n">d</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">override</span><span class="p">,</span> <span class="s2">&quot;seed&quot;</span><span class="p">)</span> <span class="ow">and</span> <span class="s2">&quot;seed&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">updates</span><span class="p">:</span>
+                <span class="n">updates</span><span class="p">[</span><span class="s2">&quot;seed&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">override</span><span class="p">,</span> <span class="s2">&quot;seed&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="o">+</span> <span class="n">d</span>
+
+            <span class="n">cfgs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">dataclasses</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">override</span><span class="p">,</span> <span class="o">**</span><span class="n">updates</span><span class="p">))</span>
+            <span class="n">d</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">err</span><span class="p">:</span>
+            <span class="n">errs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">err</span><span class="p">))</span>
+            <span class="n">d</span> <span class="o">+=</span> <span class="mi">1</span>
+
+    <span class="k">return</span> <span class="n">cfgs</span><span class="p">,</span> <span class="n">errs</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="saev.configs.load_sweep" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">load_sweep</span><span class="p">(</span><span class="n">sweep_fpath</span><span class="p">)</span></code>
+
+</h2>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Load a sweep file and return the list of config dicts.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>sweep_fpath</code>
+            </td>
+            <td>
+                  <code><span title="pathlib.Path">Path</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Path to a Python file with a <code>make_cfgs()</code> function.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="list">list</span>[<span title="dict">dict</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>List of config dictionaries from <code>make_cfgs()</code>. Returns empty list if any error occurs.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+            <details class="quote">
+              <summary>Source code in <code>src/saev/configs.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">16</span>
 <span class="normal">17</span>
 <span class="normal">18</span>
 <span class="normal">19</span>
@@ -1791,41 +1936,30 @@
 <span class="normal">36</span>
 <span class="normal">37</span>
 <span class="normal">38</span>
-<span class="normal">39</span>
-<span class="normal">40</span>
-<span class="normal">41</span>
-<span class="normal">42</span>
-<span class="normal">43</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@beartype</span><span class="o">.</span><span class="n">beartype</span>
-<span class="k">def</span><span class="w"> </span><span class="nf">load_cfgs</span><span class="p">(</span>
-    <span class="n">override</span><span class="p">:</span> <span class="n">T</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">default</span><span class="p">:</span> <span class="n">T</span><span class="p">,</span> <span class="n">dct</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">object</span><span class="p">]</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="n">T</span><span class="p">],</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]]:</span>
+<span class="normal">39</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@beartype</span><span class="o">.</span><span class="n">beartype</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">load_sweep</span><span class="p">(</span><span class="n">sweep_fpath</span><span class="p">:</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Load a list of configs from a combination of sources.</span>
+<span class="sd">    Load a sweep file and return the list of config dicts.</span>
 
 <span class="sd">    Args:</span>
-<span class="sd">        override: Command-line overridden values.</span>
-<span class="sd">        default: The default values for a config.</span>
-<span class="sd">        dct: A dictionary from a .toml or .json file that has some list values to sweep over.</span>
+<span class="sd">        sweep_fpath: Path to a Python file with a `make_cfgs()` function.</span>
 
 <span class="sd">    Returns:</span>
-<span class="sd">        A list of configs and a list of errors.</span>
+<span class="sd">        List of config dictionaries from `make_cfgs()`. Returns empty list if any error occurs.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="c1"># Check that override and default are instances of a dataclass.</span>
-    <span class="k">assert</span> <span class="n">dataclasses</span><span class="o">.</span><span class="n">is_dataclass</span><span class="p">(</span><span class="n">override</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">override</span><span class="p">,</span> <span class="nb">type</span><span class="p">)</span>
-    <span class="k">assert</span> <span class="n">dataclasses</span><span class="o">.</span><span class="n">is_dataclass</span><span class="p">(</span><span class="n">default</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">default</span><span class="p">,</span> <span class="nb">type</span><span class="p">)</span>
-
-    <span class="c1"># Find which fields were overridden (differ from default)</span>
-    <span class="n">overridden_fields</span> <span class="o">=</span> <span class="n">get_non_default_values</span><span class="p">(</span><span class="n">override</span><span class="p">,</span> <span class="n">default</span><span class="p">)</span>
-
-    <span class="c1"># Filter out overridden fields from the sweep dict</span>
-    <span class="n">filtered_dct</span> <span class="o">=</span> <span class="n">_filter_overridden_fields</span><span class="p">(</span><span class="n">dct</span><span class="p">,</span> <span class="n">overridden_fields</span><span class="p">)</span>
-
-    <span class="c1"># If there&#39;s nothing to sweep, return just the override</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">filtered_dct</span><span class="p">:</span>
-        <span class="k">return</span> <span class="p">[</span><span class="n">override</span><span class="p">],</span> <span class="p">[]</span>
-
-    <span class="c1"># Use grid to expand the filtered dict</span>
-    <span class="k">return</span> <span class="n">grid</span><span class="p">(</span><span class="n">override</span><span class="p">,</span> <span class="n">filtered_dct</span><span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">namespace</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">exec</span><span class="p">(</span><span class="n">sweep_fpath</span><span class="o">.</span><span class="n">read_text</span><span class="p">(),</span> <span class="n">namespace</span><span class="p">)</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="n">namespace</span><span class="p">[</span><span class="s2">&quot;make_cfgs&quot;</span><span class="p">]()</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;make_cfgs() in </span><span class="si">{</span><span class="n">sweep_fpath</span><span class="si">}</span><span class="s2"> returned </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">result</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">, expected list&quot;</span>
+            <span class="p">)</span>
+            <span class="k">return</span> <span class="p">[]</span>
+        <span class="k">return</span> <span class="n">result</span>
+    <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">err</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Failed to load sweep from </span><span class="si">{</span><span class="n">sweep_fpath</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">err</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">[]</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
