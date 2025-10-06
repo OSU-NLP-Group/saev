@@ -172,7 +172,7 @@ class MatryoshkaObjective(Objective):
 
         # Calculate sparsity metrics on full encoding
         l0 = (f_x > 0).float().sum(axis=1).mean(axis=0)
-        l1 = f_x.sum(axis=1).mean(axis=0)
+        l1 = f_x.abs().sum(axis=1).mean(axis=0)
         sparsity_loss = self.sparsity_coeff * l1
 
         return MatryoshkaLoss(mse_loss, sparsity_loss, l0, l1)

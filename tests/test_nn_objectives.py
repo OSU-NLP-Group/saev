@@ -502,3 +502,52 @@ def test_decode_default_prefix_is_long_and_does_not_crash():
     f = sae.encode(x)
     out = sae.decode(f)  # should not raise
     assert out.shape == (2, 1, 8)
+
+
+def test_matryoshka_l1_calculation_uses_abs():
+    """Test that MatryoshkaObjective correctly calculates L1 norm using absolute values.
+
+    This is a regression test for a bug where MatryoshkaObjective.forward() was missing
+    .abs() in the L1 calculation, which could lead to incorrect (possibly negative) L1 values.
+    The VanillaObjective correctly uses f_x.abs().sum(), but MatryoshkaObjective was using
+    f_x.sum() without the absolute value.
+    """
+    # Create a custom activation that can produce negative values for testing
+    # We'll use a simple linear activation (no ReLU) by mocking the encode method
+    sae_cfg = saev.nn.SparseAutoencoderConfig(d_model=32, exp_factor=2, seed=42)
+    sae = saev.nn.SparseAutoencoder(sae_cfg)
+
+    # Create input
+    x = torch.randn(4, 32)
+
+    # Manually create activations with known negative values
+    # We'll temporarily replace the activation with identity to get negative values
+    original_activation = sae.activation
+    sae.activation = torch.nn.Identity()
+
+    try:
+        # Now f_x will have negative values
+        vanilla_obj = objectives.get_objective(objectives.Vanilla())
+        matryoshka_obj = objectives.get_objective(objectives.Matryoshka(n_prefixes=5))
+
+        vanilla_loss = vanilla_obj(sae, x)
+        matryoshka_loss = matryoshka_obj(sae, x)
+
+        # Both L1 values should be non-negative (this is the definition of L1 norm)
+        assert vanilla_loss.l1 >= 0, f"Vanilla L1 should be non-negative, got {vanilla_loss.l1}"
+        assert matryoshka_loss.l1 >= 0, f"Matryoshka L1 should be non-negative, got {matryoshka_loss.l1}"
+
+        # Verify the encoded features actually have negative values
+        f_x = sae.encode(x)
+        assert (f_x < 0).any(), "Test setup failed: f_x should have negative values"
+
+        # Compute expected L1 (with abs)
+        expected_l1 = f_x.abs().sum(dim=1).mean(dim=0)
+
+        # Both objectives should match the expected L1 (with abs)
+        torch.testing.assert_close(vanilla_loss.l1, expected_l1, rtol=1e-5, atol=1e-5)
+        torch.testing.assert_close(matryoshka_loss.l1, expected_l1, rtol=1e-5, atol=1e-5)
+
+    finally:
+        # Restore original activation
+        sae.activation = original_activation
