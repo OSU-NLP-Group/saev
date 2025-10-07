@@ -104,7 +104,7 @@ class VanillaObjective(Objective):
         mse_loss = mean_squared_err(x_hat, x)
 
         mse_loss = mse_loss.mean()
-        l0 = (f_x > 0).float().sum(axis=1).mean(axis=0)
+        l0 = (f_x > 0).float().sum(dim=1).mean(dim=0)
         l1 = f_x.abs().sum(dim=1).mean(dim=0)
         sparsity_loss = self.sparsity_coeff * l1
 
@@ -171,8 +171,8 @@ class MatryoshkaObjective(Objective):
         ).mean()
 
         # Calculate sparsity metrics on full encoding
-        l0 = (f_x > 0).float().sum(axis=1).mean(axis=0)
-        l1 = f_x.abs().sum(axis=1).mean(axis=0)
+        l0 = (f_x > 0).float().sum(dim=1).mean(dim=0)
+        l1 = f_x.abs().sum(dim=1).mean(dim=0)
         sparsity_loss = self.sparsity_coeff * l1
 
         return MatryoshkaLoss(mse_loss, sparsity_loss, l0, l1)
