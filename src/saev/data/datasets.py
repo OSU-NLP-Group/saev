@@ -21,7 +21,7 @@ class DatasetConfig(abc.ABC):
 
     @property
     @abc.abstractmethod
-    def n_ex(self) -> int:
+    def n_examples(self) -> int:
         """Number of examples in the dataset."""
 
     @property
@@ -41,7 +41,7 @@ class Imagenet(DatasetConfig):
     """Dataset split. For the default ImageNet-1K dataset, can either be 'train', 'validation' or 'test'."""
 
     @property
-    def n_ex(self) -> int:
+    def n_examples(self) -> int:
         """Number of images in the dataset. Calculated on the fly, but is non-trivial to calculate because it requires loading the dataset. If you need to reference this number very often, cache it in a local variable."""
         import datasets
 
@@ -67,7 +67,7 @@ class Cifar10(DatasetConfig):
     """Dataset split. Can be 'train' or 'test'."""
 
     @property
-    def n_ex(self) -> int:
+    def n_examples(self) -> int:
         """Number of images in the dataset. Calculated on the fly, but is non-trivial to calculate because it requires loading the dataset. If you need to reference this number very often, cache it in a local variable."""
         import datasets
 
@@ -89,7 +89,7 @@ class ImageFolder(DatasetConfig):
     """Where the class folders with images are stored. Can be a glob pattern to match multiple directories."""
 
     @property
-    def n_ex(self) -> int:
+    def n_examples(self) -> int:
         """Number of examples in the dataset. Calculated on the fly, but is non-trivial to calculate because it requires walking the directory structure. If you need to reference this number very often, cache it in a local variable."""
         # Use the same image extensions as torchvision's ImageFolder
         img_extensions = tuple(torchvision.datasets.folder.IMG_EXTENSIONS)
@@ -114,7 +114,7 @@ class SegFolder(DatasetConfig):
     """Background label."""
 
     @property
-    def n_ex(self) -> int:
+    def n_examples(self) -> int:
         """Number of examples in the dataset. Calculated on the fly by counting image files in root/images/split."""
         # Use the same image extensions as torchvision's ImageFolder
         img_extensions = tuple(torchvision.datasets.folder.IMG_EXTENSIONS)
@@ -134,7 +134,7 @@ class SegFolder(DatasetConfig):
 @beartype.beartype
 @dataclasses.dataclass(frozen=True)
 class Fake(DatasetConfig):
-    n_ex: int = 10
+    n_examples: int = 10
 
     @property
     def root(self) -> pathlib.Path:
@@ -151,7 +151,7 @@ class FakeSeg(DatasetConfig):
     mimicking the behavior of real segmentation datasets like SegFolder.
     """
 
-    n_ex: int = 10
+    n_examples: int = 10
     """Number of examples."""
     patches_per_img: int = 16
     """Number of patches per image."""
@@ -463,12 +463,12 @@ class SegFolderDataset(torch.utils.data.Dataset):
 
 class FakeDataset(torch.utils.data.Dataset):
     def __init__(self, cfg: Fake, *, img_transform=None, sample_transform=None):
-        self.n_ex = cfg.n_ex
+        self.n_examples = cfg.n_examples
         self.img_transform = img_transform
         self.sample_transform = sample_transform
 
     def __len__(self):
-        return self.n_ex
+        return self.n_examples
 
     def __getitem__(self, i):
         img = Image.new("RGB", (256, 256))
@@ -506,7 +506,7 @@ class FakeSegDataset(torch.utils.data.Dataset):
         self.sample_transform = sample_transform
 
     def __len__(self) -> int:
-        return self.cfg.n_ex
+        return self.cfg.n_examples
 
     def __getitem__(self, i: int) -> dict[str, object]:
         import numpy as np

@@ -18,7 +18,7 @@ Saev is a framework for training sparse autoencoders (SAEs) on vision transforme
 ## Docs
 
 - [Docs](https://osu-nlp-group.github.io/saev/api)
-- [Quickstart](https://osu-nlp-group.github.io/saev/api/#quickstart)
+- [Quickstart](https://osu-nlp-group.github.io/saev/api/#quick-start)
 - [Using saev](https://osu-nlp-group.github.io/saev/api/users/guide)
 - [API reference](https://osu-nlp-group.github.io/saev/api/api/saev/)
 

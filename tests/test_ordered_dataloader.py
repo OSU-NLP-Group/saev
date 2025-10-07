@@ -3,6 +3,7 @@ import dataclasses
 import gc
 import json
 import os
+import pathlib
 import time
 
 import psutil
@@ -27,9 +28,10 @@ def ordered_cfg(pytestconfig):
     shards = pytestconfig.getoption("--shards")
     if shards is None:
         pytest.skip("--shards not supplied")
-    metadata = saev.data.Metadata.load(shards)
+    shards_dir = pathlib.Path(shards)
+    metadata = saev.data.Metadata.load(shards_dir)
     layer = metadata.layers[0]
-    cfg = OrderedConfig(shard_root=shards, patches="image", layer=layer)
+    cfg = OrderedConfig(shards=shards_dir, patches="image", layer=layer)
     return cfg
 
 
@@ -71,12 +73,12 @@ def patch_labeled_shards_path(pytestconfig, tmp_path_factory):
     tmp_path = tmp_path_factory.mktemp("labeled_shards")
 
     # Create a dataset with meaningful size
-    n_ex = 20
+    n_examples = 20
     n_patches = 16  # 4x4 patches for tiny model
 
     # Generate the activation shards
     shards_dir = shards.worker_fn(
-        data=datasets.Fake(n_imgs=n_ex),
+        data=datasets.Fake(n_imgs=n_examples),
         dump_to=str(tmp_path),
         vit_family="clip",
         vit_ckpt="hf-hub:hf-internal-testing/tiny-open-clip-model",
@@ -96,11 +98,11 @@ def patch_labeled_shards_path(pytestconfig, tmp_path_factory):
 
     # Create realistic labels (simulate semantic segmentation)
     labels_path = os.path.join(shard_root, "labels.bin")
-    labels = np.zeros((n_ex, n_patches), dtype=np.uint8)
+    labels = np.zeros((n_examples, n_patches), dtype=np.uint8)
 
     # Simulate different semantic classes with spatial coherence
     np.random.seed(42)  # For reproducibility
-    for img_i in range(n_ex):
+    for img_i in range(n_examples):
         # Create patches of different "classes" for 4x4 grid
         for patch_i in range(n_patches):
             row = patch_i // 4
@@ -450,14 +452,14 @@ def test_ordered_dataloader_with_tiny_fake_dataset(tmp_path):
 
     # Create a tiny dataset - just 2 images
     # The tiny-open-clip-model uses 16 patches + 1 CLS token
-    n_ex = 2
+    n_examples = 2
     d_model = 128
     n_patches = 16  # Standard for this model
     layers = [0]
 
     # Create activation shards using the fake dataset
     cfg = shards.Config(
-        data=datasets.Fake(n_ex=n_ex),
+        data=datasets.Fake(n_examples=n_examples),
         dump_to=str(tmp_path),
         vit_family="clip",
         vit_ckpt="hf-hub:hf-internal-testing/tiny-open-clip-model",
@@ -466,7 +468,7 @@ def test_ordered_dataloader_with_tiny_fake_dataset(tmp_path):
         n_patches_per_img=n_patches,
         cls_token=True,  # This model has CLS token
         max_patches_per_shard=1000,
-        vit_batch_size=n_ex,  # Process all images in one batch
+        vit_batch_size=n_examples,  # Process all images in one batch
         n_workers=0,
         device="cpu",
     )
@@ -489,7 +491,7 @@ def test_ordered_dataloader_with_tiny_fake_dataset(tmp_path):
 
     # Check that we can calculate expected values
     dl = OrderedDataLoader(ordered_cfg)
-    expected_samples = n_ex * n_patches  # 2 * 16 = 32
+    expected_samples = n_examples * n_patches  # 2 * 16 = 32
     expected_batches = (expected_samples + 6) // 7  # ceil(32/7) = 5
 
     assert dl.n_samples == expected_samples
@@ -510,7 +512,7 @@ def test_missing_shard_file_not_detected_at_init(tmp_path):
     from saev.data import datasets, shards
 
     # Create a small dataset with multiple shards
-    n_ex = 10
+    n_examples = 10
     d_model = 128
     n_patches = 16
     layers = [0]
@@ -521,7 +523,7 @@ def test_missing_shard_file_not_detected_at_init(tmp_path):
 
     # Create activation shards
     cfg = shards.Config(
-        data=datasets.Fake(n_ex=n_ex),
+        data=datasets.Fake(n_examples=n_examples),
         dump_to=str(tmp_path),
         vit_family="clip",
         vit_ckpt="hf-hub:hf-internal-testing/tiny-open-clip-model",

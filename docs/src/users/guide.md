@@ -29,12 +29,12 @@ In practice, you might run:
 
 ```sh
 uv run scripts/launch.py shards \
-  --vit-family siglip \
-  --vit-ckpt hf-hub:timm/ViT-L-16-SigLIP2-256 \
-  --d-vit 1024 \
+  --family siglip \
+  --ckpt hf-hub:timm/ViT-L-16-SigLIP2-256 \
+  --d-model 1024 \
   --n-patches-per-img 256 \
   --no-cls-token \
-  --vit-layers 13 15 17 19 21 23 \
+  --layers 13 15 17 19 21 23 \
   --dump-to /fs/scratch/PAS2136/samuelstevens/cache/saev/ \
   --max-patches-per-shard 500_000 \
   --slurm-acct PAS2136 \
@@ -81,12 +81,12 @@ uv run python -m saev train \
   --data.patches patches \
   --data.no-scale-mean \
   --data.no-scale-norm \
-  --sae.d-vit 768 \
+  --sae.d-model 768 \
   --lr 5e-4
 ```
 
 ```sh
-uv run train.py --sweep configs/preprint/baseline.toml --data.shard-root /fs/scratch/PAS2136/samuelstevens/cache/saev/f9deaa8a07786087e8071f39a695200ff6713ee02b25e7a7b4a6d5ac1ad968db --data.patches image --data.layer 23 --data.no-scale-mean --data.no-scale-norm sae:relu --sae.d-vit 1024
+uv run train.py --sweep configs/preprint/baseline.toml --data.shard-root /fs/scratch/PAS2136/samuelstevens/cache/saev/f9deaa8a07786087e8071f39a695200ff6713ee02b25e7a7b4a6d5ac1ad968db --data.patches image --data.layer 23 --data.no-scale-mean --data.no-scale-norm sae:relu --sae.d-model 1024
 ```
 
 `--data.*` flags describe which activations to use.
@@ -98,7 +98,7 @@ Anthropic's and OpenAI's papers suggest normalizing these factors, but `saev` st
 
 `--sae.*` flags are about the SAE itself.
 
-`--sae.d-vit` is the only one you need to change; the dimension of our ViT was 768 for a ViT-B, rather than the default of 1024 for a ViT-L.
+`--sae.d-model` is the only one you need to change; the dimension of our ViT was 768 for a ViT-B, rather than the default of 1024 for a ViT-L.
 
 Finally, choose a slightly larger learning rate than the default with `--lr 5e-4`.
 

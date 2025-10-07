@@ -33,20 +33,18 @@ class Metadata:
     """
     Metadata for a sharded set of transformer activations.
 
-    Important: `patches_per_ex` refers only to image patches (excluding [CLS]). Use the `tokens_per_ex` property when calculating storage dimensions or tensor shapes, as it includes [CLS] if present.
-
     Args:
         family: The transformer family.
         ckpt: The transformer checkpoint.
         layers: Which layers were saved.
-        patches_per_ex: The number of patches (not including the [CLS] token) per example.
+        n_content_tokens_per_example: The number of content tokens per example.
         cls_token: Whether the transformer has a [CLS] token as well.
         d_model: Model hidden dimension.
-        n_ex: Number of examples.
-        patches_per_shard: The maximum number of patches per shard.
+        n_examples: Number of examples.
+        max_tokens_per_shard: The maximum number of tokens per shard.
         data: A dictionary describing the original dataset.
-        dataset: Absolute path to the root directory of the original image dataset.
-        pixel_agg: (only for segmentation datasets) how the pixel-level segmentation labels were aggregated to patch-level labels.
+        dataset: Absolute path to the root directory of the original dataset.
+        pixel_agg: (only for image segmentation datasets) how the pixel-level segmentation labels were aggregated to token-level labels.
         dtype: How activations are stored.
         protocol: Protocol version.
     """
@@ -54,11 +52,11 @@ class Metadata:
     family: tp.Literal["clip", "siglip", "dinov2", "dinov3", "fake-clip"]
     ckpt: str
     layers: tuple[int, ...]
-    patches_per_ex: int
+    n_content_tokens_per_example: int
     cls_token: bool
     d_model: int
-    n_ex: int
-    patches_per_shard: int
+    n_examples: int
+    max_tokens_per_shard: int
     data: dict[str, object]
     dataset: pathlib.Path
     pixel_agg: tp.Literal["majority", "prefer-fg", None] = None
@@ -67,8 +65,8 @@ class Metadata:
 
     def __post_init__(self):
         # Check that at least one image per shard can fit.
-        msg = "At least one image per shard must fit; increase patches_per_shard."
-        assert self.ex_per_shard >= 1, msg
+        msg = "At least one example per shard must fit; increase max_tokens_per_shard."
+        assert self.examples_per_shard >= 1, msg
 
         try:
             json.dumps(self.data)
@@ -121,14 +119,14 @@ class Metadata:
         return hashlib.sha256(cfg_bytes).hexdigest()
 
     @property
-    def tokens_per_ex(self) -> int:
+    def tokens_per_example(self) -> int:
         """
         Total number of tokens per example including [CLS] token if present.
 
         Returns:
-            Number of patches plus one if [CLS] token is included.
+            Number of tokens plus one if [CLS] token is included.
         """
-        return self.patches_per_ex + int(self.cls_token)
+        return self.content_tokens_per_example + int(self.cls_token)
 
     @property
     def n_shards(self) -> int:
@@ -138,17 +136,17 @@ class Metadata:
         Returns:
             Number of shards required.
         """
-        return math.ceil(self.n_ex / self.ex_per_shard)
+        return math.ceil(self.n_examples / self.examples_per_shard)
 
     @property
-    def ex_per_shard(self) -> int:
+    def examples_per_shard(self) -> int:
         """
         The number of examples per shard based on the protocol.
 
         Returns:
             Number of examples that fit in a shard.
         """
-        return self.patches_per_shard // (self.tokens_per_ex * len(self.layers))
+        return self.max_tokens_per_shard // (self.tokens_per_example * len(self.layers))
 
     @property
     def shard_shape(self) -> tuple[int, int, int, int]:
@@ -159,9 +157,9 @@ class Metadata:
             Tuple of (examples_per_shard, n_layers, tokens_per_example, d_model).
         """
         return (
-            self.ex_per_shard,
+            self.examples_per_shard,
             len(self.layers),
-            self.tokens_per_ex,
+            self.tokens_per_example,
             self.d_model,
         )
 
@@ -173,32 +171,32 @@ class RecordedTransformer(torch.nn.Module):
 
     Args:
         model: The transformer model to wrap.
-        patches_per_ex: Number of patches (excluding [CLS] token) per example.
-        cls_token: Whether to record the [CLS] token in addition to image patches.
+        content_tokens_per_example: Number of content tokens per example.
+        cls_token: Whether to record the [CLS] token in addition to content tokens.
         layers: Which transformer layers to record activations from.
 
     Attributes:
         model: The wrapped transformer model.
-        patches_per_ex: Number of patches per example (excluding [CLS] token).
+        content_tokens_per_example: Number of content tokens per example.
         cls_token: Whether the [CLS] token is included in recorded activations.
         layers: Tuple of layer indices being recorded.
-        patches: Patch indices to extract from model outputs.
+        token_i: Token indices to extract from model outputs.
         logger: Logger instance for this recorder.
     """
 
     model: torch.nn.Module
-    patches_per_ex: int
+    content_tokens_per_example: int
     cls_token: bool
     layers: Sequence[int]
-    patches: slice
+    token_i: slice
 
-    _storage: Float[Tensor, "batch n_layers all_patches dim"] | None
+    _storage: Float[Tensor, "batch n_layers tokens_per_example dim"] | None
     _i: int
 
     def __init__(
         self,
         model: torch.nn.Module,
-        patches_per_ex: int,
+        content_tokens_per_example: int,
         cls_token: bool,
         layers: Sequence[int],
     ):
@@ -206,11 +204,11 @@ class RecordedTransformer(torch.nn.Module):
 
         self.model = model
 
-        self.patches_per_ex = patches_per_ex
+        self.content_tokens_per_example = content_tokens_per_example
         self.cls_token = cls_token
         self.layers = layers
 
-        self.patches = model.get_patches(patches_per_ex)
+        self.token_i = model.get_token_i(content_tokens_per_example)
 
         self._storage = None
         self._i = 0
@@ -236,34 +234,37 @@ class RecordedTransformer(torch.nn.Module):
 
             self._storage = self._empty_storage(batch, dim, output.device)
 
-        # Select patches based on cls_token setting
-        selected_output = output[:, self.patches, :]
-        if not self.cls_token and selected_output.shape[1] == self.patches_per_ex + 1:
+        # Select tokens based on cls_token setting
+        selected_output = output[:, self.token_i, :]
+        if (
+            not self.cls_token
+            and selected_output.shape[1] == self.content_tokens_per_example + 1
+        ):
             # Model has CLS token but we don't want to store it - skip first token
             selected_output = selected_output[:, 1:, :]
 
         # Verify we're storing the right number of tokens (patches + cls if enabled)
-        expected_tokens = self.patches_per_ex + (1 if self.cls_token else 0)
-        assert selected_output.shape[1] == expected_tokens, (
-            f"Shape mismatch: got {selected_output.shape[1]} tokens, "
-            f"expected {expected_tokens} (patches_per_ex={self.patches_per_ex}, cls_token={self.cls_token})"
+        assert selected_output.shape[1] == self.tokens_per_example, (
+            f"Shape mismatch: got {selected_output.shape[1]} tokens, expected {self.tokens_per_example} (content_tokens_per_example={self.content_tokens_per_example}, cls_token={self.cls_token})"
         )
 
         self._storage[:, self._i] = selected_output.detach()
         self._i += 1
 
     def _empty_storage(self, batch: int, dim: int, device: torch.device):
-        total_tokens = self.patches_per_ex
-        if self.cls_token:
-            total_tokens += 1
-
-        return torch.zeros((batch, len(self.layers), total_tokens, dim), device=device)
+        return torch.zeros(
+            (batch, len(self.layers), self.tokens_per_example, dim), device=device
+        )
 
     def reset(self):
         self._i = 0
 
     @property
-    def activations(self) -> Float[Tensor, "batch n_layers all_patches dim"]:
+    def tokens_per_example(self) -> int:
+        return self.content_tokens_per_example + int(self.cls_token)
+
+    @property
+    def activations(self) -> Float[Tensor, "batch n_layers tokens_per_example dim"]:
         if self._storage is None:
             raise RuntimeError("First call forward()")
         return self._storage.cpu()
@@ -271,8 +272,8 @@ class RecordedTransformer(torch.nn.Module):
     def forward(
         self, batch: Float[Tensor, "batch 3 width height"], **kwargs
     ) -> tuple[
-        Float[Tensor, "batch patches dim"],
-        Float[Tensor, "batch n_layers all_patches dim"],
+        Float[Tensor, "batch tokens dim"],
+        Float[Tensor, "batch n_layers tokens_per_example dim"],
     ]:
         self.reset()
         result = self.model(batch, **kwargs)
@@ -287,28 +288,34 @@ class LabelsWriter:
 
     Args:
         shards_dir: The shard directory; $SAEV_SCRATCH/saev/shards/<hash>
-        patches_per_ex: Number of patches per example.
-        n_ex: Number of examples.
+        content_tokens_per_example: Number of content tokens per example.
+        n_examples: Number of examples.
 
     Attributes:
         labels: The integer patch labels.
         labels_path: Where the integer patch labels are stored.
-        patches_per_ex: Number of patches per example.
-        n_ex: Number of examples.
+        content_tokens_per_example: Number of content tokens per example.
+        n_examples: Number of examples.
         has_written: Whether we have written any data to `self.labels`.
     """
 
-    labels: UInt8[np.ndarray, "n_ex n_patches"]
+    labels: UInt8[np.ndarray, "n_examples n_patches"]
     labels_path: pathlib.Path
-    patches_per_ex: int
-    n_ex: int
+    content_tokens_per_example: int
+    n_examples: int
     has_written: bool
 
-    def __init__(self, shards_dir: pathlib.Path, *, patches_per_ex: int, n_ex: int):
+    def __init__(
+        self,
+        shards_dir: pathlib.Path,
+        *,
+        content_tokens_per_example: int,
+        n_examples: int,
+    ):
         assert disk.is_shards_dir(shards_dir)
         self.logger = logging.getLogger("labels-writer")
-        self.patches_per_ex = patches_per_ex
-        self.n_ex = n_ex
+        self.content_tokens_per_example = content_tokens_per_example
+        self.n_examples = n_examples
         self.has_written = False
 
         # Always create memory-mapped file for labels
@@ -318,7 +325,7 @@ class LabelsWriter:
             self.labels_path,
             mode="w+",
             dtype=np.uint8,
-            shape=(self.n_ex, self.patches_per_ex),
+            shape=(self.n_examples, self.patches_per_ex),
         )
         self.logger.info("Opened labels file '%s'.", self.labels_path)
 
@@ -336,7 +343,7 @@ class LabelsWriter:
             batch_labels = batch_labels.cpu().numpy()
 
         batch_size = len(batch_labels)
-        assert start_idx + batch_size <= self.n_ex
+        assert start_idx + batch_size <= self.n_examples
         assert batch_labels.shape == (batch_size, self.patches_per_ex)
         assert batch_labels.dtype == np.uint8
 
@@ -389,7 +396,7 @@ class ShardWriter:
         if md.cls_token:
             patches_per_ex += 1
 
-        self.ex_per_shard = md.patches_per_shard // len(md.layers) // patches_per_ex
+        self.ex_per_shard = md.max_patches_per_shard // len(md.layers) // patches_per_ex
         self.shape = (self.ex_per_shard, len(md.layers), patches_per_ex, md.d_model)
 
         # builder for shard manifest
@@ -397,7 +404,7 @@ class ShardWriter:
 
         # Always initialize labels writer (it handles non-seg datasets internally)
         self.labels_writer = LabelsWriter(
-            self.shards_dir, patches_per_ex=patches_per_ex, n_ex=md.n_ex
+            self.shards_dir, patches_per_ex=patches_per_ex, n_examples=md.n_examples
         )
 
         self.shard = -1
@@ -478,7 +485,7 @@ class ShardWriter:
 
             # record shard info
             self._shards.append(
-                Shard(name=os.path.basename(self.acts_path), n_ex=self.filled)
+                Shard(name=os.path.basename(self.acts_path), n_examples=self.filled)
             )
             self._shards.dump(self.shards_dir)
 
@@ -525,11 +532,11 @@ class Shard:
 
     Attributes:
         name: The filename of the shard (e.g., "acts000000.bin").
-        n_ex: Number of examples stored in this shard.
+        n_examples: Number of examples stored in this shard.
     """
 
     name: str
-    n_ex: int
+    n_examples: int
 
 
 @beartype.beartype
@@ -582,7 +589,7 @@ def worker_fn(
     data: datasets.Config,
     batch_size: int,
     n_workers: int,
-    patches_per_shard: int,
+    max_patches_per_shard: int,
     shards_root: pathlib.Path,
     device: str,
     pixel_agg: tp.Literal["majority", "prefer-fg", None] = None,
@@ -598,7 +605,7 @@ def worker_fn(
         data: Config for the particular (image) dataset to load.
         batch_size: Batch size for the dataset.
         n_workers: Number of workers for loading examples fromm the dataset.
-        patches_per_shard: Number of patches per disk shard.
+        max_patches_per_shard: Number of patches per disk shard.
         dataset: Absolute path to the root directory of the original image dataset.
         pixel_agg: Optional method for aggregating segmentation label pixels.
         shards_root: Where to save shards. Should end with 'shards'. See [disk-layout.md](../../developers/disk-layout.md); this is $SAEV_SCRATCH/saev/shards.
@@ -642,8 +649,8 @@ def worker_fn(
         patches_per_ex=patches_per_ex,
         cls_token=cls_token,
         d_model=d_model,
-        n_ex=data.n_ex,
-        patches_per_shard=patches_per_shard,
+        n_examples=data.n_examples,
+        max_patches_per_shard=max_patches_per_shard,
         data=md_data,
         dataset=data.root,
         pixel_agg=pixel_agg if datasets.is_seg_dataset(data) else None,
@@ -685,7 +692,7 @@ def worker_fn(
         sample_tr=sample_tr,
     )
 
-    n_batches = math.ceil(data.n_ex / batch_size)
+    n_batches = math.ceil(data.n_examples / batch_size)
     logger.info("Dumping %d batches of %d examples.", n_batches, batch_size)
 
     model = model.to(device)

@@ -15,6 +15,7 @@
 - Consider the [style guidelines for TigerBeetle](https://github.com/tigerbeetle/tigerbeetle/blob/main/docs/TIGER_STYLE.md) and adapt it to Python.
 - Never create a simple script to demonstrate functionality unless explicitly asked..
 - Write single-line commit messages; never say you co-authored a commit.
+- Prefix variables with `n_` for totals and cardinalities, but ignore it for dimensions `..._per_...` and dimensions. Examples: `n_examples`, `n_models`, but `tokens_per_example`, `examples_per_shard`
 
 # No hacks: ask for help instead
 

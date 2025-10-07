@@ -45,7 +45,7 @@ def metadatas(draw) -> Metadata:
             patches_per_ex=draw(st.integers(min_value=1, max_value=512)),
             cls_token=draw(st.booleans()),
             d_model=512,
-            n_ex=draw(st.integers(min_value=1, max_value=10_000_000)),
+            n_examples=draw(st.integers(min_value=1, max_value=10_000_000)),
             patches_per_shard=draw(st.integers(min_value=1, max_value=200_000_000)),
             data={"__class__": "Fake"},
             dataset=pathlib.Path("/fake/dataset/path"),
@@ -70,7 +70,7 @@ def test_dataloader_batches():
     vit_cls = models.load_model_cls("clip")
     img_tr, sample_tr = vit_cls.make_transforms("ViT-B-32/openai", 49)
     dataloader = get_dataloader(
-        datasets.Fake(n_ex=10),
+        datasets.Fake(n_examples=10),
         batch_size=8,
         n_workers=0,
         img_tr=img_tr,
@@ -89,7 +89,7 @@ def test_dataloader_batches():
 @pytest.mark.slow
 def test_shard_writer_and_dataset_e2e():
     with tmp_shards_root() as shards_root:
-        data_cfg = datasets.Fake(n_ex=128)
+        data_cfg = datasets.Fake(n_examples=128)
 
         md = Metadata(
             family="clip",
@@ -98,7 +98,7 @@ def test_shard_writer_and_dataset_e2e():
             patches_per_ex=16,
             cls_token=True,
             d_model=128,
-            n_ex=data_cfg.n_ex,
+            n_examples=data_cfg.n_examples,
             patches_per_shard=128,
             data={
                 **dataclasses.asdict(data_cfg),
@@ -155,7 +155,7 @@ def test_shards_json_is_emitted():
             cls_token=True,
             d_model=128,
             layers=[0],
-            data=datasets.Fake(n_ex=10),
+            data=datasets.Fake(n_examples=10),
             batch_size=12,
             n_workers=4,
             patches_per_shard=256,
@@ -176,11 +176,11 @@ def test_shards_json_is_emitted():
         expected_n_shards = md.n_shards
         assert isinstance(arr, list) and len(arr) == expected_n_shards
 
-        # Each entry has `name` and `n_ex`
+        # Each entry has `name` and `n_examples`
         for idx, entry in enumerate(arr):
             assert entry["name"] == f"acts{idx:06d}.bin"
             # last shard may be smaller
-            assert entry["n_ex"] > 0 and isinstance(entry["n_ex"], int)
+            assert entry["n_examples"] > 0 and isinstance(entry["n_examples"], int)
 
 
 @given(md=metadatas())
@@ -200,7 +200,7 @@ def test_metadata_json_has_required_keys(md):
             "patches_per_ex",
             "cls_token",
             "d_model",
-            "n_ex",
+            "n_examples",
             "patches_per_shard",
             "data",
             "dataset",
@@ -237,7 +237,7 @@ def test_shard_size_consistency(patches_per_shard, patches_per_ex, n_layers, cls
         patches_per_ex=patches_per_ex,
         cls_token=cls_token,
         d_model=1,
-        n_ex=1,
+        n_examples=1,
         patches_per_shard=patches_per_shard,
         data={"__class__": "Fake"},
         dataset=pathlib.Path("/fake/dataset/path"),
@@ -272,7 +272,7 @@ def test_tokens_per_ex(patches_per_ex, cls_token, expected):
         patches_per_ex=patches_per_ex,
         cls_token=cls_token,
         d_model=512,
-        n_ex=1,
+        n_examples=1,
         patches_per_shard=1000,
         data={"__class__": "Fake"},
         dataset=pathlib.Path("/fake/dataset/path"),

@@ -119,7 +119,7 @@ def test_missing_shard_file_not_detected_at_init(tmp_path):
     """Test that missing shard files are NOT detected at initialization - exposes the validation gap."""
     with tmp_shards_root() as shards_root:
         # Create a small dataset with multiple shards
-        n_ex = 10
+        n_examples = 10
         d_model = 128
         n_patches = 16
         layers = [0]
@@ -139,7 +139,7 @@ def test_missing_shard_file_not_detected_at_init(tmp_path):
             layers=layers,
             patches_per_shard=patches_per_shard,
             batch_size=2,
-            data=datasets.Fake(n_ex=n_ex),
+            data=datasets.Fake(n_examples=n_examples),
             n_workers=0,
             device="cpu",
         )

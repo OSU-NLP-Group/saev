@@ -51,7 +51,7 @@ class Config:
     cls_token: bool = True
     """Whether the model has a [CLS] token."""
     pixel_agg: tp.Literal["majority", "prefer-fg"] = "majority"
-    patches_per_shard: int = 2_400_000
+    max_patches_per_shard: int = 2_400_000
     """Maximum number of activations per shard; 2.4M is approximately 10GB for 1024-dimensional 4-byte activations."""
 
     ssl: bool = True
@@ -100,7 +100,7 @@ def main(cfg: tp.Annotated[Config, tyro.conf.arg(name="")]):
         data=cfg.data,
         batch_size=cfg.batch_size,
         n_workers=cfg.n_workers,
-        patches_per_shard=cfg.patches_per_shard,
+        max_patches_per_shard=cfg.max_patches_per_shard,
         shards_root=cfg.shards_root,
         device=cfg.device,
         pixel_agg=cfg.pixel_agg,

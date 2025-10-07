@@ -330,6 +330,8 @@
       
         
       
+        
+      
     
     
     
@@ -402,6 +404,29 @@
   
   <span class="md-ellipsis">
     Inference
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../users/glossary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Glossary
     
   </span>
   
@@ -1052,9 +1077,9 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#saev.data.shards.Metadata.ex_per_shard" class="md-nav__link">
+  <a href="#saev.data.shards.Metadata.examples_per_shard" class="md-nav__link">
     <span class="md-ellipsis">
-      ex_per_shard
+      examples_per_shard
     </span>
   </a>
   
@@ -1088,9 +1113,9 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#saev.data.shards.Metadata.tokens_per_ex" class="md-nav__link">
+  <a href="#saev.data.shards.Metadata.tokens_per_example" class="md-nav__link">
     <span class="md-ellipsis">
-      tokens_per_ex
+      tokens_per_example
     </span>
   </a>
   
@@ -1581,7 +1606,7 @@
 
 
 <h2 id="saev.data.shards.LabelsWriter" class="doc doc-heading">
-              <code class="highlight language-python"><span class="n">LabelsWriter</span><span class="p">(</span><span class="n">shards_dir</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">patches_per_ex</span><span class="p">,</span> <span class="n">n_ex</span><span class="p">)</span></code>
+              <code class="highlight language-python"><span class="n">LabelsWriter</span><span class="p">(</span><span class="n">shards_dir</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">content_tokens_per_example</span><span class="p">,</span> <span class="n">n_examples</span><span class="p">)</span></code>
 
 </h2>
 
@@ -1621,14 +1646,14 @@
           </tr>
           <tr class="doc-section-item">
             <td>
-                <code>patches_per_ex</code>
+                <code>content_tokens_per_example</code>
             </td>
             <td>
                   <code><span title="int">int</span></code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Number of patches per example.</p>
+                <p>Number of content tokens per example.</p>
               </div>
             </td>
             <td>
@@ -1637,7 +1662,7 @@
           </tr>
           <tr class="doc-section-item">
             <td>
-                <code>n_ex</code>
+                <code>n_examples</code>
             </td>
             <td>
                   <code><span title="int">int</span></code>
@@ -1668,7 +1693,7 @@
           <tr class="doc-section-item">
             <td><code><span title="saev.data.shards.LabelsWriter.labels">labels</span></code></td>
             <td>
-                  <code><span title="jaxtyping.UInt8">UInt8</span>[<span title="numpy.ndarray">ndarray</span>, &#39;n_ex n_patches&#39;]</code>
+                  <code><span title="jaxtyping.UInt8">UInt8</span>[<span title="numpy.ndarray">ndarray</span>, &#39;n_examples n_patches&#39;]</code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -1688,18 +1713,18 @@
             </td>
           </tr>
           <tr class="doc-section-item">
-            <td><code><span title="saev.data.shards.LabelsWriter.patches_per_ex">patches_per_ex</span></code></td>
+            <td><code><span title="saev.data.shards.LabelsWriter.content_tokens_per_example">content_tokens_per_example</span></code></td>
             <td>
                   <code><span title="int">int</span></code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Number of patches per example.</p>
+                <p>Number of content tokens per example.</p>
               </div>
             </td>
           </tr>
           <tr class="doc-section-item">
-            <td><code><span title="saev.data.shards.LabelsWriter.n_ex">n_ex</span></code></td>
+            <td><code><span title="saev.data.shards.LabelsWriter.n_examples">n_examples</span></code></td>
             <td>
                   <code><span title="int">int</span></code>
             </td>
@@ -1732,8 +1757,7 @@
 
                   <details class="quote">
                     <summary>Source code in <code>src/saev/data/shards.py</code></summary>
-                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">307</span>
-<span class="normal">308</span>
+                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">308</span>
 <span class="normal">309</span>
 <span class="normal">310</span>
 <span class="normal">311</span>
@@ -1748,11 +1772,24 @@
 <span class="normal">320</span>
 <span class="normal">321</span>
 <span class="normal">322</span>
-<span class="normal">323</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">shards_dir</span><span class="p">:</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">patches_per_ex</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">n_ex</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
+<span class="normal">323</span>
+<span class="normal">324</span>
+<span class="normal">325</span>
+<span class="normal">326</span>
+<span class="normal">327</span>
+<span class="normal">328</span>
+<span class="normal">329</span>
+<span class="normal">330</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+    <span class="bp">self</span><span class="p">,</span>
+    <span class="n">shards_dir</span><span class="p">:</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">content_tokens_per_example</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">n_examples</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+<span class="p">):</span>
     <span class="k">assert</span> <span class="n">disk</span><span class="o">.</span><span class="n">is_shards_dir</span><span class="p">(</span><span class="n">shards_dir</span><span class="p">)</span>
     <span class="bp">self</span><span class="o">.</span><span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s2">&quot;labels-writer&quot;</span><span class="p">)</span>
-    <span class="bp">self</span><span class="o">.</span><span class="n">patches_per_ex</span> <span class="o">=</span> <span class="n">patches_per_ex</span>
-    <span class="bp">self</span><span class="o">.</span><span class="n">n_ex</span> <span class="o">=</span> <span class="n">n_ex</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">content_tokens_per_example</span> <span class="o">=</span> <span class="n">content_tokens_per_example</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">n_examples</span> <span class="o">=</span> <span class="n">n_examples</span>
     <span class="bp">self</span><span class="o">.</span><span class="n">has_written</span> <span class="o">=</span> <span class="kc">False</span>
 
     <span class="c1"># Always create memory-mapped file for labels</span>
@@ -1762,7 +1799,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">labels_path</span><span class="p">,</span>
         <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;w+&quot;</span><span class="p">,</span>
         <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">uint8</span><span class="p">,</span>
-        <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_ex</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">patches_per_ex</span><span class="p">),</span>
+        <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_examples</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">patches_per_ex</span><span class="p">),</span>
     <span class="p">)</span>
     <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Opened labels file &#39;</span><span class="si">%s</span><span class="s2">&#39;.&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">labels_path</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
@@ -1797,11 +1834,11 @@
 
             <details class="quote">
               <summary>Source code in <code>src/saev/data/shards.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">346</span>
-<span class="normal">347</span>
-<span class="normal">348</span>
-<span class="normal">349</span>
-<span class="normal">350</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">flush</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">353</span>
+<span class="normal">354</span>
+<span class="normal">355</span>
+<span class="normal">356</span>
+<span class="normal">357</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">flush</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Flush the memory-mapped file to disk if anything was written.&quot;&quot;&quot;</span>
     <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">has_written</span><span class="p">:</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">labels</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
@@ -1875,14 +1912,7 @@
 
             <details class="quote">
               <summary>Source code in <code>src/saev/data/shards.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">325</span>
-<span class="normal">326</span>
-<span class="normal">327</span>
-<span class="normal">328</span>
-<span class="normal">329</span>
-<span class="normal">330</span>
-<span class="normal">331</span>
-<span class="normal">332</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">332</span>
 <span class="normal">333</span>
 <span class="normal">334</span>
 <span class="normal">335</span>
@@ -1894,7 +1924,14 @@
 <span class="normal">341</span>
 <span class="normal">342</span>
 <span class="normal">343</span>
-<span class="normal">344</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@beartype</span><span class="o">.</span><span class="n">beartype</span>
+<span class="normal">344</span>
+<span class="normal">345</span>
+<span class="normal">346</span>
+<span class="normal">347</span>
+<span class="normal">348</span>
+<span class="normal">349</span>
+<span class="normal">350</span>
+<span class="normal">351</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@beartype</span><span class="o">.</span><span class="n">beartype</span>
 <span class="k">def</span><span class="w"> </span><span class="nf">write_batch</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">batch_labels</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="n">Tensor</span><span class="p">,</span> <span class="n">start_idx</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Write a batch of labels to the memory-mapped file.</span>
@@ -1908,7 +1945,7 @@
         <span class="n">batch_labels</span> <span class="o">=</span> <span class="n">batch_labels</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">()</span>
 
     <span class="n">batch_size</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">batch_labels</span><span class="p">)</span>
-    <span class="k">assert</span> <span class="n">start_idx</span> <span class="o">+</span> <span class="n">batch_size</span> <span class="o">&lt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_ex</span>
+    <span class="k">assert</span> <span class="n">start_idx</span> <span class="o">+</span> <span class="n">batch_size</span> <span class="o">&lt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_examples</span>
     <span class="k">assert</span> <span class="n">batch_labels</span><span class="o">.</span><span class="n">shape</span> <span class="o">==</span> <span class="p">(</span><span class="n">batch_size</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">patches_per_ex</span><span class="p">)</span>
     <span class="k">assert</span> <span class="n">batch_labels</span><span class="o">.</span><span class="n">dtype</span> <span class="o">==</span> <span class="n">np</span><span class="o">.</span><span class="n">uint8</span>
 
@@ -1933,7 +1970,7 @@
 
 
 <h2 id="saev.data.shards.Metadata" class="doc doc-heading">
-              <code class="highlight language-python"><span class="n">Metadata</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">family</span><span class="p">,</span> <span class="n">ckpt</span><span class="p">,</span> <span class="n">layers</span><span class="p">,</span> <span class="n">patches_per_ex</span><span class="p">,</span> <span class="n">cls_token</span><span class="p">,</span> <span class="n">d_model</span><span class="p">,</span> <span class="n">n_ex</span><span class="p">,</span> <span class="n">patches_per_shard</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">dataset</span><span class="p">,</span> <span class="n">pixel_agg</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;float32&#39;</span><span class="p">,</span> <span class="n">protocol</span><span class="o">=</span><span class="s1">&#39;2.0&#39;</span><span class="p">)</span></code>
+              <code class="highlight language-python"><span class="n">Metadata</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">family</span><span class="p">,</span> <span class="n">ckpt</span><span class="p">,</span> <span class="n">layers</span><span class="p">,</span> <span class="n">n_content_tokens_per_example</span><span class="p">,</span> <span class="n">cls_token</span><span class="p">,</span> <span class="n">d_model</span><span class="p">,</span> <span class="n">n_examples</span><span class="p">,</span> <span class="n">max_tokens_per_shard</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">dataset</span><span class="p">,</span> <span class="n">pixel_agg</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;float32&#39;</span><span class="p">,</span> <span class="n">protocol</span><span class="o">=</span><span class="s1">&#39;2.0&#39;</span><span class="p">)</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
@@ -1946,7 +1983,6 @@
 
 
         <p>Metadata for a sharded set of transformer activations.</p>
-<p>Important: <code>patches_per_ex</code> refers only to image patches (excluding [CLS]). Use the <code>tokens_per_ex</code> property when calculating storage dimensions or tensor shapes, as it includes [CLS] if present.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -2010,14 +2046,14 @@
           </tr>
           <tr class="doc-section-item">
             <td>
-                <code>patches_per_ex</code>
+                <code>n_content_tokens_per_example</code>
             </td>
             <td>
                   <code><span title="int">int</span></code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The number of patches (not including the [CLS] token) per example.</p>
+                <p>The number of content tokens per example.</p>
               </div>
             </td>
             <td>
@@ -2058,7 +2094,7 @@
           </tr>
           <tr class="doc-section-item">
             <td>
-                <code>n_ex</code>
+                <code>n_examples</code>
             </td>
             <td>
                   <code><span title="int">int</span></code>
@@ -2074,14 +2110,14 @@
           </tr>
           <tr class="doc-section-item">
             <td>
-                <code>patches_per_shard</code>
+                <code>max_tokens_per_shard</code>
             </td>
             <td>
                   <code><span title="int">int</span></code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The maximum number of patches per shard.</p>
+                <p>The maximum number of tokens per shard.</p>
               </div>
             </td>
             <td>
@@ -2113,7 +2149,7 @@
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Absolute path to the root directory of the original image dataset.</p>
+                <p>Absolute path to the root directory of the original dataset.</p>
               </div>
             </td>
             <td>
@@ -2129,7 +2165,7 @@
             </td>
             <td>
               <div class="doc-md-description">
-                <p>(only for segmentation datasets) how the pixel-level segmentation labels were aggregated to patch-level labels.</p>
+                <p>(only for image segmentation datasets) how the pixel-level segmentation labels were aggregated to token-level labels.</p>
               </div>
             </td>
             <td>
@@ -2193,8 +2229,8 @@
 
 
 
-<h3 id="saev.data.shards.Metadata.ex_per_shard" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">ex_per_shard</span></code>
+<h3 id="saev.data.shards.Metadata.examples_per_shard" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">examples_per_shard</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-property"><code>property</code></small>
@@ -2373,8 +2409,8 @@
 
 
 
-<h3 id="saev.data.shards.Metadata.tokens_per_ex" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">tokens_per_ex</span></code>
+<h3 id="saev.data.shards.Metadata.tokens_per_example" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">tokens_per_example</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-property"><code>property</code></small>
@@ -2403,7 +2439,7 @@
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Number of patches plus one if [CLS] token is included.</p>
+                <p>Number of tokens plus one if [CLS] token is included.</p>
               </div>
             </td>
           </tr>
@@ -2464,7 +2500,9 @@
 
             <details class="quote">
               <summary>Source code in <code>src/saev/data/shards.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 94</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 92</span>
+<span class="normal"> 93</span>
+<span class="normal"> 94</span>
 <span class="normal"> 95</span>
 <span class="normal"> 96</span>
 <span class="normal"> 97</span>
@@ -2474,9 +2512,7 @@
 <span class="normal">101</span>
 <span class="normal">102</span>
 <span class="normal">103</span>
-<span class="normal">104</span>
-<span class="normal">105</span>
-<span class="normal">106</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">dump</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">shards_root</span><span class="p">:</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">):</span>
+<span class="normal">104</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">dump</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">shards_root</span><span class="p">:</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Dumps a Metadata object to a metadata.json file in shards_root / hash.</span>
 
@@ -2546,7 +2582,9 @@
 
             <details class="quote">
               <summary>Source code in <code>src/saev/data/shards.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">78</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">76</span>
+<span class="normal">77</span>
+<span class="normal">78</span>
 <span class="normal">79</span>
 <span class="normal">80</span>
 <span class="normal">81</span>
@@ -2558,9 +2596,7 @@
 <span class="normal">87</span>
 <span class="normal">88</span>
 <span class="normal">89</span>
-<span class="normal">90</span>
-<span class="normal">91</span>
-<span class="normal">92</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@classmethod</span>
+<span class="normal">90</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@classmethod</span>
 <span class="k">def</span><span class="w"> </span><span class="nf">load</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">shards_dir</span><span class="p">:</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;Metadata&quot;</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Loads a Metadata object from a metadata.json file in shards_dir.</span>
@@ -2594,7 +2630,7 @@
 
 
 <h2 id="saev.data.shards.RecordedTransformer" class="doc doc-heading">
-              <code class="highlight language-python"><span class="n">RecordedTransformer</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">patches_per_ex</span><span class="p">,</span> <span class="n">cls_token</span><span class="p">,</span> <span class="n">layers</span><span class="p">)</span></code>
+              <code class="highlight language-python"><span class="n">RecordedTransformer</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">content_tokens_per_example</span><span class="p">,</span> <span class="n">cls_token</span><span class="p">,</span> <span class="n">layers</span><span class="p">)</span></code>
 
 </h2>
 
@@ -2636,14 +2672,14 @@
           </tr>
           <tr class="doc-section-item">
             <td>
-                <code>patches_per_ex</code>
+                <code>content_tokens_per_example</code>
             </td>
             <td>
                   <code><span title="int">int</span></code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Number of patches (excluding [CLS] token) per example.</p>
+                <p>Number of content tokens per example.</p>
               </div>
             </td>
             <td>
@@ -2659,7 +2695,7 @@
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Whether to record the [CLS] token in addition to image patches.</p>
+                <p>Whether to record the [CLS] token in addition to content tokens.</p>
               </div>
             </td>
             <td>
@@ -2708,13 +2744,13 @@
             </td>
           </tr>
           <tr class="doc-section-item">
-            <td><code><span title="saev.data.shards.RecordedTransformer.patches_per_ex">patches_per_ex</span></code></td>
+            <td><code><span title="saev.data.shards.RecordedTransformer.content_tokens_per_example">content_tokens_per_example</span></code></td>
             <td>
                   <code><span title="int">int</span></code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Number of patches per example (excluding [CLS] token).</p>
+                <p>Number of content tokens per example.</p>
               </div>
             </td>
           </tr>
@@ -2741,13 +2777,13 @@
             </td>
           </tr>
           <tr class="doc-section-item">
-            <td><code><span title="saev.data.shards.RecordedTransformer.patches">patches</span></code></td>
+            <td><code><span title="saev.data.shards.RecordedTransformer.token_i">token_i</span></code></td>
             <td>
                   <code><span title="slice">slice</span></code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Patch indices to extract from model outputs.</p>
+                <p>Token indices to extract from model outputs.</p>
               </div>
             </td>
           </tr>
@@ -2773,7 +2809,9 @@
 
                   <details class="quote">
                     <summary>Source code in <code>src/saev/data/shards.py</code></summary>
-                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">198</span>
+                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">196</span>
+<span class="normal">197</span>
+<span class="normal">198</span>
 <span class="normal">199</span>
 <span class="normal">200</span>
 <span class="normal">201</span>
@@ -2794,12 +2832,10 @@
 <span class="normal">216</span>
 <span class="normal">217</span>
 <span class="normal">218</span>
-<span class="normal">219</span>
-<span class="normal">220</span>
-<span class="normal">221</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+<span class="normal">219</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
     <span class="bp">self</span><span class="p">,</span>
     <span class="n">model</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">,</span>
-    <span class="n">patches_per_ex</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">content_tokens_per_example</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
     <span class="n">cls_token</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span>
     <span class="n">layers</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span>
 <span class="p">):</span>
@@ -2807,11 +2843,11 @@
 
     <span class="bp">self</span><span class="o">.</span><span class="n">model</span> <span class="o">=</span> <span class="n">model</span>
 
-    <span class="bp">self</span><span class="o">.</span><span class="n">patches_per_ex</span> <span class="o">=</span> <span class="n">patches_per_ex</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">content_tokens_per_example</span> <span class="o">=</span> <span class="n">content_tokens_per_example</span>
     <span class="bp">self</span><span class="o">.</span><span class="n">cls_token</span> <span class="o">=</span> <span class="n">cls_token</span>
     <span class="bp">self</span><span class="o">.</span><span class="n">layers</span> <span class="o">=</span> <span class="n">layers</span>
 
-    <span class="bp">self</span><span class="o">.</span><span class="n">patches</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">get_patches</span><span class="p">(</span><span class="n">patches_per_ex</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">token_i</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">get_token_i</span><span class="p">(</span><span class="n">content_tokens_per_example</span><span class="p">)</span>
 
     <span class="bp">self</span><span class="o">.</span><span class="n">_storage</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="bp">self</span><span class="o">.</span><span class="n">_i</span> <span class="o">=</span> <span class="mi">0</span>
@@ -2849,7 +2885,7 @@
 
 
 <h2 id="saev.data.shards.Shard" class="doc doc-heading">
-              <code class="highlight language-python"><span class="n">Shard</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">n_ex</span><span class="p">)</span></code>
+              <code class="highlight language-python"><span class="n">Shard</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">n_examples</span><span class="p">)</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
@@ -2886,7 +2922,7 @@
             </td>
           </tr>
           <tr class="doc-section-item">
-            <td><code><span title="saev.data.shards.Shard.n_ex">n_ex</span></code></td>
+            <td><code><span title="saev.data.shards.Shard.n_examples">n_examples</span></code></td>
             <td>
                   <code><span title="int">int</span></code>
             </td>
@@ -2964,7 +3000,7 @@
                 <code>shards</code>
             </td>
             <td>
-                  <code><span title="list">list</span>[<a class="autorefs autorefs-internal" title="Shard(name, n_ex)
+                  <code><span title="list">list</span>[<a class="autorefs autorefs-internal" title="Shard(name, n_examples)
 
   
       dataclass
@@ -3059,7 +3095,7 @@
                 <code>md</code>
             </td>
             <td>
-                  <code><a class="autorefs autorefs-internal" title="Metadata(*, family, ckpt, layers, patches_per_ex, cls_token, d_model, n_ex, patches_per_shard, data, dataset, pixel_agg=None, dtype='float32', protocol='2.0')
+                  <code><a class="autorefs autorefs-internal" title="Metadata(*, family, ckpt, layers, n_content_tokens_per_example, cls_token, d_model, n_examples, max_tokens_per_shard, data, dataset, pixel_agg=None, dtype='float32', protocol='2.0')
 
   
       dataclass
@@ -3157,7 +3193,7 @@
           <tr class="doc-section-item">
             <td><code><span title="saev.data.shards.ShardWriter.labels_writer">labels_writer</span></code></td>
             <td>
-                  <code><a class="autorefs autorefs-internal" title="LabelsWriter(shards_dir, *, patches_per_ex, n_ex) (saev.data.shards.LabelsWriter)" href="#saev.data.shards.LabelsWriter">LabelsWriter</a></code>
+                  <code><a class="autorefs autorefs-internal" title="LabelsWriter(shards_dir, *, content_tokens_per_example, n_examples) (saev.data.shards.LabelsWriter)" href="#saev.data.shards.LabelsWriter">LabelsWriter</a></code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -3177,14 +3213,7 @@
 
                   <details class="quote">
                     <summary>Source code in <code>src/saev/data/shards.py</code></summary>
-                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">380</span>
-<span class="normal">381</span>
-<span class="normal">382</span>
-<span class="normal">383</span>
-<span class="normal">384</span>
-<span class="normal">385</span>
-<span class="normal">386</span>
-<span class="normal">387</span>
+                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">387</span>
 <span class="normal">388</span>
 <span class="normal">389</span>
 <span class="normal">390</span>
@@ -3202,7 +3231,14 @@
 <span class="normal">402</span>
 <span class="normal">403</span>
 <span class="normal">404</span>
-<span class="normal">405</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">shards_root</span><span class="p">:</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">,</span> <span class="n">md</span><span class="p">:</span> <span class="n">Metadata</span><span class="p">):</span>
+<span class="normal">405</span>
+<span class="normal">406</span>
+<span class="normal">407</span>
+<span class="normal">408</span>
+<span class="normal">409</span>
+<span class="normal">410</span>
+<span class="normal">411</span>
+<span class="normal">412</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">shards_root</span><span class="p">:</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">,</span> <span class="n">md</span><span class="p">:</span> <span class="n">Metadata</span><span class="p">):</span>
     <span class="k">assert</span> <span class="n">disk</span><span class="o">.</span><span class="n">is_shards_root</span><span class="p">(</span><span class="n">shards_root</span><span class="p">)</span>
 
     <span class="bp">self</span><span class="o">.</span><span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s2">&quot;shard-writer&quot;</span><span class="p">)</span>
@@ -3214,7 +3250,7 @@
     <span class="k">if</span> <span class="n">md</span><span class="o">.</span><span class="n">cls_token</span><span class="p">:</span>
         <span class="n">patches_per_ex</span> <span class="o">+=</span> <span class="mi">1</span>
 
-    <span class="bp">self</span><span class="o">.</span><span class="n">ex_per_shard</span> <span class="o">=</span> <span class="n">md</span><span class="o">.</span><span class="n">patches_per_shard</span> <span class="o">//</span> <span class="nb">len</span><span class="p">(</span><span class="n">md</span><span class="o">.</span><span class="n">layers</span><span class="p">)</span> <span class="o">//</span> <span class="n">patches_per_ex</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">ex_per_shard</span> <span class="o">=</span> <span class="n">md</span><span class="o">.</span><span class="n">max_patches_per_shard</span> <span class="o">//</span> <span class="nb">len</span><span class="p">(</span><span class="n">md</span><span class="o">.</span><span class="n">layers</span><span class="p">)</span> <span class="o">//</span> <span class="n">patches_per_ex</span>
     <span class="bp">self</span><span class="o">.</span><span class="n">shape</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ex_per_shard</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">md</span><span class="o">.</span><span class="n">layers</span><span class="p">),</span> <span class="n">patches_per_ex</span><span class="p">,</span> <span class="n">md</span><span class="o">.</span><span class="n">d_model</span><span class="p">)</span>
 
     <span class="c1"># builder for shard manifest</span>
@@ -3222,7 +3258,7 @@
 
     <span class="c1"># Always initialize labels writer (it handles non-seg datasets internally)</span>
     <span class="bp">self</span><span class="o">.</span><span class="n">labels_writer</span> <span class="o">=</span> <span class="n">LabelsWriter</span><span class="p">(</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">shards_dir</span><span class="p">,</span> <span class="n">patches_per_ex</span><span class="o">=</span><span class="n">patches_per_ex</span><span class="p">,</span> <span class="n">n_ex</span><span class="o">=</span><span class="n">md</span><span class="o">.</span><span class="n">n_ex</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">shards_dir</span><span class="p">,</span> <span class="n">patches_per_ex</span><span class="o">=</span><span class="n">patches_per_ex</span><span class="p">,</span> <span class="n">n_examples</span><span class="o">=</span><span class="n">md</span><span class="o">.</span><span class="n">n_examples</span>
     <span class="p">)</span>
 
     <span class="bp">self</span><span class="o">.</span><span class="n">shard</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span>
@@ -3260,9 +3296,9 @@
 
             <details class="quote">
               <summary>Source code in <code>src/saev/data/shards.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">490</span>
-<span class="normal">491</span>
-<span class="normal">492</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__enter__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">497</span>
+<span class="normal">498</span>
+<span class="normal">499</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__enter__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Context manager entry.&quot;&quot;&quot;</span>
     <span class="k">return</span> <span class="bp">self</span>
 </code></pre></div></td></tr></table></div>
@@ -3287,17 +3323,17 @@
 
             <details class="quote">
               <summary>Source code in <code>src/saev/data/shards.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">494</span>
-<span class="normal">495</span>
-<span class="normal">496</span>
-<span class="normal">497</span>
-<span class="normal">498</span>
-<span class="normal">499</span>
-<span class="normal">500</span>
-<span class="normal">501</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">501</span>
 <span class="normal">502</span>
 <span class="normal">503</span>
-<span class="normal">504</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__exit__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">exc_type</span><span class="p">,</span> <span class="n">exc_val</span><span class="p">,</span> <span class="n">exc_tb</span><span class="p">):</span>
+<span class="normal">504</span>
+<span class="normal">505</span>
+<span class="normal">506</span>
+<span class="normal">507</span>
+<span class="normal">508</span>
+<span class="normal">509</span>
+<span class="normal">510</span>
+<span class="normal">511</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__exit__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">exc_type</span><span class="p">,</span> <span class="n">exc_val</span><span class="p">,</span> <span class="n">exc_tb</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Context manager exit - handle cleanup.&quot;&quot;&quot;</span>
     <span class="bp">self</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
 
@@ -3393,14 +3429,7 @@
 
             <details class="quote">
               <summary>Source code in <code>src/saev/data/shards.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">407</span>
-<span class="normal">408</span>
-<span class="normal">409</span>
-<span class="normal">410</span>
-<span class="normal">411</span>
-<span class="normal">412</span>
-<span class="normal">413</span>
-<span class="normal">414</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">414</span>
 <span class="normal">415</span>
 <span class="normal">416</span>
 <span class="normal">417</span>
@@ -3459,7 +3488,14 @@
 <span class="normal">470</span>
 <span class="normal">471</span>
 <span class="normal">472</span>
-<span class="normal">473</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">write_batch</span><span class="p">(</span>
+<span class="normal">473</span>
+<span class="normal">474</span>
+<span class="normal">475</span>
+<span class="normal">476</span>
+<span class="normal">477</span>
+<span class="normal">478</span>
+<span class="normal">479</span>
+<span class="normal">480</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">write_batch</span><span class="p">(</span>
     <span class="bp">self</span><span class="p">,</span>
     <span class="n">activations</span><span class="p">:</span> <span class="n">Float</span><span class="p">[</span><span class="n">Tensor</span><span class="p">,</span> <span class="s2">&quot;batch n_layers all_patches d_model&quot;</span><span class="p">],</span>
     <span class="n">start_idx</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
@@ -3691,14 +3727,7 @@
 
             <details class="quote">
               <summary>Source code in <code>src/saev/data/shards.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">732</span>
-<span class="normal">733</span>
-<span class="normal">734</span>
-<span class="normal">735</span>
-<span class="normal">736</span>
-<span class="normal">737</span>
-<span class="normal">738</span>
-<span class="normal">739</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">739</span>
 <span class="normal">740</span>
 <span class="normal">741</span>
 <span class="normal">742</span>
@@ -3728,7 +3757,14 @@
 <span class="normal">766</span>
 <span class="normal">767</span>
 <span class="normal">768</span>
-<span class="normal">769</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@beartype</span><span class="o">.</span><span class="n">beartype</span>
+<span class="normal">769</span>
+<span class="normal">770</span>
+<span class="normal">771</span>
+<span class="normal">772</span>
+<span class="normal">773</span>
+<span class="normal">774</span>
+<span class="normal">775</span>
+<span class="normal">776</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@beartype</span><span class="o">.</span><span class="n">beartype</span>
 <span class="k">def</span><span class="w"> </span><span class="nf">get_dataloader</span><span class="p">(</span>
     <span class="n">data</span><span class="p">:</span> <span class="n">datasets</span><span class="o">.</span><span class="n">Config</span><span class="p">,</span>
     <span class="o">*</span><span class="p">,</span>
@@ -3922,14 +3958,7 @@
 
             <details class="quote">
               <summary>Source code in <code>src/saev/data/shards.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">772</span>
-<span class="normal">773</span>
-<span class="normal">774</span>
-<span class="normal">775</span>
-<span class="normal">776</span>
-<span class="normal">777</span>
-<span class="normal">778</span>
-<span class="normal">779</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">779</span>
 <span class="normal">780</span>
 <span class="normal">781</span>
 <span class="normal">782</span>
@@ -3990,7 +4019,14 @@
 <span class="normal">837</span>
 <span class="normal">838</span>
 <span class="normal">839</span>
-<span class="normal">840</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@jaxtyped</span><span class="p">(</span><span class="n">typechecker</span><span class="o">=</span><span class="n">beartype</span><span class="o">.</span><span class="n">beartype</span><span class="p">)</span>
+<span class="normal">840</span>
+<span class="normal">841</span>
+<span class="normal">842</span>
+<span class="normal">843</span>
+<span class="normal">844</span>
+<span class="normal">845</span>
+<span class="normal">846</span>
+<span class="normal">847</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@jaxtyped</span><span class="p">(</span><span class="n">typechecker</span><span class="o">=</span><span class="n">beartype</span><span class="o">.</span><span class="n">beartype</span><span class="p">)</span>
 <span class="k">def</span><span class="w"> </span><span class="nf">pixel_to_patch_labels</span><span class="p">(</span>
     <span class="n">seg</span><span class="p">:</span> <span class="n">Image</span><span class="o">.</span><span class="n">Image</span><span class="p">,</span>
     <span class="n">n_patches</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
@@ -4069,7 +4105,7 @@
 
 
 <h2 id="saev.data.shards.worker_fn" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">worker_fn</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">family</span><span class="p">,</span> <span class="n">ckpt</span><span class="p">,</span> <span class="n">patches_per_ex</span><span class="p">,</span> <span class="n">cls_token</span><span class="p">,</span> <span class="n">d_model</span><span class="p">,</span> <span class="n">layers</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">batch_size</span><span class="p">,</span> <span class="n">n_workers</span><span class="p">,</span> <span class="n">patches_per_shard</span><span class="p">,</span> <span class="n">shards_root</span><span class="p">,</span> <span class="n">device</span><span class="p">,</span> <span class="n">pixel_agg</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+            <code class="highlight language-python"><span class="n">worker_fn</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">family</span><span class="p">,</span> <span class="n">ckpt</span><span class="p">,</span> <span class="n">patches_per_ex</span><span class="p">,</span> <span class="n">cls_token</span><span class="p">,</span> <span class="n">d_model</span><span class="p">,</span> <span class="n">layers</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">batch_size</span><span class="p">,</span> <span class="n">n_workers</span><span class="p">,</span> <span class="n">max_patches_per_shard</span><span class="p">,</span> <span class="n">shards_root</span><span class="p">,</span> <span class="n">device</span><span class="p">,</span> <span class="n">pixel_agg</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
 
 </h2>
 
@@ -4235,7 +4271,7 @@
           </tr>
           <tr class="doc-section-item">
             <td>
-                <code>patches_per_shard</code>
+                <code>max_patches_per_shard</code>
             </td>
             <td>
                   <code><span title="int">int</span></code>
@@ -4341,14 +4377,7 @@
 
             <details class="quote">
               <summary>Source code in <code>src/saev/data/shards.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">573</span>
-<span class="normal">574</span>
-<span class="normal">575</span>
-<span class="normal">576</span>
-<span class="normal">577</span>
-<span class="normal">578</span>
-<span class="normal">579</span>
-<span class="normal">580</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">580</span>
 <span class="normal">581</span>
 <span class="normal">582</span>
 <span class="normal">583</span>
@@ -4497,7 +4526,14 @@
 <span class="normal">726</span>
 <span class="normal">727</span>
 <span class="normal">728</span>
-<span class="normal">729</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@beartype</span><span class="o">.</span><span class="n">beartype</span>
+<span class="normal">729</span>
+<span class="normal">730</span>
+<span class="normal">731</span>
+<span class="normal">732</span>
+<span class="normal">733</span>
+<span class="normal">734</span>
+<span class="normal">735</span>
+<span class="normal">736</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@beartype</span><span class="o">.</span><span class="n">beartype</span>
 <span class="k">def</span><span class="w"> </span><span class="nf">worker_fn</span><span class="p">(</span>
     <span class="o">*</span><span class="p">,</span>
     <span class="n">family</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
@@ -4509,7 +4545,7 @@
     <span class="n">data</span><span class="p">:</span> <span class="n">datasets</span><span class="o">.</span><span class="n">Config</span><span class="p">,</span>
     <span class="n">batch_size</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
     <span class="n">n_workers</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
-    <span class="n">patches_per_shard</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">max_patches_per_shard</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
     <span class="n">shards_root</span><span class="p">:</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">,</span>
     <span class="n">device</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="n">pixel_agg</span><span class="p">:</span> <span class="n">tp</span><span class="o">.</span><span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;majority&quot;</span><span class="p">,</span> <span class="s2">&quot;prefer-fg&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -4525,7 +4561,7 @@
 <span class="sd">        data: Config for the particular (image) dataset to load.</span>
 <span class="sd">        batch_size: Batch size for the dataset.</span>
 <span class="sd">        n_workers: Number of workers for loading examples fromm the dataset.</span>
-<span class="sd">        patches_per_shard: Number of patches per disk shard.</span>
+<span class="sd">        max_patches_per_shard: Number of patches per disk shard.</span>
 <span class="sd">        dataset: Absolute path to the root directory of the original image dataset.</span>
 <span class="sd">        pixel_agg: Optional method for aggregating segmentation label pixels.</span>
 <span class="sd">        shards_root: Where to save shards. Should end with &#39;shards&#39;. See [disk-layout.md](../../developers/disk-layout.md); this is $SAEV_SCRATCH/saev/shards.</span>
@@ -4569,8 +4605,8 @@
         <span class="n">patches_per_ex</span><span class="o">=</span><span class="n">patches_per_ex</span><span class="p">,</span>
         <span class="n">cls_token</span><span class="o">=</span><span class="n">cls_token</span><span class="p">,</span>
         <span class="n">d_model</span><span class="o">=</span><span class="n">d_model</span><span class="p">,</span>
-        <span class="n">n_ex</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">n_ex</span><span class="p">,</span>
-        <span class="n">patches_per_shard</span><span class="o">=</span><span class="n">patches_per_shard</span><span class="p">,</span>
+        <span class="n">n_examples</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">n_examples</span><span class="p">,</span>
+        <span class="n">max_patches_per_shard</span><span class="o">=</span><span class="n">max_patches_per_shard</span><span class="p">,</span>
         <span class="n">data</span><span class="o">=</span><span class="n">md_data</span><span class="p">,</span>
         <span class="n">dataset</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">root</span><span class="p">,</span>
         <span class="n">pixel_agg</span><span class="o">=</span><span class="n">pixel_agg</span> <span class="k">if</span> <span class="n">datasets</span><span class="o">.</span><span class="n">is_seg_dataset</span><span class="p">(</span><span class="n">data</span><span class="p">)</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
@@ -4612,7 +4648,7 @@
         <span class="n">sample_tr</span><span class="o">=</span><span class="n">sample_tr</span><span class="p">,</span>
     <span class="p">)</span>
 
-    <span class="n">n_batches</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">ceil</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">n_ex</span> <span class="o">/</span> <span class="n">batch_size</span><span class="p">)</span>
+    <span class="n">n_batches</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">ceil</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">n_examples</span> <span class="o">/</span> <span class="n">batch_size</span><span class="p">)</span>
     <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Dumping </span><span class="si">%d</span><span class="s2"> batches of </span><span class="si">%d</span><span class="s2"> examples.&quot;</span><span class="p">,</span> <span class="n">n_batches</span><span class="p">,</span> <span class="n">batch_size</span><span class="p">)</span>
 
     <span class="n">model</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">)</span>

@@ -50,7 +50,7 @@ class Dataset(torch.utils.data.Dataset):
         """Individual example."""
 
         act: Float[Tensor, " d_model"]
-        image_i: int
+        ex_i: int
         patch_i: int
         patch_label: int
 
@@ -80,7 +80,7 @@ class Dataset(torch.utils.data.Dataset):
                 labels_path,
                 mode="r",
                 dtype=np.uint8,
-                shape=(self.metadata.n_imgs, self.metadata.n_patches_per_img),
+                shape=(self.metadata.n_examples, self.metadata.patches_per_ex),
             )
 
         # Pick a really big number so that if you accidentally use this when you shouldn't, you get an out of bounds IndexError.
@@ -113,7 +113,7 @@ class Dataset(torch.utils.data.Dataset):
                 img_act = self.get_img_patches(i)
                 # Select layer's cls token.
                 act = img_act[self.layer_index, 0, :]
-                result = self.Example(act=self.transform(act), image_i=i, patch_i=-1)
+                result = self.Example(act=self.transform(act), ex_i=i, patch_i=-1)
 
                 # Note: CLS tokens don't have patch labels since they're not image patches
                 # patch_label is omitted for CLS tokens
@@ -121,24 +121,24 @@ class Dataset(torch.utils.data.Dataset):
                 return result
             case ("image", int()):
                 # Calculate which image and patch this index corresponds to
-                image_i = i // self.metadata.n_patches_per_img
-                patch_i = i % self.metadata.n_patches_per_img
+                ex_i = i // self.metadata.patches_per_ex
+                patch_i = i % self.metadata.patches_per_ex
 
                 # Calculate shard location
-                n_imgs_per_shard = (
+                ex_per_shard = (
                     self.metadata.max_patches_per_shard
                     // len(self.metadata.layers)
-                    // (self.metadata.n_patches_per_img + int(self.metadata.cls_token))
+                    // (self.metadata.patches_per_ex + int(self.metadata.cls_token))
                 )
 
-                shard = image_i // n_imgs_per_shard
-                img_pos_in_shard = image_i % n_imgs_per_shard
+                shard = ex_i // ex_per_shard
+                img_pos_in_shard = ex_i % ex_per_shard
 
                 acts_fpath = os.path.join(self.cfg.shards, f"acts{shard:06}.bin")
                 shape = (
-                    n_imgs_per_shard,
+                    ex_per_shard,
                     len(self.metadata.layers),
-                    self.metadata.n_patches_per_img + int(self.metadata.cls_token),
+                    self.metadata.patches_per_ex + int(self.metadata.cls_token),
                     self.metadata.d_model,
                 )
                 acts = np.memmap(acts_fpath, mode="c", dtype=np.float32, shape=shape)
@@ -151,13 +151,13 @@ class Dataset(torch.utils.data.Dataset):
 
                 result = self.Example(
                     act=self.transform(act),
-                    image_i=image_i,
+                    ex_i=ex_i,
                     patch_i=patch_i,
                 )
 
                 # Add patch label if available
                 if self.labels_mmap is not None:
-                    result["patch_label"] = int(self.labels_mmap[image_i, patch_i])
+                    result["patch_label"] = int(self.labels_mmap[ex_i, patch_i])
 
                 return result
             case _:
@@ -167,18 +167,18 @@ class Dataset(torch.utils.data.Dataset):
     def get_img_patches(
         self, i: int
     ) -> Float[np.ndarray, "n_layers all_patches d_model"]:
-        n_imgs_per_shard = (
+        ex_per_shard = (
             self.metadata.max_patches_per_shard
             // len(self.metadata.layers)
-            // (self.metadata.n_patches_per_img + int(self.metadata.cls_token))
+            // (self.metadata.patches_per_ex + int(self.metadata.cls_token))
         )
-        shard = i // n_imgs_per_shard
-        pos = i % n_imgs_per_shard
+        shard = i // ex_per_shard
+        pos = i % ex_per_shard
         acts_fpath = os.path.join(self.cfg.shards, f"acts{shard:06}.bin")
         shape = (
-            n_imgs_per_shard,
+            ex_per_shard,
             len(self.metadata.layers),
-            self.metadata.n_patches_per_img + int(self.metadata.cls_token),
+            self.metadata.patches_per_ex + int(self.metadata.cls_token),
             self.metadata.d_model,
         )
         acts = np.memmap(acts_fpath, mode="c", dtype=np.float32, shape=shape)
@@ -192,19 +192,19 @@ class Dataset(torch.utils.data.Dataset):
         match (self.cfg.patches, self.cfg.layer):
             case ("cls", "all"):
                 # Return a CLS token from a random image and random layer.
-                return self.metadata.n_imgs * len(self.metadata.layers)
+                return self.metadata.n_examples * len(self.metadata.layers)
             case ("cls", int()):
                 # Return a CLS token from a random image and fixed layer.
-                return self.metadata.n_imgs
+                return self.metadata.n_examples
             case ("image", int()):
                 # Return a patch from a random image, fixed layer, and random patch.
-                return self.metadata.n_imgs * (self.metadata.n_patches_per_img)
+                return self.metadata.n_examples * (self.metadata.patches_per_ex)
             case ("image", "all"):
                 # Return a patch from a random image, random layer and random patch.
                 return (
-                    self.metadata.n_imgs
+                    self.metadata.n_examples
                     * len(self.metadata.layers)
-                    * self.metadata.n_patches_per_img
+                    * self.metadata.patches_per_ex
                 )
             case _:
                 typing.assert_never((self.cfg.patches, self.cfg.layer))

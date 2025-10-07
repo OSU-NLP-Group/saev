@@ -37,6 +37,7 @@ nav:
   - Users:
       - Guide: users/guide.md
       - Inference: users/inference.md
+      - Glossary: users/glossary.md
   - Developers:
       - Contributing: developers/contributing.md
       - Shard Protocol: developers/protocol.md

@@ -332,6 +332,8 @@
       
         
       
+        
+      
     
     
     
@@ -534,6 +536,29 @@
   
   <span class="md-ellipsis">
     Inference
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../glossary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Glossary
     
   </span>
   
@@ -1446,12 +1471,12 @@
 <p>Run <code>uv run scripts/launch.py shards --help</code> to see all the configuration.</p>
 <p>In practice, you might run:</p>
 <pre><code class="language-sh">uv run scripts/launch.py shards \
-  --vit-family siglip \
-  --vit-ckpt hf-hub:timm/ViT-L-16-SigLIP2-256 \
-  --d-vit 1024 \
+  --family siglip \
+  --ckpt hf-hub:timm/ViT-L-16-SigLIP2-256 \
+  --d-model 1024 \
   --n-patches-per-img 256 \
   --no-cls-token \
-  --vit-layers 13 15 17 19 21 23 \
+  --layers 13 15 17 19 21 23 \
   --dump-to /fs/scratch/PAS2136/samuelstevens/cache/saev/ \
   --max-patches-per-shard 500_000 \
   --slurm-acct PAS2136 \
@@ -1484,10 +1509,10 @@ The activations will be in <code>.bin</code> files, numbered starting from 00000
   --data.patches patches \
   --data.no-scale-mean \
   --data.no-scale-norm \
-  --sae.d-vit 768 \
+  --sae.d-model 768 \
   --lr 5e-4
 </code></pre>
-<pre><code class="language-sh">uv run train.py --sweep configs/preprint/baseline.toml --data.shard-root /fs/scratch/PAS2136/samuelstevens/cache/saev/f9deaa8a07786087e8071f39a695200ff6713ee02b25e7a7b4a6d5ac1ad968db --data.patches image --data.layer 23 --data.no-scale-mean --data.no-scale-norm sae:relu --sae.d-vit 1024
+<pre><code class="language-sh">uv run train.py --sweep configs/preprint/baseline.toml --data.shard-root /fs/scratch/PAS2136/samuelstevens/cache/saev/f9deaa8a07786087e8071f39a695200ff6713ee02b25e7a7b4a6d5ac1ad968db --data.patches image --data.layer 23 --data.no-scale-mean --data.no-scale-norm sae:relu --sae.d-model 1024
 </code></pre>
 <p><code>--data.*</code> flags describe which activations to use.</p>
 <p><code>--data.shard-root</code> should point to a directory with <code>*.bin</code> files and the <code>metadata.json</code> file.
@@ -1495,7 +1520,7 @@ The activations will be in <code>.bin</code> files, numbered starting from 00000
 <code>--data.no-scale-mean</code> and <code>--data.no-scale-norm</code> mean not to scale the activation mean or L2 norm.
 Anthropic's and OpenAI's papers suggest normalizing these factors, but <code>saev</code> still has a bug with this, so I suggest not scaling these factors.</p>
 <p><code>--sae.*</code> flags are about the SAE itself.</p>
-<p><code>--sae.d-vit</code> is the only one you need to change; the dimension of our ViT was 768 for a ViT-B, rather than the default of 1024 for a ViT-L.</p>
+<p><code>--sae.d-model</code> is the only one you need to change; the dimension of our ViT was 768 for a ViT-B, rather than the default of 1024 for a ViT-L.</p>
 <p>Finally, choose a slightly larger learning rate than the default with <code>--lr 5e-4</code>.</p>
 <p>This will train one (1) sparse autoencoder on the data.
 See the section on sweeps to learn how to train multiple SAEs in parallel using only a single GPU.</p>

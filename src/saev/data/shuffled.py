@@ -33,22 +33,21 @@ class Config:
 
     Attributes:
         shards: Directory with .bin shards and a metadata.json file.
-        patches: Which kinds of patches to use. 'cls' indicates just the [CLS] token (if any). 'image' indicates it will return image patches. 'all' returns all patches.
+        token_subset: Which subset of tokens to use. 'special' indicates the special tokens (if any). 'content' indicates it will return content tokens. 'all' returns all tokens.
     """
 
     shards: pathlib.Path = pathlib.Path("$SAEV_SCRATCH/saev/shards/abcdefg")
-    patches: typing.Literal["cls", "image", "all"] = "image"
+    token_subset: typing.Literal["special", "content", "all"] = "content"
     layer: int | typing.Literal["all"] = -2
-    """Which ViT layer(s) to read from disk. ``-2`` selects the second-to-last layer. ``"all"`` enumerates every recorded layer."""
+    """Which transformer layer(s) to read from disk. ``-2`` selects the second-to-last layer. ``"all"`` enumerates every recorded layer."""
     batch_size: int = 1024 * 16
     """Batch size."""
     drop_last: bool = False
     """Whether to drop the last batch if it's smaller than the others."""
     scale_norm: bool = False
     """Whether to scale norms to sqrt(D)."""
-    # Patch filtering
     ignore_labels: list[int] = dataclasses.field(default_factory=list)
-    """If provided, exclude patches with these label values. None means no filtering. Common use: ignore_labels=[0] to exclude background."""
+    """If provided, exclude tokens with these label values. None means no filtering. Common use: ignore_labels=[0] to exclude background."""
     # Performance
     n_threads: int = 4
     """Number of dataloading threads."""
@@ -73,7 +72,7 @@ class ExampleOutOfBoundsError(Exception):
 
     @property
     def message(self) -> str:
-        return f"Metadata says there are {self.metadata.n_ex} examples, but we found example {self.i}."
+        return f"Metadata says there are {self.metadata.n_examples} examples, but we found example {self.i}."
 
 
 @jaxtyped(typechecker=beartype.beartype)
@@ -109,7 +108,7 @@ def _io_worker(
     shard_info = shards.ShardInfo.load(cfg.shards)
 
     # Pre-conditions
-    assert cfg.patches == "image"
+    assert cfg.token_subset == "content"
     assert isinstance(cfg.layer, int)
 
     # If we need to filter by labels, ensure we have the labels
@@ -142,12 +141,16 @@ def _io_worker(
             t2 = time.perf_counter()
 
             # Only iterate over the actual number of examples in this shard
-            for start, end in helpers.batched_idx(shard_info[shard_i].n_ex, chunk_size):
+            for start, end in helpers.batched_idx(
+                shard_info[shard_i].n_examples, chunk_size
+            ):
                 for p in range(metadata.patches_per_ex):
                     patch_i = p + int(metadata.cls_token)
 
                     # If filtering by labels, check which samples to keep
                     if cfg.ignore_labels:
+                        msg = "ignore_labels specified but no labels.bin found"
+                        assert labels_mmap is not None, msg
                         # Get the labels for this batch of examples and patch
                         ex_indices = np.arange(ex_i_offset + start, ex_i_offset + end)
                         patch_labels = labels_mmap[ex_indices, p]
@@ -182,7 +185,7 @@ def _io_worker(
                         meta[:, 0] = ex_i_offset + torch.arange(start, end)
 
                     last_ex_i = meta[:, 0].max().item()
-                    if last_ex_i >= metadata.n_ex:
+                    if last_ex_i >= metadata.n_examples:
                         err = ExampleOutOfBoundsError(metadata, last_ex_i)
                         logger.warning(err.message)
                         raise err
@@ -244,9 +247,9 @@ def _manager_main(
     )
 
     # 0. PRE-CONDITIONS
-    if cfg.patches != "image" or not isinstance(cfg.layer, int):
+    if cfg.token_subset != "content" or not isinstance(cfg.layer, int):
         raise NotImplementedError(
-            "High-throughput loader only supports `image` and fixed `layer` mode for now."
+            "High-throughput loader only supports `content` and fixed `layer` mode for now."
         )
 
     assert cfg.layer in metadata.layers, f"Layer {cfg.layer} not in {metadata.layers}"
@@ -405,7 +408,7 @@ class DataLoader:
                 labels_path,
                 mode="r",
                 dtype=np.uint8,
-                shape=(self.metadata.n_ex, self.metadata.patch_per_ex),
+                shape=(self.metadata.n_examples, self.metadata.patch_per_ex),
             )
 
         self.manager_proc = self.ctx.Process(
@@ -504,29 +507,29 @@ class DataLoader:
         """
         # First calculate the maximum possible samples
         max_samples = 0
-        match (self.cfg.patches, self.cfg.layer):
+        match (self.cfg.token_subset, self.cfg.layer):
             case ("cls", "all"):
-                max_samples = self.metadata.n_ex * len(self.metadata.layers)
+                max_samples = self.metadata.n_examples * len(self.metadata.layers)
             case ("cls", int()):
-                max_samples = self.metadata.n_ex
+                max_samples = self.metadata.n_examples
             case ("image", int()):
-                max_samples = self.metadata.n_ex * self.metadata.patches_per_ex
+                max_samples = self.metadata.n_examples * self.metadata.patches_per_ex
             case ("image", "all"):
                 max_samples = (
-                    self.metadata.n_ex
+                    self.metadata.n_examples
                     * len(self.metadata.layers)
                     * self.metadata.patches_per_ex
                 )
             case _:
-                typing.assert_never((self.cfg.patches, self.cfg.layer))
+                typing.assert_never((self.cfg.token_subset, self.cfg.layer))
 
         # If no filtering, return max samples
         if not self.cfg.ignore_labels:
             return max_samples
 
-        # For patch filtering, count actual remaining patches
-        # Note: This only works for "image" patches with fixed layer
-        if self.cfg.patches != "image" or not isinstance(self.cfg.layer, int):
+        # For patch filtering, count actual remaining tokens
+        # Note: This only works for "content" tokens with fixed layer
+        if self.cfg.token_subset != "content" or not isinstance(self.cfg.layer, int):
             raise NotImplementedError(
                 "Patch label filtering only supports 'image' patches with fixed layer"
             )
@@ -541,7 +544,7 @@ class DataLoader:
             labels_path,
             mode="r",
             dtype=np.uint8,
-            shape=(self.metadata.n_ex, self.metadata.n_patches_per_ex),
+            shape=(self.metadata.n_examples, self.metadata.n_patches_per_ex),
         )
 
         # Count patches that are NOT in the ignore list

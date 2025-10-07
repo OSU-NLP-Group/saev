@@ -2,6 +2,7 @@
 import gc
 import json
 import os
+import pathlib
 import time
 
 import numpy as np
@@ -24,16 +25,16 @@ N_BATCHES_TO_TEST = 5  # Number of batches to compare
 
 
 @pytest.fixture(scope="session")
-def shards_path(pytestconfig):
+def shards_dir(pytestconfig) -> pathlib.Path:
     shards = pytestconfig.getoption("--shards")
     if shards is None:
         pytest.skip("--shards not supplied")
-    return shards
+    return pathlib.Path(shards)
 
 
 @pytest.fixture(scope="session")
-def metadata(shards_path):
-    return saev.data.Metadata.load(shards_path)
+def metadata(shards_dir: pathlib.Path):
+    return saev.data.Metadata.load(shards_dir)
 
 
 @pytest.fixture(scope="session")
@@ -41,31 +42,31 @@ def layer(metadata):
     return metadata.layers[0]
 
 
-def test_init_smoke(shards_path, layer):
-    cfg = IndexedConfig(shard_root=shards_path, patches="image", layer=layer)
+def test_init_smoke(shards_dir, layer):
+    cfg = IndexedConfig(shards=shards_dir, patches="image", layer=layer)
     IndexedDataset(cfg)
 
 
-def test_len_smoke(shards_path, layer):
-    cfg = IndexedConfig(shard_root=shards_path, patches="image", layer=layer)
+def test_len_smoke(shards_dir, layer):
+    cfg = IndexedConfig(shards=shards_dir, patches="image", layer=layer)
     ds = IndexedDataset(cfg)
     assert isinstance(len(ds), int)
 
 
-def test_getitem_smoke(shards_path, layer):
-    cfg = IndexedConfig(shard_root=shards_path, patches="image", layer=layer)
+def test_getitem_smoke(shards_dir, layer):
+    cfg = IndexedConfig(shards=shards_dir, patches="image", layer=layer)
     ds = IndexedDataset(cfg)
     # simply accessing one element should succeed
     example = ds[0]
-    assert "act" in example and "image_i" in example and "patch_i" in example
+    assert "act" in example and "ex_i" in example and "patch_i" in example
 
 
 @pytest.mark.parametrize("seed", [17, 42, 123, 999, 2024])
-def test_compare_with_iterable(shards_path, layer, seed):
+def test_compare_with_iterable(shards_dir, layer, seed):
     """Compare first N_BATCHES_TO_TEST batches from iterable dataloader with indexed dataset."""
     # Setup iterable dataloader
     iterable_cfg = IterableConfig(
-        shard_root=shards_path,
+        shards=shards_dir,
         patches="image",
         layer=layer,
         batch_size=BATCH_SIZE,
@@ -75,7 +76,7 @@ def test_compare_with_iterable(shards_path, layer, seed):
 
     # Setup indexed dataset
     indexed_cfg = IndexedConfig(
-        shard_root=shards_path,
+        shards=shards_dir,
         patches="image",
         layer=layer,
         seed=seed,
@@ -89,25 +90,25 @@ def test_compare_with_iterable(shards_path, layer, seed):
         batch = next(it)
         iterable_batches.append({
             "act": batch["act"].clone(),
-            "image_i": batch["image_i"].clone(),
+            "ex_i": batch["ex_i"].clone(),
             "patch_i": batch["patch_i"].clone(),
         })
 
     # Compare each activation with indexed dataset
     for batch_idx, batch in enumerate(iterable_batches):
         for i in range(batch["act"].shape[0]):
-            img_i = batch["image_i"][i].item()
+            ex_i = batch["ex_i"][i].item()
             patch_i = batch["patch_i"][i].item()
 
             # Calculate the global index for this (image, patch) pair
-            global_idx = img_i * ds.metadata.n_patches_per_img + patch_i
+            global_idx = ex_i * ds.metadata.patches_per_ex + patch_i
 
             # Get the same example from indexed dataset
             indexed_example = ds[global_idx]
 
             # Compare values
-            assert indexed_example["image_i"] == img_i, (
-                f"Batch {batch_idx}, item {i}: image_i mismatch: indexed={indexed_example['image_i']}, iterable={img_i}"
+            assert indexed_example["ex_i"] == ex_i, (
+                f"Batch {batch_idx}, item {i}: ex_i mismatch: indexed={indexed_example['ex_i']}, iterable={ex_i}"
             )
             assert indexed_example["patch_i"] == patch_i, (
                 f"Batch {batch_idx}, item {i}: patch_i mismatch: indexed={indexed_example['patch_i']}, iterable={patch_i}"
@@ -123,9 +124,9 @@ def test_compare_with_iterable(shards_path, layer, seed):
             )
 
 
-def test_random_access_consistency(shards_path, layer):
+def test_random_access_consistency(shards_dir, layer):
     """Test that repeated access to the same index returns the same data."""
-    cfg = IndexedConfig(shard_root=shards_path, patches="image", layer=layer)
+    cfg = IndexedConfig(shards=shards_dir, patches="image", layer=layer)
     ds = IndexedDataset(cfg)
 
     # Test several random indices
@@ -139,28 +140,28 @@ def test_random_access_consistency(shards_path, layer):
         example3 = ds[idx]
 
         # All should be identical
-        assert example1["image_i"] == example2["image_i"] == example3["image_i"]
+        assert example1["ex_i"] == example2["ex_i"] == example3["ex_i"]
         assert example1["patch_i"] == example2["patch_i"] == example3["patch_i"]
         torch.testing.assert_close(example1["act"], example2["act"], rtol=0, atol=0)
         torch.testing.assert_close(example1["act"], example3["act"], rtol=0, atol=0)
 
 
-def test_boundary_indices(shards_path, layer):
+def test_boundary_indices(shards_dir, layer):
     """Test accessing first, last, and boundary indices."""
-    cfg = IndexedConfig(shard_root=shards_path, patches="image", layer=layer)
+    cfg = IndexedConfig(shards=shards_dir, patches="image", layer=layer)
     ds = IndexedDataset(cfg)
 
     # Test first index
     example = ds[0]
-    assert example["image_i"] == 0
+    assert example["ex_i"] == 0
     assert example["patch_i"] == 0
 
     # Test last index
     last_idx = len(ds) - 1
     example = ds[last_idx]
-    expected_img_i = last_idx // ds.metadata.n_patches_per_img
-    expected_patch_i = last_idx % ds.metadata.n_patches_per_img
-    assert example["image_i"] == expected_img_i
+    expected_ex_i = last_idx // ds.metadata.patches_per_ex
+    expected_patch_i = last_idx % ds.metadata.patches_per_ex
+    assert example["ex_i"] == expected_ex_i
     assert example["patch_i"] == expected_patch_i
 
     # Test out of bounds should raise IndexError
@@ -168,25 +169,25 @@ def test_boundary_indices(shards_path, layer):
         ds[len(ds)]
 
 
-def test_cls_token_mode(shards_path, layer):
+def test_cls_token_mode(shards_dir, layer):
     """Test indexed dataset in CLS token mode."""
-    cfg = IndexedConfig(shard_root=shards_path, patches="cls", layer=layer)
+    cfg = IndexedConfig(shards=shards_dir, patches="cls", layer=layer)
     ds = IndexedDataset(cfg)
 
     # In CLS mode, length should be number of images
-    assert len(ds) == ds.metadata.n_imgs
+    assert len(ds) == ds.metadata.n_examples
 
     # Test a few examples
     for i in range(min(10, len(ds))):
         example = ds[i]
-        assert example["image_i"] == i
+        assert example["ex_i"] == i
         assert example["patch_i"] == -1  # CLS tokens have patch_i = -1
         assert example["act"].shape == (ds.d_model,)
 
 
-def test_memory_usage(shards_path, layer):
+def test_memory_usage(shards_dir, layer):
     """Test that indexed dataset doesn't leak memory on repeated access."""
-    cfg = IndexedConfig(shard_root=shards_path, patches="image", layer=layer)
+    cfg = IndexedConfig(shards=shards_dir, patches="image", layer=layer)
     ds = IndexedDataset(cfg)
 
     # Force garbage collection
@@ -215,9 +216,9 @@ def test_memory_usage(shards_path, layer):
     )
 
 
-def test_negative_indices(shards_path, layer):
+def test_negative_indices(shards_dir, layer):
     """Test that negative indices raise IndexError."""
-    cfg = IndexedConfig(shard_root=shards_path, patches="image", layer=layer)
+    cfg = IndexedConfig(shards=shards_dir, patches="image", layer=layer)
     ds = IndexedDataset(cfg)
 
     # Test various negative indices
@@ -227,45 +228,43 @@ def test_negative_indices(shards_path, layer):
             ds[idx]
 
 
-def test_shard_boundary_access(shards_path, layer, metadata):
+def test_shard_boundary_access(shards_dir, layer, metadata):
     """Test accessing data at shard boundaries."""
-    cfg = IndexedConfig(shard_root=shards_path, patches="image", layer=layer)
+    cfg = IndexedConfig(shards=shards_dir, patches="image", layer=layer)
     ds = IndexedDataset(cfg)
 
     # Calculate images per shard
-    n_imgs_per_shard = (
+    ex_per_shard = (
         metadata.max_patches_per_shard
         // len(metadata.layers)
-        // (metadata.n_patches_per_img + int(metadata.cls_token))
+        // (metadata.patches_per_ex + int(metadata.cls_token))
     )
 
     # Test around shard boundaries
     for shard_idx in range(min(3, metadata.n_shards - 1)):
         # Last image in current shard
-        last_img_in_shard = (shard_idx + 1) * n_imgs_per_shard - 1
-        if last_img_in_shard < metadata.n_imgs:
+        last_ex_in_shard = (shard_idx + 1) * ex_per_shard - 1
+        if last_ex_in_shard < metadata.n_examples:
             # Last patch of last image in shard
             idx = (
-                last_img_in_shard * metadata.n_patches_per_img
-                + metadata.n_patches_per_img
-                - 1
+                last_ex_in_shard * metadata.patches_per_ex + metadata.patches_per_ex - 1
             )
             if idx < len(ds):
                 example = ds[idx]
-                assert example["image_i"] == last_img_in_shard
-                assert example["patch_i"] == metadata.n_patches_per_img - 1
+                assert example["ex_i"] == last_ex_in_shard
+                assert example["patch_i"] == metadata.patches_per_ex - 1
 
         # First image in next shard
-        first_img_in_next_shard = (shard_idx + 1) * n_imgs_per_shard
-        if first_img_in_next_shard < metadata.n_imgs:
-            idx = first_img_in_next_shard * metadata.n_patches_per_img
+        first_ex_in_next_shard = (shard_idx + 1) * ex_per_shard
+        if first_ex_in_next_shard < metadata.n_examples:
+            idx = first_ex_in_next_shard * metadata.patches_per_ex
             if idx < len(ds):
                 example = ds[idx]
-                assert example["image_i"] == first_img_in_next_shard
+                assert example["ex_i"] == first_ex_in_next_shard
                 assert example["patch_i"] == 0
 
 
-def test_different_layers(shards_path, metadata):
+def test_different_layers(shards_dir, metadata):
     """Test that different layers return different activations."""
     if len(metadata.layers) < 2:
         pytest.skip("Need at least 2 layers for this test")
@@ -273,8 +272,8 @@ def test_different_layers(shards_path, metadata):
     layer1 = metadata.layers[0]
     layer2 = metadata.layers[1]
 
-    cfg1 = IndexedConfig(shard_root=shards_path, patches="image", layer=layer1)
-    cfg2 = IndexedConfig(shard_root=shards_path, patches="image", layer=layer2)
+    cfg1 = IndexedConfig(shards=shards_dir, patches="image", layer=layer1)
+    cfg2 = IndexedConfig(shards=shards_dir, patches="image", layer=layer2)
 
     ds1 = IndexedDataset(cfg1)
     ds2 = IndexedDataset(cfg2)
@@ -287,7 +286,7 @@ def test_different_layers(shards_path, metadata):
             example1 = ds1[idx]
             example2 = ds2[idx]
 
-            assert example1["image_i"] == example2["image_i"]
+            assert example1["ex_i"] == example2["ex_i"]
             assert example1["patch_i"] == example2["patch_i"]
 
             # Activations should be different between layers
@@ -299,9 +298,9 @@ def test_different_layers(shards_path, metadata):
         pytest.fail("All tested indices had similar activations across layers")
 
 
-def test_dataset_properties(shards_path, layer):
+def test_dataset_properties(shards_dir, layer):
     """Test various dataset properties and edge cases."""
-    cfg = IndexedConfig(shard_root=shards_path, patches="image", layer=layer)
+    cfg = IndexedConfig(shards=shards_dir, patches="image", layer=layer)
     ds = IndexedDataset(cfg)
 
     # Test d_model property
@@ -316,9 +315,9 @@ def test_dataset_properties(shards_path, layer):
     assert transformed.dtype == torch.float32
 
 
-def test_all_patches_mode_not_implemented(shards_path, layer):
+def test_all_patches_mode_not_implemented(shards_dir, layer):
     """Test that 'all' patches mode raises NotImplementedError."""
-    cfg = IndexedConfig(shard_root=shards_path, patches="all", layer=layer)
+    cfg = IndexedConfig(shards=shards_dir, patches="all", layer=layer)
     ds = IndexedDataset(cfg)
 
     # Should raise assert_never error
@@ -326,9 +325,9 @@ def test_all_patches_mode_not_implemented(shards_path, layer):
         ds[0]
 
 
-def test_all_layers_not_implemented(shards_path):
+def test_all_layers_not_implemented(shards_dir):
     """Test that layer='all' mode raises NotImplementedError."""
-    cfg = IndexedConfig(shard_root=shards_path, patches="image", layer="all")
+    cfg = IndexedConfig(shards=shards_dir, patches="image", layer="all")
     ds = IndexedDataset(cfg)
 
     # Should raise assert_never error
@@ -336,34 +335,34 @@ def test_all_layers_not_implemented(shards_path):
         ds[0]
 
 
-def test_sequential_access_pattern(shards_path, layer):
+def test_sequential_access_pattern(shards_dir, layer):
     """Test sequential access pattern for performance."""
-    cfg = IndexedConfig(shard_root=shards_path, patches="image", layer=layer)
+    cfg = IndexedConfig(shards=shards_dir, patches="image", layer=layer)
     ds = IndexedDataset(cfg)
 
     # Access first 100 indices sequentially
     n_test = min(100, len(ds))
-    prev_img_i = -1
+    prev_ex_i = -1
 
     for i in range(n_test):
         example = ds[i]
 
         # Verify indices are sequential
-        expected_img_i = i // ds.metadata.n_patches_per_img
-        expected_patch_i = i % ds.metadata.n_patches_per_img
+        expected_ex_i = i // ds.metadata.patches_per_ex
+        expected_patch_i = i % ds.metadata.patches_per_ex
 
-        assert example["image_i"] == expected_img_i
+        assert example["ex_i"] == expected_ex_i
         assert example["patch_i"] == expected_patch_i
 
         # Check image indices are non-decreasing
-        assert example["image_i"] >= prev_img_i
-        prev_img_i = example["image_i"]
+        assert example["ex_i"] >= prev_ex_i
+        prev_ex_i = example["ex_i"]
 
 
-def test_cls_mode_with_different_seeds(shards_path, layer):
+def test_cls_mode_with_different_seeds(shards_dir, layer):
     """Test CLS mode with different seeds (should give same results)."""
-    cfg1 = IndexedConfig(shard_root=shards_path, patches="cls", layer=layer, seed=17)
-    cfg2 = IndexedConfig(shard_root=shards_path, patches="cls", layer=layer, seed=42)
+    cfg1 = IndexedConfig(shards=shards_dir, patches="cls", layer=layer, seed=17)
+    cfg2 = IndexedConfig(shards=shards_dir, patches="cls", layer=layer, seed=42)
 
     ds1 = IndexedDataset(cfg1)
     ds2 = IndexedDataset(cfg2)
@@ -373,46 +372,48 @@ def test_cls_mode_with_different_seeds(shards_path, layer):
         example1 = ds1[i]
         example2 = ds2[i]
 
-        assert example1["image_i"] == example2["image_i"]
+        assert example1["ex_i"] == example2["ex_i"]
         assert example1["patch_i"] == example2["patch_i"]
         torch.testing.assert_close(example1["act"], example2["act"], rtol=0, atol=0)
 
 
-def test_invalid_layer(shards_path):
+def test_invalid_layer(shards_dir):
     """Test that invalid layer raises assertion error."""
-    cfg = IndexedConfig(shard_root=shards_path, patches="image", layer=99999)
+    cfg = IndexedConfig(shards=shards_dir, patches="image", layer=99999)
 
     with pytest.raises(AssertionError):
         IndexedDataset(cfg)
 
 
-def test_nonexistent_shard_root():
+def test_nonexistent_shard_dir():
     """Test that non-existent shard root raises RuntimeError."""
-    cfg = IndexedConfig(shard_root="/nonexistent/path", patches="image", layer=0)
+    cfg = IndexedConfig(
+        shards=pathlib.Path("/nonexistent/path"), patches="image", layer=0
+    )
 
     with pytest.raises(RuntimeError, match="Activations are not saved"):
         IndexedDataset(cfg)
 
 
-def test_edge_case_single_image(shards_path, layer, metadata):
+def test_edge_case_single_image(shards_dir, layer, metadata):
     """Test edge case where we access patches from the very last image."""
-    cfg = IndexedConfig(shard_root=shards_path, patches="image", layer=layer)
+    cfg = IndexedConfig(shards=shards_dir, patches="image", layer=layer)
     ds = IndexedDataset(cfg)
 
     # Access patches from the last image
-    last_img_idx = metadata.n_imgs - 1
+    last_ex_idx = metadata.n_examples - 1
 
-    for patch_i in range(metadata.n_patches_per_img):
-        global_idx = last_img_idx * metadata.n_patches_per_img + patch_i
+    for patch_i in range(metadata.patches_per_ex):
+        global_idx = last_ex_idx * metadata.patches_per_ex + patch_i
         if global_idx < len(ds):
             example = ds[global_idx]
-            assert example["image_i"] == last_img_idx
+            assert example["ex_i"] == last_ex_idx
             assert example["patch_i"] == patch_i
 
 
-def test_patch_indices_within_bounds(shards_path, layer):
+def test_patch_indices_within_bounds(shards_dir, layer):
     """Test that all patch indices are within valid bounds."""
-    cfg = IndexedConfig(shard_root=shards_path, patches="image", layer=layer)
+    cfg = IndexedConfig(shards=shards_dir, patches="image", layer=layer)
     ds = IndexedDataset(cfg)
 
     # Sample random indices
@@ -423,55 +424,55 @@ def test_patch_indices_within_bounds(shards_path, layer):
         example = ds[idx]
 
         # Patch index should be within bounds
-        assert 0 <= example["patch_i"] < ds.metadata.n_patches_per_img
+        assert 0 <= example["patch_i"] < ds.metadata.patches_per_ex
 
         # Image index should be within bounds
-        assert 0 <= example["image_i"] < ds.metadata.n_imgs
+        assert 0 <= example["ex_i"] < ds.metadata.n_examples
 
         # Activation should have correct shape
         assert example["act"].shape == (ds.d_model,)
 
 
-def test_dtype_consistency(shards_path, layer):
+def test_dtype_consistency(shards_dir, layer):
     """Test that data types are consistent."""
-    cfg = IndexedConfig(shard_root=shards_path, patches="image", layer=layer)
+    cfg = IndexedConfig(shards=shards_dir, patches="image", layer=layer)
     ds = IndexedDataset(cfg)
 
     example = ds[0]
 
     # Check types
-    assert isinstance(example["image_i"], int)
+    assert isinstance(example["ex_i"], int)
     assert isinstance(example["patch_i"], int)
     assert isinstance(example["act"], torch.Tensor)
     assert example["act"].dtype == torch.float32
 
 
-def test_memmap_file_access(shards_path, layer, metadata):
+def test_memmap_file_access(shards_dir, layer, metadata):
     """Test that memmap files are accessed correctly."""
-    cfg = IndexedConfig(shard_root=shards_path, patches="image", layer=layer)
+    cfg = IndexedConfig(shards=shards_dir, patches="image", layer=layer)
     ds = IndexedDataset(cfg)
 
     # Test first shard file exists
-    acts_fpath = os.path.join(shards_path, "acts000000.bin")
+    acts_fpath = os.path.join(shards_dir, "acts000000.bin")
     assert os.path.exists(acts_fpath)
 
     # Verify we can access data from first and last patch of first image
     example_first = ds[0]
-    example_last = ds[metadata.n_patches_per_img - 1]
+    example_last = ds[metadata.patches_per_ex - 1]
 
-    assert example_first["image_i"] == 0
+    assert example_first["ex_i"] == 0
     assert example_first["patch_i"] == 0
-    assert example_last["image_i"] == 0
-    assert example_last["patch_i"] == metadata.n_patches_per_img - 1
+    assert example_last["ex_i"] == 0
+    assert example_last["patch_i"] == metadata.patches_per_ex - 1
 
 
 @pytest.mark.slow
 def test_missing_shard_file_not_detected_at_init(tmp_path):
     """Test that missing shard files are NOT detected at initialization - exposes the validation gap."""
-    from saev.data import datasets, writers
+    from saev.data import datasets, shards
 
     # Create a small dataset with multiple shards
-    n_imgs = 10
+    n_examples = 10
     d_model = 128
     n_patches = 16
     layers = [0]
@@ -481,14 +482,14 @@ def test_missing_shard_file_not_detected_at_init(tmp_path):
     max_patches_per_shard = 34  # This will create ~5 shards for 10 images
 
     # Create activation shards
-    cfg = writers.Config(
-        data=datasets.Fake(n_imgs=n_imgs),
+    cfg = shards.Config(
+        data=datasets.Fake(n_examples=n_examples),
         dump_to=str(tmp_path),
         vit_family="clip",
         vit_ckpt="hf-hub:hf-internal-testing/tiny-open-clip-model",
         d_model=d_model,
         vit_layers=layers,
-        n_patches_per_img=n_patches,
+        patches_per_ex=n_patches,
         cls_token=True,
         max_patches_per_shard=max_patches_per_shard,
         vit_batch_size=2,
@@ -497,19 +498,19 @@ def test_missing_shard_file_not_detected_at_init(tmp_path):
     )
 
     # Generate the activation shards
-    writers.worker_fn(cfg)
+    shards.worker_fn(cfg)
 
     # Get the actual shard directory
-    metadata = writers.Metadata.from_cfg(cfg)
-    shard_root = os.path.join(str(tmp_path), metadata.hash)
+    metadata = shards.Metadata.from_cfg(cfg)
+    shard_dir = os.path.join(str(tmp_path), metadata.hash)
 
     # Verify we have multiple shards
-    shard_files = [f for f in os.listdir(shard_root) if f.endswith(".bin")]
+    shard_files = [f for f in os.listdir(shard_dir) if f.endswith(".bin")]
     assert len(shard_files) > 1, f"Expected multiple shards, got {len(shard_files)}"
 
     # Delete one of the middle shard files (not the first one)
     missing_shard = "acts000001.bin"
-    missing_file_path = os.path.join(shard_root, missing_shard)
+    missing_file_path = os.path.join(shard_dir, missing_shard)
     assert os.path.exists(missing_file_path), (
         f"Shard file {missing_shard} should exist before deletion"
     )
@@ -519,7 +520,7 @@ def test_missing_shard_file_not_detected_at_init(tmp_path):
     )
 
     # Verify shards.json still lists the deleted file
-    with open(os.path.join(shard_root, "shards.json")) as fd:
+    with open(os.path.join(shard_dir, "shards.json")) as fd:
         shards_data = json.load(fd)
     shard_names = [s["name"] for s in shards_data]
     assert missing_shard in shard_names, (
@@ -528,5 +529,5 @@ def test_missing_shard_file_not_detected_at_init(tmp_path):
 
     # Create indexed dataset. This should raise an error at initialization because missing files should be detected early
     with pytest.raises(FileNotFoundError):
-        cfg = IndexedConfig(shard_root=shard_root, patches="image", layer=layers[0])
+        cfg = IndexedConfig(shards=shard_dir, patches="image", layer=layers[0])
         IndexedDataset(cfg)

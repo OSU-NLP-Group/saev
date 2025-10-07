@@ -42,5 +42,5 @@ def test_metadata_ex_per_shard_matches_disk(shard_root):
     shard_info = ShardInfo.load(shard_root)
 
     for shard in shard_info[:-1]:
-        assert metadata.ex_per_shard == shard.n_ex
-    assert metadata.ex_per_shard >= shard_info[-1].n_ex
+        assert metadata.ex_per_shard == shard.n_examples
+    assert metadata.ex_per_shard >= shard_info[-1].n_examples
