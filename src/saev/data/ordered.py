@@ -13,8 +13,8 @@ Usage:
     >>> dataloader = DataLoader(cfg)
     >>> for batch in dataloader:
     ...     activations = batch["act"]  # [batch_size, d_model]
-    ...     image_indices = batch["image_i"]  # [batch_size]
-    ...     patch_indices = batch["patch_i"]  # [batch_size]
+    ...     image_indices = batch["example_idx"]  # [batch_size]
+    ...     patch_indices = batch["token_idx"]  # [batch_size]
     ...     patch_labels = batch["patch_labels"]  # [batch_size]
 """
 
@@ -27,7 +27,7 @@ import pathlib
 import queue
 import time
 import traceback
-import typing
+import typing as tp
 from multiprocessing.queues import Queue
 from multiprocessing.synchronize import Event
 
@@ -44,43 +44,46 @@ from . import shards
 @beartype.beartype
 @dataclasses.dataclass(frozen=True)
 class Config:
-    """Configuration for loading ordered (non-shuffled) activation data from disk."""
+    """Configuration for loading ordered (non-shuffled) activation data from disk
+
+    Attributes:
+        shards: Directory with .bin shards and a metadata.json file.
+        tokens: Which kinds of tokens to use. 'special' indicates the special tokens token (if any). 'content' returns content tokens. 'all' returns both content and special tokens.
+        layer: Which ViT layer(s) to read from disk. ``-2`` selects the second-to-last layer. ``"all"`` enumerates every recorded layer.
+        batch_size: Batch size.
+        batch_timeout_s: How long to wait for at least one batch.
+        drop_last: Whether to drop the last batch if it's smaller than the others.
+        buffer_size: Number of batches to queue in the shared-memory ring buffer. Higher values add latency but improve resilience to brief stalls.
+        debug: Whether the dataloader process should log debug messages.
+        log_every_s: How frequently the dataloader process should log (debug) performance messages.
+    """
 
     shards: pathlib.Path = pathlib.Path("$SAEV_SCRATCH/saev/shards/abcdefg")
-    """Directory with .bin shards and a metadata.json file."""
-    patches: typing.Literal["cls", "image", "all"] = "image"
-    """Which kinds of patches to use. 'cls' indicates just the [CLS] token (if any). 'image' indicates it will return image patches. 'all' returns all patches."""
-    layer: int | typing.Literal["all"] = -2
-    """Which ViT layer(s) to read from disk. ``-2`` selects the second-to-last layer. ``"all"`` enumerates every recorded layer."""
+    tokens: tp.Literal["content"] = "content"
+    layer: int | tp.Literal["all"] = -2
     batch_size: int = 1024 * 16
-    """Batch size."""
     batch_timeout_s: float = 30.0
-    """How long to wait for at least one batch."""
     drop_last: bool = False
-    """Whether to drop the last batch if it's smaller than the others."""
     buffer_size: int = 64
-    """Number of batches to queue in the shared-memory ring buffer. Higher values add latency but improve resilience to brief stalls."""
     debug: bool = False
-    """Whether the dataloader process should log debug messages."""
     log_every_s: float = 30.0
-    """How frequently the dataloader process should log (debug) performance messages."""
 
 
 @beartype.beartype
-class ImageOutOfBoundsError(Exception):
-    def __init__(self, metadata: shards.Metadata, i: int):
-        self.metadata = metadata
+class ExampleOutOfBoundsError(Exception):
+    def __init__(self, md: shards.Metadata, i: int):
+        self.md = md
         self.i = i
 
     @property
     def message(self) -> str:
-        return f"Metadata says there are {self.metadata.n_imgs} images, but we found image {self.i}."
+        return f"Metadata says there are {self.md.n_examples} examples, but we found example {self.i}."
 
 
 @beartype.beartype
 def _manager_main(
     cfg: Config,
-    metadata: shards.Metadata,
+    md: shards.Metadata,
     batch_queue: Queue[dict[str, torch.Tensor]],
     stop_event: Event,
     err_queue: Queue[tuple[str, str]],
@@ -100,17 +103,17 @@ def _manager_main(
     )
 
     # 0. PRE-CONDITIONS
-    if cfg.patches != "image" or not isinstance(cfg.layer, int):
+    if cfg.tokens != "content" or not isinstance(cfg.layer, int):
         raise NotImplementedError(
-            "High-throughput loader only supports `image` and fixed `layer` mode for now."
+            "High-throughput loader only supports `content` and fixed `layer` mode for now."
         )
 
-    assert cfg.layer in metadata.layers, f"Layer {cfg.layer} not in {metadata.layers}"
+    assert cfg.layer in md.layers, f"Layer {cfg.layer} not in {md.layers}"
 
     try:
         # Load shard info to get actual distribution
         shard_info = shards.ShardInfo.load(cfg.shards)
-        layer_i = metadata.layers.index(cfg.layer)
+        layer_i = md.layers.index(cfg.layer)
 
         # Check if labels.bin exists
         labels_path = os.path.join(cfg.shards, "labels.bin")
@@ -120,103 +123,80 @@ def _manager_main(
                 labels_path,
                 mode="r",
                 dtype=np.uint8,
-                shape=(metadata.n_imgs, metadata.n_patches_per_img),
+                shape=(md.n_examples, md.content_tokens_per_example),
             )
             logger.debug("Found labels.bin, will include patch labels in batches")
 
-        # Calculate cumulative image offsets for each shard
-        cumulative_imgs = [0]
-        for shard in shard_info:
-            cumulative_imgs.append(cumulative_imgs[-1] + shard.n_imgs)
-
-        # Calculate cumulative sample offsets for each shard
-        cumulative_samples = [0]
-        for shard in shard_info:
-            cumulative_samples.append(
-                cumulative_samples[-1] + shard.n_imgs * metadata.n_patches_per_img
-            )
+        # Check that all shards besides the last one have the same number of examples.
+        for shard in shard_info[:-1]:
+            assert shard.n_examples == shard_info[0].n_examples == md.examples_per_shard
 
         # Calculate total number of samples
-        total_samples = metadata.n_imgs * metadata.n_patches_per_img
+        n_samples = md.n_examples * md.content_tokens_per_example
 
-        logger.debug("Found %d samples.", total_samples)
+        logger.debug("Found %d samples.", n_samples)
 
         # Process batches in order
         current_idx = 0
-        while current_idx < total_samples and not stop_event.is_set():
-            batch_end_idx = min(current_idx + cfg.batch_size, total_samples)
+        while current_idx < n_samples and not stop_event.is_set():
+            batch_end_idx = min(current_idx + cfg.batch_size, n_samples)
 
             # Collect batch activations and metadata
             batch_acts = []
-            batch_image_is = []
-            batch_patch_is = []
-            batch_patch_labels: list[int] | None = (
-                [] if labels_mmap is not None else None
-            )
+            batch_example_idx = []
+            batch_token_i = []
+            batch_token_labels = []
 
             # Process samples in this batch range
             for idx in range(current_idx, batch_end_idx):
                 # Calculate which image and patch this index corresponds to
-                global_image_i = idx // metadata.n_patches_per_img
-                patch_i = idx % metadata.n_patches_per_img
+                global_example_idx = idx // md.content_tokens_per_example
+                token_idx = idx % md.content_tokens_per_example
+                shard_i = idx // md.examples_per_shard
+                local_example_idx = idx % md.examples_per_shard
 
-                # Find which shard contains this image
-                shard_i = None
-                for i in range(len(cumulative_imgs) - 1):
-                    if cumulative_imgs[i] <= global_image_i < cumulative_imgs[i + 1]:
-                        shard_i = i
-                        break
-
-                if shard_i is None:
-                    continue
-
-                # Get local image index within the shard
-                local_image_i = global_image_i - cumulative_imgs[shard_i]
-
-                if local_image_i >= shard_info[shard_i].n_imgs:
-                    continue
-
-                if global_image_i >= metadata.n_imgs:
-                    err = ImageOutOfBoundsError(metadata, global_image_i)
+                if global_example_idx >= md.n_examples:
+                    err = ExampleOutOfBoundsError(md, global_example_idx)
                     logger.warning(err.message)
                     raise err
 
                 # Load activation from the appropriate shard
-                fname = f"acts{shard_i:06}.bin"
-                acts_fpath = os.path.join(cfg.shards, fname)
+                acts_fpath = cfg.shards / f"acts{shard_i:06}.bin"
 
                 # Open mmap for this shard if needed
                 mmap = np.memmap(
-                    acts_fpath, mode="r", dtype=np.float32, shape=metadata.shard_shape
+                    acts_fpath, mode="r", dtype=np.float32, shape=md.shard_shape
                 )
 
                 # Get the activation
-                patch_idx_with_cls = patch_i + int(metadata.cls_token)
                 act = torch.from_numpy(
-                    mmap[local_image_i, layer_i, patch_idx_with_cls].copy()
+                    mmap[
+                        local_example_idx, layer_i, token_idx + int(md.cls_token)
+                    ].copy()
                 )
 
                 batch_acts.append(act)
-                batch_image_is.append(global_image_i)
-                batch_patch_is.append(patch_i)
+                batch_example_idx.append(global_example_idx)
+                batch_token_i.append(token_idx)
 
                 # Add patch label if available
-                if labels_mmap is not None and batch_patch_labels is not None:
-                    label = labels_mmap[global_image_i, patch_i]
-                    batch_patch_labels.append(label)
+                if labels_mmap is not None:
+                    batch_token_labels.append(
+                        labels_mmap[global_example_idx, token_idx]
+                    )
 
             # Send batch if we have data
             if batch_acts:
                 batch = {
                     "act": torch.stack(batch_acts),
-                    "image_i": torch.tensor(batch_image_is, dtype=torch.long),
-                    "patch_i": torch.tensor(batch_patch_is, dtype=torch.long),
+                    "example_idx": torch.tensor(batch_example_idx, dtype=torch.long),
+                    "token_idx": torch.tensor(batch_token_i, dtype=torch.long),
                 }
 
                 # Add labels if available
                 if labels_mmap is not None:
-                    batch["patch_labels"] = torch.tensor(
-                        batch_patch_labels, dtype=torch.long
+                    batch["token_labels"] = torch.tensor(
+                        batch_token_labels, dtype=torch.long
                     )
 
                 batch_queue.put(batch)
@@ -243,21 +223,21 @@ class DataLoader:
     """
 
     @jaxtyped(typechecker=beartype.beartype)
-    class ExampleBatch(typing.TypedDict, total=False):
+    class ExampleBatch(tp.TypedDict, total=False):
         """Individual example."""
 
         act: Float[Tensor, "batch d_model"]
-        image_i: Int[Tensor, " batch"]
-        patch_i: Int[Tensor, " batch"]
+        example_idx: Int[Tensor, " batch"]
+        token_idx: Int[Tensor, " batch"]
         # Optional, only present if labels.bin exists
-        patch_labels: Int[Tensor, " batch"]
+        token_labels: Int[Tensor, " batch"]
 
     def __init__(self, cfg: Config):
         self.cfg = cfg
         if not os.path.isdir(self.cfg.shards):
             raise RuntimeError(f"Activations are not saved at '{self.cfg.shards}'.")
 
-        self.metadata = shards.Metadata.load(self.cfg.shards)
+        self.md = shards.Metadata.load(self.cfg.shards)
 
         # Validate shard files exist
         shard_info = shards.ShardInfo.load(self.cfg.shards)
@@ -311,7 +291,7 @@ class DataLoader:
             target=_manager_main,
             args=(
                 self.cfg,
-                self.metadata,
+                self.md,
                 self.batch_queue,
                 self.stop_event,
                 self.err_queue,
@@ -393,21 +373,21 @@ class DataLoader:
 
     def _calculate_n_samples(self) -> int:
         """Helper to calculate total number of examples based on config."""
-        match (self.cfg.patches, self.cfg.layer):
-            case ("cls", "all"):
-                return self.metadata.n_imgs * len(self.metadata.layers)
-            case ("cls", int()):
-                return self.metadata.n_imgs
-            case ("image", int()):
-                return self.metadata.n_imgs * self.metadata.n_patches_per_img
-            case ("image", "all"):
+        match (self.cfg.tokens, self.cfg.layer):
+            case ("special", "all"):
+                return self.md.n_examples * len(self.md.layers)
+            case ("special", int()):
+                return self.md.n_examples
+            case ("content", int()):
+                return self.md.n_examples * self.md.content_tokens_per_example
+            case ("content", "all"):
                 return (
-                    self.metadata.n_imgs
-                    * len(self.metadata.layers)
-                    * self.metadata.n_patches_per_img
+                    self.md.n_examples
+                    * len(self.md.layers)
+                    * self.md.content_tokens_per_example
                 )
             case _:
-                typing.assert_never((self.cfg.patches, self.cfg.layer))
+                tp.assert_never((self.cfg.tokens, self.cfg.layer))
 
     def __len__(self) -> int:
         """Returns the number of batches in an epoch."""

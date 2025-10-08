@@ -2,7 +2,7 @@ import dataclasses
 import logging
 import os
 import pathlib
-import typing
+import typing as tp
 
 import beartype
 import numpy as np
@@ -22,16 +22,14 @@ class Config:
 
     Attributes:
         shards: Directory with .bin shards and a metadata.json file.
-        patches: Which kinds of patches to use. 'cls' indicates just the [CLS] token (if any). 'image' indicates it will return image patches. 'all' returns all patches.
+        tokens: Which kinds of tokens to use. 'special' indicates the special tokens token (if any). 'content' returns content tokens. 'all' returns both content and special tokens.
         layer: Which ViT layer(s) to read from disk. ``-2`` selects the second-to-last layer. ``"all"`` enumerates every recorded layer.
-        seed: Random seed.
         debug: Whether the dataloader process should log debug messages.
     """
 
     shards: pathlib.Path = pathlib.Path("$SAEV_SCRATCH/saev/shards/abcdefg")
-    patches: typing.Literal["cls", "image", "all"] = "image"
-    layer: int | typing.Literal["all"] = -2
-    seed: int = 17
+    tokens: tp.Literal["special", "content", "all"] = "content"
+    layer: int | tp.Literal["all"] = -2
     debug: bool = False
 
 
@@ -42,28 +40,29 @@ class Dataset(torch.utils.data.Dataset):
 
     Attributes:
         cfg: Configuration set via CLI args.
-        metadata: Activations metadata; automatically loaded from disk.
-        layer_index: Layer index into the shards if we are choosing a specific layer.
+        md: Activations metadata; automatically loaded from disk.
+        layer_idx: Layer index into the shards if we are choosing a specific layer.
     """
 
-    class Example(typing.TypedDict, total=False):
+    class Example(tp.TypedDict, total=False):
         """Individual example."""
 
         act: Float[Tensor, " d_model"]
-        ex_i: int
-        patch_i: int
-        patch_label: int
+        example_idx: int
+        token_idx: int
+        token_label: int
 
     cfg: Config
-    metadata: shards.Metadata
-    layer_index: int
+    md: shards.Metadata
+    layer_idx: int
+    index_map: shards.IndexMap
 
     def __init__(self, cfg: Config):
         self.cfg = cfg
         if not os.path.isdir(self.cfg.shards):
             raise RuntimeError(f"Activations are not saved at '{self.cfg.shards}'.")
 
-        self.metadata = shards.Metadata.load(self.cfg.shards)
+        self.md = shards.Metadata.load(self.cfg.shards)
 
         # Validate shard files exist
         shard_info = shards.ShardInfo.load(self.cfg.shards)
@@ -80,15 +79,17 @@ class Dataset(torch.utils.data.Dataset):
                 labels_path,
                 mode="r",
                 dtype=np.uint8,
-                shape=(self.metadata.n_examples, self.metadata.patches_per_ex),
+                shape=(self.md.n_examples, self.md.content_tokens_per_example),
             )
 
         # Pick a really big number so that if you accidentally use this when you shouldn't, you get an out of bounds IndexError.
-        self.layer_index = 1_000_000
+        self.layer_idx = 1_000_000
         if isinstance(self.cfg.layer, int):
-            err_msg = f"Non-exact matches for .layer field not supported; {self.cfg.layer} not in {self.metadata.layers}."
-            assert self.cfg.layer in self.metadata.layers, err_msg
-            self.layer_index = self.metadata.layers.index(self.cfg.layer)
+            err_msg = f"Non-exact matches for .layer field not supported; {self.cfg.layer} not in {self.md.layers}."
+            assert self.cfg.layer in self.md.layers, err_msg
+            self.layer_idx = self.md.layers.index(self.cfg.layer)
+
+        self.index_map = shards.IndexMap(self.md, self.cfg.tokens, self.cfg.layer)
 
     def transform(
         self, act: Float[np.ndarray, " d_model"]
@@ -99,112 +100,36 @@ class Dataset(torch.utils.data.Dataset):
     @property
     def d_model(self) -> int:
         """Dimension of the underlying vision transformer's embedding space."""
-        return self.metadata.d_model
+        return self.md.d_model
 
     def __getitem__(self, i: int) -> Example:
         # Add bounds checking
-        if i < 0 or i >= len(self):
-            raise IndexError(
-                f"Index {i} out of range for dataset of length {len(self)}"
+        idx = self.index_map.from_global(i)
+
+        acts_fpath = self.cfg.shards / f"acts{idx.shard_idx:06}.bin"
+        acts = np.memmap(
+            acts_fpath, mode="c", dtype=np.float32, shape=self.md.shard_shape
+        )
+
+        # Get the activation
+        act = acts[idx.example_idx_in_shard, self.layer_idx, idx.token_idx_in_shard]
+
+        result = self.Example(
+            act=self.transform(act),
+            example_idx=idx.example_idx,
+            token_idx=idx.content_token_idx,
+        )
+
+        # Add patch label if available
+        if self.labels_mmap is not None:
+            result["patch_label"] = int(
+                self.labels_mmap[idx.example_idx, idx.token_idx]
             )
 
-        match (self.cfg.patches, self.cfg.layer):
-            case ("cls", int()):
-                img_act = self.get_img_patches(i)
-                # Select layer's cls token.
-                act = img_act[self.layer_index, 0, :]
-                result = self.Example(act=self.transform(act), ex_i=i, patch_i=-1)
-
-                # Note: CLS tokens don't have patch labels since they're not image patches
-                # patch_label is omitted for CLS tokens
-
-                return result
-            case ("image", int()):
-                # Calculate which image and patch this index corresponds to
-                ex_i = i // self.metadata.patches_per_ex
-                patch_i = i % self.metadata.patches_per_ex
-
-                # Calculate shard location
-                ex_per_shard = (
-                    self.metadata.max_patches_per_shard
-                    // len(self.metadata.layers)
-                    // (self.metadata.patches_per_ex + int(self.metadata.cls_token))
-                )
-
-                shard = ex_i // ex_per_shard
-                img_pos_in_shard = ex_i % ex_per_shard
-
-                acts_fpath = os.path.join(self.cfg.shards, f"acts{shard:06}.bin")
-                shape = (
-                    ex_per_shard,
-                    len(self.metadata.layers),
-                    self.metadata.patches_per_ex + int(self.metadata.cls_token),
-                    self.metadata.d_model,
-                )
-                acts = np.memmap(acts_fpath, mode="c", dtype=np.float32, shape=shape)
-
-                # Account for CLS token offset when accessing patches
-                patch_idx_with_cls = patch_i + int(self.metadata.cls_token)
-
-                # Get the activation
-                act = acts[img_pos_in_shard, self.layer_index, patch_idx_with_cls]
-
-                result = self.Example(
-                    act=self.transform(act),
-                    ex_i=ex_i,
-                    patch_i=patch_i,
-                )
-
-                # Add patch label if available
-                if self.labels_mmap is not None:
-                    result["patch_label"] = int(self.labels_mmap[ex_i, patch_i])
-
-                return result
-            case _:
-                print((self.cfg.patches, self.cfg.layer))
-                typing.assert_never((self.cfg.patches, self.cfg.layer))
-
-    def get_img_patches(
-        self, i: int
-    ) -> Float[np.ndarray, "n_layers all_patches d_model"]:
-        ex_per_shard = (
-            self.metadata.max_patches_per_shard
-            // len(self.metadata.layers)
-            // (self.metadata.patches_per_ex + int(self.metadata.cls_token))
-        )
-        shard = i // ex_per_shard
-        pos = i % ex_per_shard
-        acts_fpath = os.path.join(self.cfg.shards, f"acts{shard:06}.bin")
-        shape = (
-            ex_per_shard,
-            len(self.metadata.layers),
-            self.metadata.patches_per_ex + int(self.metadata.cls_token),
-            self.metadata.d_model,
-        )
-        acts = np.memmap(acts_fpath, mode="c", dtype=np.float32, shape=shape)
-        # Note that this is not yet copied!
-        return acts[pos]
+        return result
 
     def __len__(self) -> int:
         """
         Dataset length depends on `patches` and `layer`.
         """
-        match (self.cfg.patches, self.cfg.layer):
-            case ("cls", "all"):
-                # Return a CLS token from a random image and random layer.
-                return self.metadata.n_examples * len(self.metadata.layers)
-            case ("cls", int()):
-                # Return a CLS token from a random image and fixed layer.
-                return self.metadata.n_examples
-            case ("image", int()):
-                # Return a patch from a random image, fixed layer, and random patch.
-                return self.metadata.n_examples * (self.metadata.patches_per_ex)
-            case ("image", "all"):
-                # Return a patch from a random image, random layer and random patch.
-                return (
-                    self.metadata.n_examples
-                    * len(self.metadata.layers)
-                    * self.metadata.patches_per_ex
-                )
-            case _:
-                typing.assert_never((self.cfg.patches, self.cfg.layer))
+        return len(self.index_map)

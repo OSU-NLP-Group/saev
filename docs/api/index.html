@@ -1381,19 +1381,19 @@
 
 
 
-<h1 id="saev">saev</h1>
+<h1 id="saev">saev<a class="headerlink" href="#saev" title="Permanent link">&para;</a></h1>
 <p><img alt="PyPI Downloads" src="https://static.pepy.tech/badge/saev" />
 <img alt="MIT License" src="https://img.shields.io/badge/License-MIT-efefef" />
 <img alt="GitHub Repo stars" src="https://img.shields.io/github/stars/OSU-NLP-group/saev?style=flat&amp;label=GitHub%20%E2%AD%90" /></p>
 <p>saev is a framework for training and evaluating <strong>S</strong>parse <strong>a</strong>uto<strong>e</strong>ncoders (SAEs) for <strong>v</strong>ision transformers (ViTs), implemented in PyTorch.</p>
-<h2 id="installation">Installation</h2>
+<h2 id="installation">Installation<a class="headerlink" href="#installation" title="Permanent link">&para;</a></h2>
 <p>Installation is supported with <a href="https://docs.astral.sh/uv/">uv</a>.
 saev will likely work with pure pip, conda, etc. but I will not formally support it.</p>
 <p>Clone this repository, then from the root directory:</p>
-<pre><code class="language-bash">uv run python -m saev --help
+<pre><code class="language-bash">uv run scripts/launch.py --help
 </code></pre>
-<p>This will create a virtual environment and display the CLI help.</p>
-<h2 id="quick-start">Quick Start</h2>
+<p>This will create a virtual environment and display the help for all the provided framework scripts.</p>
+<h2 id="quick-start">Quick Start<a class="headerlink" href="#quick-start" title="Permanent link">&para;</a></h2>
 <p>Save some activations to disk:</p>
 <pre><code class="language-bash">uv run scripts/launch.py shards \
   --shards-root /$SCRATCH/saev/shards \
@@ -1406,7 +1406,7 @@ saev will likely work with pure pip, conda, etc. but I will not formally support
   data:cifar10
 </code></pre>
 <p>Read the <a href="users/guide/">guide</a> for details.</p>
-<h2 id="why-saev">Why saev?</h2>
+<h2 id="why-saev">Why saev?<a class="headerlink" href="#why-saev" title="Permanent link">&para;</a></h2>
 <p>There are plenty of alternative libraries for SAEs:</p>
 <ul>
 <li><a href="https://github.com/KempnerInstitute/overcomplete">Overcomplete</a>, primarily developed by <a href="https://thomasfel.me">Thomas Fel</a>.</li>

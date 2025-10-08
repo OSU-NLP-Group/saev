@@ -33,11 +33,11 @@ class Config:
 
     Attributes:
         shards: Directory with .bin shards and a metadata.json file.
-        token_subset: Which subset of tokens to use. 'special' indicates the special tokens (if any). 'content' indicates it will return content tokens. 'all' returns all tokens.
+        tokens: Which subset of tokens to use. 'special' indicates the special tokens (if any). 'content' indicates it will return content tokens. 'all' returns all tokens.
     """
 
     shards: pathlib.Path = pathlib.Path("$SAEV_SCRATCH/saev/shards/abcdefg")
-    token_subset: typing.Literal["special", "content", "all"] = "content"
+    tokens: typing.Literal["special", "content", "all"] = "content"
     layer: int | typing.Literal["all"] = -2
     """Which transformer layer(s) to read from disk. ``-2`` selects the second-to-last layer. ``"all"`` enumerates every recorded layer."""
     batch_size: int = 1024 * 16
@@ -108,7 +108,7 @@ def _io_worker(
     shard_info = shards.ShardInfo.load(cfg.shards)
 
     # Pre-conditions
-    assert cfg.token_subset == "content"
+    assert cfg.tokens == "content"
     assert isinstance(cfg.layer, int)
 
     # If we need to filter by labels, ensure we have the labels
@@ -132,7 +132,7 @@ def _io_worker(
             fname = f"acts{shard_i:06}.bin"
             logger.info("Opening %s.", fname)
 
-            ex_i_offset = shard_i * metadata.ex_per_shard
+            ex_i_offset = shard_i * metadata.examples_per_shard
 
             acts_fpath = os.path.join(cfg.shards, fname)
             mmap = np.memmap(
@@ -144,8 +144,8 @@ def _io_worker(
             for start, end in helpers.batched_idx(
                 shard_info[shard_i].n_examples, chunk_size
             ):
-                for p in range(metadata.patches_per_ex):
-                    patch_i = p + int(metadata.cls_token)
+                for t in range(metadata.content_tokens_per_example):
+                    token_idx = t + int(metadata.cls_token)
 
                     # If filtering by labels, check which samples to keep
                     if cfg.ignore_labels:
@@ -153,7 +153,7 @@ def _io_worker(
                         assert labels_mmap is not None, msg
                         # Get the labels for this batch of examples and patch
                         ex_indices = np.arange(ex_i_offset + start, ex_i_offset + end)
-                        patch_labels = labels_mmap[ex_indices, p]
+                        patch_labels = labels_mmap[ex_indices, t]
 
                         # Find which samples to keep (NOT in ignore list)
                         mask = ~np.isin(patch_labels, cfg.ignore_labels)
@@ -166,22 +166,22 @@ def _io_worker(
                         # Only load the matching activations
                         t0 = time.perf_counter()
                         acts = torch.from_numpy(
-                            mmap[start + valid_indices, layer_i, patch_i]
+                            mmap[start + valid_indices, layer_i, token_idx]
                         )
                         t1 = time.perf_counter()
 
                         # Create metadata for valid samples only
-                        meta = torch.full((len(valid_indices), 2), p, dtype=torch.int32)
+                        meta = torch.full((len(valid_indices), 2), t, dtype=torch.int32)
                         meta[:, 0] = (
                             ex_i_offset + start + torch.from_numpy(valid_indices)
                         )
                     else:
                         # No filtering, load all
                         t0 = time.perf_counter()
-                        acts = torch.from_numpy(mmap[start:end, layer_i, patch_i])
+                        acts = torch.from_numpy(mmap[start:end, layer_i, token_idx])
                         t1 = time.perf_counter()
 
-                        meta = torch.full((end - start, 2), p, dtype=torch.int32)
+                        meta = torch.full((end - start, 2), t, dtype=torch.int32)
                         meta[:, 0] = ex_i_offset + torch.arange(start, end)
 
                     last_ex_i = meta[:, 0].max().item()
@@ -247,7 +247,7 @@ def _manager_main(
     )
 
     # 0. PRE-CONDITIONS
-    if cfg.token_subset != "content" or not isinstance(cfg.layer, int):
+    if cfg.tokens != "content" or not isinstance(cfg.layer, int):
         raise NotImplementedError(
             "High-throughput loader only supports `content` and fixed `layer` mode for now."
         )
@@ -318,8 +318,8 @@ class DataLoader:
         """Individual example."""
 
         act: Float[Tensor, "batch d_model"]
-        ex_i: Int[Tensor, " batch"]
-        patch_i: Int[Tensor, " batch"]
+        example_idx: Int[Tensor, " batch"]
+        token_idx: Int[Tensor, " batch"]
 
     def __init__(self, cfg: Config):
         self.cfg = cfg
@@ -443,8 +443,10 @@ class DataLoader:
                     )
                     n += need
                     b += 1
-                    ex_i, patch_i = meta.T
-                    yield self.ExampleBatch(act=act, ex_i=ex_i, patch_i=patch_i)
+                    example_idx, token_idx = meta.T
+                    yield self.ExampleBatch(
+                        act=act, example_idx=example_idx, token_idx=token_idx
+                    )
                     continue
                 except TimeoutError:
                     if self.cfg.ignore_labels:
@@ -507,21 +509,23 @@ class DataLoader:
         """
         # First calculate the maximum possible samples
         max_samples = 0
-        match (self.cfg.token_subset, self.cfg.layer):
+        match (self.cfg.tokens, self.cfg.layer):
             case ("cls", "all"):
                 max_samples = self.metadata.n_examples * len(self.metadata.layers)
             case ("cls", int()):
                 max_samples = self.metadata.n_examples
-            case ("image", int()):
-                max_samples = self.metadata.n_examples * self.metadata.patches_per_ex
-            case ("image", "all"):
+            case ("content", int()):
+                max_samples = (
+                    self.metadata.n_examples * self.metadata.content_tokens_per_example
+                )
+            case ("content", "all"):
                 max_samples = (
                     self.metadata.n_examples
                     * len(self.metadata.layers)
-                    * self.metadata.patches_per_ex
+                    * self.metadata.content_tokens_per_example
                 )
             case _:
-                typing.assert_never((self.cfg.token_subset, self.cfg.layer))
+                typing.assert_never((self.cfg.tokens, self.cfg.layer))
 
         # If no filtering, return max samples
         if not self.cfg.ignore_labels:
@@ -529,9 +533,9 @@ class DataLoader:
 
         # For patch filtering, count actual remaining tokens
         # Note: This only works for "content" tokens with fixed layer
-        if self.cfg.token_subset != "content" or not isinstance(self.cfg.layer, int):
+        if self.cfg.tokens != "content" or not isinstance(self.cfg.layer, int):
             raise NotImplementedError(
-                "Patch label filtering only supports 'image' patches with fixed layer"
+                "Patch label filtering only supports 'content' patches with fixed layer"
             )
 
         # Load labels and count remaining patches
@@ -544,7 +548,7 @@ class DataLoader:
             labels_path,
             mode="r",
             dtype=np.uint8,
-            shape=(self.metadata.n_examples, self.metadata.n_patches_per_ex),
+            shape=(self.metadata.n_examples, self.metadata.content_tokens_per_example),
         )
 
         # Count patches that are NOT in the ignore list

@@ -1553,13 +1553,13 @@
 
 
 <h2 id="saev.data.shuffled.Config" class="doc doc-heading">
-              <code class="highlight language-python"><span class="n">Config</span><span class="p">(</span><span class="n">shards</span><span class="o">=</span><span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="s1">&#39;$SAEV_SCRATCH/saev/shards/abcdefg&#39;</span><span class="p">),</span> <span class="n">token_subset</span><span class="o">=</span><span class="s1">&#39;content&#39;</span><span class="p">,</span> <span class="n">layer</span><span class="o">=-</span><span class="mi">2</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">1024</span> <span class="o">*</span> <span class="mi">16</span><span class="p">,</span> <span class="n">drop_last</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">scale_norm</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">ignore_labels</span><span class="o">=</span><span class="nb">list</span><span class="p">(),</span> <span class="n">n_threads</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">buffer_size</span><span class="o">=</span><span class="mi">64</span><span class="p">,</span> <span class="n">batch_timeout_s</span><span class="o">=</span><span class="mf">30.0</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">17</span><span class="p">,</span> <span class="n">debug</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">log_every_s</span><span class="o">=</span><span class="mf">30.0</span><span class="p">)</span></code>
+              <code class="highlight language-python"><span class="n">Config</span><span class="p">(</span><span class="n">shards</span><span class="o">=</span><span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="s1">&#39;$SAEV_SCRATCH/saev/shards/abcdefg&#39;</span><span class="p">),</span> <span class="n">tokens</span><span class="o">=</span><span class="s1">&#39;content&#39;</span><span class="p">,</span> <span class="n">layer</span><span class="o">=-</span><span class="mi">2</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">1024</span> <span class="o">*</span> <span class="mi">16</span><span class="p">,</span> <span class="n">drop_last</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">scale_norm</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">ignore_labels</span><span class="o">=</span><span class="nb">list</span><span class="p">(),</span> <span class="n">n_threads</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">buffer_size</span><span class="o">=</span><span class="mi">64</span><span class="p">,</span> <span class="n">batch_timeout_s</span><span class="o">=</span><span class="mf">30.0</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">17</span><span class="p">,</span> <span class="n">debug</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">log_every_s</span><span class="o">=</span><span class="mf">30.0</span><span class="p">)</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
   </span>
 
-</h2>
+<a href="#saev.data.shuffled.Config" class="headerlink" title="Permanent link">&para;</a></h2>
 
 
     <div class="doc doc-contents ">
@@ -1590,7 +1590,7 @@
             </td>
           </tr>
           <tr class="doc-section-item">
-            <td><code><span title="saev.data.shuffled.Config.token_subset">token_subset</span></code></td>
+            <td><code><span title="saev.data.shuffled.Config.tokens">tokens</span></code></td>
             <td>
                   <code><span title="typing.Literal">Literal</span>[&#39;special&#39;, &#39;content&#39;, &#39;all&#39;]</code>
             </td>
@@ -1633,7 +1633,7 @@
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h3>
+<a href="#saev.data.shuffled.Config.batch_size" class="headerlink" title="Permanent link">&para;</a></h3>
 
 
     <div class="doc doc-contents ">
@@ -1656,7 +1656,7 @@
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h3>
+<a href="#saev.data.shuffled.Config.batch_timeout_s" class="headerlink" title="Permanent link">&para;</a></h3>
 
 
     <div class="doc doc-contents ">
@@ -1679,7 +1679,7 @@
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h3>
+<a href="#saev.data.shuffled.Config.buffer_size" class="headerlink" title="Permanent link">&para;</a></h3>
 
 
     <div class="doc doc-contents ">
@@ -1702,7 +1702,7 @@
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h3>
+<a href="#saev.data.shuffled.Config.debug" class="headerlink" title="Permanent link">&para;</a></h3>
 
 
     <div class="doc doc-contents ">
@@ -1725,7 +1725,7 @@
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h3>
+<a href="#saev.data.shuffled.Config.drop_last" class="headerlink" title="Permanent link">&para;</a></h3>
 
 
     <div class="doc doc-contents ">
@@ -1748,7 +1748,7 @@
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h3>
+<a href="#saev.data.shuffled.Config.ignore_labels" class="headerlink" title="Permanent link">&para;</a></h3>
 
 
     <div class="doc doc-contents ">
@@ -1771,7 +1771,7 @@
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h3>
+<a href="#saev.data.shuffled.Config.layer" class="headerlink" title="Permanent link">&para;</a></h3>
 
 
     <div class="doc doc-contents ">
@@ -1794,7 +1794,7 @@
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h3>
+<a href="#saev.data.shuffled.Config.log_every_s" class="headerlink" title="Permanent link">&para;</a></h3>
 
 
     <div class="doc doc-contents ">
@@ -1817,7 +1817,7 @@
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h3>
+<a href="#saev.data.shuffled.Config.n_threads" class="headerlink" title="Permanent link">&para;</a></h3>
 
 
     <div class="doc doc-contents ">
@@ -1840,7 +1840,7 @@
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h3>
+<a href="#saev.data.shuffled.Config.scale_norm" class="headerlink" title="Permanent link">&para;</a></h3>
 
 
     <div class="doc doc-contents ">
@@ -1863,7 +1863,7 @@
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-</h3>
+<a href="#saev.data.shuffled.Config.seed" class="headerlink" title="Permanent link">&para;</a></h3>
 
 
     <div class="doc doc-contents ">
@@ -1892,7 +1892,7 @@
 <h2 id="saev.data.shuffled.DataLoader" class="doc doc-heading">
               <code class="highlight language-python"><span class="n">DataLoader</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span></code>
 
-</h2>
+<a href="#saev.data.shuffled.DataLoader" class="headerlink" title="Permanent link">&para;</a></h2>
 
 
     <div class="doc doc-contents ">
@@ -2001,7 +2001,7 @@
             <code>ExampleBatch</code>
 
 
-</h3>
+<a href="#saev.data.shuffled.DataLoader.ExampleBatch" class="headerlink" title="Permanent link">&para;</a></h3>
 
 
     <div class="doc doc-contents ">
@@ -2047,7 +2047,7 @@
 <h3 id="saev.data.shuffled.DataLoader.__iter__" class="doc doc-heading">
             <code class="highlight language-python"><span class="fm">__iter__</span><span class="p">()</span></code>
 
-</h3>
+<a href="#saev.data.shuffled.DataLoader.__iter__" class="headerlink" title="Permanent link">&para;</a></h3>
 
 
     <div class="doc doc-contents ">
@@ -2099,7 +2099,9 @@
 <span class="normal">467</span>
 <span class="normal">468</span>
 <span class="normal">469</span>
-<span class="normal">470</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__iter__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">collections</span><span class="o">.</span><span class="n">abc</span><span class="o">.</span><span class="n">Iterator</span><span class="p">[</span><span class="n">ExampleBatch</span><span class="p">]:</span>
+<span class="normal">470</span>
+<span class="normal">471</span>
+<span class="normal">472</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__iter__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">collections</span><span class="o">.</span><span class="n">abc</span><span class="o">.</span><span class="n">Iterator</span><span class="p">[</span><span class="n">ExampleBatch</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Yields batches.&quot;&quot;&quot;</span>
     <span class="bp">self</span><span class="o">.</span><span class="n">_start_manager</span><span class="p">()</span>
     <span class="n">n</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span>
@@ -2117,8 +2119,10 @@
                 <span class="p">)</span>
                 <span class="n">n</span> <span class="o">+=</span> <span class="n">need</span>
                 <span class="n">b</span> <span class="o">+=</span> <span class="mi">1</span>
-                <span class="n">ex_i</span><span class="p">,</span> <span class="n">patch_i</span> <span class="o">=</span> <span class="n">meta</span><span class="o">.</span><span class="n">T</span>
-                <span class="k">yield</span> <span class="bp">self</span><span class="o">.</span><span class="n">ExampleBatch</span><span class="p">(</span><span class="n">act</span><span class="o">=</span><span class="n">act</span><span class="p">,</span> <span class="n">ex_i</span><span class="o">=</span><span class="n">ex_i</span><span class="p">,</span> <span class="n">patch_i</span><span class="o">=</span><span class="n">patch_i</span><span class="p">)</span>
+                <span class="n">example_idx</span><span class="p">,</span> <span class="n">token_idx</span> <span class="o">=</span> <span class="n">meta</span><span class="o">.</span><span class="n">T</span>
+                <span class="k">yield</span> <span class="bp">self</span><span class="o">.</span><span class="n">ExampleBatch</span><span class="p">(</span>
+                    <span class="n">act</span><span class="o">=</span><span class="n">act</span><span class="p">,</span> <span class="n">example_idx</span><span class="o">=</span><span class="n">example_idx</span><span class="p">,</span> <span class="n">token_idx</span><span class="o">=</span><span class="n">token_idx</span>
+                <span class="p">)</span>
                 <span class="k">continue</span>
             <span class="k">except</span> <span class="ne">TimeoutError</span><span class="p">:</span>
                 <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">ignore_labels</span><span class="p">:</span>
@@ -2154,7 +2158,7 @@
 <h3 id="saev.data.shuffled.DataLoader.__len__" class="doc doc-heading">
             <code class="highlight language-python"><span class="fm">__len__</span><span class="p">()</span></code>
 
-</h3>
+<a href="#saev.data.shuffled.DataLoader.__len__" class="headerlink" title="Permanent link">&para;</a></h3>
 
 
     <div class="doc doc-contents ">
@@ -2164,9 +2168,9 @@
 
             <details class="quote">
               <summary>Source code in <code>src/saev/data/shuffled.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">559</span>
-<span class="normal">560</span>
-<span class="normal">561</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__len__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">563</span>
+<span class="normal">564</span>
+<span class="normal">565</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__len__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Returns the number of batches in an epoch.&quot;&quot;&quot;</span>
     <span class="k">return</span> <span class="n">math</span><span class="o">.</span><span class="n">ceil</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_samples</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">batch_size</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>

@@ -82,7 +82,7 @@ class Cifar10(DatasetConfig):
 
 @beartype.beartype
 @dataclasses.dataclass(frozen=True)
-class ImageFolder(DatasetConfig):
+class ImgFolder(DatasetConfig):
     """Configuration for a generic image folder dataset."""
 
     root: pathlib.Path = pathlib.Path("./data/split")
@@ -103,7 +103,7 @@ class ImageFolder(DatasetConfig):
 
 @beartype.beartype
 @dataclasses.dataclass(frozen=True)
-class SegFolder(DatasetConfig):
+class ImgSegFolder(DatasetConfig):
     root: pathlib.Path = pathlib.Path("./data/segdataset")
     """Where the class folders with images are stored."""
     split: typing.Literal["training", "validation"] = "training"
@@ -133,7 +133,7 @@ class SegFolder(DatasetConfig):
 
 @beartype.beartype
 @dataclasses.dataclass(frozen=True)
-class Fake(DatasetConfig):
+class FakeImg(DatasetConfig):
     n_examples: int = 10
 
     @property
@@ -144,17 +144,16 @@ class Fake(DatasetConfig):
 
 @beartype.beartype
 @dataclasses.dataclass(frozen=True)
-class FakeSeg(DatasetConfig):
+class FakeImgSeg(DatasetConfig):
     """Tiny synthetic segmentation dataset for tests.
 
-    Generates dummy RGB images and pixel-level segmentation masks,
-    mimicking the behavior of real segmentation datasets like SegFolder.
+    Generates dummy RGB images and pixel-level segmentation masks, mimicking the behavior of real segmentation datasets like ImgSegFolder.
     """
 
     n_examples: int = 10
     """Number of examples."""
-    patches_per_img: int = 16
-    """Number of patches per image."""
+    content_tokens_per_example: int = 16
+    """Number of content tokens per example."""
     n_classes: int = 3
     """Number of segmentation classes."""
     bg_label: int = 0
@@ -166,12 +165,12 @@ class FakeSeg(DatasetConfig):
         return pathlib.Path("fake-seg")
 
 
-Config = Imagenet | Cifar10 | ImageFolder | SegFolder | Fake | FakeSeg
+Config = Imagenet | Cifar10 | ImgFolder | ImgSegFolder | FakeImg | FakeImgSeg
 
 
 @beartype.beartype
 def get_dataset(
-    cfg: Config,
+    cfg: DatasetConfig,
     *,
     img_transform: Callable,
     seg_transform: Callable | None = None,
@@ -197,16 +196,16 @@ def get_dataset(
         return Cifar10Dataset(
             cfg, img_transform=img_transform, sample_transform=sample_transform
         )
-    elif isinstance(cfg, SegFolder):
-        return SegFolderDataset(
+    elif isinstance(cfg, ImgSegFolder):
+        return ImgSegFolderDataset(
             cfg,
             img_transform=img_transform,
             seg_transform=seg_transform,
             sample_transform=sample_transform,
         )
-    elif isinstance(cfg, ImageFolder):
+    elif isinstance(cfg, ImgFolder):
         ds = [
-            ImageFolderDataset(
+            ImgFolderDataset(
                 root, transform=img_transform, sample_transform=sample_transform
             )
             for root in glob.glob(cfg.root, recursive=True)
@@ -215,12 +214,12 @@ def get_dataset(
             return ds[0]
         else:
             return torch.utils.data.ConcatDataset(ds)
-    elif isinstance(cfg, Fake):
-        return FakeDataset(
+    elif isinstance(cfg, FakeImg):
+        return FakeImgDataset(
             cfg, img_transform=img_transform, sample_transform=sample_transform
         )
-    elif isinstance(cfg, FakeSeg):
-        return FakeSegDataset(
+    elif isinstance(cfg, FakeImgSeg):
+        return FakeImgSegDataset(
             cfg,
             img_transform=img_transform,
             seg_transform=seg_transform,
@@ -305,7 +304,7 @@ class Cifar10Dataset(torch.utils.data.Dataset):
 
 
 @beartype.beartype
-class ImageFolderDataset(torchvision.datasets.ImageFolder):
+class ImgFolderDataset(torchvision.datasets.ImageFolder):
     def __init__(self, *args, sample_transform: Callable | None = None, **kwargs):
         super().__init__(*args, **kwargs)
         self.sample_transform = sample_transform
@@ -345,7 +344,7 @@ def _stem(fpath: str) -> str:
 
 
 @beartype.beartype
-class SegFolderDataset(torch.utils.data.Dataset):
+class ImgSegFolderDataset(torch.utils.data.Dataset):
     @beartype.beartype
     @dataclasses.dataclass(frozen=True)
     class Sample:
@@ -358,7 +357,7 @@ class SegFolderDataset(torch.utils.data.Dataset):
 
     def __init__(
         self,
-        cfg: SegFolder,
+        cfg: ImgSegFolder,
         *,
         img_transform: Callable | None = None,
         seg_transform: Callable | None = lambda x: None,
@@ -461,8 +460,8 @@ class SegFolderDataset(torch.utils.data.Dataset):
         return len(self.samples)
 
 
-class FakeDataset(torch.utils.data.Dataset):
-    def __init__(self, cfg: Fake, *, img_transform=None, sample_transform=None):
+class FakeImgDataset(torch.utils.data.Dataset):
+    def __init__(self, cfg: FakeImg, *, img_transform=None, sample_transform=None):
         self.n_examples = cfg.n_examples
         self.img_transform = img_transform
         self.sample_transform = sample_transform
@@ -483,18 +482,18 @@ class FakeDataset(torch.utils.data.Dataset):
 
 
 @beartype.beartype
-class FakeSegDataset(torch.utils.data.Dataset):
+class FakeImgSegDataset(torch.utils.data.Dataset):
     """Synthetic segmentation dataset providing pixel-level segmentation masks.
 
-    Mimics SegFolderDataset by providing:
-      - image: a dummy RGB PIL image
-      - segmentation: a PIL image with pixel-level class labels
-      - index, target, label
+    Mimics ImgSegFolderDataset by providing:
+    - image: a dummy RGB PIL image
+    - segmentation: a PIL image with pixel-level class labels
+    - index, target, label
     """
 
     def __init__(
         self,
-        cfg: FakeSeg,
+        cfg: FakeImgSeg,
         *,
         img_transform=None,
         seg_transform=None,
@@ -521,7 +520,7 @@ class FakeSegDataset(torch.utils.data.Dataset):
 
         # Create a pattern that will result in different labels per patch
         # Assuming patches are created by dividing the image into a grid
-        patch_grid_size = int(np.sqrt(self.cfg.patches_per_img))
+        patch_grid_size = int(np.sqrt(self.cfg.content_tokens_per_example))
         patch_size = img_size // patch_grid_size
 
         for y in range(0, img_size, patch_size):
@@ -563,15 +562,14 @@ class FakeSegDataset(torch.utils.data.Dataset):
 
 
 @beartype.beartype
-def is_seg_dataset(data_cfg: Config) -> bool:
+def is_img_seg_dataset(data_cfg: DatasetConfig) -> bool:
     """
-    Check if a dataset configuration is for a segmentation dataset.
+    Check if a dataset configuration is for an image segmentation dataset.
 
     Args:
         data_cfg: Dataset configuration
 
     Returns:
-        True if this is a segmentation dataset that should have labels.bin
+        True if this is an image segmentation dataset that should have labels.bin
     """
-    # Check if it's FakeSeg or SegFolder
-    return isinstance(data_cfg, (FakeSeg, SegFolder))
+    return isinstance(data_cfg, (FakeImgSeg, ImgSegFolder))

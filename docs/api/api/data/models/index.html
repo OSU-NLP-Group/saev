@@ -1016,18 +1016,18 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#saev.data.models.VisionTransformer.get_patches" class="md-nav__link">
+  <a href="#saev.data.models.VisionTransformer.get_residuals" class="md-nav__link">
     <span class="md-ellipsis">
-      get_patches
+      get_residuals
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#saev.data.models.VisionTransformer.get_residuals" class="md-nav__link">
+  <a href="#saev.data.models.VisionTransformer.get_token_i" class="md-nav__link">
     <span class="md-ellipsis">
-      get_residuals
+      get_token_i
     </span>
   </a>
   
@@ -1496,7 +1496,7 @@
             <code>VisionTransformer</code>
 
 
-</h2>
+<a href="#saev.data.models.VisionTransformer" class="headerlink" title="Permanent link">&para;</a></h2>
 
 
     <div class="doc doc-contents ">
@@ -1536,7 +1536,7 @@
       <small class="doc doc-label doc-label-property"><code>property</code></small>
   </span>
 
-</h3>
+<a href="#saev.data.models.VisionTransformer.patch_size" class="headerlink" title="Permanent link">&para;</a></h3>
 
 
     <div class="doc doc-contents ">
@@ -1560,7 +1560,7 @@
       <small class="doc doc-label doc-label-abstractmethod"><code>abstractmethod</code></small>
   </span>
 
-</h3>
+<a href="#saev.data.models.VisionTransformer.forward" class="headerlink" title="Permanent link">&para;</a></h3>
 
 
     <div class="doc doc-contents ">
@@ -1588,37 +1588,6 @@
 <div class="doc doc-object doc-function">
 
 
-<h3 id="saev.data.models.VisionTransformer.get_patches" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">get_patches</span><span class="p">(</span><span class="n">n_patches_per_img</span><span class="p">)</span></code>
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-abstractmethod"><code>abstractmethod</code></small>
-  </span>
-
-</h3>
-
-
-    <div class="doc doc-contents ">
-
-        <p>Return indices for selecting relevant patches from activations.</p>
-
-
-            <details class="quote">
-              <summary>Source code in <code>src/saev/data/models.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">57</span>
-<span class="normal">58</span>
-<span class="normal">59</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@abc</span><span class="o">.</span><span class="n">abstractmethod</span>
-<span class="k">def</span><span class="w"> </span><span class="nf">get_patches</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">n_patches_per_img</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">slice</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return indices for selecting relevant patches from activations.&quot;&quot;&quot;</span>
-</code></pre></div></td></tr></table></div>
-            </details>
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
 <h3 id="saev.data.models.VisionTransformer.get_residuals" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">get_residuals</span><span class="p">()</span></code>
 
@@ -1626,7 +1595,7 @@
       <small class="doc doc-label doc-label-abstractmethod"><code>abstractmethod</code></small>
   </span>
 
-</h3>
+<a href="#saev.data.models.VisionTransformer.get_residuals" class="headerlink" title="Permanent link">&para;</a></h3>
 
 
     <div class="doc doc-contents ">
@@ -1650,6 +1619,37 @@
 <div class="doc doc-object doc-function">
 
 
+<h3 id="saev.data.models.VisionTransformer.get_token_i" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">get_token_i</span><span class="p">(</span><span class="n">content_tokens_per_example</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-abstractmethod"><code>abstractmethod</code></small>
+  </span>
+
+<a href="#saev.data.models.VisionTransformer.get_token_i" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Return indices for selecting relevant tokens from activations.</p>
+
+
+            <details class="quote">
+              <summary>Source code in <code>src/saev/data/models.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">57</span>
+<span class="normal">58</span>
+<span class="normal">59</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@abc</span><span class="o">.</span><span class="n">abstractmethod</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_token_i</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">content_tokens_per_example</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">slice</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return indices for selecting relevant tokens from activations.&quot;&quot;&quot;</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
 <h3 id="saev.data.models.VisionTransformer.make_resize" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">make_resize</span><span class="p">(</span><span class="n">ckpt</span><span class="p">,</span> <span class="n">n_patches_per_img</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">resample</span><span class="o">=</span><span class="n">Image</span><span class="o">.</span><span class="n">LANCZOS</span><span class="p">)</span></code>
 
@@ -1658,7 +1658,7 @@
       <small class="doc doc-label doc-label-staticmethod"><code>staticmethod</code></small>
   </span>
 
-</h3>
+<a href="#saev.data.models.VisionTransformer.make_resize" class="headerlink" title="Permanent link">&para;</a></h3>
 
 
     <div class="doc doc-contents ">
@@ -1704,7 +1704,7 @@
       <small class="doc doc-label doc-label-staticmethod"><code>staticmethod</code></small>
   </span>
 
-</h3>
+<a href="#saev.data.models.VisionTransformer.make_transforms" class="headerlink" title="Permanent link">&para;</a></h3>
 
 
     <div class="doc doc-contents ">
@@ -1746,7 +1746,7 @@
 <h2 id="saev.data.models.list_families" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">list_families</span><span class="p">()</span></code>
 
-</h2>
+<a href="#saev.data.models.list_families" class="headerlink" title="Permanent link">&para;</a></h2>
 
 
     <div class="doc doc-contents ">
@@ -1773,7 +1773,7 @@
 <h2 id="saev.data.models.load_model_cls" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">load_model_cls</span><span class="p">(</span><span class="n">family</span><span class="p">)</span></code>
 
-</h2>
+<a href="#saev.data.models.load_model_cls" class="headerlink" title="Permanent link">&para;</a></h2>
 
 
     <div class="doc doc-contents ">
@@ -1808,7 +1808,7 @@
 <h2 id="saev.data.models.register_family" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">register_family</span><span class="p">(</span><span class="bp">cls</span><span class="p">)</span></code>
 
-</h2>
+<a href="#saev.data.models.register_family" class="headerlink" title="Permanent link">&para;</a></h2>
 
 
     <div class="doc doc-contents ">

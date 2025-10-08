@@ -1395,7 +1395,7 @@
 
 
 
-<h1 id="inference">Inference</h1>
+<h1 id="inference">Inference<a class="headerlink" href="#inference" title="Permanent link">&para;</a></h1>
 <p>Briefly, you need to:</p>
 <ol>
 <li>Download a checkpoint.</li>
@@ -1404,13 +1404,13 @@
 <li>Get activations.</li>
 </ol>
 <p>Details are below.</p>
-<h2 id="download-a-checkpoint">Download a Checkpoint</h2>
+<h2 id="download-a-checkpoint">Download a Checkpoint<a class="headerlink" href="#download-a-checkpoint" title="Permanent link">&para;</a></h2>
 <p>First, download an SAE checkpoint from the <a href="https://huggingface.co/collections/osunlp/sae-v-67ab8c4fdf179d117db28195">Huggingface collection</a>.</p>
 <p>For instance, you can choose the SAE trained on OpenAI's CLIP ViT-B/16 with ImageNet-1K activations <a href="https://huggingface.co/osunlp/SAE_CLIP_24K_ViT-B-16_IN1K">here</a>.</p>
 <p>You can use <code>wget</code> if you want:</p>
 <pre><code class="language-sh">wget https://huggingface.co/osunlp/SAE_CLIP_24K_ViT-B-16_IN1K/resolve/main/sae.pt
 </code></pre>
-<h2 id="get-the-code">Get the Code</h2>
+<h2 id="get-the-code">Get the Code<a class="headerlink" href="#get-the-code" title="Permanent link">&para;</a></h2>
 <p>The easiest way to do this is to clone the code:</p>
 <pre><code>git clone https://github.com/OSU-NLP-Group/saev
 </code></pre>
@@ -1421,13 +1421,13 @@
 <p>Then you can do things like <code>from saev import ...</code>.</p>
 <p>.. note::
   If you struggle to get <code>saev</code> installed, open an issue on <a href="https://github.com/OSU-NLP-Group/saev">GitHub</a> and I will figure out how to make it easier.</p>
-<h2 id="load-the-checkpoint">Load the Checkpoint</h2>
+<h2 id="load-the-checkpoint">Load the Checkpoint<a class="headerlink" href="#load-the-checkpoint" title="Permanent link">&para;</a></h2>
 <pre><code class="language-py">import saev.nn
 
 sae = saev.nn.load(&quot;PATH_TO_YOUR_SAE_CKPT.pt&quot;)
 </code></pre>
 <p>Now you have a pretrained SAE.</p>
-<h2 id="get-activations">Get Activations</h2>
+<h2 id="get-activations">Get Activations<a class="headerlink" href="#get-activations" title="Permanent link">&para;</a></h2>
 <p>This is the hardest part.
 We need to:</p>
 <ol>

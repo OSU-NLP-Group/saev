@@ -55,8 +55,8 @@ class VisionTransformer(abc.ABC):
         """Return the list of residual blocks/layers for hook registration."""
 
     @abc.abstractmethod
-    def get_patches(self, n_patches_per_img: int) -> slice | torch.Tensor:
-        """Return indices for selecting relevant patches from activations."""
+    def get_token_i(self, content_tokens_per_example: int) -> slice | torch.Tensor:
+        """Return indices for selecting relevant tokens from activations."""
 
     @abc.abstractmethod
     def forward(

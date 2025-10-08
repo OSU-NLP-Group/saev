@@ -78,7 +78,7 @@ class Vit(models.VisionTransformer, torch.nn.Module):
 
         return resize
 
-    def get_patches(self, n_patches_per_img: int) -> slice:
+    def get_token_i(self, content_tokens_per_example: int) -> slice:
         return slice(None, None, None)
 
     def forward(

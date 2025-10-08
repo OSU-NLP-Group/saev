@@ -37,7 +37,7 @@ class Metadata:
         family: The transformer family.
         ckpt: The transformer checkpoint.
         layers: Which layers were saved.
-        n_content_tokens_per_example: The number of content tokens per example.
+        content_tokens_per_example: The number of content tokens per example.
         cls_token: Whether the transformer has a [CLS] token as well.
         d_model: Model hidden dimension.
         n_examples: Number of examples.
@@ -52,7 +52,7 @@ class Metadata:
     family: tp.Literal["clip", "siglip", "dinov2", "dinov3", "fake-clip"]
     ckpt: str
     layers: tuple[int, ...]
-    n_content_tokens_per_example: int
+    content_tokens_per_example: int
     cls_token: bool
     d_model: int
     n_examples: int
@@ -288,34 +288,24 @@ class LabelsWriter:
 
     Args:
         shards_dir: The shard directory; $SAEV_SCRATCH/saev/shards/<hash>
-        content_tokens_per_example: Number of content tokens per example.
-        n_examples: Number of examples.
+        md: The Metadata object.
 
     Attributes:
         labels: The integer patch labels.
         labels_path: Where the integer patch labels are stored.
-        content_tokens_per_example: Number of content tokens per example.
-        n_examples: Number of examples.
+        md: The dataset metadata.
         has_written: Whether we have written any data to `self.labels`.
     """
 
     labels: UInt8[np.ndarray, "n_examples n_patches"]
     labels_path: pathlib.Path
-    content_tokens_per_example: int
-    n_examples: int
+    md: Metadata
     has_written: bool
 
-    def __init__(
-        self,
-        shards_dir: pathlib.Path,
-        *,
-        content_tokens_per_example: int,
-        n_examples: int,
-    ):
+    def __init__(self, shards_dir: pathlib.Path, md: Metadata):
         assert disk.is_shards_dir(shards_dir)
         self.logger = logging.getLogger("labels-writer")
-        self.content_tokens_per_example = content_tokens_per_example
-        self.n_examples = n_examples
+        self.md = md
         self.has_written = False
 
         # Always create memory-mapped file for labels
@@ -325,7 +315,7 @@ class LabelsWriter:
             self.labels_path,
             mode="w+",
             dtype=np.uint8,
-            shape=(self.n_examples, self.patches_per_ex),
+            shape=(self.md.n_examples, self.md.content_tokens_per_example),
         )
         self.logger.info("Opened labels file '%s'.", self.labels_path)
 
@@ -335,7 +325,7 @@ class LabelsWriter:
         Write a batch of labels to the memory-mapped file.
 
         Args:
-            batch_labels: Array of shape (batch_size, patches_per_ex) with uint8 dtype
+            batch_labels: Array of shape (batch_size, content_tokens_per_example) with uint8 dtype
             start_idx: Starting index in the global labels array
         """
         # Convert to numpy if needed
@@ -343,8 +333,8 @@ class LabelsWriter:
             batch_labels = batch_labels.cpu().numpy()
 
         batch_size = len(batch_labels)
-        assert start_idx + batch_size <= self.n_examples
-        assert batch_labels.shape == (batch_size, self.patches_per_ex)
+        assert start_idx + batch_size <= self.md.n_examples
+        assert batch_labels.shape == (batch_size, self.md.content_tokens_per_example)
         assert batch_labels.dtype == np.uint8
 
         self.labels[start_idx : start_idx + batch_size] = batch_labels
@@ -368,7 +358,6 @@ class ShardWriter:
 
     Attributes:
         shards: The  $SAEV_SCRATCH/saev/shards/<hash>.
-        shape:
         shard:
         acts_path:
         acts:
@@ -377,35 +366,26 @@ class ShardWriter:
     """
 
     shards: pathlib.Path
-    shape: tuple[int, int, int, int]
     shard: int
     acts_path: pathlib.Path
-    acts: Float[np.ndarray, "ex_per_shard n_layers all_patches d_model"] | None
+    acts: Float[np.ndarray, "examples_per_shard n_layers all_patches d_model"] | None
     filled: int
     labels_writer: LabelsWriter
 
     def __init__(self, shards_root: pathlib.Path, md: Metadata):
         assert disk.is_shards_root(shards_root)
+        self.md = md
 
         self.logger = logging.getLogger("shard-writer")
 
         self.shards_dir = shards_root / md.hash
         self.shards_dir.mkdir(exist_ok=True)
 
-        patches_per_ex = md.patches_per_ex
-        if md.cls_token:
-            patches_per_ex += 1
-
-        self.ex_per_shard = md.max_patches_per_shard // len(md.layers) // patches_per_ex
-        self.shape = (self.ex_per_shard, len(md.layers), patches_per_ex, md.d_model)
-
         # builder for shard manifest
         self._shards: ShardInfo = ShardInfo()
 
         # Always initialize labels writer (it handles non-seg datasets internally)
-        self.labels_writer = LabelsWriter(
-            self.shards_dir, patches_per_ex=patches_per_ex, n_examples=md.n_examples
-        )
+        self.labels_writer = LabelsWriter(self.shards_dir, md)
 
         self.shard = -1
         self.acts = None
@@ -428,11 +408,11 @@ class ShardWriter:
         end_idx = start_idx + batch_size
 
         # Write activations (handling sharding)
-        offset = self.ex_per_shard * self.shard
+        offset = self.md.examples_per_shard * self.shard
 
-        if end_idx >= offset + self.ex_per_shard:
+        if end_idx >= offset + self.md.examples_per_shard:
             # We have run out of space in this mmap'ed file. Let's fill it as much as we can.
-            n_fit = offset + self.ex_per_shard - start_idx
+            n_fit = offset + self.md.examples_per_shard - start_idx
             self.acts[start_idx - offset : start_idx - offset + n_fit] = activations[
                 :n_fit
             ]
@@ -462,10 +442,12 @@ class ShardWriter:
                     patch_labels[n_fit:] if patch_labels is not None else None,
                 )
         else:
-            msg = f"0 <= {start_idx} - {offset} <= {offset} + {self.ex_per_shard}"
-            assert 0 <= start_idx - offset <= offset + self.ex_per_shard, msg
-            msg = f"0 <= {end_idx} - {offset} <= {offset} + {self.ex_per_shard}"
-            assert 0 <= end_idx - offset <= offset + self.ex_per_shard, msg
+            msg = f"0 <= {start_idx} - {offset} <= {offset} + {self.md.examples_per_shard}"
+            assert 0 <= start_idx - offset <= offset + self.md.examples_per_shard, msg
+            msg = (
+                f"0 <= {end_idx} - {offset} <= {offset} + {self.md.examples_per_shard}"
+            )
+            assert 0 <= end_idx - offset <= offset + self.md.examples_per_shard, msg
             self.acts[start_idx - offset : end_idx - offset] = activations
             self.filled = end_idx - offset
 
@@ -517,7 +499,7 @@ class ShardWriter:
         self._count = 0
         self.acts_path = self.shards_dir / f"acts{self.shard:06}.bin"
         self.acts = np.memmap(
-            self.acts_path, mode="w+", dtype=np.float32, shape=self.shape
+            self.acts_path, mode="w+", dtype=np.float32, shape=self.md.shard_shape
         )
         self.filled = 0
 
@@ -582,14 +564,14 @@ def worker_fn(
     *,
     family: str,
     ckpt: str,
-    patches_per_ex: int,
+    content_tokens_per_example: int,
     cls_token: bool,
     d_model: int,
     layers: list[int],
     data: datasets.Config,
     batch_size: int,
     n_workers: int,
-    max_patches_per_shard: int,
+    max_tokens_per_shard: int,
     shards_root: pathlib.Path,
     device: str,
     pixel_agg: tp.Literal["majority", "prefer-fg", None] = None,
@@ -598,21 +580,20 @@ def worker_fn(
     Args:
         family: Transformer family (dinov2, dinov3, clip, etc).
         ckpt: Transformer ckpt (hf-hub:imageomics/bioclip2, etc).
-        patches_per_ex: Number of patches per example.
+        content_tokens_per_example: Number of content tokens per example.
         cls_token: Whether the transformer has a [CLS] token.
         d_model: Hidden dimension of transformer.
         layers: The layers to record activations for.
         data: Config for the particular (image) dataset to load.
         batch_size: Batch size for the dataset.
         n_workers: Number of workers for loading examples fromm the dataset.
-        max_patches_per_shard: Number of patches per disk shard.
-        dataset: Absolute path to the root directory of the original image dataset.
+        max_tokens_per_shard: Maximum number of tokens per disk shard.
         pixel_agg: Optional method for aggregating segmentation label pixels.
         shards_root: Where to save shards. Should end with 'shards'. See [disk-layout.md](../../developers/disk-layout.md); this is $SAEV_SCRATCH/saev/shards.
         device: Device for doing the computation.
 
     Returns:
-        Path to the shard root.
+        Path to the shards directory.
     """
     from saev import helpers
     from saev.data import models
@@ -646,27 +627,29 @@ def worker_fn(
         family=family,
         ckpt=ckpt,
         layers=tuple(layers),
-        patches_per_ex=patches_per_ex,
+        content_tokens_per_example=content_tokens_per_example,
         cls_token=cls_token,
         d_model=d_model,
         n_examples=data.n_examples,
-        max_patches_per_shard=max_patches_per_shard,
+        max_tokens_per_shard=max_tokens_per_shard,
         data=md_data,
         dataset=data.root,
-        pixel_agg=pixel_agg if datasets.is_seg_dataset(data) else None,
+        pixel_agg=pixel_agg if datasets.is_img_seg_dataset(data) else None,
     )
     model_cls = models.load_model_cls(family)
     model_instance = model_cls(ckpt).to(device)
-    model = RecordedTransformer(model_instance, patches_per_ex, cls_token, layers)
+    model = RecordedTransformer(
+        model_instance, content_tokens_per_example, cls_token, layers
+    )
 
-    img_tr, sample_tr = model_cls.make_transforms(ckpt, patches_per_ex)
+    img_tr, sample_tr = model_cls.make_transforms(ckpt, content_tokens_per_example)
 
     seg_tr = None
-    if datasets.is_seg_dataset(data):
-        # For segmentation datasets, create a transform that converts pixels to patches
+    if datasets.is_img_seg_dataset(data):
+        # For image segmentation datasets, create a transform that converts pixels to patches
         # Use make_resize with NEAREST interpolation for segmentation masks
         seg_resize_tr = model_cls.make_resize(
-            ckpt, patches_per_ex, scale=1.0, resample=Image.NEAREST
+            ckpt, content_tokens_per_example, scale=1.0, resample=Image.NEAREST
         )
 
         def seg_to_patches(seg):
@@ -675,7 +658,7 @@ def worker_fn(
             # Convert to patch labels
             return pixel_to_patch_labels(
                 seg_resize_tr(seg),
-                patches_per_ex,
+                content_tokens_per_example,
                 patch_size=model_instance.patch_size,
                 pixel_agg=pixel_agg,
                 bg_label=data.bg_label,
@@ -725,7 +708,10 @@ def worker_fn(
                         else "unknown",
                     )
                     # Ensure correct shape
-                    assert patch_labels.shape == (len(cache), patches_per_ex)
+                    assert patch_labels.shape == (
+                        len(cache),
+                        content_tokens_per_example,
+                    )
                 else:
                     logger.debug(f"No patch_labels in batch. Keys: {batch.keys()}")
 
@@ -845,3 +831,124 @@ def pixel_to_patch_labels(
         tp.assert_never(pixel_agg)
 
     return patch_labels.to(torch.uint8)
+
+
+@beartype.beartype
+@dataclasses.dataclass(frozen=True, kw_only=True)
+class Index:
+    """
+    Attributes:
+        idx: The index of the activation.
+        example_idx: The index of the original example (image, audio clip etc).
+        content_token_idx: The token's index within an example's content. -1 for all special tokens.
+        shard_idx: The shard index.
+        example_idx_in_shard: The example index along the examples axis in a shard.
+        token_idx_in_shard: The token index along the tokens axis in a shard.
+    """
+
+    idx: int
+    example_idx: int
+    content_token_idx: int
+    shard_idx: int
+    example_idx_in_shard: int
+    token_idx_in_shard: int
+
+
+@beartype.beartype
+class IndexMap:
+    def __init__(
+        self,
+        md: Metadata,
+        tokens: tp.Literal["special", "content", "all"],
+        layer: int | tp.Literal["all"],
+    ):
+        if tokens == "special":
+            assert md.cls_token
+
+        self.md = md
+        self.tokens = tokens
+        self.layer = layer
+
+    def from_global(self, idx: int | np.int_) -> Index:
+        idx = int(idx)
+        if idx < 0 or idx >= len(self):
+            raise IndexError(
+                f"Index {idx} out of range for dataset of length {len(self)}"
+            )
+
+        match (self.tokens, self.layer):
+            case ("special", int()):
+                # [CLS] tokens only right now
+                example_idx = idx
+                shard_idx = idx // self.md.examples_per_shard
+                example_idx_in_shard = idx // self.md.examples_per_shard
+                return Index(
+                    idx=idx,
+                    example_idx=example_idx,
+                    content_token_idx=-1,
+                    shard_idx=shard_idx,
+                    example_idx_in_shard=example_idx_in_shard,
+                    token_idx_in_shard=0,
+                )
+            case ("content", int()):
+                example_idx = idx // self.md.content_tokens_per_example
+                content_token_idx = idx % self.md.content_tokens_per_example
+                shard_idx = idx // (
+                    self.md.examples_per_shard * self.md.content_tokens_per_example
+                )
+                example_idx_in_shard = (
+                    idx
+                    % (self.md.examples_per_shard * self.md.content_tokens_per_example)
+                    // self.md.content_tokens_per_example
+                )
+                token_idx_in_shard = (
+                    idx
+                    % (self.md.examples_per_shard * self.md.content_tokens_per_example)
+                    % self.md.content_tokens_per_example
+                    + self.md.cls_token
+                )
+                return Index(
+                    idx=idx,
+                    example_idx=example_idx,
+                    content_token_idx=content_token_idx,
+                    shard_idx=shard_idx,
+                    example_idx_in_shard=example_idx_in_shard,
+                    token_idx_in_shard=token_idx_in_shard,
+                )
+
+            case _:
+                tp.assert_never((self.tokens, self.layer))
+
+    def __len__(self) -> int:
+        """
+        Dataset length depends on `patches` and `layer`.
+        """
+        match (self.tokens, self.layer):
+            case ("special", "all"):
+                # Return a CLS token from a random example and random layer.
+                return self.md.n_examples * len(self.md.layers)
+            case ("special", int()):
+                # Return a CLS token from a random example and fixed layer.
+                return self.md.n_examples
+            case ("content", int()):
+                # Return a patch from a random example, fixed layer, and random patch.
+                return self.md.n_examples * self.md.content_tokens_per_example
+            case ("content", "all"):
+                # Return a patch from a random example, random layer and random patch.
+                return (
+                    self.md.n_examples
+                    * len(self.md.layers)
+                    * self.md.content_tokens_per_example
+                )
+            case ("all", int()):
+                # Return a token from a random example, fixed layer, and random token (including special).
+                return self.md.n_examples * self.md.tokens_per_example
+            case ("all", "all"):
+                # Return a token from a random example, random layer and random token (including special).
+                return (
+                    self.md.n_examples
+                    * len(self.md.layers)
+                    * self.md.tokens_per_example
+                )
+            case _:
+                tp.assert_never((self.cfg.tokens, self.cfg.layer))

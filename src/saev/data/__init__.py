@@ -10,7 +10,7 @@ import beartype
 
 from . import clip, dinov2, dinov3, fake_clip, models, siglip
 from .indexed import Config as IndexedConfig
-from .indexed import Dataset
+from .indexed import Dataset as IndexedDataset
 from .ordered import Config as OrderedConfig
 from .ordered import DataLoader as OrderedDataLoader
 from .shards import Metadata
@@ -19,7 +19,7 @@ from .shuffled import DataLoader as ShuffledDataLoader
 
 __all__ = [
     "IndexedConfig",
-    "Dataset",
+    "IndexedDataset",
     "OrderedDataLoader",
     "OrderedConfig",
     "ShuffledDataLoader",

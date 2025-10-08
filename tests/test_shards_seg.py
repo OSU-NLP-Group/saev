@@ -3,6 +3,7 @@ import pathlib
 import tempfile
 
 import numpy as np
+import pytest
 import torch
 from PIL import Image
 
@@ -21,28 +22,32 @@ def tmp_shards_root():
         yield shards_root
 
 
-def test_labels_bin_is_generated():
+@pytest.fixture
+def data_cfg():
+    return datasets.FakeImgSeg(
+        n_examples=4, content_tokens_per_example=16, n_classes=3, bg_label=0
+    )
+
+
+def test_labels_bin_is_generated(data_cfg):
     """
     Expect shards to generate a labels.bin file for segmentation datasets.
 
-    Uses a tiny FakeSeg dataset (no real files) and a temporary shard root.
+    Uses a tiny FakeImgSeg dataset (no real files) and a temporary shard root.
     """
     with tmp_shards_root() as shards_root:
-        data_cfg = datasets.FakeSeg(
-            n_examples=4, patches_per_img=16, n_classes=3, bg_label=0
-        )
         # Use fake-clip which properly handles the tiny test model. The tiny model uses 8x8 images with 2x2 patches = 4x4 = 16 patches
         shards_dir = worker_fn(
             family="fake-clip",
             ckpt="hf-hub:hf-internal-testing/tiny-open-clip-model",
-            patches_per_ex=16,
+            content_tokens_per_example=16,
             cls_token=False,
             d_model=128,
             layers=[-1],
             data=data_cfg,
             batch_size=2,
             n_workers=0,
-            patches_per_shard=256,
+            max_tokens_per_shard=256,
             shards_root=shards_root,
             device="cpu",
             pixel_agg="prefer-fg",
@@ -51,7 +56,9 @@ def test_labels_bin_is_generated():
         labels_path = shards_dir / "labels.bin"
 
         # Check that labels.bin was created
-        assert labels_path.is_file(), "labels.bin should be created for FakeSeg dataset"
+        assert labels_path.is_file(), (
+            "labels.bin should be created for FakeImgSeg dataset"
+        )
 
         # Check that the file has content
         file_size = labels_path.stat().st_size
@@ -61,23 +68,20 @@ def test_labels_bin_is_generated():
         )
 
 
-def test_labels_bin_shape_and_dtype():
+def test_labels_bin_shape_and_dtype(data_cfg):
     """Test that labels.bin has the correct shape and dtype."""
     with tmp_shards_root() as shards_root:
-        data_cfg = datasets.FakeSeg(
-            n_examples=2, patches_per_img=16, n_classes=3, bg_label=0
-        )
         shards_dir = worker_fn(
             family="fake-clip",
             ckpt="hf-hub:hf-internal-testing/tiny-open-clip-model",
-            patches_per_ex=16,
+            content_tokens_per_example=16,
             cls_token=False,
             d_model=128,
             layers=[-2],
             data=data_cfg,
             batch_size=2,
             n_workers=0,
-            patches_per_shard=256,
+            max_tokens_per_shard=256,
             shards_root=shards_root,
             device="cpu",
             pixel_agg="prefer-fg",
@@ -86,30 +90,29 @@ def test_labels_bin_shape_and_dtype():
         labels_path = shards_dir / "labels.bin"
 
         # Load the labels
-        labels = np.memmap(labels_path, mode="r", dtype=np.uint8).reshape(2, 16)
+        labels = np.memmap(labels_path, mode="r", dtype=np.uint8).reshape(
+            data_cfg.n_examples, 16
+        )
 
-        assert labels.shape == (2, 16)
+        assert labels.shape == (data_cfg.n_examples, 16)
         assert labels.dtype == np.uint8
 
 
-def test_labels_bin_value_range():
+def test_labels_bin_value_range(data_cfg):
     """Test that labels.bin contains valid class indices."""
     n_classes = 5
     with tmp_shards_root() as shards_root:
-        data_cfg = datasets.FakeSeg(
-            n_examples=3, patches_per_img=16, n_classes=n_classes, bg_label=0
-        )
         shards_dir = worker_fn(
             family="fake-clip",
             ckpt="hf-hub:hf-internal-testing/tiny-open-clip-model",
-            patches_per_ex=16,
+            content_tokens_per_example=16,
             cls_token=False,
             d_model=128,
             layers=[-2],
             data=data_cfg,
             batch_size=4,
             n_workers=0,
-            patches_per_shard=256,
+            max_tokens_per_shard=256,
             shards_root=shards_root,
             device="cpu",
             pixel_agg="prefer-fg",
@@ -118,30 +121,29 @@ def test_labels_bin_value_range():
         labels_path = shards_dir / "labels.bin"
 
         # Load the labels
-        labels = np.memmap(labels_path, mode="r", dtype=np.uint8).reshape(3, 16)
+        labels = np.memmap(labels_path, mode="r", dtype=np.uint8).reshape(
+            data_cfg.n_examples, 16
+        )
 
         # Check that all values are in valid range [0, n_classes)
         assert labels.min() >= 0
         assert labels.max() < n_classes
 
 
-def test_labels_bin_with_cls_token():
+def test_labels_bin_with_cls_token(data_cfg):
     """Test that labels.bin works correctly even when CLS token is used."""
     with tmp_shards_root() as shards_root:
-        data_cfg = datasets.FakeSeg(
-            n_examples=2, patches_per_img=16, n_classes=3, bg_label=0
-        )
         shards_dir = worker_fn(
             family="fake-clip",
             ckpt="hf-hub:hf-internal-testing/tiny-open-clip-model",
-            patches_per_ex=16,  # This is image patches, not including CLS
+            content_tokens_per_example=16,  # This is image patches, not including CLS
             cls_token=True,  # Enable CLS token
             d_model=128,
             layers=[-2],
             data=data_cfg,
             batch_size=2,
             n_workers=0,
-            patches_per_shard=256,
+            max_tokens_per_shard=256,
             shards_root=shards_root,
             device="cpu",
             pixel_agg="prefer-fg",
@@ -149,30 +151,29 @@ def test_labels_bin_with_cls_token():
 
         labels_path = shards_dir / "labels.bin"
 
-        # Load the labels - should still be (n_examples, n_patches_per_ex)
-        labels = np.memmap(labels_path, mode="r", dtype=np.uint8).reshape(2, 16)
+        # Load the labels - should still be (n_examples, n_content_tokens_per_example)
+        labels = np.memmap(labels_path, mode="r", dtype=np.uint8).reshape(
+            data_cfg.n_examples, 16
+        )
 
         # Labels should not include CLS token, so shape should be (2, 16)
-        assert labels.shape == (2, 16)
+        assert labels.shape == (data_cfg.n_examples, 16)
 
 
-def test_labels_bin_multi_shard():
+def test_labels_bin_multi_shard(data_cfg):
     """Test that labels.bin works correctly with multiple shards."""
     with tmp_shards_root() as shards_root:
-        data_cfg = datasets.FakeSeg(
-            n_examples=10, patches_per_img=16, n_classes=4, bg_label=0
-        )
         shards_dir = worker_fn(
             family="fake-clip",
             ckpt="hf-hub:hf-internal-testing/tiny-open-clip-model",
-            patches_per_ex=16,
+            content_tokens_per_example=16,
             cls_token=False,
             d_model=128,
             layers=[-2, -1],  # Multiple layers (tiny model only has 2 layers)
             data=data_cfg,
             batch_size=10,
             n_workers=0,
-            patches_per_shard=80,  # Force multiple shards
+            max_tokens_per_shard=80,  # Force multiple shards
             shards_root=shards_root,
             device="cpu",
             pixel_agg="prefer-fg",
@@ -181,10 +182,12 @@ def test_labels_bin_multi_shard():
         labels_path = shards_dir / "labels.bin"
 
         # Load the labels
-        labels = np.memmap(labels_path, mode="r", dtype=np.uint8).reshape(10, 16)
+        labels = np.memmap(labels_path, mode="r", dtype=np.uint8).reshape(
+            data_cfg.n_examples, 16
+        )
 
         # Should have all 10 images worth of labels
-        assert labels.shape == (10, 16)
+        assert labels.shape == (data_cfg.n_examples, 16)
         assert labels.min() >= 0
         assert labels.max() < 4
 
@@ -192,18 +195,18 @@ def test_labels_bin_multi_shard():
 def test_no_labels_bin_for_non_seg_dataset():
     """Test that labels.bin is NOT created for non-segmentation datasets."""
     with tmp_shards_root() as shards_root:
-        data_cfg = datasets.Fake(n_examples=2)  # Regular Fake, not FakeSeg
+        data_cfg = datasets.FakeImg(n_examples=2)  # Regular FakeImg, not FakeImgSeg
         shards_dir = worker_fn(
             family="fake-clip",
             ckpt="hf-hub:hf-internal-testing/tiny-open-clip-model",
-            patches_per_ex=16,
+            content_tokens_per_example=16,
             cls_token=False,
             d_model=128,
             layers=[-2],
             data=data_cfg,
             batch_size=2,
             n_workers=0,
-            patches_per_shard=256,
+            max_tokens_per_shard=256,
             shards_root=shards_root,
             device="cpu",
         )

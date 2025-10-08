@@ -2,150 +2,150 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://osu-nlp-group.github.io/saev/api/</loc>
-         <lastmod>2025-10-07</lastmod>
+         <lastmod>2025-10-08</lastmod>
     </url>
     <url>
          <loc>https://osu-nlp-group.github.io/saev/api/api/colors/</loc>
-         <lastmod>2025-10-07</lastmod>
+         <lastmod>2025-10-08</lastmod>
     </url>
     <url>
          <loc>https://osu-nlp-group.github.io/saev/api/api/configs/</loc>
-         <lastmod>2025-10-07</lastmod>
+         <lastmod>2025-10-08</lastmod>
     </url>
     <url>
          <loc>https://osu-nlp-group.github.io/saev/api/api/disk/</loc>
-         <lastmod>2025-10-07</lastmod>
+         <lastmod>2025-10-08</lastmod>
     </url>
     <url>
          <loc>https://osu-nlp-group.github.io/saev/api/api/helpers/</loc>
-         <lastmod>2025-10-07</lastmod>
+         <lastmod>2025-10-08</lastmod>
     </url>
     <url>
          <loc>https://osu-nlp-group.github.io/saev/api/api/saev/</loc>
-         <lastmod>2025-10-07</lastmod>
+         <lastmod>2025-10-08</lastmod>
     </url>
     <url>
          <loc>https://osu-nlp-group.github.io/saev/api/api/summary/</loc>
-         <lastmod>2025-10-07</lastmod>
+         <lastmod>2025-10-08</lastmod>
     </url>
     <url>
          <loc>https://osu-nlp-group.github.io/saev/api/api/viz/</loc>
-         <lastmod>2025-10-07</lastmod>
+         <lastmod>2025-10-08</lastmod>
     </url>
     <url>
          <loc>https://osu-nlp-group.github.io/saev/api/api/data/buffers/</loc>
-         <lastmod>2025-10-07</lastmod>
+         <lastmod>2025-10-08</lastmod>
     </url>
     <url>
          <loc>https://osu-nlp-group.github.io/saev/api/api/data/clip/</loc>
-         <lastmod>2025-10-07</lastmod>
+         <lastmod>2025-10-08</lastmod>
     </url>
     <url>
          <loc>https://osu-nlp-group.github.io/saev/api/api/data/datasets/</loc>
-         <lastmod>2025-10-07</lastmod>
+         <lastmod>2025-10-08</lastmod>
     </url>
     <url>
          <loc>https://osu-nlp-group.github.io/saev/api/api/data/dinov2/</loc>
-         <lastmod>2025-10-07</lastmod>
+         <lastmod>2025-10-08</lastmod>
     </url>
     <url>
          <loc>https://osu-nlp-group.github.io/saev/api/api/data/dinov3/</loc>
-         <lastmod>2025-10-07</lastmod>
+         <lastmod>2025-10-08</lastmod>
     </url>
     <url>
          <loc>https://osu-nlp-group.github.io/saev/api/api/data/fake_clip/</loc>
-         <lastmod>2025-10-07</lastmod>
+         <lastmod>2025-10-08</lastmod>
     </url>
     <url>
          <loc>https://osu-nlp-group.github.io/saev/api/api/data/indexed/</loc>
-         <lastmod>2025-10-07</lastmod>
+         <lastmod>2025-10-08</lastmod>
     </url>
     <url>
          <loc>https://osu-nlp-group.github.io/saev/api/api/data/models/</loc>
-         <lastmod>2025-10-07</lastmod>
+         <lastmod>2025-10-08</lastmod>
     </url>
     <url>
          <loc>https://osu-nlp-group.github.io/saev/api/api/data/ordered/</loc>
-         <lastmod>2025-10-07</lastmod>
+         <lastmod>2025-10-08</lastmod>
     </url>
     <url>
          <loc>https://osu-nlp-group.github.io/saev/api/api/data/saev.data/</loc>
-         <lastmod>2025-10-07</lastmod>
+         <lastmod>2025-10-08</lastmod>
     </url>
     <url>
          <loc>https://osu-nlp-group.github.io/saev/api/api/data/shards/</loc>
-         <lastmod>2025-10-07</lastmod>
+         <lastmod>2025-10-08</lastmod>
     </url>
     <url>
          <loc>https://osu-nlp-group.github.io/saev/api/api/data/shuffled/</loc>
-         <lastmod>2025-10-07</lastmod>
+         <lastmod>2025-10-08</lastmod>
     </url>
     <url>
          <loc>https://osu-nlp-group.github.io/saev/api/api/data/siglip/</loc>
-         <lastmod>2025-10-07</lastmod>
+         <lastmod>2025-10-08</lastmod>
     </url>
     <url>
          <loc>https://osu-nlp-group.github.io/saev/api/api/data/transforms/</loc>
-         <lastmod>2025-10-07</lastmod>
+         <lastmod>2025-10-08</lastmod>
     </url>
     <url>
          <loc>https://osu-nlp-group.github.io/saev/api/api/nn/modeling/</loc>
-         <lastmod>2025-10-07</lastmod>
+         <lastmod>2025-10-08</lastmod>
     </url>
     <url>
          <loc>https://osu-nlp-group.github.io/saev/api/api/nn/objectives/</loc>
-         <lastmod>2025-10-07</lastmod>
+         <lastmod>2025-10-08</lastmod>
     </url>
     <url>
          <loc>https://osu-nlp-group.github.io/saev/api/api/nn/saev.nn/</loc>
-         <lastmod>2025-10-07</lastmod>
+         <lastmod>2025-10-08</lastmod>
     </url>
     <url>
          <loc>https://osu-nlp-group.github.io/saev/api/api/utils/saev.utils/</loc>
-         <lastmod>2025-10-07</lastmod>
+         <lastmod>2025-10-08</lastmod>
     </url>
     <url>
          <loc>https://osu-nlp-group.github.io/saev/api/api/utils/scheduling/</loc>
-         <lastmod>2025-10-07</lastmod>
+         <lastmod>2025-10-08</lastmod>
     </url>
     <url>
          <loc>https://osu-nlp-group.github.io/saev/api/api/utils/statistics/</loc>
-         <lastmod>2025-10-07</lastmod>
+         <lastmod>2025-10-08</lastmod>
     </url>
     <url>
          <loc>https://osu-nlp-group.github.io/saev/api/api/utils/wandb/</loc>
-         <lastmod>2025-10-07</lastmod>
+         <lastmod>2025-10-08</lastmod>
     </url>
     <url>
          <loc>https://osu-nlp-group.github.io/saev/api/developers/contributing/</loc>
-         <lastmod>2025-10-07</lastmod>
+         <lastmod>2025-10-08</lastmod>
     </url>
     <url>
          <loc>https://osu-nlp-group.github.io/saev/api/developers/disk-layout/</loc>
-         <lastmod>2025-10-07</lastmod>
+         <lastmod>2025-10-08</lastmod>
     </url>
     <url>
          <loc>https://osu-nlp-group.github.io/saev/api/developers/naming/</loc>
-         <lastmod>2025-10-07</lastmod>
+         <lastmod>2025-10-08</lastmod>
     </url>
     <url>
          <loc>https://osu-nlp-group.github.io/saev/api/developers/protocol/</loc>
-         <lastmod>2025-10-07</lastmod>
+         <lastmod>2025-10-08</lastmod>
     </url>
     <url>
          <loc>https://osu-nlp-group.github.io/saev/api/users/glossary/</loc>
-         <lastmod>2025-10-07</lastmod>
+         <lastmod>2025-10-08</lastmod>
     </url>
     <url>
          <loc>https://osu-nlp-group.github.io/saev/api/users/guide/</loc>
-         <lastmod>2025-10-07</lastmod>
+         <lastmod>2025-10-08</lastmod>
     </url>
     <url>
          <loc>https://osu-nlp-group.github.io/saev/api/users/inference/</loc>
-         <lastmod>2025-10-07</lastmod>
+         <lastmod>2025-10-08</lastmod>
     </url>
     <url>
          <loc>https://osu-nlp-group.github.io/saev/api/users/sweeps/</loc>
-         <lastmod>2025-10-07</lastmod>
+         <lastmod>2025-10-08</lastmod>
     </url>
 </urlset>

@@ -63,3 +63,5 @@ plugins:
 markdown_extensions:
   - admonition
   - footnotes
+  - toc:
+      permalink: true

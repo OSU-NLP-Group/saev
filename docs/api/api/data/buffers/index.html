@@ -1510,7 +1510,7 @@
 <h2 id="saev.data.buffers.ReservoirBuffer" class="doc doc-heading">
               <code class="highlight language-python"><span class="n">ReservoirBuffer</span><span class="p">(</span><span class="n">capacity</span><span class="p">,</span> <span class="n">shape</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">meta_shape</span><span class="o">=</span><span class="p">(</span><span class="mi">2</span><span class="p">,),</span> <span class="n">meta_dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">int32</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">collate_fn</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
 
-</h2>
+<a href="#saev.data.buffers.ReservoirBuffer" class="headerlink" title="Permanent link">&para;</a></h2>
 
 
     <div class="doc doc-contents ">
@@ -1615,7 +1615,7 @@ Random order, each sample delivered once, blocking semantics.</p>
 <h3 id="saev.data.buffers.ReservoirBuffer.close" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">close</span><span class="p">()</span></code>
 
-</h3>
+<a href="#saev.data.buffers.ReservoirBuffer.close" class="headerlink" title="Permanent link">&para;</a></h3>
 
 
     <div class="doc doc-contents ">
@@ -1648,7 +1648,7 @@ Random order, each sample delivered once, blocking semantics.</p>
 <h3 id="saev.data.buffers.ReservoirBuffer.fill" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">fill</span><span class="p">()</span></code>
 
-</h3>
+<a href="#saev.data.buffers.ReservoirBuffer.fill" class="headerlink" title="Permanent link">&para;</a></h3>
 
 
     <div class="doc doc-contents ">
@@ -1675,7 +1675,7 @@ Random order, each sample delivered once, blocking semantics.</p>
 <h3 id="saev.data.buffers.ReservoirBuffer.qsize" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">qsize</span><span class="p">()</span></code>
 
-</h3>
+<a href="#saev.data.buffers.ReservoirBuffer.qsize" class="headerlink" title="Permanent link">&para;</a></h3>
 
 
     <div class="doc doc-contents ">
@@ -1711,14 +1711,14 @@ Random order, each sample delivered once, blocking semantics.</p>
 <h2 id="saev.data.buffers.RingBuffer" class="doc doc-heading">
               <code class="highlight language-python"><span class="n">RingBuffer</span><span class="p">(</span><span class="n">slots</span><span class="p">,</span> <span class="n">shape</span><span class="p">,</span> <span class="n">dtype</span><span class="p">)</span></code>
 
-</h2>
+<a href="#saev.data.buffers.RingBuffer" class="headerlink" title="Permanent link">&para;</a></h2>
 
 
     <div class="doc doc-contents ">
 
 
         <p>Fixed-capacity, multiple-producer / multiple-consumer queue backed by a shared-memory tensor.</p>
-<h4 id="saev.data.buffers.RingBuffer--parameters">Parameters</h4>
+<h4 id="saev.data.buffers.RingBuffer--parameters">Parameters<a class="headerlink" href="#saev.data.buffers.RingBuffer--parameters" title="Permanent link">&para;</a></h4>
 <p>slots  : int           capacity in number of items (tensor rows)
 shape  : tuple[int]    shape of one item, e.g. (batch, dim)
 dtype  : torch.dtype   tensor dtype</p>
@@ -1795,7 +1795,7 @@ close()               frees shared storage (call in the main process)</p>
 <h3 id="saev.data.buffers.RingBuffer.close" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">close</span><span class="p">()</span></code>
 
-</h3>
+<a href="#saev.data.buffers.RingBuffer.close" class="headerlink" title="Permanent link">&para;</a></h3>
 
 
     <div class="doc doc-contents ">
@@ -1828,7 +1828,7 @@ close()               frees shared storage (call in the main process)</p>
 <h3 id="saev.data.buffers.RingBuffer.fill" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">fill</span><span class="p">()</span></code>
 
-</h3>
+<a href="#saev.data.buffers.RingBuffer.fill" class="headerlink" title="Permanent link">&para;</a></h3>
 
 
     <div class="doc doc-contents ">
@@ -1855,7 +1855,7 @@ close()               frees shared storage (call in the main process)</p>
 <h3 id="saev.data.buffers.RingBuffer.get" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">get</span><span class="p">()</span></code>
 
-</h3>
+<a href="#saev.data.buffers.RingBuffer.get" class="headerlink" title="Permanent link">&para;</a></h3>
 
 
     <div class="doc doc-contents ">
@@ -1894,7 +1894,7 @@ close()               frees shared storage (call in the main process)</p>
 <h3 id="saev.data.buffers.RingBuffer.put" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">put</span><span class="p">(</span><span class="n">tensor</span><span class="p">)</span></code>
 
-</h3>
+<a href="#saev.data.buffers.RingBuffer.put" class="headerlink" title="Permanent link">&para;</a></h3>
 
 
     <div class="doc doc-contents ">
@@ -1937,7 +1937,7 @@ close()               frees shared storage (call in the main process)</p>
 <h3 id="saev.data.buffers.RingBuffer.qsize" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">qsize</span><span class="p">()</span></code>
 
-</h3>
+<a href="#saev.data.buffers.RingBuffer.qsize" class="headerlink" title="Permanent link">&para;</a></h3>
 
 
     <div class="doc doc-contents ">

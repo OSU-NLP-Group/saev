@@ -1308,10 +1308,10 @@
 
 
 
-<h1 id="sweeps">Sweeps</h1>
+<h1 id="sweeps">Sweeps<a class="headerlink" href="#sweeps" title="Permanent link">&para;</a></h1>
 <p>Hyperparameter sweeps in <code>saev</code> train multiple SAE configurations in parallel on a single GPU, amortizing the cost of loading activation data from disk across all models.
 Furthermore, sweeps make it easy to train multiple SAEs with one command across multiple GPUs using Slurm.</p>
-<h2 id="quick-start">Quick Start</h2>
+<h2 id="quick-start">Quick Start<a class="headerlink" href="#quick-start" title="Permanent link">&para;</a></h2>
 <p>Create a Python file defining your sweep:</p>
 <pre><code class="language-python"># sweeps/my_sweep.py
 
@@ -1335,7 +1335,7 @@ def make_cfgs() -&gt; list[dict]:
   --val-data.layer 23
 </code></pre>
 <p>This trains 9 SAEs (3 learning rates x 3 sparsity coefficients) in parallel.</p>
-<h2 id="why-parallel-sweeps">Why Parallel Sweeps?</h2>
+<h2 id="why-parallel-sweeps">Why Parallel Sweeps?<a class="headerlink" href="#why-parallel-sweeps" title="Permanent link">&para;</a></h2>
 <p>SAE training is bottlenecked by disk I/O, not GPU computation. Loading terabytes of pre-computed ViT activations from disk is the slowest part. By training multiple SAE configurations on the same batch simultaneously, we amortize the I/O cost:</p>
 <pre><code>┌────────────────────────┐
 │ ViT Activations (disk) │
@@ -1350,8 +1350,8 @@ def make_cfgs() -&gt; list[dict]:
          SAE #1    SAE #2    SAE #3     ...
         (lr=3e-4) (lr=1e-3) (lr=3e-3)
 </code></pre>
-<h2 id="sweep-configuration">Sweep Configuration</h2>
-<h3 id="python-based-sweeps">Python-Based Sweeps</h3>
+<h2 id="sweep-configuration">Sweep Configuration<a class="headerlink" href="#sweep-configuration" title="Permanent link">&para;</a></h2>
+<h3 id="python-based-sweeps">Python-Based Sweeps<a class="headerlink" href="#python-based-sweeps" title="Permanent link">&para;</a></h3>
 <p>Python sweeps give you full control over config generation. Your sweep file must define a <code>make_cfgs()</code> function that returns a list of dicts.</p>
 <p><strong>Grid search example:</strong></p>
 <pre><code class="language-python">def make_cfgs():
@@ -1404,7 +1404,7 @@ def make_cfgs() -&gt; list[dict]:
 
     return cfgs
 </code></pre>
-<h2 id="command-line-overrides">Command-Line Overrides</h2>
+<h2 id="command-line-overrides">Command-Line Overrides<a class="headerlink" href="#command-line-overrides" title="Permanent link">&para;</a></h2>
 <p>Command-line arguments override sweep parameters with deep merging. The precedence order is: <strong>CLI &gt; Sweep &gt; Default</strong>.</p>
 <pre><code class="language-bash">uv run train.py --sweep sweeps/my_sweep.py \
   --lr 5e-4  # Overrides all LRs in the sweep
@@ -1416,7 +1416,7 @@ def make_cfgs() -&gt; list[dict]:
   --sae.exp-factor 16
 </code></pre>
 <p>Deep merging means that when you override a nested field, only that specific field is replaced—other fields in the nested config are preserved from the sweep or default values.</p>
-<h2 id="parallel-groups">Parallel Groups</h2>
+<h2 id="parallel-groups">Parallel Groups<a class="headerlink" href="#parallel-groups" title="Permanent link">&para;</a></h2>
 <p>Not all parameters can vary within a parallel sweep. Parameters that affect data loading (like <code>train_data</code>, <code>n_train</code>, <code>device</code>) must be identical across all configs in a parallel group.</p>
 <p>When configs differ in these parameters, they're automatically split into separate Slurm jobs:</p>
 <pre><code class="language-python">def make_cfgs():
@@ -1440,7 +1440,7 @@ def make_cfgs() -&gt; list[dict]:
 <p class="admonition-title">Implementation detail</p>
 <p>See <code>CANNOT_PARALLELIZE</code> in <code>train.py</code> for the full list of parameters that split parallel groups. The <code>split_cfgs()</code> function handles grouping automatically.</p>
 </div>
-<h2 id="module-loading">Module Loading</h2>
+<h2 id="module-loading">Module Loading<a class="headerlink" href="#module-loading" title="Permanent link">&para;</a></h2>
 <p>Your sweep file is executed as a Python module, so you can use imports and helper functions:</p>
 <pre><code class="language-python">def make_cfgs():
     cfgs = []
@@ -1464,7 +1464,7 @@ def make_cfgs() -&gt; list[dict]:
 <p class="admonition-title">Import mechanics</p>
 <p>The sweep file is loaded with <code>importlib.import_module()</code>, so it must be importable as a Python module. Place sweep files in a location where Python can find them (typically the project root or a <code>sweeps/</code> subdirectory).</p>
 </div>
-<h2 id="slurm-integration">Slurm Integration</h2>
+<h2 id="slurm-integration">Slurm Integration<a class="headerlink" href="#slurm-integration" title="Permanent link">&para;</a></h2>
 <p>When running with <code>--slurm-acct</code>, each parallel group becomes a separate Slurm job:</p>
 <pre><code class="language-bash">uv run train.py --sweep sweeps/large.py \
   --slurm-acct PAS2136 \
@@ -1476,7 +1476,7 @@ def make_cfgs() -&gt; list[dict]:
 - Submits one Slurm job per group
 - Waits for all jobs to complete
 - Reports results</p>
-<h2 id="seed-management">Seed Management</h2>
+<h2 id="seed-management">Seed Management<a class="headerlink" href="#seed-management" title="Permanent link">&para;</a></h2>
 <p>Seeds are automatically incremented for each config to ensure reproducibility:</p>
 <pre><code class="language-python"># Base config has seed=42
 # Sweep generates 9 configs with seeds: 42, 43, 44, ..., 50
@@ -1484,7 +1484,7 @@ def make_cfgs() -&gt; list[dict]:
 <p>Override the base seed on the command line:</p>
 <pre><code class="language-bash">uv run train.py --sweep sweeps/my_sweep.py --seed 100
 </code></pre>
-<h2 id="examples">Examples</h2>
+<h2 id="examples">Examples<a class="headerlink" href="#examples" title="Permanent link">&para;</a></h2>
 <p><strong>Simple grid:</strong></p>
 <pre><code class="language-python"># sweeps/simple.py
 def make_cfgs():

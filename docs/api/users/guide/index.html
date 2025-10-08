@@ -1446,7 +1446,7 @@
 
 
 
-<h1 id="guide">Guide</h1>
+<h1 id="guide">Guide<a class="headerlink" href="#guide" title="Permanent link">&para;</a></h1>
 <p>This guide explains how to transition from the ADE20K demo to using <code>saev</code> with your own custom datasets.</p>
 <p>Here are the steps:</p>
 <ol>
@@ -1459,7 +1459,7 @@
 <p class="admonition-title">Note</p>
 <p><code>saev</code> assumes you are running on NVIDIA GPUs. On a multi-GPU system, prefix your commands with <code>CUDA_VISIBLE_DEVICES=X</code> to run on GPU X.</p>
 </div>
-<h2 id="record-vit-activations-to-disk">Record ViT Activations to Disk</h2>
+<h2 id="record-vit-activations-to-disk">Record ViT Activations to Disk<a class="headerlink" href="#record-vit-activations-to-disk" title="Permanent link">&para;</a></h2>
 <p>To save activations to disk, we need to specify:</p>
 <ol>
 <li>Which model we would like to use</li>
@@ -1493,7 +1493,7 @@ It will write 2.4M patches per shard, and save shards to a new directory <code>/
 <p>This script will also save a <code>metadata.json</code> file that will record the relevant metadata for these activations, which will be read by future steps.
 The activations will be in <code>.bin</code> files, numbered starting from 000000.</p>
 <p>To add your own models, see the guide to extending in <code>saev.activations</code>.</p>
-<h2 id="train-saes-on-activations">Train SAEs on Activations</h2>
+<h2 id="train-saes-on-activations">Train SAEs on Activations<a class="headerlink" href="#train-saes-on-activations" title="Permanent link">&para;</a></h2>
 <p>To train an SAE, we need to specify:</p>
 <ol>
 <li>Which activations to use as input.</li>
@@ -1524,7 +1524,7 @@ Anthropic's and OpenAI's papers suggest normalizing these factors, but <code>sae
 <p>Finally, choose a slightly larger learning rate than the default with <code>--lr 5e-4</code>.</p>
 <p>This will train one (1) sparse autoencoder on the data.
 See the section on sweeps to learn how to train multiple SAEs in parallel using only a single GPU.</p>
-<h2 id="visualize-the-learned-features">Visualize the Learned Features</h2>
+<h2 id="visualize-the-learned-features">Visualize the Learned Features<a class="headerlink" href="#visualize-the-learned-features" title="Permanent link">&para;</a></h2>
 <p>Now that you've trained an SAE, you probably want to look at its learned features.
 One way to visualize an individual learned feature (f) is by picking out images that maximize the activation of feature (f).
 Since we train SAEs on patch-level activations, we try to find the top <em>patches</em> for each feature (f).
@@ -1554,16 +1554,16 @@ You can see all the options with <code>uv run python -m saev visuals --help</cod
 It will cache these best activations to disk, then start saving images to visualize later on.</p>
 <p><code>saev.interactive.features</code> is a small web application based on <a href="https://marimo.io/">marimo</a> to interactively look at these images.</p>
 <p>You can run it with <code>uv run marimo edit saev/interactive/features.py</code>.</p>
-<h2 id="sweeps">Sweeps</h2>
+<h2 id="sweeps">Sweeps<a class="headerlink" href="#sweeps" title="Permanent link">&para;</a></h2>
 <blockquote>
 <p>tl;dr: basically the slow part of training SAEs is loading vit activations from disk, and since SAEs are pretty small compared to other models, you can train a bunch of different SAEs in parallel on the same data using a big GPU. That way you can sweep learning rate, lambda, etc. all on one GPU.</p>
 </blockquote>
-<h3 id="why-parallel-sweeps">Why Parallel Sweeps</h3>
+<h3 id="why-parallel-sweeps">Why Parallel Sweeps<a class="headerlink" href="#why-parallel-sweeps" title="Permanent link">&para;</a></h3>
 <p>SAE training optimizes for a unique bottleneck compared to typical ML workflows: disk I/O rather than GPU computation.
 When training on vision transformer activations, loading the pre-computed activation data from disk is often the slowest part of the process, not the SAE training itself.</p>
 <p>A single set of ImageNet activations for a vision transformer can require terabytes of storage.
 Reading this data repeatedly for each hyperparameter configuration would be extremely inefficient.</p>
-<h3 id="parallelized-training-architecture">Parallelized Training Architecture</h3>
+<h3 id="parallelized-training-architecture">Parallelized Training Architecture<a class="headerlink" href="#parallelized-training-architecture" title="Permanent link">&para;</a></h3>
 <p>To address this bottleneck, we implement parallel training that allows multiple SAE configurations to train simultaneously on the same data batch:</p>
 <pre class="mermaid">
 flowchart TD
@@ -1583,7 +1583,7 @@ flowchart TD
 <li>Uses that same batch for multiple SAE models with different hyperparameters</li>
 <li>Amortizes the slow I/O cost across all models in the sweep</li>
 </ul>
-<h3 id="running-a-sweep">Running a Sweep</h3>
+<h3 id="running-a-sweep">Running a Sweep<a class="headerlink" href="#running-a-sweep" title="Permanent link">&para;</a></h3>
 <p>The <code>train</code> command accepts a <code>--sweep</code> parameter that points to a TOML file defining the hyperparameter grid:</p>
 <pre><code class="language-bash">uv run python -m saev train --sweep configs/my_sweep.toml
 </code></pre>
@@ -1597,11 +1597,11 @@ exp_factor = [8, 16]
 scale_mean = true
 </code></pre>
 <p>This would train 6 models (3 sparsity coefficients × 2 expansion factors), each sharing the same data loading operation.</p>
-<h3 id="limitations">Limitations</h3>
+<h3 id="limitations">Limitations<a class="headerlink" href="#limitations" title="Permanent link">&para;</a></h3>
 <p>Not all parameters can be swept in parallel.
 Parameters that affect data loading (like <code>batch_size</code> or dataset configuration) will cause the sweep to split into separate parallel groups.
 The system automatically handles this division to maximize efficiency.</p>
-<h2 id="training-metrics-and-visualizations">Training Metrics and Visualizations</h2>
+<h2 id="training-metrics-and-visualizations">Training Metrics and Visualizations<a class="headerlink" href="#training-metrics-and-visualizations" title="Permanent link">&para;</a></h2>
 <p>When you train a sweep of SAEs, you probably want to understand which checkpoint is best.
 <code>saev</code> provides some tools to help with that.</p>
 <p>First, we offer a tool to look at some basic summary statistics of all your trained checkpoints.</p>

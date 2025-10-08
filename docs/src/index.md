@@ -14,10 +14,10 @@ saev will likely work with pure pip, conda, etc. but I will not formally support
 Clone this repository, then from the root directory:
 
 ```bash
-uv run python -m saev --help
+uv run scripts/launch.py --help
 ```
 
-This will create a virtual environment and display the CLI help.
+This will create a virtual environment and display the help for all the provided framework scripts.
 
 ## Quick Start
 

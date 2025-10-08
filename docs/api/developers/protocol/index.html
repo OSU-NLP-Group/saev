@@ -1461,7 +1461,7 @@
 
 
 
-<h1 id="saev-sharded-activation-file-protocol">saev Sharded Activation File Protocol</h1>
+<h1 id="saev-sharded-activation-file-protocol">saev Sharded Activation File Protocol<a class="headerlink" href="#saev-sharded-activation-file-protocol" title="Permanent link">&para;</a></h1>
 <p>saev caches activations to disk rather than run ViT or LLM inference when training SAEs.
 Gemma Scope makes this decision as well (see Section 3.3.2 of https://arxiv.org/pdf/2408.05147).
 <code>saev.data</code> has a specific protocol to support this in on <a href="https://www.osc.edu">OSC</a>, a super computer center, and take advantage of OSC's specific disk performance. </p>
@@ -1474,7 +1474,7 @@ Gemma Scope makes this decision as well (see Section 3.3.2 of https://arxiv.org/
 </ul>
 <p>This document is the single normative source. Any divergence in code is a <strong>bug</strong>.</p>
 <hr />
-<h2 id="1-directory-layout">1. Directory layout</h2>
+<h2 id="1-directory-layout">1. Directory layout<a class="headerlink" href="#1-directory-layout" title="Permanent link">&para;</a></h2>
 <pre><code>&lt;dump_to&gt;/&lt;HASH&gt;/
     metadata.json    # UTF-8 JSON, human-readable, describes data-generating config
     shards.json      # UTF-8 JSON, human-readable, describes shards.
@@ -1487,8 +1487,8 @@ Gemma Scope makes this decision as well (see Section 3.3.2 of https://arxiv.org/
 <p><em><code>HASH</code> = <code>sha256(json.dumps(metadata, sort_keys=True, separators=(',', ':')).encode('utf-8'))</code></em>
 Guards against silent config drift.</p>
 <hr />
-<h2 id="2-json-file-schemas">2. JSON file schemas</h2>
-<h3 id="21-metadatajson">2.1. <code>metadata.json</code></h3>
+<h2 id="2-json-file-schemas">2. JSON file schemas<a class="headerlink" href="#2-json-file-schemas" title="Permanent link">&para;</a></h2>
+<h3 id="21-metadatajson">2.1. <code>metadata.json</code><a class="headerlink" href="#21-metadatajson" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
 <tr>
@@ -1562,7 +1562,7 @@ Guards against silent config drift.</p>
 </table>
 <p>The <code>data</code> object is <code>dataclasses.asdict(cfg.data)</code>, with an additional <code>__class__</code> field with <code>cfg.data.__class__.__name__</code> as the value.</p>
 <p>The <code>dataset</code> field stores the absolute path to the root directory of the original image dataset, allowing runs to create symlinks back to the source images for visualization and analysis.</p>
-<h3 id="22-shardsjson">2.2. <code>shards.json</code></h3>
+<h3 id="22-shardsjson">2.2. <code>shards.json</code><a class="headerlink" href="#22-shardsjson" title="Permanent link">&para;</a></h3>
 <p>A single array of <code>shard</code> objects, each of which has the following fields:</p>
 <table>
 <thead>
@@ -1586,32 +1586,32 @@ Guards against silent config drift.</p>
 </tbody>
 </table>
 <hr />
-<h2 id="3-shard-sizing-maths">3. Shard sizing maths</h2>
+<h2 id="3-shard-sizing-maths">3. Shard sizing maths<a class="headerlink" href="#3-shard-sizing-maths" title="Permanent link">&para;</a></h2>
 <pre><code class="language-python">tokens_per_ex = patches_per_ex + (1 if cls_token else 0)
 
-ex_per_shard = floor(patches_per_shard / (tokens_per_ex * len(layers)))
+examples_per_shard = floor(patches_per_shard / (tokens_per_ex * len(layers)))
 
 shape_per_shard = (
-    ex_per_shard, len(layers), tokens_per_ex, d_model,
+    examples_per_shard, len(layers), tokens_per_ex, d_model,
 )
 </code></pre>
 <p><em><code>patches_per_shard</code> is a </em><em>budget</em><em> (default ~2.4 M) chosen so a shard is approximately 10 GiB for Float32 @ <code>d_model = 1024</code>.</em></p>
-<p><em>The last shard will have a smaller value for <code>ex_per_shard</code>; this value is documented in <code>n_examples</code> in <code>shards.json</code></em></p>
+<p><em>The last shard will have a smaller value for <code>examples_per_shard</code>; this value is documented in <code>n_examples</code> in <code>shards.json</code></em></p>
 <hr />
-<h2 id="4-data-layout-and-global-indexing">4. Data Layout and Global Indexing</h2>
+<h2 id="4-data-layout-and-global-indexing">4. Data Layout and Global Indexing<a class="headerlink" href="#4-data-layout-and-global-indexing" title="Permanent link">&para;</a></h2>
 <p>The entire dataset of activations is treated as a single logical 4D tensor with the shape <code>(n_examples, len(layers), tokens_per_ex, d_model)</code>. This logical tensor is C-contiguous with axes ordered <code>[Example, Layer, Token, Dimension]</code>.</p>
 <p>Physically, this tensor is split along the first axis (<code>Example</code>) into multiple shards, where each shard is a single binary file. The number of examples in each shard is constant, except for the final shard, which may be smaller.</p>
 <p>To locate an arbitrary activation vector, a reader must convert a logical coordinate (<code>global_ex_idx</code>, <code>layer_value</code>, <code>token_idx</code>) into a file path and an offset within that file.</p>
-<h3 id="41-definitions">4.1 Definitions</h3>
+<h3 id="41-definitions">4.1 Definitions<a class="headerlink" href="#41-definitions" title="Permanent link">&para;</a></h3>
 <p>Let the parameters from <code>metadata.json</code> be:</p>
 <ul>
 <li>L = <code>len(layers)</code></li>
 <li>P = <code>patches_per_ex</code></li>
 <li>T = <code>P + (1 if cls_token else 0)</code> (Total tokens per example)</li>
 <li>D = <code>d_model</code></li>
-<li>S = <code>n_examples</code> from <code>shards.json</code> or <code>ex_per_shard</code> from Section 3 (shard sizing).</li>
+<li>S = <code>n_examples</code> from <code>shards.json</code> or <code>examples_per_shard</code> from Section 3 (shard sizing).</li>
 </ul>
-<h3 id="42-coordinate-transformations">4.2 Coordinate Transformations</h3>
+<h3 id="42-coordinate-transformations">4.2 Coordinate Transformations<a class="headerlink" href="#42-coordinate-transformations" title="Permanent link">&para;</a></h3>
 <p>Given a logical coordinate:</p>
 <ul>
 <li><code>global_ex_idx</code>: integer, with <code>0 &lt;= global_ex_idx &lt; n_examples</code></li>
@@ -1645,7 +1645,7 @@ A reader must raise an error if <code>layer</code> is not in <code>layers</code>
 </ol>
 <p>A reader can then seek to <code>offset_in_bytes</code> and read $D \times 4$ bytes to retrieve the vector.</p>
 <p><em>Alternatively, rather than calculate the offset, readers can memmap the shard, then use Numpy indexing to get the activation vector.</em></p>
-<h3 id="43-token-axis-layout">4.3 Token Axis Layout</h3>
+<h3 id="43-token-axis-layout">4.3 Token Axis Layout<a class="headerlink" href="#43-token-axis-layout" title="Permanent link">&para;</a></h3>
 <p>The <code>token</code> axis of length $T$ is ordered as follows:
 * If <code>cls_token</code> is <code>true</code>:
     * Index <code>0</code>: [CLS] token activation
@@ -1654,7 +1654,7 @@ A reader must raise an error if <code>layer</code> is not in <code>layers</code>
     * Indices <code>0</code> to $P-1$: Patch token activations</p>
 <p>The relative order of patch tokens is preserved exactly as produced by the upstream Vision Transformer.</p>
 <hr />
-<h2 id="5-versioning-compatibility">5 Versioning &amp; compatibility</h2>
+<h2 id="5-versioning-compatibility">5 Versioning &amp; compatibility<a class="headerlink" href="#5-versioning-compatibility" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong>Major changes</strong> (shape reorder, dtype switch, new required JSON keys) increment the major protocol version number at the top of this document and must emit a <em>breaking</em> warning in loader code.</li>
 <li><strong>Minor, backward-compatible additions</strong> (new optional JSON key) merely update this doc and the minor protocol version number.</li>

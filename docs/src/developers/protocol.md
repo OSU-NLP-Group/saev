@@ -72,16 +72,16 @@ A single array of `shard` objects, each of which has the following fields:
 ```python
 tokens_per_ex = patches_per_ex + (1 if cls_token else 0)
 
-ex_per_shard = floor(patches_per_shard / (tokens_per_ex * len(layers)))
+examples_per_shard = floor(patches_per_shard / (tokens_per_ex * len(layers)))
 
 shape_per_shard = (
-    ex_per_shard, len(layers), tokens_per_ex, d_model,
+    examples_per_shard, len(layers), tokens_per_ex, d_model,
 )
 ```
 
 *`patches_per_shard` is a **budget** (default ~2.4 M) chosen so a shard is approximately 10 GiB for Float32 @ `d_model = 1024`.*
 
-*The last shard will have a smaller value for `ex_per_shard`; this value is documented in `n_examples` in `shards.json`*
+*The last shard will have a smaller value for `examples_per_shard`; this value is documented in `n_examples` in `shards.json`*
 
 ---
 
@@ -101,7 +101,7 @@ Let the parameters from `metadata.json` be:
 * P = `patches_per_ex`
 * T = `P + (1 if cls_token else 0)` (Total tokens per example)
 * D = `d_model`
-* S = `n_examples` from `shards.json` or `ex_per_shard` from Section 3 (shard sizing).
+* S = `n_examples` from `shards.json` or `examples_per_shard` from Section 3 (shard sizing).
 
 ### 4.2 Coordinate Transformations
 
