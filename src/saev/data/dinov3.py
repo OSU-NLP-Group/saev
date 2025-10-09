@@ -628,11 +628,11 @@ class Vit(torch.nn.Module, models.VisionTransformer):
     def get_residuals(self) -> list[torch.nn.Module]:
         return self.model.blocks
 
-    def get_patches(self, n_patches_per_img: int) -> slice:
+    def get_token_i(self, content_tokens_per_example: int) -> slice:
         n_reg = self.model.cfg.n_storage_tokens
         patches = torch.cat((
             torch.tensor([0]),  # CLS token
-            torch.arange(n_reg + 1, n_reg + 1 + n_patches_per_img),  # patches
+            torch.arange(n_reg + 1, n_reg + 1 + content_tokens_per_example),  # patches
         ))
         return patches
 

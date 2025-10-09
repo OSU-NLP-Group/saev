@@ -1,7 +1,3 @@
-"""
-Uses [hypothesis]() and [hypothesis-torch](https://hypothesis-torch.readthedocs.io/en/stable/compatability/) to generate test cases to compare our normalized MSE implementation to a reference MSE implementation.
-"""
-
 import hypothesis
 import hypothesis.strategies as st
 import hypothesis_torch
@@ -534,8 +530,8 @@ def test_matryoshka_l1_calculation_uses_abs():
         matryoshka_loss = matryoshka_obj(sae, x)
 
         # Both L1 values should be non-negative (this is the definition of L1 norm)
-        assert vanilla_loss.l1 >= 0, f"Vanilla L1 should be non-negative, got {vanilla_loss.l1}"
-        assert matryoshka_loss.l1 >= 0, f"Matryoshka L1 should be non-negative, got {matryoshka_loss.l1}"
+        assert vanilla_loss.l1 >= 0
+        assert matryoshka_loss.l1 >= 0
 
         # Verify the encoded features actually have negative values
         f_x = sae.encode(x)
@@ -546,7 +542,9 @@ def test_matryoshka_l1_calculation_uses_abs():
 
         # Both objectives should match the expected L1 (with abs)
         torch.testing.assert_close(vanilla_loss.l1, expected_l1, rtol=1e-5, atol=1e-5)
-        torch.testing.assert_close(matryoshka_loss.l1, expected_l1, rtol=1e-5, atol=1e-5)
+        torch.testing.assert_close(
+            matryoshka_loss.l1, expected_l1, rtol=1e-5, atol=1e-5
+        )
 
     finally:
         # Restore original activation

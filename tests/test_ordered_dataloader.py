@@ -472,13 +472,13 @@ def test_patch_labels_returned_when_available(tmp_path):
 
             # Verify the labels match what we expect
             for i in range(batch["act"].shape[0]):
-                img_i = batch["example_idx"][i].item()
+                example_idx = batch["example_idx"][i].item()
                 token_idx = batch["token_idx"][i].item()
-                expected_label = (img_i * 10 + token_idx) % 150
+                expected_label = (example_idx * 10 + token_idx) % 150
                 actual_label = batch["token_labels"][i].item()
                 assert actual_label == expected_label, (
                     f"Batch {batch_idx}, item {i}: expected label {expected_label}, "
-                    f"got {actual_label} for img={img_i}, patch={token_idx}"
+                    f"got {actual_label} for img={example_idx}, patch={token_idx}"
                 )
 
             # Test first 3 batches only for speed
@@ -576,19 +576,19 @@ def test_patch_labels_consistency_across_batches(tmp_path):
         first_iter_labels = {}
         for batch in dl:
             for i in range(batch["act"].shape[0]):
-                img_i = batch["example_idx"][i].item()
+                example_idx = batch["example_idx"][i].item()
                 token_idx = batch["token_idx"][i].item()
                 label = batch["token_labels"][i].item()
-                first_iter_labels[(img_i, token_idx)] = label
+                first_iter_labels[(example_idx, token_idx)] = label
 
         # Collect labels from second iteration
         second_iter_labels = {}
         for batch in dl:
             for i in range(batch["act"].shape[0]):
-                img_i = batch["example_idx"][i].item()
+                example_idx = batch["example_idx"][i].item()
                 token_idx = batch["token_idx"][i].item()
                 label = batch["token_labels"][i].item()
-                second_iter_labels[(img_i, token_idx)] = label
+                second_iter_labels[(example_idx, token_idx)] = label
 
         # Verify labels are consistent
         assert first_iter_labels == second_iter_labels
@@ -764,14 +764,14 @@ def test_real_shards_with_labels(shards_dir_with_token_labels):
 
 
 @pytest.mark.slow
-def test_real_shards_sequential_order_with_labels(ordered_cfg):
+def test_real_shards_sequential_order_with_token_labels(ordered_cfg_with_token_labels):
     """Test that real shards maintain sequential order while returning labels."""
 
     # Create OrderedDataLoader
-    dl = OrderedDataLoader(ordered_cfg)
+    dl = OrderedDataLoader(ordered_cfg_with_token_labels)
 
     # Track sequential order
-    prev_img_i = -1
+    prev_example_idx = -1
     prev_patch_i = -1
     samples_checked = 0
     max_samples = 1000
@@ -780,28 +780,22 @@ def test_real_shards_sequential_order_with_labels(ordered_cfg):
         assert "token_labels" in batch
 
         for i in range(batch["act"].shape[0]):
-            img_i = batch["example_idx"][i].item()
+            example_idx = batch["example_idx"][i].item()
             token_idx = batch["token_idx"][i].item()
-            _ = batch["token_labels"][i].item()  # Verify labels exist
+            # Check that token label exists
+            batch["token_labels"][i]
 
             # Check sequential order
-            if prev_img_i >= 0:  # Skip first sample
-                if img_i == prev_img_i:
-                    # Same image, patch index should increment
-                    assert token_idx == prev_patch_i + 1, (
-                        f"Patches not sequential within image: "
-                        f"prev=({prev_img_i},{prev_patch_i}), curr=({img_i},{token_idx})"
-                    )
+            if prev_example_idx >= 0:  # Skip first sample
+                if example_idx == prev_example_idx:
+                    # Same image, patches should increment
+                    assert token_idx == prev_patch_i + 1
                 else:
                     # Next image
-                    assert img_i == prev_img_i + 1, (
-                        f"Images not sequential: prev={prev_img_i}, curr={img_i}"
-                    )
-                    assert token_idx == 0, (
-                        f"First patch of new image should be 0, got {token_idx}"
-                    )
+                    assert example_idx == prev_example_idx + 1
+                    assert token_idx == 0
 
-            prev_img_i = img_i
+            prev_example_idx = example_idx
             prev_patch_i = token_idx
             samples_checked += 1
 
@@ -811,8 +805,7 @@ def test_real_shards_sequential_order_with_labels(ordered_cfg):
         if samples_checked >= max_samples:
             break
 
-    print(f"Verified sequential order for {samples_checked} samples with labels")
-    assert samples_checked > 0, "No samples were checked"
+    assert samples_checked > 0
 
 
 @pytest.mark.slow
@@ -853,8 +846,8 @@ def test_real_shards_no_filtering(shards_dir_with_token_labels):
         assert "token_labels" in batch
 
         for i in range(batch["act"].shape[0]):
-            img_i = batch["example_idx"][i].item()
-            if img_i >= images_to_check:
+            example_idx = batch["example_idx"][i].item()
+            if example_idx >= images_to_check:
                 break
 
             label = batch["token_labels"][i].item()

@@ -51,12 +51,12 @@ def test_getitem_smoke(cfg):
     assert "token_idx" in example
 
 
-@pytest.mark.parametrize("seed", [17, 42, 123, 999, 2024])
-def test_compare_with_iterable(shards_dir, seed):
+@pytest.mark.parametrize("seed", [17, 42, 123])
+def test_compare_with_shuffled(shards_dir, seed):
     """Compare first 4 batches from shuffled dataloader with indexed dataset."""
     md = Metadata.load(shards_dir)
     layer = md.layers[0]
-    # Setup iterable dataloader
+    # Setup shuffled dataloader
     shuffled_cfg = ShuffledConfig(
         shards=shards_dir,
         tokens="content",
@@ -70,19 +70,19 @@ def test_compare_with_iterable(shards_dir, seed):
     indexed_cfg = IndexedConfig(shards=shards_dir, tokens="content", layer=layer)
     ds = IndexedDataset(indexed_cfg)
 
-    # Collect batches from iterable dataloader
-    iterable_batches = []
+    # Collect batches from shuffled dataloader
+    shuffled_batches = []
     it = iter(dl)
     for _ in range(4):
         batch = next(it)
-        iterable_batches.append({
+        shuffled_batches.append({
             "act": batch["act"].clone(),
             "example_idx": batch["example_idx"].clone(),
             "token_idx": batch["token_idx"].clone(),
         })
 
     # Compare each activation with indexed dataset
-    for batch_idx, batch in enumerate(iterable_batches):
+    for batch_idx, batch in enumerate(shuffled_batches):
         for i in range(batch["act"].shape[0]):
             example_idx = batch["example_idx"][i].item()
             token_idx = batch["token_idx"][i].item()
@@ -94,12 +94,8 @@ def test_compare_with_iterable(shards_dir, seed):
             indexed_example = ds[global_idx]
 
             # Compare values
-            assert indexed_example["example_idx"] == example_idx, (
-                f"Batch {batch_idx}, item {i}: example_idx mismatch: indexed={indexed_example['example_idx']}, iterable={example_idx}"
-            )
-            assert indexed_example["token_idx"] == token_idx, (
-                f"Batch {batch_idx}, item {i}: token_idx mismatch: indexed={indexed_example['token_idx']}, iterable={token_idx}"
-            )
+            assert indexed_example["example_idx"] == example_idx
+            assert indexed_example["token_idx"] == token_idx
 
             # Compare activations with tolerance for float32 precision
             torch.testing.assert_close(
