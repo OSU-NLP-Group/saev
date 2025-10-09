@@ -597,8 +597,8 @@ def test_dump_load_roundtrip_exhaustive(tmp_path):
         _ = sae(torch.randn(2, sae_cfg.d_model))  # touch all params once
 
         ckpt = tmp_path / f"sae_{i}.pt"
-        modeling.dump(str(ckpt), sae)
-        sae_loaded = modeling.load(str(ckpt))
+        modeling.dump(ckpt, sae)
+        sae_loaded = modeling.load(ckpt)
 
         # configs identical
         assert sae_cfg == sae_loaded.cfg
@@ -622,8 +622,8 @@ def test_dump_load_roundtrip_simple(tmp_path, sae_cfg):
     _ = sae(torch.randn(2, sae_cfg.d_model))  # touch all params once
 
     ckpt = tmp_path / "sae.pt"
-    modeling.dump(str(ckpt), sae)
-    sae_loaded = modeling.load(str(ckpt))
+    modeling.dump(ckpt, sae)
+    sae_loaded = modeling.load(ckpt)
 
     # configs identical
     assert sae_cfg == sae_loaded.cfg

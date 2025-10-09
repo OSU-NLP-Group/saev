@@ -4,7 +4,7 @@ from saev.data import datasets, shards
 
 
 @pytest.fixture(scope="session")
-def shards_dir(request):
+def custom_shards_dir(request):
     n_examples = 8
     layers = [0, 1]
     max_tokens_per_shard = 128
@@ -25,8 +25,8 @@ def shards_dir(request):
         )
 
 
-def test_content_tokens_with_cls_token(shards_dir):
-    md = shards.Metadata.load(shards_dir)
+def test_content_tokens_with_cls_token(custom_shards_dir):
+    md = shards.Metadata.load(custom_shards_dir)
     index_map = shards.IndexMap(md, "content", 0)
 
     idx = 0
@@ -36,6 +36,7 @@ def test_content_tokens_with_cls_token(shards_dir):
     assert index.content_token_idx == 0
     assert index.shard_idx == 0
     assert index.example_idx_in_shard == 0
+    assert index.layer_idx_in_shard == 0
     assert index.token_idx_in_shard == 1
 
     idx = 15
@@ -45,6 +46,7 @@ def test_content_tokens_with_cls_token(shards_dir):
     assert index.content_token_idx == 15
     assert index.shard_idx == 0
     assert index.example_idx_in_shard == 0
+    assert index.layer_idx_in_shard == 0
     assert index.token_idx_in_shard == 16
 
     idx = 16
@@ -54,6 +56,7 @@ def test_content_tokens_with_cls_token(shards_dir):
     assert index.content_token_idx == 0
     assert index.shard_idx == 0
     assert index.example_idx_in_shard == 1
+    assert index.layer_idx_in_shard == 0
     assert index.token_idx_in_shard == 1
 
     idx = 31
@@ -63,6 +66,7 @@ def test_content_tokens_with_cls_token(shards_dir):
     assert index.content_token_idx == 15
     assert index.shard_idx == 0
     assert index.example_idx_in_shard == 1
+    assert index.layer_idx_in_shard == 0
     assert index.token_idx_in_shard == 16
 
     idx = 48
@@ -72,11 +76,12 @@ def test_content_tokens_with_cls_token(shards_dir):
     assert index.content_token_idx == 0
     assert index.shard_idx == 1
     assert index.example_idx_in_shard == 0
+    assert index.layer_idx_in_shard == 0
     assert index.token_idx_in_shard == 1
 
 
-def test_special_tokens_with_cls_token(shards_dir):
-    md = shards.Metadata.load(shards_dir)
+def test_special_tokens_with_cls_token(custom_shards_dir):
+    md = shards.Metadata.load(custom_shards_dir)
     index_map = shards.IndexMap(md, "special", 0)
 
     idx = 0
@@ -86,4 +91,5 @@ def test_special_tokens_with_cls_token(shards_dir):
     assert index.content_token_idx == -1
     assert index.shard_idx == 0
     assert index.example_idx_in_shard == 0
+    assert index.layer_idx_in_shard == 0
     assert index.token_idx_in_shard == 0

@@ -4,7 +4,6 @@ import dataclasses
 import io
 import json
 import logging
-import os
 import pathlib
 import typing
 
@@ -270,7 +269,7 @@ def get_activation(cfg: ActivationConfig) -> torch.nn.Module:
 
 
 @beartype.beartype
-def dump(fpath: pathlib.Path, sae: SparseAutoencoder):
+def dump(fpath: pathlib.Path | str, sae: SparseAutoencoder):
     """
     Save an SAE checkpoint to disk along with configuration, using the [trick from equinox](https://docs.kidger.site/equinox/examples/serialisation).
 
@@ -294,7 +293,8 @@ def dump(fpath: pathlib.Path, sae: SparseAutoencoder):
         "lib": __version__,
     }
 
-    os.makedirs(os.path.dirname(fpath), exist_ok=True)
+    fpath = pathlib.Path(fpath)
+    fpath.parent.mkdir(exist_ok=True, parents=True)
     with open(fpath, "wb") as fd:
         header_str = json.dumps(header)
         fd.write((header_str + "\n").encode("utf-8"))
@@ -302,7 +302,7 @@ def dump(fpath: pathlib.Path, sae: SparseAutoencoder):
 
 
 @beartype.beartype
-def load(fpath: str, *, device="cpu") -> SparseAutoencoder:
+def load(fpath: pathlib.Path | str, *, device="cpu") -> SparseAutoencoder:
     """
     Loads a sparse autoencoder from disk.
     """

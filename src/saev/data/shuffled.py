@@ -408,7 +408,10 @@ class DataLoader:
                 labels_path,
                 mode="r",
                 dtype=np.uint8,
-                shape=(self.metadata.n_examples, self.metadata.patch_per_ex),
+                shape=(
+                    self.metadata.n_examples,
+                    self.metadata.content_tokens_per_example,
+                ),
             )
 
         self.manager_proc = self.ctx.Process(

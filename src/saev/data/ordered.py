@@ -70,17 +70,6 @@ class Config:
 
 
 @beartype.beartype
-class ExampleOutOfBoundsError(Exception):
-    def __init__(self, md: shards.Metadata, i: int):
-        self.md = md
-        self.i = i
-
-    @property
-    def message(self) -> str:
-        return f"Metadata says there are {self.md.n_examples} examples, but we found example {self.i}."
-
-
-@beartype.beartype
 def _manager_main(
     cfg: Config,
     md: shards.Metadata,
@@ -112,13 +101,13 @@ def _manager_main(
 
     try:
         # Load shard info to get actual distribution
+        index_map = shards.IndexMap(md, cfg.tokens, cfg.layer)
         shard_info = shards.ShardInfo.load(cfg.shards)
-        layer_i = md.layers.index(cfg.layer)
 
         # Check if labels.bin exists
-        labels_path = os.path.join(cfg.shards, "labels.bin")
         labels_mmap = None
-        if os.path.exists(labels_path):
+        labels_path = cfg.shards / "labels.bin"
+        if labels_path.exists():
             labels_mmap = np.memmap(
                 labels_path,
                 mode="r",
@@ -149,19 +138,10 @@ def _manager_main(
 
             # Process samples in this batch range
             for idx in range(current_idx, batch_end_idx):
-                # Calculate which image and patch this index corresponds to
-                global_example_idx = idx // md.content_tokens_per_example
-                token_idx = idx % md.content_tokens_per_example
-                shard_i = idx // md.examples_per_shard
-                local_example_idx = idx % md.examples_per_shard
-
-                if global_example_idx >= md.n_examples:
-                    err = ExampleOutOfBoundsError(md, global_example_idx)
-                    logger.warning(err.message)
-                    raise err
+                idx = index_map.from_global(idx)
 
                 # Load activation from the appropriate shard
-                acts_fpath = cfg.shards / f"acts{shard_i:06}.bin"
+                acts_fpath = cfg.shards / f"acts{idx.shard_idx:06}.bin"
 
                 # Open mmap for this shard if needed
                 mmap = np.memmap(
@@ -171,18 +151,20 @@ def _manager_main(
                 # Get the activation
                 act = torch.from_numpy(
                     mmap[
-                        local_example_idx, layer_i, token_idx + int(md.cls_token)
+                        idx.example_idx_in_shard,
+                        idx.layer_idx_in_shard,
+                        idx.token_idx_in_shard,
                     ].copy()
                 )
 
                 batch_acts.append(act)
-                batch_example_idx.append(global_example_idx)
-                batch_token_i.append(token_idx)
+                batch_example_idx.append(idx.example_idx)
+                batch_token_i.append(idx.content_token_idx)
 
                 # Add patch label if available
                 if labels_mmap is not None:
                     batch_token_labels.append(
-                        labels_mmap[global_example_idx, token_idx]
+                        labels_mmap[idx.example_idx, idx.content_token_idx]
                     )
 
             # Send batch if we have data

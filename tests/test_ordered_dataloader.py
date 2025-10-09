@@ -5,7 +5,6 @@ import json
 import pathlib
 import time
 
-import beartype
 import numpy as np
 import psutil
 import pytest
@@ -25,14 +24,6 @@ mp.set_start_method("spawn", force=True)
 
 
 @pytest.fixture(scope="session")
-def shards_dir(pytestconfig):
-    shards = pytestconfig.getoption("--shards")
-    if shards is None:
-        pytest.skip("--shards not supplied")
-    return pathlib.Path(shards)
-
-
-@pytest.fixture(scope="session")
 def ordered_cfg(shards_dir):
     md = Metadata.load(shards_dir)
     return OrderedConfig(
@@ -41,65 +32,14 @@ def ordered_cfg(shards_dir):
 
 
 @pytest.fixture(scope="session")
-def shards_dir_with_token_labels(shards_dir):
-    """Fixture for shards that have a labels.bin file."""
-    labels_path = shards_dir / "labels.bin"
-    if not labels_path.exists():
-        pytest.skip("--shards has no labels.bin")
-
-    return shards_dir
-
-
-@pytest.fixture(scope="session")
 def ordered_cfg_with_token_labels(shards_dir_with_token_labels):
-    md = Metadata.load(shards_dir)
+    md = Metadata.load(shards_dir_with_token_labels)
     return OrderedConfig(
         shards=shards_dir_with_token_labels,
         tokens="content",
         layer=md.layers[0],
         batch_size=128,
     )
-
-
-@beartype.beartype
-def write_shards(shards_root: pathlib.Path, **kwargs) -> pathlib.Path:
-    from saev.data import shards
-
-    default_kwargs = dict(
-        data=datasets.FakeImg(n_examples=2),
-        family="clip",
-        ckpt="hf-hub:hf-internal-testing/tiny-open-clip-model",
-        d_model=128,
-        layers=[0],
-        content_tokens_per_example=16,
-        cls_token=True,  # This model has a [CLS] token
-        max_tokens_per_shard=1000,
-        batch_size=4,
-        n_workers=0,
-        device="cpu",
-        shards_root=shards_root,
-    )
-    default_kwargs.update(kwargs)
-    return shards.worker_fn(**default_kwargs)
-
-
-@beartype.beartype
-def write_token_labels(shards_dir: pathlib.Path):
-    """Create distinct labels for each patch position across all images"""
-    md = Metadata.load(shards_dir)
-
-    labels = np.memmap(
-        shards_dir / "labels.bin",
-        mode="w+",
-        dtype=np.uint8,
-        shape=(md.n_examples, md.content_tokens_per_example),
-    )
-    for example_idx in range(md.n_examples):
-        for token_idx in range(md.content_tokens_per_example):
-            # Create a unique label based on image and patch index
-            labels[example_idx, token_idx] = (example_idx * 10 + token_idx) % 150
-
-    labels.flush()
 
 
 def peak_children():
@@ -302,7 +242,7 @@ def test_reproducibility(ordered_cfg):
 def test_constructor_validation(ordered_cfg):
     """Test that constructor validates inputs properly."""
     # Test with non-existent directory
-    cfg = dataclasses.replace(ordered_cfg, shard_root=pathlib.Path("/nonexistent/path"))
+    cfg = dataclasses.replace(ordered_cfg, shards=pathlib.Path("/nonexistent/path"))
     with pytest.raises(RuntimeError, match="Activations are not saved"):
         OrderedDataLoader(cfg)
 
@@ -371,16 +311,31 @@ def test_memory_stability(ordered_cfg):
     )
 
 
-def test_cross_shard_batches(shards_path, layer, md):
+@pytest.mark.skip(
+    reason="Loading an entire shard into memory is too slow; we need to use custom_shards_dir instead"
+)
+def test_cross_shard_batches(shards_dir):
     """Test that batches spanning multiple shards work correctly."""
-    # Use a batch size likely to span shards
-    patches_per_shard = md.examples_per_shard * md.n_patches_per_img / len(md.layers)
-    batch_size = int(patches_per_shard * 1.5)  # Should span 2 shards
+    from saev.data import shards
+
+    shard_info = shards.ShardInfo.load(shards_dir)
+    if len(shard_info) < 2:
+        pytest.skip(f"Not enough shards in {shards_dir}")
+        return
+
+    md = Metadata.load(shards_dir)
+
+    # Use a batch size likely to span shards. Since we are only considering content tokens, this math is easy.
+    tokens_per_shard = (
+        md.examples_per_shard * md.content_tokens_per_example / len(md.layers)
+    )
+
+    batch_size = int(tokens_per_shard * 1.5)  # Should span 2 shards
 
     cfg = OrderedConfig(
-        shard_root=shards_path,
-        patches="image",
-        layer=layer,
+        shards=shards_dir,
+        tokens="content",
+        layer=md.layers[0],
         batch_size=batch_size,
         debug=True,
     )
@@ -410,7 +365,7 @@ def test_ordered_dataloader_with_tiny_fake_dataset():
     """Test OrderedDataLoader with a very small fake dataset to ensure end behavior works."""
     with pytest.helpers.tmp_shards_root() as shards_root:
         # Generate the activation shards
-        shards_dir = write_shards(shards_root)
+        shards_dir = pytest.helpers.write_shards(shards_root)
         md = Metadata.load(shards_dir)
 
         # Test with batch_size = 7 (32 total samples, so batches of 7, 7, 7, 7, 4)
@@ -438,14 +393,14 @@ def test_ordered_dataloader_with_tiny_fake_dataset():
 @pytest.mark.slow
 def test_missing_shard_file_not_detected_at_init():
     """Test that missing shard files are NOT detected at initialization - exposes the validation gap."""
-    # Use small max_patches_per_shard to force multiple shards
+    # Use small max_tokens_per_shard to force multiple shards
     # Each image has 17 tokens (16 patches + 1 CLS), so with 2 images per shard we get 34 patches per shard
-    max_patches_per_shard = 34  # This will create ~5 shards for 10 images
+    max_tokens_per_shard = 34  # This will create ~5 shards for 10 images
     with pytest.helpers.tmp_shards_root() as shards_root:
         # Generate the activation shards
-        shards_dir = write_shards(
+        shards_dir = pytest.helpers.write_shards(
             shards_root,
-            max_patches_per_shard=max_patches_per_shard,
+            max_tokens_per_shard=max_tokens_per_shard,
             data=datasets.FakeImg(n_examples=10),
         )
 
@@ -474,7 +429,7 @@ def test_missing_shard_file_not_detected_at_init():
 
         # Create dataloader. this should raise an error at initialization because missing files should be detected early
         with pytest.raises(FileNotFoundError):
-            cfg = OrderedConfig(shards_dir=shards_dir, tokens="content", layer=0)
+            cfg = OrderedConfig(shards=shards_dir, tokens="content", layer=0)
             OrderedDataLoader(cfg)
 
 
@@ -484,7 +439,7 @@ def test_patch_labels_returned_when_available(tmp_path):
 
     with pytest.helpers.tmp_shards_root() as shards_root:
         # Generate the activation shards
-        shards_dir = write_shards(shards_root)
+        shards_dir = pytest.helpers.write_shards(shards_root)
         md = Metadata.load(shards_dir)
 
         # Create synthetic labels.bin file
@@ -537,7 +492,7 @@ def test_patch_labels_not_returned_when_missing():
 
     with pytest.helpers.tmp_shards_root() as shards_root:
         # Generate the activation shards
-        shards_dir = write_shards(shards_root)
+        shards_dir = pytest.helpers.write_shards(shards_root)
 
         # Ensure labels.bin doesn't exist
         labels_path = shards_dir / "labels.bin"
@@ -571,8 +526,8 @@ def test_no_patch_filtering_occurs(tmp_path):
 
     with pytest.helpers.tmp_shards_root() as shards_root:
         # Generate the activation shards
-        shards_dir = write_shards(shards_root)
-        write_token_labels(shards_dir)
+        shards_dir = pytest.helpers.write_shards(shards_root)
+        pytest.helpers.write_token_labels(shards_dir)
         md = Metadata.load(shards_dir)
 
         # Create OrderedDataLoader
@@ -593,7 +548,7 @@ def test_no_patch_filtering_occurs(tmp_path):
                 all_samples.append({
                     "example_idx": batch["example_idx"][i].item(),
                     "token_idx": batch["token_idx"][i].item(),
-                    "token_label": batch["token_label"][i].item(),
+                    "token_labels": batch["token_labels"][i].item(),
                 })
 
         # Verify we got ALL patches, including those with label 255
@@ -610,8 +565,8 @@ def test_patch_labels_consistency_across_batches(tmp_path):
 
     with pytest.helpers.tmp_shards_root() as shards_root:
         # Generate the activation shards
-        shards_dir = write_shards(shards_root)
-        write_token_labels(shards_dir)
+        shards_dir = pytest.helpers.write_shards(shards_root)
+        pytest.helpers.write_token_labels(shards_dir)
 
         # Create OrderedDataLoader
         cfg = OrderedConfig(shards=shards_dir, tokens="content", layer=0, batch_size=4)
@@ -645,7 +600,7 @@ def test_patch_labels_dtype_and_range(tmp_path):
 
     with pytest.helpers.tmp_shards_root() as shards_root:
         # Generate the activation shards
-        shards_dir = write_shards(shards_root)
+        shards_dir = pytest.helpers.write_shards(shards_root)
         md = Metadata.load(shards_dir)
 
         labels = np.memmap(
@@ -693,7 +648,7 @@ def test_patch_labels_dtype_and_range(tmp_path):
 #     with pytest.helpers.tmp_shards_root() as shards_root:
 #         # Generate the activation shards
 #         shards_dir = write_shards(
-#             shards_root, datasets.FakeImg(n_examples=6), max_patches_per_shard=34
+#             shards_root, datasets.FakeImg(n_examples=6), max_tokens_per_shard=34
 #         )
 #         write_token_labels(shards_dir)
 
@@ -717,7 +672,7 @@ def test_patch_labels_dtype_and_range(tmp_path):
 
 #         # Create OrderedDataLoader with batch size that spans shards
 #         cfg = OrderedConfig(
-#             shard_root=shard_root,
+#             shards=shard_root,
 #             patches="image",
 #             layer=layers[0],
 #             batch_size=40,  # Large enough to span shards
@@ -761,7 +716,7 @@ def test_real_shards_with_labels(shards_dir_with_token_labels):
 
     # Create OrderedDataLoader
     cfg = OrderedConfig(
-        shard_root=shards_dir_with_token_labels,
+        shards=shards_dir_with_token_labels,
         tokens="content",
         layer=md.layers[0],
         batch_size=256,
@@ -809,20 +764,11 @@ def test_real_shards_with_labels(shards_dir_with_token_labels):
 
 
 @pytest.mark.slow
-def test_real_shards_sequential_order_with_labels(patch_labeled_shards_path):
+def test_real_shards_sequential_order_with_labels(ordered_cfg):
     """Test that real shards maintain sequential order while returning labels."""
-    md = Metadata.load(patch_labeled_shards_path)
-    layer = md.layers[0]
 
     # Create OrderedDataLoader
-    cfg = OrderedConfig(
-        shard_root=patch_labeled_shards_path,
-        patches="image",
-        layer=layer,
-        batch_size=128,
-        drop_last=False,
-    )
-    dl = OrderedDataLoader(cfg)
+    dl = OrderedDataLoader(ordered_cfg)
 
     # Track sequential order
     prev_img_i = -1
@@ -889,8 +835,8 @@ def test_real_shards_no_filtering(shards_dir_with_token_labels):
 
     # Create OrderedDataLoader
     cfg = OrderedConfig(
-        shard_root=shards_dir_with_token_labels,
-        content="token",
+        shards=shards_dir_with_token_labels,
+        tokens="content",
         layer=md.layers[0],
         batch_size=100,
         drop_last=False,

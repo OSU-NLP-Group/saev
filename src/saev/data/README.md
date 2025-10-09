@@ -53,7 +53,7 @@ Activations are stored in binary files called "shards":
 1. **metadata.json**: Global dataset information
    - Model architecture details (family, checkpoint, layers)
    - Dataset dimensions (n_imgs, n_patches_per_img, d_vit)
-   - Storage parameters (max_patches_per_shard)
+   - Storage parameters (max_tokens_per_shard)
 
 2. **shards.json**: Per-shard information
    - List of shards with actual image counts

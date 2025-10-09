@@ -3,7 +3,6 @@ import dataclasses
 import gc
 import json
 import os
-import pathlib
 import time
 
 import beartype
@@ -18,26 +17,20 @@ mp.set_start_method("spawn", force=True)
 
 
 @pytest.fixture(scope="session")
-def cfg(pytestconfig):
-    shards = pytestconfig.getoption("--shards")
-    if shards is None:
-        pytest.skip("--shards not supplied")
-
-    shards = pathlib.Path(shards)
-
-    metadata = saev.data.Metadata.load(shards)
+def cfg(shards_dir):
+    metadata = saev.data.Metadata.load(shards_dir)
     layer = metadata.layers[0]
     cfg = ShuffledConfig(
-        shards=shards, tokens="content", layer=layer, debug=True, log_every_s=1.0
+        shards=shards_dir, tokens="content", layer=layer, debug=True, log_every_s=1.0
     )
 
     return cfg
 
 
 @beartype.beartype
-def _global_index(example_idx: int, token_i: int, n_patches: int) -> int:
-    """Map (example_idx, token_i) to linear index used by Dataset when cfg.patches == "patches" and cfg.layer is fixed."""
-    return example_idx * n_patches + token_i
+def _global_index(example_idx: int, token_idx: int, n_patches: int) -> int:
+    """Map (example_idx, token_idx) to linear index used by Dataset when cfg.patches == "patches" and cfg.layer is fixed."""
+    return example_idx * n_patches + token_idx
 
 
 def test_init_smoke(cfg):
@@ -77,7 +70,7 @@ def test_batch_size_matches(cfg, bs):
         batch = next(it)
         assert batch["act"].shape[0] == bs
         assert batch["example_idx"].shape[0] == bs
-        assert batch["token_i"].shape[0] == bs
+        assert batch["token_idx"].shape[0] == bs
 
 
 def peak_children():
@@ -117,7 +110,7 @@ def test_missing_shard_file_not_detected_at_init(tmp_path):
         content_tokens_per_example = 16
         layers = [0]
 
-        # Use small max_patches_per_shard to force multiple shards
+        # Use small max_tokens_per_shard to force multiple shards
         # Each image has 17 tokens (16 patches + 1 CLS), so with 2 images per shard we get 34 patches per shard
         max_tokens_per_shard = 34  # This will create ~5 shards for 10 images
 

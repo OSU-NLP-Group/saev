@@ -46,12 +46,12 @@ class Config:
     """Dimension of the ViT activations (depends on model)."""
     layers: list[int] = dataclasses.field(default_factory=lambda: [-2])
     """Which layers to save. By default, the second-to-last layer."""
-    patches_per_ex: int = 256
-    """Number of transformer patches per example (depends on model)."""
+    content_tokens_per_example: int = 256
+    """Number of content tokens per example (depends on model)."""
     cls_token: bool = True
     """Whether the model has a [CLS] token."""
     pixel_agg: tp.Literal["majority", "prefer-fg"] = "majority"
-    max_patches_per_shard: int = 2_400_000
+    max_tokens_per_shard: int = 2_400_000
     """Maximum number of activations per shard; 2.4M is approximately 10GB for 1024-dimensional 4-byte activations."""
 
     ssl: bool = True
@@ -93,14 +93,14 @@ def main(cfg: tp.Annotated[Config, tyro.conf.arg(name="")]):
     kwargs = dict(
         family=cfg.family,
         ckpt=cfg.ckpt,
-        patches_per_ex=cfg.patches_per_ex,
+        content_tokens_per_example=cfg.content_tokens_per_example,
         cls_token=cfg.cls_token,
         d_model=cfg.d_model,
         layers=cfg.layers,
         data=cfg.data,
         batch_size=cfg.batch_size,
         n_workers=cfg.n_workers,
-        max_patches_per_shard=cfg.max_patches_per_shard,
+        max_tokens_per_shard=cfg.max_tokens_per_shard,
         shards_root=cfg.shards_root,
         device=cfg.device,
         pixel_agg=cfg.pixel_agg,

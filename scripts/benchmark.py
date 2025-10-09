@@ -204,7 +204,7 @@ def benchmark(
     n_iter: int = 8,
     profile: bool = False,
 ):
-    import saev.data.writers
+    import saev.data.shards
     import saev.helpers
 
     logging.basicConfig(level=logging.INFO, format=log_format)
@@ -275,7 +275,7 @@ def benchmark(
             logger.warning("Job %d did not finish.", j)
 
     if not profile:  # Only save results.json for non-profile runs
-        meta = saev.data.writers.Metadata.load(shards)
+        meta = saev.data.shards.Metadata.load(shards)
         payload = dict(
             meta=dataclasses.asdict(meta),
             results=[dataclasses.asdict(r) for r in results],

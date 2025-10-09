@@ -851,11 +851,25 @@ class Index:
     content_token_idx: int
     shard_idx: int
     example_idx_in_shard: int
+    layer_idx_in_shard: int
     token_idx_in_shard: int
 
 
 @beartype.beartype
 class IndexMap:
+    """
+    Attributes:
+        md: Metadata
+        tokens: Which subset of tokens to load.
+        layer: Which layer to load.
+        layer_idx_lookup: The lookup from a transformer layer to the layer idx in the shard.
+    """
+
+    md: Metadata
+    tokens: tp.Literal["special", "content", "all"]
+    layer: int
+    layer_idx_lookup: dict[int, int]
+
     def __init__(
         self,
         md: Metadata,
@@ -868,6 +882,12 @@ class IndexMap:
         self.md = md
         self.tokens = tokens
         self.layer = layer
+
+        if isinstance(layer, int):
+            err_msg = f"No matche for layer; {layer} not in {md.layers}."
+            assert layer in md.layers, err_msg
+
+        self.layer_idx_lookup = {layer: i for i, layer in enumerate(md.layers)}
 
     def from_global(self, idx: int | np.int_) -> Index:
         idx = int(idx)
@@ -888,6 +908,7 @@ class IndexMap:
                     content_token_idx=-1,
                     shard_idx=shard_idx,
                     example_idx_in_shard=example_idx_in_shard,
+                    layer_idx_in_shard=self.layer_idx_lookup[self.layer],
                     token_idx_in_shard=0,
                 )
             case ("content", int()):
@@ -913,6 +934,7 @@ class IndexMap:
                     content_token_idx=content_token_idx,
                     shard_idx=shard_idx,
                     example_idx_in_shard=example_idx_in_shard,
+                    layer_idx_in_shard=self.layer_idx_lookup[self.layer],
                     token_idx_in_shard=token_idx_in_shard,
                 )
 

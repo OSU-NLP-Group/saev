@@ -1,4 +1,5 @@
 # tests/test_indexed_dataset.py
+import dataclasses
 import gc
 import json
 import os
@@ -22,38 +23,27 @@ from saev.data import (
 mp.set_start_method("spawn", force=True)
 
 
-@pytest.fixture(scope="session")
-def shards_dir(pytestconfig) -> pathlib.Path:
-    shards = pytestconfig.getoption("--shards")
-    if shards is None:
-        pytest.skip("--shards not supplied")
-    return pathlib.Path(shards)
-
-
-@pytest.fixture(scope="session")
-def md(shards_dir: pathlib.Path):
+@pytest.fixture()
+def md(shards_dir) -> IndexedConfig:
     return Metadata.load(shards_dir)
 
 
-@pytest.fixture(scope="session")
-def layer(md):
-    return md.layers[0]
+@pytest.fixture()
+def cfg(shards_dir, md) -> IndexedConfig:
+    return IndexedConfig(shards=shards_dir, tokens="content", layer=md.layers[0])
 
 
-def test_init_smoke(shards_dir, layer):
-    cfg = IndexedConfig(shards=shards_dir, tokens="content", layer=layer)
+def test_init_smoke(cfg):
     IndexedDataset(cfg)
 
 
-def test_len_smoke(shards_dir, layer):
-    cfg = IndexedConfig(shards=shards_dir, tokens="content", layer=layer)
+def test_len_smoke(cfg):
     ds = IndexedDataset(cfg)
     assert isinstance(len(ds), int)
 
 
-def test_getitem_smoke(shards_dir, layer):
+def test_getitem_smoke(cfg):
     # simply accessing one element should succeed
-    cfg = IndexedConfig(shards=shards_dir, tokens="content", layer=layer)
     ds = IndexedDataset(cfg)
     example = ds[0]
     assert "act" in example
@@ -62,8 +52,10 @@ def test_getitem_smoke(shards_dir, layer):
 
 
 @pytest.mark.parametrize("seed", [17, 42, 123, 999, 2024])
-def test_compare_with_iterable(shards_dir, layer, seed):
+def test_compare_with_iterable(shards_dir, seed):
     """Compare first 4 batches from shuffled dataloader with indexed dataset."""
+    md = Metadata.load(shards_dir)
+    layer = md.layers[0]
     # Setup iterable dataloader
     shuffled_cfg = ShuffledConfig(
         shards=shards_dir,
@@ -75,11 +67,7 @@ def test_compare_with_iterable(shards_dir, layer, seed):
     dl = ShuffledDataLoader(shuffled_cfg)
 
     # Setup indexed dataset
-    indexed_cfg = IndexedConfig(
-        shards=shards_dir,
-        tokens="content",
-        layer=layer,
-    )
+    indexed_cfg = IndexedConfig(shards=shards_dir, tokens="content", layer=layer)
     ds = IndexedDataset(indexed_cfg)
 
     # Collect batches from iterable dataloader
@@ -100,7 +88,7 @@ def test_compare_with_iterable(shards_dir, layer, seed):
             token_idx = batch["token_idx"][i].item()
 
             # Calculate the global index for this (image, patch) pair
-            global_idx = example_idx * ds.md.content_tokens_per_example + token_idx
+            global_idx = example_idx * md.content_tokens_per_example + token_idx
 
             # Get the same example from indexed dataset
             indexed_example = ds[global_idx]
@@ -123,9 +111,8 @@ def test_compare_with_iterable(shards_dir, layer, seed):
             )
 
 
-def test_random_access_consistency(shards_dir, layer):
+def test_random_access_consistency(cfg):
     """Test that repeated access to the same index returns the same data."""
-    cfg = IndexedConfig(shards=shards_dir, tokens="content", layer=layer)
     ds = IndexedDataset(cfg)
 
     # Test several random indices
@@ -149,9 +136,8 @@ def test_random_access_consistency(shards_dir, layer):
         torch.testing.assert_close(example1["act"], example3["act"], rtol=0, atol=0)
 
 
-def test_boundary_indices(shards_dir, layer):
+def test_boundary_indices(cfg, md):
     """Test accessing first, last, and boundary indices."""
-    cfg = IndexedConfig(shards=shards_dir, tokens="content", layer=layer)
     ds = IndexedDataset(cfg)
 
     # Test first index
@@ -162,8 +148,8 @@ def test_boundary_indices(shards_dir, layer):
     # Test last index
     last_idx = len(ds) - 1
     example = ds[last_idx]
-    expected_ex_i = last_idx // ds.md.content_tokens_per_example
-    expected_token_i = last_idx % ds.md.content_tokens_per_example
+    expected_ex_i = last_idx // md.content_tokens_per_example
+    expected_token_i = last_idx % md.content_tokens_per_example
     assert example["example_idx"] == expected_ex_i
     assert example["token_idx"] == expected_token_i
 
@@ -172,13 +158,13 @@ def test_boundary_indices(shards_dir, layer):
         ds[len(ds)]
 
 
-def test_cls_token_mode(shards_dir, layer):
+def test_cls_token_mode(cfg, md):
     """Test indexed dataset in CLS token mode."""
-    cfg = IndexedConfig(shards=shards_dir, tokens="special", layer=layer)
+    cfg = dataclasses.replace(cfg, tokens="special")
     ds = IndexedDataset(cfg)
 
     # In CLS mode, length should be number of images
-    assert len(ds) == ds.md.n_examples
+    assert len(ds) == md.n_examples
 
     # Test a few examples
     for i in range(min(10, len(ds))):
@@ -188,9 +174,8 @@ def test_cls_token_mode(shards_dir, layer):
         assert example["act"].shape == (ds.d_model,)
 
 
-def test_memory_usage(shards_dir, layer):
+def test_memory_usage(cfg):
     """Test that indexed dataset doesn't leak memory on repeated access."""
-    cfg = IndexedConfig(shards=shards_dir, tokens="content", layer=layer)
     ds = IndexedDataset(cfg)
 
     # Force garbage collection
@@ -219,9 +204,8 @@ def test_memory_usage(shards_dir, layer):
     )
 
 
-def test_negative_indices(shards_dir, layer):
+def test_negative_indices(cfg):
     """Test that negative indices raise IndexError."""
-    cfg = IndexedConfig(shards=shards_dir, tokens="content", layer=layer)
     ds = IndexedDataset(cfg)
 
     # Test various negative indices
@@ -231,9 +215,8 @@ def test_negative_indices(shards_dir, layer):
             ds[idx]
 
 
-def test_shard_boundary_access(shards_dir, layer, md):
+def test_shard_boundary_access(cfg, md):
     """Test accessing data at shard boundaries."""
-    cfg = IndexedConfig(shards=shards_dir, tokens="content", layer=layer)
     ds = IndexedDataset(cfg)
 
     # Test around shard boundaries
@@ -296,13 +279,12 @@ def test_different_layers(shards_dir, md):
         pytest.fail("All tested indices had similar activations across layers")
 
 
-def test_dataset_properties(shards_dir, layer):
+def test_dataset_properties(cfg, md):
     """Test various dataset properties and edge cases."""
-    cfg = IndexedConfig(shards=shards_dir, tokens="content", layer=layer)
     ds = IndexedDataset(cfg)
 
     # Test d_model property
-    assert ds.d_model == ds.md.d_model
+    assert ds.d_model == md.d_model
     assert ds.d_model > 0
 
     # Test that transform returns a tensor
@@ -313,9 +295,9 @@ def test_dataset_properties(shards_dir, layer):
     assert transformed.dtype == torch.float32
 
 
-def test_all_patches_mode_not_implemented(shards_dir, layer):
+def test_all_patches_mode_not_implemented(cfg):
     """Test that 'all' tokens mode raises NotImplementedError."""
-    cfg = IndexedConfig(shards=shards_dir, tokens="all", layer=layer)
+    cfg = dataclasses.replace(cfg, tokens="all")
     ds = IndexedDataset(cfg)
 
     # Should raise assert_never error
@@ -333,9 +315,8 @@ def test_all_layers_not_implemented(shards_dir):
         ds[0]
 
 
-def test_sequential_access_pattern(shards_dir, layer):
+def test_sequential_access_pattern(cfg, md):
     """Test sequential access pattern for performance."""
-    cfg = IndexedConfig(shards=shards_dir, tokens="content", layer=layer)
     ds = IndexedDataset(cfg)
 
     # Access first 100 indices sequentially
@@ -346,8 +327,8 @@ def test_sequential_access_pattern(shards_dir, layer):
         example = ds[i]
 
         # Verify indices are sequential
-        expected_ex_i = i // ds.md.content_tokens_per_example
-        expected_token_i = i % ds.md.content_tokens_per_example
+        expected_ex_i = i // md.content_tokens_per_example
+        expected_token_i = i % md.content_tokens_per_example
 
         assert example["example_idx"] == expected_ex_i
         assert example["token_idx"] == expected_token_i
@@ -375,9 +356,8 @@ def test_nonexistent_shard_dir():
         IndexedDataset(cfg)
 
 
-def test_edge_case_single_image(shards_dir, layer, md):
+def test_edge_case_single_image(cfg, md):
     """Test edge case where we access tokens from the very last image."""
-    cfg = IndexedConfig(shards=shards_dir, tokens="content", layer=layer)
     ds = IndexedDataset(cfg)
 
     # Access tokens from the last image
@@ -391,9 +371,8 @@ def test_edge_case_single_image(shards_dir, layer, md):
             assert example["token_idx"] == token_idx
 
 
-def test_token_indices_within_bounds(shards_dir, layer):
+def test_token_indices_within_bounds(cfg, md):
     """Test that all patch indices are within valid bounds."""
-    cfg = IndexedConfig(shards=shards_dir, tokens="content", layer=layer)
     ds = IndexedDataset(cfg)
 
     # Sample random indices
@@ -404,18 +383,17 @@ def test_token_indices_within_bounds(shards_dir, layer):
         example = ds[idx]
 
         # Patch index should be within bounds
-        assert 0 <= example["token_idx"] < ds.md.content_tokens_per_example
+        assert 0 <= example["token_idx"] < md.content_tokens_per_example
 
         # Image index should be within bounds
-        assert 0 <= example["example_idx"] < ds.md.n_examples
+        assert 0 <= example["example_idx"] < md.n_examples
 
         # Activation should have correct shape
         assert example["act"].shape == (ds.d_model,)
 
 
-def test_dtype_consistency(shards_dir, layer):
+def test_dtype_consistency(cfg):
     """Test that data types are consistent."""
-    cfg = IndexedConfig(shards=shards_dir, tokens="content", layer=layer)
     ds = IndexedDataset(cfg)
 
     example = ds[0]
@@ -427,18 +405,17 @@ def test_dtype_consistency(shards_dir, layer):
     assert example["act"].dtype == torch.float32
 
 
-def test_memmap_file_access(shards_dir, layer, md):
+def test_memmap_file_access(cfg, md):
     """Test that memmap files are accessed correctly."""
-    cfg = IndexedConfig(shards=shards_dir, tokens="content", layer=layer)
     ds = IndexedDataset(cfg)
 
     # Test first shard file exists
-    acts_fpath = os.path.join(shards_dir, "acts000000.bin")
+    acts_fpath = os.path.join(cfg.shards, "acts000000.bin")
     assert os.path.exists(acts_fpath)
 
     # Verify we can access data from first and last patch of first image
     example_first = ds[0]
-    example_last = ds[ds.md.content_tokens_per_example - 1]
+    example_last = ds[md.content_tokens_per_example - 1]
 
     assert example_first["example_idx"] == 0
     assert example_first["token_idx"] == 0
@@ -458,9 +435,9 @@ def test_missing_shard_file_not_detected_at_init(tmp_path):
     n_patches = 16
     layers = [0]
 
-    # Use small max_patches_per_shard to force multiple shards
+    # Use small max_tokens_per_shard to force multiple shards
     # Each image has 17 tokens (16 tokens + 1 CLS), so with 2 images per shard we get 34 tokens per shard
-    max_patches_per_shard = 34  # This will create ~5 shards for 10 images
+    max_tokens_per_shard = 34  # This will create ~5 shards for 10 images
 
     # Create activation shards
     cfg = shards.Config(
@@ -472,7 +449,7 @@ def test_missing_shard_file_not_detected_at_init(tmp_path):
         vit_layers=layers,
         content_tokens_per_example=n_patches,
         cls_token=True,
-        max_patches_per_shard=max_patches_per_shard,
+        max_tokens_per_shard=max_tokens_per_shard,
         vit_batch_size=2,
         n_workers=0,
         device="cpu",

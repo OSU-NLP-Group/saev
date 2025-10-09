@@ -82,13 +82,6 @@ class Dataset(torch.utils.data.Dataset):
                 shape=(self.md.n_examples, self.md.content_tokens_per_example),
             )
 
-        # Pick a really big number so that if you accidentally use this when you shouldn't, you get an out of bounds IndexError.
-        self.layer_idx = 1_000_000
-        if isinstance(self.cfg.layer, int):
-            err_msg = f"Non-exact matches for .layer field not supported; {self.cfg.layer} not in {self.md.layers}."
-            assert self.cfg.layer in self.md.layers, err_msg
-            self.layer_idx = self.md.layers.index(self.cfg.layer)
-
         self.index_map = shards.IndexMap(self.md, self.cfg.tokens, self.cfg.layer)
 
     def transform(
@@ -112,7 +105,9 @@ class Dataset(torch.utils.data.Dataset):
         )
 
         # Get the activation
-        act = acts[idx.example_idx_in_shard, self.layer_idx, idx.token_idx_in_shard]
+        act = acts[
+            idx.example_idx_in_shard, idx.layer_idx_in_shard, idx.token_idx_in_shard
+        ]
 
         result = self.Example(
             act=self.transform(act),
@@ -121,9 +116,9 @@ class Dataset(torch.utils.data.Dataset):
         )
 
         # Add patch label if available
-        if self.labels_mmap is not None:
-            result["patch_label"] = int(
-                self.labels_mmap[idx.example_idx, idx.token_idx]
+        if self.labels_mmap is not None and idx.content_token_idx >= 0:
+            result["token_label"] = int(
+                self.labels_mmap[idx.example_idx, idx.content_token_idx]
             )
 
         return result
