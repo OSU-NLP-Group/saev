@@ -9,6 +9,7 @@ import typing
 
 import beartype
 import einops
+import orjson
 import torch
 from jaxtyping import Float, Int64, jaxtyped
 from torch import Tensor
@@ -296,8 +297,7 @@ def dump(fpath: pathlib.Path | str, sae: SparseAutoencoder):
     fpath = pathlib.Path(fpath)
     fpath.parent.mkdir(exist_ok=True, parents=True)
     with open(fpath, "wb") as fd:
-        header_str = json.dumps(header)
-        fd.write((header_str + "\n").encode("utf-8"))
+        helpers.dump(header, fd, option=orjson.OPT_APPEND_NEWLINE)
         torch.save(sae.state_dict(), fd)
 
 
@@ -316,6 +316,7 @@ def load(fpath: pathlib.Path | str, *, device="cpu") -> SparseAutoencoder:
         for keyword in ("sparsity_coeff", "ghost_grads", "l1_coeff", "use_ghost_grads"):
             header.pop(keyword, None)
         # Legacy format - create SparseAutoencoderConfig with Relu activation
+        header["d_model"] = header.pop("d_vit")
         cfg = SparseAutoencoderConfig(**header, activation=Relu())
     elif header["schema"] == 1:
         # Schema version 1: A cautionary tale of poor version management
@@ -350,6 +351,14 @@ def load(fpath: pathlib.Path | str, *, device="cpu") -> SparseAutoencoder:
             cfg = SparseAutoencoderConfig(**cfg_dict)
     elif header["schema"] == 2:
         # Schema version 2: cleaner format with activation serialization
+        cfg_dict = header["cfg"]
+        activation_info = cfg_dict["activation"]
+        activation_cls = globals()[activation_info["cls"]]
+        activation = activation_cls(**activation_info["params"])
+        cfg_dict["activation"] = activation
+        cfg = SparseAutoencoderConfig(**cfg_dict)
+    elif header["schema"] == 3:
+        # Schema version 3: Uses d_model
         cfg_dict = header["cfg"]
         activation_info = cfg_dict["activation"]
         activation_cls = globals()[activation_info["cls"]]

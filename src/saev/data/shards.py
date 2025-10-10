@@ -16,12 +16,13 @@ from collections.abc import Callable, Sequence
 import beartype
 import einops
 import numpy as np
+import orjson
 import torch
 from jaxtyping import Float, UInt8, jaxtyped
 from PIL import Image
 from torch import Tensor
 
-from .. import disk
+from .. import disk, helpers
 from . import datasets
 
 logger = logging.getLogger(__name__)
@@ -69,7 +70,7 @@ class Metadata:
         assert self.examples_per_shard >= 1, msg
 
         try:
-            json.dumps(self.data)
+            helpers.dumps(self.data)
         except TypeError as err:
             raise TypeError("self.data has an unhashable object") from err
 
@@ -98,10 +99,8 @@ class Metadata:
         """
         assert disk.is_shards_root(shards_root)
         (shards_root / self.hash).mkdir(exist_ok=True)
-        with open(shards_root / self.hash / "metadata.json", "w") as fd:
-            dct = dataclasses.asdict(self)
-            dct["dataset"] = str(dct["dataset"])
-            json.dump(dct, fd, indent=4)
+        with open(shards_root / self.hash / "metadata.json", "wb") as fd:
+            helpers.dump(self, fd, option=orjson.OPT_INDENT_2)
 
     @property
     def hash(self) -> str:
@@ -111,11 +110,7 @@ class Metadata:
         Returns:
             Hexadecimal hash string uniquely identifying this configuration.
         """
-        dct = dataclasses.asdict(self)
-        dct["dataset"] = str(dct["dataset"])
-        cfg_bytes = json.dumps(dct, sort_keys=True, separators=(",", ":")).encode(
-            "utf-8"
-        )
+        cfg_bytes = helpers.dumps(self, option=orjson.OPT_SORT_KEYS)
         return hashlib.sha256(cfg_bytes).hexdigest()
 
     @property
@@ -543,8 +538,8 @@ class ShardInfo:
 
     def dump(self, shards_dir: pathlib.Path) -> None:
         assert disk.is_shards_dir(shards_dir)
-        with open(shards_dir / "shards.json", "w") as fd:
-            json.dump([dataclasses.asdict(s) for s in self.shards], fd, indent=2)
+        with open(shards_dir / "shards.json", "wb") as fd:
+            helpers.dump(self.shards, fd, option=orjson.OPT_INDENT_2)
 
     def append(self, shard: Shard):
         self.shards.append(shard)

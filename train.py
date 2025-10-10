@@ -16,7 +16,6 @@ Checklist for making sure your training doesn't suck:
 """
 
 import dataclasses
-import json
 import logging
 import os.path
 import pathlib
@@ -165,7 +164,7 @@ def worker_fn(cfgs: list[Config]) -> list[str]:
         nn.dump(run.ckpt, sae)
         logger.info("Dumped checkpoint to '%s'.", run.ckpt)
         with open(run.root / "checkpoint" / "config.json", "w") as fd:
-            json.dump(dataclasses.asdict(cfg), fd, indent=4)
+            helpers.dump(cfg, fd, indent=4)
 
     return ids
 

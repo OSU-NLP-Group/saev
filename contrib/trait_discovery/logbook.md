@@ -1134,3 +1134,15 @@ This also implies that we have the correct disk layout according to the disk-lay
 ```sh
 uv run train.py --sweep contrib/trait_discovery/sweeps/train-saes.toml --tag ade20k-v0.1 --n-train 100_000_000 --slurm-acct PAS2136 --slurm-partition nextgen --train-data.shards /fs/scratch/PAS2136/samuelstevens/saev/shards/f34a6053594b4f70b9b7fe3cdcdb03b4852ed1a4e01fb1c1d2e270037ad5cbbf/ --val-data.shards /fs/scratch/PAS2136/samuelstevens/saev/shards/771db1317b40582dc64fe552f01aef1f76be444ca5188aa16dca3a9848e1417f/ sae.activation:relu objective:matryoshka
 ```
+
+# 10/08/2025
+
+I think I finished the refactor.
+This landed:
+
+- Python-based sweeps
+- A new disk layout to simplify experiments
+- Renaming a bunch of variables to make saev extensible to non-vision transformers
+- Way better user docs
+
+So now I will train an ADE20K DINOv3 SAE.

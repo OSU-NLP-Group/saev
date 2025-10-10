@@ -7,9 +7,11 @@ import pathlib
 import re
 import subprocess
 import time
+import typing as tp
 from collections.abc import Hashable, Iterable, Iterator
 
 import beartype
+import orjson
 
 
 @beartype.beartype
@@ -397,3 +399,19 @@ def make_hashable(x: object) -> Hashable:
         return ("object_slots", x.__class__, frozenset(items))
 
     raise TypeError(f"Unsupported type {type(x).__name__}; add a converter if needed.")
+
+
+def _dumps_default(obj: object):
+    if isinstance(obj, pathlib.Path):
+        return str(obj)
+    raise TypeError
+
+
+@beartype.beartype
+def dump(obj: object, fd: tp.BinaryIO, *, option: int | None = None):
+    fd.write(dumps(obj, option=option))
+
+
+@beartype.beartype
+def dumps(obj: object, *, option: int | None = None) -> bytes:
+    return orjson.dumps(obj, option=option, default=_dumps_default)

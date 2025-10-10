@@ -11,7 +11,6 @@ Dumps 5 files:
 """
 
 import dataclasses
-import json
 import logging
 import os
 import pathlib
@@ -106,8 +105,8 @@ def worker_fn(cfg: Config):
     else:
         logger.info("Missing files %s; computing activations.", ", ".join(missing))
 
-    with open(cfg_fpath, "w") as fd:
-        json.dump(dataclasses.asdict(cfg), fd)
+    with open(cfg_fpath, "wb") as fd:
+        helpers.dump(cfg, fd)
 
     assert cfg.data.patches == "image"
     sae = nn.load(cfg.ckpt).to(cfg.device)

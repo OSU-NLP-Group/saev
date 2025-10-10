@@ -7,7 +7,6 @@ uv run python bench/run_bench.py --shard-path /fs/scratch/.../cache/saev/<hash>
 """
 
 import dataclasses
-import json
 import logging
 import pathlib
 import subprocess
@@ -280,8 +279,8 @@ def benchmark(
             meta=dataclasses.asdict(meta),
             results=[dataclasses.asdict(r) for r in results],
         )
-        with open(out / "results.json", "w") as f:
-            json.dump(payload, f, indent=4)
+        with open(out / "results.json", "wb") as fd:
+            saev.helpers.dump(payload, fd)
 
 
 @beartype.beartype
