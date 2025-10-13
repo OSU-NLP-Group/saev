@@ -200,7 +200,15 @@ def test_np_topk_1d(arr, k):
     torch_values, torch_indices = torch.topk(torch_arr, k)
 
     # Check values match
-    np.testing.assert_allclose(np_result, torch_values.numpy(), rtol=1e-5, atol=1e-7)
+    np.testing.assert_allclose(
+        np_result.values, torch_values.numpy(), rtol=1e-5, atol=1e-7
+    )
+    # Check that indices point to the correct values
+    # (indices may differ for equal values, which is acceptable)
+    indexed_values = np_arr[np_result.indices]
+    np.testing.assert_allclose(
+        indexed_values, torch_values.numpy(), rtol=1e-5, atol=1e-7
+    )
 
 
 @given(
@@ -228,7 +236,14 @@ def test_np_topk_2d(shape, k, axis):
     torch_values, torch_indices = torch.topk(torch_arr, k, dim=axis)
 
     # Check values match
-    np.testing.assert_allclose(np_result, torch_values.numpy(), rtol=1e-5, atol=1e-7)
+    np.testing.assert_allclose(
+        np_result.values, torch_values.numpy(), rtol=1e-5, atol=1e-7
+    )
+    # Check that indices point to the correct values
+    indexed_values = np.take_along_axis(np_arr, np_result.indices, axis=axis)
+    np.testing.assert_allclose(
+        indexed_values, torch_values.numpy(), rtol=1e-5, atol=1e-7
+    )
 
 
 @given(
@@ -257,7 +272,14 @@ def test_np_topk_3d(shape, k, axis):
     torch_values, torch_indices = torch.topk(torch_arr, k, dim=axis)
 
     # Check values match
-    np.testing.assert_allclose(np_result, torch_values.numpy(), rtol=1e-5, atol=1e-7)
+    np.testing.assert_allclose(
+        np_result.values, torch_values.numpy(), rtol=1e-5, atol=1e-7
+    )
+    # Check that indices point to the correct values
+    indexed_values = np.take_along_axis(np_arr, np_result.indices, axis=axis)
+    np.testing.assert_allclose(
+        indexed_values, torch_values.numpy(), rtol=1e-5, atol=1e-7
+    )
 
 
 def test_np_topk_edge_cases():
@@ -265,27 +287,34 @@ def test_np_topk_edge_cases():
     # Test with k=1
     arr = np.array([3.0, 1.0, 4.0, 1.0, 5.0])
     result = helpers.np_topk(arr, 1, axis=None)
-    torch_result, _ = torch.topk(torch.from_numpy(arr), 1)
-    np.testing.assert_allclose(result, torch_result.numpy())
+    torch_values, torch_indices = torch.topk(torch.from_numpy(arr), 1)
+    np.testing.assert_allclose(result.values, torch_values.numpy())
+    # Check indices point to correct values
+    np.testing.assert_allclose(arr[result.indices], torch_values.numpy())
 
-    # Test with k equal to array size
+    # Test with k equal to array size (has duplicate values)
     result = helpers.np_topk(arr, len(arr), axis=None)
-    torch_result, _ = torch.topk(torch.from_numpy(arr), len(arr))
-    np.testing.assert_allclose(result, torch_result.numpy())
+    torch_values, torch_indices = torch.topk(torch.from_numpy(arr), len(arr))
+    np.testing.assert_allclose(result.values, torch_values.numpy())
+    # Check indices point to correct values (may differ for ties)
+    np.testing.assert_allclose(arr[result.indices], torch_values.numpy())
 
     # Test with 2D array, axis=0
     arr_2d = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
     result = helpers.np_topk(arr_2d, 1, axis=0)
-    torch_result, _ = torch.topk(torch.from_numpy(arr_2d), 1, dim=0)
-    np.testing.assert_allclose(result, torch_result.numpy())
+    torch_values, torch_indices = torch.topk(torch.from_numpy(arr_2d), 1, dim=0)
+    np.testing.assert_allclose(result.values, torch_values.numpy())
+    np.testing.assert_array_equal(result.indices, torch_indices.numpy())
 
     # Test with 2D array, axis=1
     result = helpers.np_topk(arr_2d, 2, axis=1)
-    torch_result, _ = torch.topk(torch.from_numpy(arr_2d), 2, dim=1)
-    np.testing.assert_allclose(result, torch_result.numpy())
+    torch_values, torch_indices = torch.topk(torch.from_numpy(arr_2d), 2, dim=1)
+    np.testing.assert_allclose(result.values, torch_values.numpy())
+    np.testing.assert_array_equal(result.indices, torch_indices.numpy())
 
-    # Test with negative values
+    # Test with negative values (no duplicates, so indices should match exactly)
     arr_neg = np.array([-5.0, -2.0, -8.0, -1.0, -3.0])
     result = helpers.np_topk(arr_neg, 3, axis=None)
-    torch_result, _ = torch.topk(torch.from_numpy(arr_neg), 3)
-    np.testing.assert_allclose(result, torch_result.numpy())
+    torch_values, torch_indices = torch.topk(torch.from_numpy(arr_neg), 3)
+    np.testing.assert_allclose(result.values, torch_values.numpy())
+    np.testing.assert_array_equal(result.indices, torch_indices.numpy())

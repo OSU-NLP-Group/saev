@@ -419,7 +419,13 @@ def dumps(obj: object, *, option: int | None = None) -> bytes:
 
 
 @beartype.beartype
-def np_topk(arr: np.ndarray, k: int, axis: int | None = None) -> np.ndarray:
+class NumpyTopK(tp.NamedTuple):
+    values: np.ndarray
+    indices: np.ndarray
+
+
+@beartype.beartype
+def np_topk(arr: np.ndarray, k: int, axis: int | None = None) -> NumpyTopK:
     """A numpy implementation of torch.topk.
 
     Returns the k largest elements along the given axis. If axis is None, the array is flattened first.
@@ -440,18 +446,14 @@ def np_topk(arr: np.ndarray, k: int, axis: int | None = None) -> np.ndarray:
     if axis < 0:
         axis = arr.ndim + axis
 
-    # Use argpartition to efficiently partition around the kth largest element
-    # argpartition with negative index finds the k largest elements
-    indices = np.argpartition(arr, -k, axis=axis)
+    # For each position along other axes, sort and take top k
+    # Use argsort which is stable and will preserve order for equal values
+    sort_indices = np.argsort(-arr, axis=axis, kind="stable")
 
-    # Take the last k indices (which correspond to the k largest elements)
-    indices = np.take(indices, np.arange(-k, 0), axis=axis)
+    # Take the first k sorted indices
+    topk_indices = np.take(sort_indices, np.arange(k), axis=axis)
 
     # Gather the top k values
-    topk_values = np.take_along_axis(arr, indices, axis=axis)
+    topk_values = np.take_along_axis(arr, topk_indices, axis=axis)
 
-    # Sort the top k values in descending order
-    sorted_indices = np.argsort(-topk_values, axis=axis)
-    topk_values = np.take_along_axis(topk_values, sorted_indices, axis=axis)
-
-    return topk_values
+    return NumpyTopK(values=topk_values, indices=topk_indices)
