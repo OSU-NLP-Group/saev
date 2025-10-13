@@ -127,7 +127,3 @@ def main(cfg: tp.Annotated[Config, tyro.conf.arg(name="")]):
 
     else:
         shards.worker_fn(**kwargs)
-
-
-if __name__ == "__main__":
-    tyro.cli(main)
