@@ -4,6 +4,7 @@ import tempfile
 
 import beartype
 import numpy as np
+import scipy.sparse
 import torch
 from hypothesis import given, settings
 from hypothesis import strategies as st
@@ -318,3 +319,129 @@ def test_np_topk_edge_cases():
     torch_values, torch_indices = torch.topk(torch.from_numpy(arr_neg), 3)
     np.testing.assert_allclose(result.values, torch_values.numpy())
     np.testing.assert_array_equal(result.indices, torch_indices.numpy())
+
+
+@given(
+    shape=st.tuples(
+        st.integers(min_value=1, max_value=20),
+        st.integers(min_value=1, max_value=20),
+    ),
+    k=st.integers(min_value=1, max_value=10),
+    sparsity=st.floats(min_value=0.1, max_value=0.9),
+)
+def test_csr_topk_2d(shape, k, sparsity):
+    """csr_topk should match np_topk for CSR matrices."""
+    # Create random sparse array
+    n_nonzero = int(shape[0] * shape[1] * (1 - sparsity))
+    n_nonzero = max(1, n_nonzero)  # At least one non-zero element
+
+    # Create dense array and convert to CSR
+    dense = np.zeros(shape, dtype=np.float32)
+    indices = np.random.choice(shape[0] * shape[1], size=n_nonzero, replace=False)
+    rows = indices // shape[1]
+    cols = indices % shape[1]
+    values = np.random.randn(n_nonzero).astype(np.float32)
+    dense[rows, cols] = values
+
+    csr = scipy.sparse.csr_matrix(dense)
+
+    # Adjust k to be at most the number of columns
+    k = min(k, shape[1])
+
+    # Test axis=1 (along columns, which is what CSR is good at)
+    csr_result = helpers.csr_topk(csr, k=k, axis=1)
+    np_result = helpers.np_topk(dense, k, axis=1)
+
+    # Check values match
+    np.testing.assert_allclose(
+        csr_result.values, np_result.values, rtol=1e-5, atol=1e-7
+    )
+    # Check that indices point to the correct values (only for non-zero values)
+    for i in range(shape[0]):
+        # Only check non-zero values (sparse rows may have fewer than k non-zeros)
+        nonzero_mask = csr_result.values[i] != 0
+        if np.any(nonzero_mask):
+            indexed_values = dense[i, csr_result.indices[i][nonzero_mask]]
+            np.testing.assert_allclose(
+                indexed_values, np_result.values[i][nonzero_mask], rtol=1e-5, atol=1e-7
+            )
+
+
+def test_csr_topk_edge_cases():
+    """Test csr_topk edge cases."""
+    # Test with fully sparse row
+    dense = np.array([[1.0, 2.0, 3.0, 0.0], [0.0, 0.0, 0.0, 0.0], [5.0, 4.0, 3.0, 2.0]])
+    csr = scipy.sparse.csr_matrix(dense)
+
+    result = helpers.csr_topk(csr, k=2, axis=1)
+    np_result = helpers.np_topk(dense, 2, axis=1)
+
+    np.testing.assert_allclose(result.values, np_result.values, rtol=1e-5, atol=1e-7)
+    # Check indices point to correct values
+    for i in range(dense.shape[0]):
+        indexed_values = dense[i, result.indices[i]]
+        np.testing.assert_allclose(
+            indexed_values, np_result.values[i], rtol=1e-5, atol=1e-7
+        )
+
+    # Test with k=1
+    result = helpers.csr_topk(csr, k=1, axis=1)
+    np_result = helpers.np_topk(dense, 1, axis=1)
+    np.testing.assert_allclose(result.values, np_result.values, rtol=1e-5, atol=1e-7)
+
+    # Test with k equal to number of columns
+    result = helpers.csr_topk(csr, k=4, axis=1)
+    np_result = helpers.np_topk(dense, 4, axis=1)
+    np.testing.assert_allclose(result.values, np_result.values, rtol=1e-5, atol=1e-7)
+
+    # Test with all positive values
+    dense_pos = np.array([[3.0, 1.0, 4.0, 2.0], [5.0, 6.0, 1.0, 2.0]])
+    csr_pos = scipy.sparse.csr_matrix(dense_pos)
+    result = helpers.csr_topk(csr_pos, k=3, axis=1)
+    np_result = helpers.np_topk(dense_pos, 3, axis=1)
+    np.testing.assert_allclose(result.values, np_result.values, rtol=1e-5, atol=1e-7)
+
+    # Test with negative values
+    dense_neg = np.array([[-5.0, -2.0, -8.0, -1.0], [-3.0, -6.0, -4.0, -7.0]])
+    csr_neg = scipy.sparse.csr_matrix(dense_neg)
+    result = helpers.csr_topk(csr_neg, k=2, axis=1)
+    np_result = helpers.np_topk(dense_neg, 2, axis=1)
+    np.testing.assert_allclose(result.values, np_result.values, rtol=1e-5, atol=1e-7)
+
+
+def test_csr_topk_single_row():
+    """Test csr_topk with a single row (common case for batch processing)."""
+    # Single row with various values
+    dense = np.array([[5.0, 2.0, 8.0, 1.0, 3.0, 7.0, 4.0, 6.0]])
+    csr = scipy.sparse.csr_matrix(dense)
+
+    for k_val in [1, 3, 5, 8]:
+        result = helpers.csr_topk(csr, k=k_val, axis=1)
+        np_result = helpers.np_topk(dense, k_val, axis=1)
+        np.testing.assert_allclose(
+            result.values, np_result.values, rtol=1e-5, atol=1e-7
+        )
+        # Check indices point to correct values
+        indexed_values = dense[0, result.indices[0]]
+        np.testing.assert_allclose(
+            indexed_values, np_result.values[0], rtol=1e-5, atol=1e-7
+        )
+
+
+def test_csr_topk_with_duplicates():
+    """Test csr_topk handles duplicate values correctly."""
+    # Array with many duplicates
+    dense = np.array([[5.0, 5.0, 5.0, 1.0], [3.0, 3.0, 2.0, 2.0], [1.0, 1.0, 1.0, 1.0]])
+    csr = scipy.sparse.csr_matrix(dense)
+
+    result = helpers.csr_topk(csr, k=2, axis=1)
+    np_result = helpers.np_topk(dense, 2, axis=1)
+
+    # Values should match exactly
+    np.testing.assert_allclose(result.values, np_result.values, rtol=1e-5, atol=1e-7)
+    # Indices may differ for ties, but should point to correct values
+    for i in range(dense.shape[0]):
+        indexed_values = dense[i, result.indices[i]]
+        np.testing.assert_allclose(
+            indexed_values, np_result.values[i], rtol=1e-5, atol=1e-7
+        )

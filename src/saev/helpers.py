@@ -13,6 +13,7 @@ from collections.abc import Hashable, Iterable, Iterator
 import beartype
 import numpy as np
 import orjson
+import scipy.sparse
 
 
 @beartype.beartype
@@ -457,3 +458,175 @@ def np_topk(arr: np.ndarray, k: int, axis: int | None = None) -> NumpyTopK:
     topk_values = np.take_along_axis(arr, topk_indices, axis=axis)
 
     return NumpyTopK(values=topk_values, indices=topk_indices)
+
+
+def _csr_topk_axis0(
+    arr: scipy.sparse.csr_array | scipy.sparse.csr_matrix, k: int, batch_size: int
+) -> NumpyTopK:
+    """
+    Axis=0 top-k: find top-k values across rows for each column.
+
+    Uses vectorized min-tracking approach to efficiently process all columns.
+
+    Args:
+        arr: CSR array of shape (n_rows, n_cols).
+        k: Number of top elements per column.
+        batch_size: Number of rows to process in each batch.
+
+    Returns:
+        NumpyTopK with values and indices of shape (k, n_cols).
+    """
+    n_rows, n_cols = arr.shape
+
+    # Initialize storage for top-k tracking per column
+    topk_values = np.full((k, n_cols), -np.inf, dtype=arr.dtype)
+    topk_indices = np.zeros((k, n_cols), dtype=np.int64)
+    min_values = np.full(n_cols, -np.inf, dtype=arr.dtype)  # Min in each column's top-k
+    counts = np.zeros(n_cols, dtype=np.int32)  # Current number of values per column
+
+    # Process rows in batches
+    for batch_start in range(0, n_rows, batch_size):
+        batch_end = min(batch_start + batch_size, n_rows)
+        batch_dense = arr[batch_start:batch_end].toarray()
+
+        for local_row in range(batch_dense.shape[0]):
+            global_row = batch_start + local_row
+            row_data = batch_dense[local_row, :]
+
+            # Determine which columns need updating
+            not_full = counts < k
+            larger_than_min = row_data > min_values
+            update_mask = (row_data != 0) & (not_full | larger_than_min)
+
+            if not np.any(update_mask):
+                continue
+
+            cols_to_update = np.where(update_mask)[0]
+
+            for col in cols_to_update:
+                val = row_data[col]
+
+                if counts[col] < k:
+                    # Still accumulating top-k elements
+                    pos = counts[col]
+                    topk_values[pos, col] = val
+                    topk_indices[pos, col] = global_row
+                    counts[col] += 1
+
+                    # Update min tracker
+                    if counts[col] == k:
+                        min_values[col] = topk_values[:k, col].min()
+                    elif counts[col] == 1 or val < min_values[col]:
+                        min_values[col] = val
+                else:
+                    # Replace minimum value
+                    min_pos = topk_values[:k, col].argmin()
+                    topk_values[min_pos, col] = val
+                    topk_indices[min_pos, col] = global_row
+                    min_values[col] = topk_values[:k, col].min()
+
+    # Sort each column's top-k in descending order
+    result_values = np.zeros((k, n_cols), dtype=arr.dtype)
+    result_indices = np.zeros((k, n_cols), dtype=np.int64)
+
+    for col in range(n_cols):
+        n = min(counts[col], k)
+        if n > 0:
+            sort_order = np.argsort(topk_values[:n, col])[::-1]
+            result_values[:n, col] = topk_values[:n, col][sort_order]
+            result_indices[:n, col] = topk_indices[:n, col][sort_order]
+
+    return NumpyTopK(values=result_values, indices=result_indices)
+
+
+def _csr_topk_axis1(
+    arr: scipy.sparse.csr_array | scipy.sparse.csr_matrix, k: int
+) -> NumpyTopK:
+    """
+    Axis=1 top-k: find top-k values across columns for each row.
+
+    Efficiently iterates over CSR row data.
+
+    Args:
+        arr: CSR array of shape (n_rows, n_cols).
+        k: Number of top elements per row.
+
+    Returns:
+        NumpyTopK with values and indices of shape (n_rows, k).
+    """
+    n_rows, n_cols = arr.shape
+    result_values = np.zeros((n_rows, k), dtype=arr.dtype)
+    result_indices = np.zeros((n_rows, k), dtype=np.int64)
+
+    for row_idx in range(n_rows):
+        # Extract row data from CSR format
+        start, end = arr.indptr[row_idx], arr.indptr[row_idx + 1]
+        row_data = arr.data[start:end]
+        row_col_indices = arr.indices[start:end]
+
+        n_nonzero = len(row_data)
+
+        if n_nonzero == 0:
+            # Empty row, leave as zeros
+            continue
+
+        # Check if we need to consider implicit zeros
+        # This happens when: (1) we have fewer nonzeros than k, OR
+        # (2) the kth largest nonzero is negative (so zeros would be in top-k)
+        needs_zeros = n_nonzero < k
+        if not needs_zeros and n_nonzero >= k:
+            # Check if kth element would be negative
+            kth_value = np.partition(row_data, -k)[-k]
+            needs_zeros = kth_value < 0
+
+        if needs_zeros:
+            # Need to consider zeros as potential top-k values
+            # Add zeros to reach either k total elements, or enough to beat negatives
+            n_zeros_to_add = max(k - n_nonzero, min(k, n_cols - n_nonzero))
+            combined_values = np.concatenate([row_data, np.zeros(n_zeros_to_add)])
+            combined_indices = np.concatenate([
+                row_col_indices,
+                np.zeros(n_zeros_to_add, dtype=np.int64),
+            ])
+
+            # Sort and take top k
+            sort_order = np.argsort(combined_values)[::-1][:k]
+            result_values[row_idx] = combined_values[sort_order]
+            result_indices[row_idx] = combined_indices[sort_order]
+        else:
+            # All top-k are positive nonzeros
+            sort_order = np.argsort(row_data)[::-1][:k]
+            result_values[row_idx] = row_data[sort_order]
+            result_indices[row_idx] = row_col_indices[sort_order]
+
+    return NumpyTopK(values=result_values, indices=result_indices)
+
+
+@beartype.beartype
+def csr_topk(
+    arr: scipy.sparse.csr_array | scipy.sparse.csr_matrix,
+    *,
+    k: int,
+    axis: int = 0,
+    batch_size: int = 1024,
+) -> NumpyTopK:
+    """
+    Takes the top k values of a sparse CSR array.
+
+    We can only iterate efficiently over *rows* because it's a a *CSR* array.
+
+    Args:
+        arr: The CSR array of values with shape (rows, cols).
+        k: The k in "top-k".
+        axis: The dimension to sort along.
+        batch_size: How many rows to process at once.
+
+    Returns:
+        saev.helpers.NumpyTopK
+    """
+    if axis == 0:
+        return _csr_topk_axis0(arr, k, batch_size)
+    elif axis == 1:
+        return _csr_topk_axis1(arr, k)
+    else:
+        raise ValueError(f"axis must be 0 or 1, got {axis}")

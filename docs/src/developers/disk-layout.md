@@ -36,7 +36,7 @@ $SAEV_NFS/saev/
       inference/            # outputs from dump.py
         <shard_hash>/
           config.json
-          patch_acts.npz
+          token_acts.npz
           visuals/          # output of visuals.py
 ```
 

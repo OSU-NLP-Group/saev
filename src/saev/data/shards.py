@@ -160,8 +160,10 @@ class Metadata:
             self.d_model,
         )
 
-    def make_ds(self):
-        return pickle.loads(self.data)
+    def make_data_cfg(self) -> datasets.DatasetConfig:
+        cfg = pickle.loads(base64.b64decode(self.data.encode("utf8")))
+        assert isinstance(cfg, datasets.DatasetConfig)
+        return cfg
 
 
 @jaxtyped(typechecker=beartype.beartype)
