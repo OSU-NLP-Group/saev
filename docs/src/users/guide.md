@@ -4,15 +4,15 @@ This guide explains how to transition from the ADE20K demo to using `saev` with 
 
 Here are the steps:
 
-1. Record ViT activations and save them to disk.
-2. Train SAEs on the activations.
-3. Evaluate the SAE checkpoints.
-4. Visualize the learned features from the trained SAEs.
+1. [Save ViT activations to disk](#save-vit-activations-to-disk)
+2. [Train SAEs on activations](#train-saes-on-activations)
+3. [Evaluate the SAE checkpoints]()
+4. [Visualize the learned features from the trained SAEs]()
 
 !!! note
     `saev` assumes you are running on NVIDIA GPUs. On a multi-GPU system, prefix your commands with `CUDA_VISIBLE_DEVICES=X` to run on GPU X.
 
-## Record ViT Activations to Disk
+## Save ViT Activations to Disk
 
 To save activations to disk, we need to specify:
 
@@ -29,31 +29,27 @@ In practice, you might run:
 
 ```sh
 uv run scripts/launch.py shards \
-  --family siglip \
-  --ckpt hf-hub:timm/ViT-L-16-SigLIP2-256 \
-  --d-model 1024 \
-  --n-patches-per-img 256 \
-  --no-cls-token \
-  --layers 13 15 17 19 21 23 \
-  --dump-to /fs/scratch/PAS2136/samuelstevens/cache/saev/ \
-  --max-patches-per-shard 500_000 \
+  --shards-root /fs/scratch/PAS2136/samuelstevens/saev/shards \
+  --family clip \
+  --ckpt ViT-B-16/openai \
+  --d-model 768 \
+  --layers 6 7 8 9 10 11 \
+  --content-tokens-per-example 196 \
+  --batch-size 512 \
   --slurm-acct PAS2136 \
-  --n-hours 48 \
   --slurm-partition nextgen \
-  data:image-folder \
-  --data.root /fs/ess/PAS2136/foundation_model/inat21/raw/train_mini/
+  data:img-seg-folder \
+  --data.root /fs/scratch/PAS2136/samuelstevens/datasets/ADEChallengeData2016/ \
+  --data.split training
 ```
 
-Let's break down these arguments.
+This will save activations for the CLIP-pretrained model ViT-B/16, which has a residual stream dimension of 768, and has 196 patches per image (224 / 16 = 14; 14 x 14 = 196).
+It will save the last 6 layers.
+It will write 2.4M patches per shard, and save shards to a new directory `/fs/scratch/PAS2136/samuelstevens/saev/shards`.
 
 
-
-This will save activations for the CLIP-pretrained model ViT-B/32, which has a residual stream dimension of 768, and has 49 patches per image (224 / 32 = 7; 7 x 7 = 49).
-It will save the second-to-last layer (`--layer -2`).
-It will write 2.4M patches per shard, and save shards to a new directory `/local/scratch/$USER/cache/saev`.
-
-
-.. note:: A note on storage space: A ViT-B/16 will save 1.2M images x 197 patches/layer/image x 1 layer = ~240M activations, each of which take up 768 floats x 4 bytes/float = 3072 bytes, for a **total of 723GB** for the entire dataset. As you scale to larger models (ViT-L has 1024 dimensions, 14x14 patches are 224 patches/layer/image), recorded activations will grow even larger.
+!!! note
+    A note on storage space: A ViT-B/16 on ImageNet-1K will save 1.2M images x 197 patches/layer/image x 1 layer = ~240M activations, each of which take up 768 floats x 4 bytes/float = 3072 bytes, for a **total of 723GB** for the entire dataset. As you scale to larger models (ViT-L has 1024 dimensions, 14x14 patches are 224 patches/layer/image), recorded activations will grow even larger.
 
 This script will also save a `metadata.json` file that will record the relevant metadata for these activations, which will be read by future steps.
 The activations will be in `.bin` files, numbered starting from 000000.
@@ -68,7 +64,7 @@ To train an SAE, we need to specify:
 2. SAE architectural stuff.
 3. Optimization-related stuff.
 
-The `saev.training` module handles this.
+The `train.py` script handles this.
 
 Run `uv run train.py --help` to see all the configuration.
 
@@ -95,6 +91,19 @@ uv run train.py \
 
 This will train one (1) sparse autoencoder on the data.
 See the section on sweeps to learn how to train multiple SAEs in parallel using one or more GPUs.
+
+## Inference
+
+After training an SAE, you probably want to *use* the SAE.
+The `inference.py` script handles this.
+You can run `uv run scripts/launch.py inference --help` to see all the options.
+
+```sh
+uv run scripts/launch.py inference \
+  --run /fs/ess/PAS2136/samuelstevens/saev/runs/z55bntm1/ \
+  --data.shards /fs/scratch/PAS2136/samuelstevens/saev/shards/39a45d6c3c034f6342d91e8af6f7da9e6650ecc6794f333471f48e5d2df74e42/ \
+  --data.layer 13
+```
 
 ## Visualize the Learned Features
 

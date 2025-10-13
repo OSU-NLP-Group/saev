@@ -50,9 +50,9 @@ Guards against silent config drift.
 | `data`               | object | opaque dataset description                 |
 | `dataset`            | string | absolute path to original dataset root     |
 | `dtype`              | string | numpy dtype. Fixed `"float32"` for now.    |
-| `protocol`           | string | `"2.0"` (shards after big refactor)        |
+| `protocol`           | string | `"2.1"` (shards after big refactor)        |
 
-The `data` object is `dataclasses.asdict(cfg.data)`, with an additional `__class__` field with `cfg.data.__class__.__name__` as the value.
+The `data` object is `base64.b64encode(pickle.dumps(img_ds)).decode('utf8')`.
 
 The `dataset` field stores the absolute path to the root directory of the original image dataset, allowing runs to create symlinks back to the source images for visualization and analysis.
 
