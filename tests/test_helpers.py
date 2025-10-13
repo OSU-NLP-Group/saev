@@ -4,6 +4,7 @@ import tempfile
 
 import beartype
 import numpy as np
+import torch
 from hypothesis import given, settings
 from hypothesis import strategies as st
 from jaxtyping import Int, jaxtyped
@@ -181,3 +182,110 @@ def test_fssafe_property(input_string):
             # Verify we can read it back
             with open(file_path, "r") as f:
                 assert f.read() == "test"
+
+
+@given(
+    arr=st.lists(st.floats(min_value=-1e6, max_value=1e6), min_size=1, max_size=100),
+    k=st.integers(min_value=1, max_value=10),
+)
+def test_np_topk_1d(arr, k):
+    """np_topk should match torch.topk for 1D arrays."""
+    np_arr = np.array(arr, dtype=np.float32)
+    torch_arr = torch.from_numpy(np_arr)
+
+    # Adjust k if it's larger than array size
+    k = min(k, len(arr))
+
+    np_result = helpers.np_topk(np_arr, k, axis=None)
+    torch_values, torch_indices = torch.topk(torch_arr, k)
+
+    # Check values match
+    np.testing.assert_allclose(np_result, torch_values.numpy(), rtol=1e-5, atol=1e-7)
+
+
+@given(
+    shape=st.tuples(
+        st.integers(min_value=1, max_value=20),
+        st.integers(min_value=1, max_value=20),
+    ),
+    k=st.integers(min_value=1, max_value=10),
+    axis=st.integers(min_value=-1, max_value=1),
+)
+def test_np_topk_2d(shape, k, axis):
+    """np_topk should match torch.topk for 2D arrays with different axes."""
+    # Create random array
+    np_arr = np.random.randn(*shape).astype(np.float32)
+    torch_arr = torch.from_numpy(np_arr)
+
+    # Normalize axis to positive
+    if axis < 0:
+        axis = len(shape) + axis
+
+    # Adjust k if it's larger than the dimension size
+    k = min(k, shape[axis])
+
+    np_result = helpers.np_topk(np_arr, k, axis=axis)
+    torch_values, torch_indices = torch.topk(torch_arr, k, dim=axis)
+
+    # Check values match
+    np.testing.assert_allclose(np_result, torch_values.numpy(), rtol=1e-5, atol=1e-7)
+
+
+@given(
+    shape=st.tuples(
+        st.integers(min_value=1, max_value=10),
+        st.integers(min_value=1, max_value=10),
+        st.integers(min_value=1, max_value=10),
+    ),
+    k=st.integers(min_value=1, max_value=5),
+    axis=st.integers(min_value=-1, max_value=2),
+)
+def test_np_topk_3d(shape, k, axis):
+    """np_topk should match torch.topk for 3D arrays with different axes."""
+    # Create random array
+    np_arr = np.random.randn(*shape).astype(np.float32)
+    torch_arr = torch.from_numpy(np_arr)
+
+    # Normalize axis to positive
+    if axis < 0:
+        axis = len(shape) + axis
+
+    # Adjust k if it's larger than the dimension size
+    k = min(k, shape[axis])
+
+    np_result = helpers.np_topk(np_arr, k, axis=axis)
+    torch_values, torch_indices = torch.topk(torch_arr, k, dim=axis)
+
+    # Check values match
+    np.testing.assert_allclose(np_result, torch_values.numpy(), rtol=1e-5, atol=1e-7)
+
+
+def test_np_topk_edge_cases():
+    """Test np_topk edge cases to match torch.topk."""
+    # Test with k=1
+    arr = np.array([3.0, 1.0, 4.0, 1.0, 5.0])
+    result = helpers.np_topk(arr, 1, axis=None)
+    torch_result, _ = torch.topk(torch.from_numpy(arr), 1)
+    np.testing.assert_allclose(result, torch_result.numpy())
+
+    # Test with k equal to array size
+    result = helpers.np_topk(arr, len(arr), axis=None)
+    torch_result, _ = torch.topk(torch.from_numpy(arr), len(arr))
+    np.testing.assert_allclose(result, torch_result.numpy())
+
+    # Test with 2D array, axis=0
+    arr_2d = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
+    result = helpers.np_topk(arr_2d, 1, axis=0)
+    torch_result, _ = torch.topk(torch.from_numpy(arr_2d), 1, dim=0)
+    np.testing.assert_allclose(result, torch_result.numpy())
+
+    # Test with 2D array, axis=1
+    result = helpers.np_topk(arr_2d, 2, axis=1)
+    torch_result, _ = torch.topk(torch.from_numpy(arr_2d), 2, dim=1)
+    np.testing.assert_allclose(result, torch_result.numpy())
+
+    # Test with negative values
+    arr_neg = np.array([-5.0, -2.0, -8.0, -1.0, -3.0])
+    result = helpers.np_topk(arr_neg, 3, axis=None)
+    torch_result, _ = torch.topk(torch.from_numpy(arr_neg), 3)
+    np.testing.assert_allclose(result, torch_result.numpy())

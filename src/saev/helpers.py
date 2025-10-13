@@ -11,6 +11,7 @@ import typing as tp
 from collections.abc import Hashable, Iterable, Iterator
 
 import beartype
+import numpy as np
 import orjson
 
 
@@ -415,3 +416,42 @@ def dump(obj: object, fd: tp.BinaryIO, *, option: int | None = None):
 @beartype.beartype
 def dumps(obj: object, *, option: int | None = None) -> bytes:
     return orjson.dumps(obj, option=option, default=_dumps_default)
+
+
+@beartype.beartype
+def np_topk(arr: np.ndarray, k: int, axis: int | None = None) -> np.ndarray:
+    """A numpy implementation of torch.topk.
+
+    Returns the k largest elements along the given axis. If axis is None, the array is flattened first.
+
+    Args:
+        arr: Input array.
+        k: Number of top elements to return.
+        axis: Axis along which to find top k elements. If None, flattens array first.
+
+    Returns:
+        Array of k largest values along the specified axis, sorted in descending order.
+    """
+    if axis is None:
+        arr = arr.flatten()
+        axis = 0
+
+    # Handle negative axis
+    if axis < 0:
+        axis = arr.ndim + axis
+
+    # Use argpartition to efficiently partition around the kth largest element
+    # argpartition with negative index finds the k largest elements
+    indices = np.argpartition(arr, -k, axis=axis)
+
+    # Take the last k indices (which correspond to the k largest elements)
+    indices = np.take(indices, np.arange(-k, 0), axis=axis)
+
+    # Gather the top k values
+    topk_values = np.take_along_axis(arr, indices, axis=axis)
+
+    # Sort the top k values in descending order
+    sorted_indices = np.argsort(-topk_values, axis=axis)
+    topk_values = np.take_along_axis(topk_values, sorted_indices, axis=axis)
+
+    return topk_values
