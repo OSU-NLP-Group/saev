@@ -2,13 +2,12 @@
 Launcher script for activation computation with submitit support.
 """
 
+import inference
 import shards
 import tyro.extras
 
-import saev.scripts.dump
-
 if __name__ == "__main__":
     tyro.extras.subcommand_cli_from_dict({
-        "dump": saev.scripts.dump.main,
+        "inference": inference.main,
         "shards": shards.main,
     })

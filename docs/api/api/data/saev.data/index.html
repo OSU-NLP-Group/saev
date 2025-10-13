@@ -1917,7 +1917,7 @@
           <tr class="doc-section-item">
             <td><code><span title="saev.data.IndexedDataset.md">md</span></code></td>
             <td>
-                  <code><a class="autorefs autorefs-internal" title="Metadata(*, family, ckpt, layers, content_tokens_per_example, cls_token, d_model, n_examples, max_tokens_per_shard, data, dataset, pixel_agg=None, dtype='float32', protocol='2.0')
+                  <code><a class="autorefs autorefs-internal" title="Metadata(*, family, ckpt, layers, content_tokens_per_example, cls_token, d_model, n_examples, max_tokens_per_shard, data, dataset, pixel_agg=None, dtype='float32', protocol='2.1')
 
   
       dataclass
@@ -2132,7 +2132,7 @@
 
 
 <h2 id="saev.data.Metadata" class="doc doc-heading">
-              <code class="highlight language-python"><span class="n">Metadata</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">family</span><span class="p">,</span> <span class="n">ckpt</span><span class="p">,</span> <span class="n">layers</span><span class="p">,</span> <span class="n">content_tokens_per_example</span><span class="p">,</span> <span class="n">cls_token</span><span class="p">,</span> <span class="n">d_model</span><span class="p">,</span> <span class="n">n_examples</span><span class="p">,</span> <span class="n">max_tokens_per_shard</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">dataset</span><span class="p">,</span> <span class="n">pixel_agg</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;float32&#39;</span><span class="p">,</span> <span class="n">protocol</span><span class="o">=</span><span class="s1">&#39;2.0&#39;</span><span class="p">)</span></code>
+              <code class="highlight language-python"><span class="n">Metadata</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">family</span><span class="p">,</span> <span class="n">ckpt</span><span class="p">,</span> <span class="n">layers</span><span class="p">,</span> <span class="n">content_tokens_per_example</span><span class="p">,</span> <span class="n">cls_token</span><span class="p">,</span> <span class="n">d_model</span><span class="p">,</span> <span class="n">n_examples</span><span class="p">,</span> <span class="n">max_tokens_per_shard</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">dataset</span><span class="p">,</span> <span class="n">pixel_agg</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;float32&#39;</span><span class="p">,</span> <span class="n">protocol</span><span class="o">=</span><span class="s1">&#39;2.1&#39;</span><span class="p">)</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
@@ -2291,11 +2291,11 @@
                 <code>data</code>
             </td>
             <td>
-                  <code><span title="dict">dict</span>[<span title="str">str</span>, <span title="object">object</span>]</code>
+                  <code><span title="str">str</span></code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>A dictionary describing the original dataset.</p>
+                <p>base64-encoded string of pickle.dumps(dataset).</p>
               </div>
             </td>
             <td>
@@ -2355,7 +2355,7 @@
                 <code>protocol</code>
             </td>
             <td>
-                  <code><span title="typing.Literal">Literal</span>[&#39;1.0.0&#39;, &#39;1.1&#39;, &#39;2.0&#39;]</code>
+                  <code><span title="typing.Literal">Literal</span>[&#39;1.0.0&#39;, &#39;1.1&#39;, &#39;2.1&#39;]</code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -2363,7 +2363,7 @@
               </div>
             </td>
             <td>
-                  <code>&#39;2.0&#39;</code>
+                  <code>&#39;2.1&#39;</code>
             </td>
           </tr>
       </tbody>
@@ -2662,9 +2662,7 @@
 
             <details class="quote">
               <summary>Source code in <code>src/saev/data/shards.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 93</span>
-<span class="normal"> 94</span>
-<span class="normal"> 95</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 95</span>
 <span class="normal"> 96</span>
 <span class="normal"> 97</span>
 <span class="normal"> 98</span>
@@ -2672,7 +2670,9 @@
 <span class="normal">100</span>
 <span class="normal">101</span>
 <span class="normal">102</span>
-<span class="normal">103</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">dump</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">shards_root</span><span class="p">:</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">):</span>
+<span class="normal">103</span>
+<span class="normal">104</span>
+<span class="normal">105</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">dump</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">shards_root</span><span class="p">:</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Dumps a Metadata object to a metadata.json file in shards_root / hash.</span>
 
@@ -2740,9 +2740,7 @@
 
             <details class="quote">
               <summary>Source code in <code>src/saev/data/shards.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">77</span>
-<span class="normal">78</span>
-<span class="normal">79</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">79</span>
 <span class="normal">80</span>
 <span class="normal">81</span>
 <span class="normal">82</span>
@@ -2754,7 +2752,9 @@
 <span class="normal">88</span>
 <span class="normal">89</span>
 <span class="normal">90</span>
-<span class="normal">91</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@classmethod</span>
+<span class="normal">91</span>
+<span class="normal">92</span>
+<span class="normal">93</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@classmethod</span>
 <span class="k">def</span><span class="w"> </span><span class="nf">load</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">shards_dir</span><span class="p">:</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;Metadata&quot;</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Loads a Metadata object from a metadata.json file in shards_dir.</span>

@@ -430,9 +430,9 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#record-vit-activations-to-disk" class="md-nav__link">
+  <a href="#save-vit-activations-to-disk" class="md-nav__link">
     <span class="md-ellipsis">
-      Record ViT Activations to Disk
+      Save ViT Activations to Disk
     </span>
   </a>
   
@@ -442,6 +442,15 @@
   <a href="#train-saes-on-activations" class="md-nav__link">
     <span class="md-ellipsis">
       Train SAEs on Activations
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#inference" class="md-nav__link">
+    <span class="md-ellipsis">
+      Inference
     </span>
   </a>
   
@@ -1475,16 +1484,16 @@
 <p>This guide explains how to transition from the ADE20K demo to using <code>saev</code> with your own custom datasets.</p>
 <p>Here are the steps:</p>
 <ol>
-<li>Record ViT activations and save them to disk.</li>
-<li>Train SAEs on the activations.</li>
-<li>Evaluate the SAE checkpoints.</li>
-<li>Visualize the learned features from the trained SAEs.</li>
+<li><a href="#save-vit-activations-to-disk">Save ViT activations to disk</a></li>
+<li><a href="#train-saes-on-activations">Train SAEs on activations</a></li>
+<li><a href="">Evaluate the SAE checkpoints</a></li>
+<li><a href="">Visualize the learned features from the trained SAEs</a></li>
 </ol>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p><code>saev</code> assumes you are running on NVIDIA GPUs. On a multi-GPU system, prefix your commands with <code>CUDA_VISIBLE_DEVICES=X</code> to run on GPU X.</p>
 </div>
-<h2 id="record-vit-activations-to-disk">Record ViT Activations to Disk<a class="headerlink" href="#record-vit-activations-to-disk" title="Permanent link">&para;</a></h2>
+<h2 id="save-vit-activations-to-disk">Save ViT Activations to Disk<a class="headerlink" href="#save-vit-activations-to-disk" title="Permanent link">&para;</a></h2>
 <p>To save activations to disk, we need to specify:</p>
 <ol>
 <li>Which model we would like to use</li>
@@ -1496,25 +1505,26 @@
 <p>Run <code>uv run scripts/launch.py shards --help</code> to see all the configuration.</p>
 <p>In practice, you might run:</p>
 <pre><code class="language-sh">uv run scripts/launch.py shards \
-  --family siglip \
-  --ckpt hf-hub:timm/ViT-L-16-SigLIP2-256 \
-  --d-model 1024 \
-  --n-patches-per-img 256 \
-  --no-cls-token \
-  --layers 13 15 17 19 21 23 \
-  --dump-to /fs/scratch/PAS2136/samuelstevens/cache/saev/ \
-  --max-patches-per-shard 500_000 \
+  --shards-root /fs/scratch/PAS2136/samuelstevens/saev/shards \
+  --family clip \
+  --ckpt ViT-B-16/openai \
+  --d-model 768 \
+  --layers 6 7 8 9 10 11 \
+  --content-tokens-per-example 196 \
+  --batch-size 512 \
   --slurm-acct PAS2136 \
-  --n-hours 48 \
   --slurm-partition nextgen \
-  data:image-folder \
-  --data.root /fs/ess/PAS2136/foundation_model/inat21/raw/train_mini/
+  data:img-seg-folder \
+  --data.root /fs/scratch/PAS2136/samuelstevens/datasets/ADEChallengeData2016/ \
+  --data.split training
 </code></pre>
-<p>Let's break down these arguments.</p>
-<p>This will save activations for the CLIP-pretrained model ViT-B/32, which has a residual stream dimension of 768, and has 49 patches per image (224 / 32 = 7; 7 x 7 = 49).
-It will save the second-to-last layer (<code>--layer -2</code>).
-It will write 2.4M patches per shard, and save shards to a new directory <code>/local/scratch/$USER/cache/saev</code>.</p>
-<p>.. note:: A note on storage space: A ViT-B/16 will save 1.2M images x 197 patches/layer/image x 1 layer = ~240M activations, each of which take up 768 floats x 4 bytes/float = 3072 bytes, for a <strong>total of 723GB</strong> for the entire dataset. As you scale to larger models (ViT-L has 1024 dimensions, 14x14 patches are 224 patches/layer/image), recorded activations will grow even larger.</p>
+<p>This will save activations for the CLIP-pretrained model ViT-B/16, which has a residual stream dimension of 768, and has 196 patches per image (224 / 16 = 14; 14 x 14 = 196).
+It will save the last 6 layers.
+It will write 2.4M patches per shard, and save shards to a new directory <code>/fs/scratch/PAS2136/samuelstevens/saev/shards</code>.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>A note on storage space: A ViT-B/16 on ImageNet-1K will save 1.2M images x 197 patches/layer/image x 1 layer = ~240M activations, each of which take up 768 floats x 4 bytes/float = 3072 bytes, for a <strong>total of 723GB</strong> for the entire dataset. As you scale to larger models (ViT-L has 1024 dimensions, 14x14 patches are 224 patches/layer/image), recorded activations will grow even larger.</p>
+</div>
 <p>This script will also save a <code>metadata.json</code> file that will record the relevant metadata for these activations, which will be read by future steps.
 The activations will be in <code>.bin</code> files, numbered starting from 000000.</p>
 <p>To add your own models, see the guide to extending in <code>saev.activations</code>.</p>
@@ -1525,30 +1535,37 @@ The activations will be in <code>.bin</code> files, numbered starting from 00000
 <li>SAE architectural stuff.</li>
 <li>Optimization-related stuff.</li>
 </ol>
-<p>The <code>saev.training</code> module handles this.</p>
-<p>Run <code>uv run python -m saev train --help</code> to see all the configuration.</p>
-<p>Continuing on from our example before, you might want to run something like:</p>
-<pre><code class="language-sh">uv run python -m saev train \
-  --data.shard-root /local/scratch/$USER/cache/saev/ac89246f1934b45e2f0487298aebe36ad998b6bd252d880c0c9ec5de78d793c8 \
-  --data.layer -2 \
-  --data.patches patches \
-  --data.no-scale-mean \
-  --data.no-scale-norm \
-  --sae.d-model 768 \
-  --lr 5e-4
+<p>The <code>train.py</code> script handles this.</p>
+<p>Run <code>uv run train.py --help</code> to see all the configuration.</p>
+<p>This is a full example:</p>
+<pre><code class="language-sh">uv run train.py \
+  --runs-root /fs/ess/PAS2136/samuelstevens/saev/runs \
+  --lr 4e-3 \
+  --sae.exp-factor 16 \
+  --sae.d-model 1024 \
+  --tag ade20k-v0.1 \
+  --n-train 100_000_000 \
+  --slurm-acct PAS2136 \
+  --slurm-partition nextgen \
+  --train-data.shards /fs/scratch/PAS2136/samuelstevens/saev/shards/849be3b5d390cb4e759d83deeced236b569492e0579c8db62faa13da1f68b112 \
+  --train-data.layer 13 \
+  --val-data.shards /fs/scratch/PAS2136/samuelstevens/saev/shards/39a45d6c3c034f6342d91e8af6f7da9e6650ecc6794f333471f48e5d2df74e42/ \
+  --val-data.layer 13 \
+  sae.activation:relu \
+  objective:matryoshka \
+  --objective.sparsity-coeff 1e-3 \
 </code></pre>
-<pre><code class="language-sh">uv run train.py --sweep configs/preprint/baseline.toml --data.shard-root /fs/scratch/PAS2136/samuelstevens/cache/saev/f9deaa8a07786087e8071f39a695200ff6713ee02b25e7a7b4a6d5ac1ad968db --data.patches image --data.layer 23 --data.no-scale-mean --data.no-scale-norm sae:relu --sae.d-model 1024
-</code></pre>
-<p><code>--data.*</code> flags describe which activations to use.</p>
-<p><code>--data.shard-root</code> should point to a directory with <code>*.bin</code> files and the <code>metadata.json</code> file.
-<code>--data.layer</code> specifies the layer, and <code>--data.patches</code> says that want to train on individual patch activations, rather than the [CLS] token activation.
-<code>--data.no-scale-mean</code> and <code>--data.no-scale-norm</code> mean not to scale the activation mean or L2 norm.
-Anthropic's and OpenAI's papers suggest normalizing these factors, but <code>saev</code> still has a bug with this, so I suggest not scaling these factors.</p>
-<p><code>--sae.*</code> flags are about the SAE itself.</p>
-<p><code>--sae.d-model</code> is the only one you need to change; the dimension of our ViT was 768 for a ViT-B, rather than the default of 1024 for a ViT-L.</p>
-<p>Finally, choose a slightly larger learning rate than the default with <code>--lr 5e-4</code>.</p>
 <p>This will train one (1) sparse autoencoder on the data.
-See the section on sweeps to learn how to train multiple SAEs in parallel using only a single GPU.</p>
+See the section on sweeps to learn how to train multiple SAEs in parallel using one or more GPUs.</p>
+<h2 id="inference">Inference<a class="headerlink" href="#inference" title="Permanent link">&para;</a></h2>
+<p>After training an SAE, you probably want to <em>use</em> the SAE.
+The <code>inference.py</code> script handles this.
+You can run <code>uv run scripts/launch.py inference --help</code> to see all the options.</p>
+<pre><code class="language-sh">uv run scripts/launch.py inference \
+  --run /fs/ess/PAS2136/samuelstevens/saev/runs/z55bntm1/ \
+  --data.shards /fs/scratch/PAS2136/samuelstevens/saev/shards/39a45d6c3c034f6342d91e8af6f7da9e6650ecc6794f333471f48e5d2df74e42/ \
+  --data.layer 13
+</code></pre>
 <h2 id="visualize-the-learned-features">Visualize the Learned Features<a class="headerlink" href="#visualize-the-learned-features" title="Permanent link">&para;</a></h2>
 <p>Now that you've trained an SAE, you probably want to look at its learned features.
 One way to visualize an individual learned feature (f) is by picking out images that maximize the activation of feature (f).

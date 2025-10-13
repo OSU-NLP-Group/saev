@@ -1247,9 +1247,9 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#saev.disk.is_run_root" class="md-nav__link">
+  <a href="#saev.disk.is_runs_root" class="md-nav__link">
     <span class="md-ellipsis">
-      is_run_root
+      is_runs_root
     </span>
   </a>
   
@@ -1547,7 +1547,7 @@
 
 
 <h2 id="saev.disk.Run" class="doc doc-heading">
-              <code class="highlight language-python"><span class="n">Run</span><span class="p">(</span><span class="n">root</span><span class="p">)</span></code>
+              <code class="highlight language-python"><span class="n">Run</span><span class="p">(</span><span class="n">run_dir</span><span class="p">)</span></code>
 
 <a href="#saev.disk.Run" class="headerlink" title="Permanent link">&para;</a></h2>
 
@@ -1571,14 +1571,14 @@
       <tbody>
           <tr class="doc-section-item">
             <td>
-                <code>root</code>
+                <code>run_dir</code>
             </td>
             <td>
                   <code><span title="pathlib.Path">Path</span></code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Root directory, should be $SAEV_NFS/saev/runs/<run_id>. Assumes the run already exists and validates the structure. Use <code>Run.new()</code> to create a new run.</p>
+                <p>Run directory, should be $SAEV_NFS/saev/runs/<run_id>. Assumes the run already exists and validates the structure. Use <code>Run.new()</code> to create a new run.</p>
               </div>
             </td>
             <td>
@@ -1615,24 +1615,30 @@
 <span class="normal">90</span>
 <span class="normal">91</span>
 <span class="normal">92</span>
-<span class="normal">93</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">root</span><span class="p">:</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">):</span>
-    <span class="bp">self</span><span class="o">.</span><span class="n">root</span> <span class="o">=</span> <span class="n">root</span>
+<span class="normal">93</span>
+<span class="normal">94</span>
+<span class="normal">95</span>
+<span class="normal">96</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">run_dir</span><span class="p">:</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">):</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">run_dir</span> <span class="o">=</span> <span class="n">run_dir</span>
 
-    <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">root</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">run_dir</span><span class="o">.</span><span class="n">parts</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">3</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">run_dir</span><span class="o">.</span><span class="n">parts</span><span class="p">[</span><span class="o">-</span><span class="mi">3</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">!=</span> <span class="p">(</span><span class="s2">&quot;saev&quot;</span><span class="p">,</span> <span class="s2">&quot;runs&quot;</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Run directory is invalid.&quot;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">run_dir</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
         <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span>
-            <span class="sa">f</span><span class="s2">&quot;Run directory does not exist: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">root</span><span class="si">}</span><span class="s2">. Use Run.new() to create a new run.&quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;Run directory does not exist: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">run_dir</span><span class="si">}</span><span class="s2">. Use Run.new() to create a new run.&quot;</span>
         <span class="p">)</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">root</span> <span class="o">/</span> <span class="s2">&quot;checkpoint&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">run_dir</span> <span class="o">/</span> <span class="s2">&quot;checkpoint&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
         <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span>
-            <span class="sa">f</span><span class="s2">&quot;Checkpoint directory does not exist: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">root</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="s1">&#39;checkpoint&#39;</span><span class="si">}</span><span class="s2">. Use Run.new() to create a new run.&quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;Checkpoint directory does not exist: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">run_dir</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="s1">&#39;checkpoint&#39;</span><span class="si">}</span><span class="s2">. Use Run.new() to create a new run.&quot;</span>
         <span class="p">)</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">root</span> <span class="o">/</span> <span class="s2">&quot;links&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">run_dir</span> <span class="o">/</span> <span class="s2">&quot;links&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
         <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span>
-            <span class="sa">f</span><span class="s2">&quot;Links directory does not exist: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">root</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="s1">&#39;links&#39;</span><span class="si">}</span><span class="s2">. Use Run.new() to create a new run.&quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;Links directory does not exist: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">run_dir</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="s1">&#39;links&#39;</span><span class="si">}</span><span class="s2">. Use Run.new() to create a new run.&quot;</span>
         <span class="p">)</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">root</span> <span class="o">/</span> <span class="s2">&quot;inference&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">run_dir</span> <span class="o">/</span> <span class="s2">&quot;inference&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
         <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span>
-            <span class="sa">f</span><span class="s2">&quot;Inference directory does not exist: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">root</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="s1">&#39;inference&#39;</span><span class="si">}</span><span class="s2">. Use Run.new() to create a new run.&quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;Inference directory does not exist: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">run_dir</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="s1">&#39;inference&#39;</span><span class="si">}</span><span class="s2">. Use Run.new() to create a new run.&quot;</span>
         <span class="p">)</span>
 </code></pre></div></td></tr></table></div>
                   </details>
@@ -1966,7 +1972,7 @@
       <tbody>
           <tr class="doc-section-item">
             <td>
-                  <code><a class="autorefs autorefs-internal" title="Run(root) (saev.disk.Run)" href="#saev.disk.Run">Run</a></code>
+                  <code><a class="autorefs autorefs-internal" title="Run(run_dir) (saev.disk.Run)" href="#saev.disk.Run">Run</a></code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -1980,10 +1986,7 @@
 
             <details class="quote">
               <summary>Source code in <code>src/saev/disk.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 95</span>
-<span class="normal"> 96</span>
-<span class="normal"> 97</span>
-<span class="normal"> 98</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 98</span>
 <span class="normal"> 99</span>
 <span class="normal">100</span>
 <span class="normal">101</span>
@@ -2016,7 +2019,10 @@
 <span class="normal">128</span>
 <span class="normal">129</span>
 <span class="normal">130</span>
-<span class="normal">131</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@classmethod</span>
+<span class="normal">131</span>
+<span class="normal">132</span>
+<span class="normal">133</span>
+<span class="normal">134</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@classmethod</span>
 <span class="k">def</span><span class="w"> </span><span class="nf">new</span><span class="p">(</span>
     <span class="bp">cls</span><span class="p">,</span>
     <span class="n">run_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
@@ -2041,18 +2047,18 @@
 <span class="sd">    Returns:</span>
 <span class="sd">        A new Run instance with all directories and symlinks created.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">root</span> <span class="o">=</span> <span class="n">runs_root</span> <span class="o">/</span> <span class="n">run_id</span>
-    <span class="n">root</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-    <span class="p">(</span><span class="n">root</span> <span class="o">/</span> <span class="s2">&quot;checkpoint&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">mkdir</span><span class="p">()</span>
-    <span class="p">(</span><span class="n">root</span> <span class="o">/</span> <span class="s2">&quot;links&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">mkdir</span><span class="p">()</span>
-    <span class="p">(</span><span class="n">root</span> <span class="o">/</span> <span class="s2">&quot;inference&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">mkdir</span><span class="p">()</span>
+    <span class="n">run_dir</span> <span class="o">=</span> <span class="n">runs_root</span> <span class="o">/</span> <span class="n">run_id</span>
+    <span class="n">run_dir</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="p">(</span><span class="n">run_dir</span> <span class="o">/</span> <span class="s2">&quot;checkpoint&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">mkdir</span><span class="p">()</span>
+    <span class="p">(</span><span class="n">run_dir</span> <span class="o">/</span> <span class="s2">&quot;links&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">mkdir</span><span class="p">()</span>
+    <span class="p">(</span><span class="n">run_dir</span> <span class="o">/</span> <span class="s2">&quot;inference&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">mkdir</span><span class="p">()</span>
 
-    <span class="p">(</span><span class="n">root</span> <span class="o">/</span> <span class="s2">&quot;links&quot;</span> <span class="o">/</span> <span class="s2">&quot;train-shards&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">symlink_to</span><span class="p">(</span><span class="n">train_shards_dir</span><span class="p">)</span>
-    <span class="p">(</span><span class="n">root</span> <span class="o">/</span> <span class="s2">&quot;links&quot;</span> <span class="o">/</span> <span class="s2">&quot;train-dataset&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">symlink_to</span><span class="p">(</span><span class="n">train_dataset</span><span class="p">)</span>
-    <span class="p">(</span><span class="n">root</span> <span class="o">/</span> <span class="s2">&quot;links&quot;</span> <span class="o">/</span> <span class="s2">&quot;val-shards&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">symlink_to</span><span class="p">(</span><span class="n">val_shards_dir</span><span class="p">)</span>
-    <span class="p">(</span><span class="n">root</span> <span class="o">/</span> <span class="s2">&quot;links&quot;</span> <span class="o">/</span> <span class="s2">&quot;val-dataset&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">symlink_to</span><span class="p">(</span><span class="n">val_dataset</span><span class="p">)</span>
+    <span class="p">(</span><span class="n">run_dir</span> <span class="o">/</span> <span class="s2">&quot;links&quot;</span> <span class="o">/</span> <span class="s2">&quot;train-shards&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">symlink_to</span><span class="p">(</span><span class="n">train_shards_dir</span><span class="p">)</span>
+    <span class="p">(</span><span class="n">run_dir</span> <span class="o">/</span> <span class="s2">&quot;links&quot;</span> <span class="o">/</span> <span class="s2">&quot;train-dataset&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">symlink_to</span><span class="p">(</span><span class="n">train_dataset</span><span class="p">)</span>
+    <span class="p">(</span><span class="n">run_dir</span> <span class="o">/</span> <span class="s2">&quot;links&quot;</span> <span class="o">/</span> <span class="s2">&quot;val-shards&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">symlink_to</span><span class="p">(</span><span class="n">val_shards_dir</span><span class="p">)</span>
+    <span class="p">(</span><span class="n">run_dir</span> <span class="o">/</span> <span class="s2">&quot;links&quot;</span> <span class="o">/</span> <span class="s2">&quot;val-dataset&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">symlink_to</span><span class="p">(</span><span class="n">val_dataset</span><span class="p">)</span>
 
-    <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="n">root</span><span class="p">)</span>
+    <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="n">run_dir</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -2071,16 +2077,16 @@
 <div class="doc doc-object doc-function">
 
 
-<h2 id="saev.disk.is_run_root" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">is_run_root</span><span class="p">(</span><span class="n">path</span><span class="p">)</span></code>
+<h2 id="saev.disk.is_runs_root" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">is_runs_root</span><span class="p">(</span><span class="n">path</span><span class="p">)</span></code>
 
-<a href="#saev.disk.is_run_root" class="headerlink" title="Permanent link">&para;</a></h2>
+<a href="#saev.disk.is_runs_root" class="headerlink" title="Permanent link">&para;</a></h2>
 
 
     <div class="doc doc-contents ">
 
-        <p>Check if <code>path</code> is a valid run root directory.</p>
-<p>A valid run root ends with <code>saev/runs</code> and exists as a directory.</p>
+        <p>Check if <code>path</code> is a valid runs root directory.</p>
+<p>A valid runs root ends with <code>saev/runs</code> and exists as a directory.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -2153,11 +2159,11 @@
 <span class="normal">23</span>
 <span class="normal">24</span>
 <span class="normal">25</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@beartype</span><span class="o">.</span><span class="n">beartype</span>
-<span class="k">def</span><span class="w"> </span><span class="nf">is_run_root</span><span class="p">(</span><span class="n">path</span><span class="p">:</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">is_runs_root</span><span class="p">(</span><span class="n">path</span><span class="p">:</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Check if `path` is a valid run root directory.</span>
+<span class="sd">    Check if `path` is a valid runs root directory.</span>
 
-<span class="sd">    A valid run root ends with `saev/runs` and exists as a directory.</span>
+<span class="sd">    A valid runs root ends with `saev/runs` and exists as a directory.</span>
 
 <span class="sd">    Args:</span>
 <span class="sd">        path: Path to check.</span>

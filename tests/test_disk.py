@@ -8,14 +8,14 @@ from saev.disk import Run
 @pytest.fixture
 def tmp_runs_root(tmp_path):
     """Create a temporary run root directory."""
-    runs_root = tmp_path / "runs"
+    runs_root = tmp_path / "saev" / "runs"
     return runs_root
 
 
 @pytest.fixture
 def populated_runs_root(tmp_path):
     """Create a populated run directory with all expected structure."""
-    runs_root = tmp_path / "runs" / "test_run_456"
+    runs_root = tmp_path / "saev" / "runs" / "test_run_456"
     runs_root.mkdir(parents=True)
 
     # Create checkpoint directory with sae.pt and config.json
@@ -67,7 +67,7 @@ def populated_runs_root(tmp_path):
 
 def test_new_run_creates_directories(tmp_path):
     """Test that creating a new run creates all expected directories."""
-    runs_root = tmp_path / "runs"
+    runs_root = tmp_path / "saev" / "runs"
     train_shards_dpath = tmp_path / "scratch" / "shards" / "abc123"
     train_shards_dpath.mkdir(parents=True)
     val_shards_dpath = tmp_path / "scratch" / "shards" / "def456"
@@ -86,14 +86,14 @@ def test_new_run_creates_directories(tmp_path):
         runs_root=runs_root,
     )
 
-    assert run.root.exists()
-    assert (run.root / "checkpoint").exists()
-    assert (run.root / "links").exists()
-    assert (run.root / "inference").exists()
-    assert (run.root / "links" / "train-shards").is_symlink()
-    assert (run.root / "links" / "train-dataset").is_symlink()
-    assert (run.root / "links" / "val-shards").is_symlink()
-    assert (run.root / "links" / "val-dataset").is_symlink()
+    assert run.run_dir.exists()
+    assert (run.run_dir / "checkpoint").exists()
+    assert (run.run_dir / "links").exists()
+    assert (run.run_dir / "inference").exists()
+    assert (run.run_dir / "links" / "train-shards").is_symlink()
+    assert (run.run_dir / "links" / "train-dataset").is_symlink()
+    assert (run.run_dir / "links" / "val-shards").is_symlink()
+    assert (run.run_dir / "links" / "val-dataset").is_symlink()
     assert run.train_shards == train_shards_dpath
     assert run.train_dataset == train_dataset_dpath
     assert run.val_shards == val_shards_dpath
@@ -174,7 +174,7 @@ def test_inference_property_returns_inference_dir(populated_runs_root):
 
 def test_existing_run_missing_checkpoint_raises(tmp_path):
     """Test that loading an existing run without checkpoint raises an error."""
-    runs_root = tmp_path / "runs" / "broken_run"
+    runs_root = tmp_path / "saev" / "runs" / "broken_run"
     runs_root.mkdir(parents=True)
     (runs_root / "links").mkdir()
     (runs_root / "inference").mkdir()
@@ -185,7 +185,7 @@ def test_existing_run_missing_checkpoint_raises(tmp_path):
 
 def test_existing_run_missing_links_raises(tmp_path):
     """Test that loading an existing run without links directory raises an error."""
-    runs_root = tmp_path / "runs" / "broken_run"
+    runs_root = tmp_path / "saev" / "runs" / "broken_run"
     runs_root.mkdir(parents=True)
     checkpoint = runs_root / "checkpoint"
     checkpoint.mkdir()
@@ -198,7 +198,7 @@ def test_existing_run_missing_links_raises(tmp_path):
 
 def test_run_missing_root_raises(tmp_path):
     """Test that Run() raises helpful error for missing directory."""
-    runs_root = tmp_path / "runs" / "nonexistent"
+    runs_root = tmp_path / "saev" / "runs" / "nonexistent"
 
     with pytest.raises(FileNotFoundError, match="Use Run.new()"):
         Run(runs_root)
@@ -206,7 +206,7 @@ def test_run_missing_root_raises(tmp_path):
 
 def test_config_property_missing_config_raises(tmp_path):
     """Test that accessing config without config.json raises an error."""
-    runs_root = tmp_path / "runs" / "no_config_run"
+    runs_root = tmp_path / "saev" / "runs" / "no_config_run"
     runs_root.mkdir(parents=True)
     checkpoint = runs_root / "checkpoint"
     checkpoint.mkdir()

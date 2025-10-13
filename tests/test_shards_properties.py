@@ -1,13 +1,9 @@
-"""
-On OSC, with the fish shell:
-
-for shards in /fs/scratch/PAS2136/samuelstevens/cache/saev/*; uv run pytest tests/test_shards*.py --shards $shards; end
-"""
-
+import base64
 import contextlib
 import dataclasses
 import json
 import pathlib
+import pickle
 import tempfile
 
 import pytest
@@ -31,6 +27,7 @@ mp.set_start_method("spawn", force=True)
 @st.composite
 def metadatas(draw) -> Metadata:
     try:
+        n_examples = draw(st.integers(min_value=1, max_value=10_000_000))
         return Metadata(
             family="clip",
             ckpt="ckpt",
@@ -48,9 +45,11 @@ def metadatas(draw) -> Metadata:
             content_tokens_per_example=draw(st.integers(min_value=1, max_value=512)),
             cls_token=draw(st.booleans()),
             d_model=512,
-            n_examples=draw(st.integers(min_value=1, max_value=10_000_000)),
+            n_examples=n_examples,
             max_tokens_per_shard=draw(st.integers(min_value=1, max_value=200_000_000)),
-            data={"__class__": "FakeImg"},
+            data=base64.b64encode(
+                pickle.dumps(datasets.FakeImg(n_examples=n_examples))
+            ).decode("utf8"),
             dataset=pathlib.Path("/fake/dataset/path"),
         )
     except AssertionError:
@@ -220,11 +219,11 @@ def test_metadata_json_has_required_keys(md):
 
         # dtype & protocol must be fixed strings
         assert md["dtype"] == "float32"
-        assert md["protocol"] == "2.0"
+        assert md["protocol"] == "2.1"
 
-        # data must be a dict with a __class__ key
-        assert isinstance(md["data"], dict)
-        assert "__class__" in md["data"]
+        # data must be base64-encoded pickle object.
+        data_bytes = base64.b64decode(md["data"].encode("utf8"))
+        pickle.loads(data_bytes)
 
 
 @settings(deadline=None, max_examples=20)
@@ -247,7 +246,9 @@ def test_shard_size_consistency(
         d_model=1,
         n_examples=1,
         max_tokens_per_shard=max_tokens_per_shard,
-        data={"__class__": "FakeImg"},
+        data=base64.b64encode(pickle.dumps(datasets.FakeImg(n_examples=1))).decode(
+            "utf8"
+        ),
         dataset=pathlib.Path("/fake/dataset/path"),
     )
     # compute spec value
@@ -278,7 +279,9 @@ def test_tokens_per_ex(content_tokens_per_example, cls_token, expected):
         d_model=512,
         n_examples=1,
         max_tokens_per_shard=1000,
-        data={"__class__": "FakeImg"},
+        data=base64.b64encode(pickle.dumps(datasets.FakeImg(n_examples=1))).decode(
+            "utf8"
+        ),
         dataset=pathlib.Path("/fake/dataset/path"),
     )
     assert md.tokens_per_example == expected

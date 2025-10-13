@@ -3,6 +3,7 @@
 Library code for reading and writing sharded activations to disk.
 """
 
+import base64
 import dataclasses
 import hashlib
 import json
@@ -10,6 +11,7 @@ import logging
 import math
 import os
 import pathlib
+import pickle
 import typing as tp
 from collections.abc import Callable, Sequence
 
@@ -43,7 +45,7 @@ class Metadata:
         d_model: Model hidden dimension.
         n_examples: Number of examples.
         max_tokens_per_shard: The maximum number of tokens per shard.
-        data: A dictionary describing the original dataset.
+        data: base64-encoded string of pickle.dumps(dataset).
         dataset: Absolute path to the root directory of the original dataset.
         pixel_agg: (only for image segmentation datasets) how the pixel-level segmentation labels were aggregated to token-level labels.
         dtype: How activations are stored.
@@ -58,11 +60,11 @@ class Metadata:
     d_model: int
     n_examples: int
     max_tokens_per_shard: int
-    data: dict[str, object]
+    data: str
     dataset: pathlib.Path
     pixel_agg: tp.Literal["majority", "prefer-fg", None] = None
     dtype: tp.Literal["float32"] = "float32"
-    protocol: tp.Literal["1.0.0", "1.1", "2.0"] = "2.0"
+    protocol: tp.Literal["1.0.0", "1.1", "2.1"] = "2.1"
 
     def __post_init__(self):
         # Check that at least one image per shard can fit.
@@ -157,6 +159,9 @@ class Metadata:
             self.tokens_per_example,
             self.d_model,
         )
+
+    def make_ds(self):
+        return pickle.loads(self.data)
 
 
 @jaxtyped(typechecker=beartype.beartype)
@@ -611,26 +616,6 @@ def worker_fn(
 
     assert shards_root.name == "shards"
 
-    # Convert every pathlib.Path to a str.
-    md_data = {**dataclasses.asdict(data), "__class__": data.__class__.__name__}
-    md_data = {
-        key: str(value) if isinstance(value, pathlib.Path) else value
-        for key, value in md_data.items()
-    }
-
-    md = Metadata(
-        family=family,
-        ckpt=ckpt,
-        layers=tuple(layers),
-        content_tokens_per_example=content_tokens_per_example,
-        cls_token=cls_token,
-        d_model=d_model,
-        n_examples=data.n_examples,
-        max_tokens_per_shard=max_tokens_per_shard,
-        data=md_data,
-        dataset=data.root,
-        pixel_agg=pixel_agg if datasets.is_img_seg_dataset(data) else None,
-    )
     model_cls = models.load_model_cls(family)
     model_instance = model_cls(ckpt).to(device)
     model = RecordedTransformer(
@@ -675,6 +660,19 @@ def worker_fn(
 
     model = model.to(device)
 
+    md = Metadata(
+        family=family,
+        ckpt=ckpt,
+        layers=tuple(layers),
+        content_tokens_per_example=content_tokens_per_example,
+        cls_token=cls_token,
+        d_model=d_model,
+        n_examples=data.n_examples,
+        max_tokens_per_shard=max_tokens_per_shard,
+        data=base64.b64encode(pickle.dumps(data)).decode("utf8"),
+        dataset=data.root,
+        pixel_agg=pixel_agg if datasets.is_img_seg_dataset(data) else None,
+    )
     md.dump(shards_root)
 
     # Use context manager for proper cleanup

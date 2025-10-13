@@ -70,40 +70,31 @@ To train an SAE, we need to specify:
 
 The `saev.training` module handles this.
 
-Run `uv run python -m saev train --help` to see all the configuration.
+Run `uv run train.py --help` to see all the configuration.
 
-Continuing on from our example before, you might want to run something like:
-
-```sh
-uv run python -m saev train \
-  --data.shard-root /local/scratch/$USER/cache/saev/ac89246f1934b45e2f0487298aebe36ad998b6bd252d880c0c9ec5de78d793c8 \
-  --data.layer -2 \
-  --data.patches patches \
-  --data.no-scale-mean \
-  --data.no-scale-norm \
-  --sae.d-model 768 \
-  --lr 5e-4
-```
+This is a full example:
 
 ```sh
-uv run train.py --sweep configs/preprint/baseline.toml --data.shard-root /fs/scratch/PAS2136/samuelstevens/cache/saev/f9deaa8a07786087e8071f39a695200ff6713ee02b25e7a7b4a6d5ac1ad968db --data.patches image --data.layer 23 --data.no-scale-mean --data.no-scale-norm sae:relu --sae.d-model 1024
+uv run train.py \
+  --runs-root /fs/ess/PAS2136/samuelstevens/saev/runs \
+  --lr 4e-3 \
+  --sae.exp-factor 16 \
+  --sae.d-model 1024 \
+  --tag ade20k-v0.1 \
+  --n-train 100_000_000 \
+  --slurm-acct PAS2136 \
+  --slurm-partition nextgen \
+  --train-data.shards /fs/scratch/PAS2136/samuelstevens/saev/shards/849be3b5d390cb4e759d83deeced236b569492e0579c8db62faa13da1f68b112 \
+  --train-data.layer 13 \
+  --val-data.shards /fs/scratch/PAS2136/samuelstevens/saev/shards/39a45d6c3c034f6342d91e8af6f7da9e6650ecc6794f333471f48e5d2df74e42/ \
+  --val-data.layer 13 \
+  sae.activation:relu \
+  objective:matryoshka \
+  --objective.sparsity-coeff 1e-3 \
 ```
-
-`--data.*` flags describe which activations to use.
-
-`--data.shard-root` should point to a directory with `*.bin` files and the `metadata.json` file.
-`--data.layer` specifies the layer, and `--data.patches` says that want to train on individual patch activations, rather than the [CLS] token activation.
-`--data.no-scale-mean` and `--data.no-scale-norm` mean not to scale the activation mean or L2 norm.
-Anthropic's and OpenAI's papers suggest normalizing these factors, but `saev` still has a bug with this, so I suggest not scaling these factors.
-
-`--sae.*` flags are about the SAE itself.
-
-`--sae.d-model` is the only one you need to change; the dimension of our ViT was 768 for a ViT-B, rather than the default of 1024 for a ViT-L.
-
-Finally, choose a slightly larger learning rate than the default with `--lr 5e-4`.
 
 This will train one (1) sparse autoencoder on the data.
-See the section on sweeps to learn how to train multiple SAEs in parallel using only a single GPU.
+See the section on sweeps to learn how to train multiple SAEs in parallel using one or more GPUs.
 
 ## Visualize the Learned Features
 

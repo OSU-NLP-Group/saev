@@ -6,7 +6,7 @@ Dumps 5 files:
 1. mean_values.pt
 2. sparsity.pt
 3. distributions.pt
-4. patch_acts.npz
+4. token_acts.npz
 5. percentiles_p99.pt
 """
 
@@ -14,7 +14,7 @@ import dataclasses
 import logging
 import os
 import pathlib
-import tomllib
+import sys
 import typing as tp
 
 import beartype
@@ -23,7 +23,7 @@ import scipy.sparse
 import torch
 import tyro
 
-from saev import helpers, nn
+from saev import configs, disk, helpers, nn
 from saev.data import Metadata, OrderedConfig, OrderedDataLoader
 from saev.utils import statistics
 
@@ -46,10 +46,8 @@ class Config:
     """Number of features to save distributions for."""
     percentile: int = 99
     """Percentile to estimate for outlier detection."""
-    top_k: int = 1
-    """How many patches per image to use to compute the maximum image activation per latent."""
     ignore_labels: list[int] = dataclasses.field(default_factory=list)
-    """Which patch labels to ignore when calculating summarized image activations."""
+    """Which token labels to ignore when calculating summarized image activations."""
 
     # Control flags
     force_recompute: bool = False
@@ -67,23 +65,16 @@ class Config:
     log_to: str = os.path.join(".", "logs")
     """Where to log Slurm job stdout/stderr."""
 
-    # Properties for file paths
-    @property
-    def root(self) -> str:
-        ckpt_id = os.path.basename(os.path.dirname(self.ckpt))
-        return os.path.join(self.dump_to, ckpt_id)
-
 
 @beartype.beartype
 @torch.inference_mode()
 def worker_fn(cfg: Config):
-    os.makedirs(cfg.root, exist_ok=True)
-    cfg_fpath = os.path.join(cfg.root, "config.json")
-    mean_values_fpath = os.path.join(cfg.root, "mean_values.pt")
-    sparsity_fpath = os.path.join(cfg.root, "sparsity.pt")
-    distributions_fpath = os.path.join(cfg.root, "distributions.pt")
-    patch_acts_fpath = os.path.join(cfg.root, "patch_acts.npz")
-    percentiles_fpath = os.path.join(cfg.root, f"percentiles_p{cfg.percentile}.pt")
+    run = disk.Run(cfg.run)
+    mean_values_fpath = run.inference / "mean_values.pt"
+    sparsity_fpath = run.inference / "sparsity.pt"
+    distributions_fpath = run.inference / "distributions.pt"
+    token_acts_fpath = run.inference / "token_acts.npz"
+    percentiles_fpath = run.inference / f"percentiles_p{cfg.percentile}.pt"
 
     # Check if we need to compute activations
     fpaths = [
@@ -91,9 +82,9 @@ def worker_fn(cfg: Config):
         sparsity_fpath,
         distributions_fpath,
         percentiles_fpath,
-        patch_acts_fpath,
+        token_acts_fpath,
     ]
-    missing = [fpath for fpath in fpaths if not os.path.exists(fpath)]
+    missing = [fpath for fpath in fpaths if not fpath.exists()]
     need_compute = cfg.force_recompute or bool(missing)
 
     if not need_compute:
@@ -103,22 +94,29 @@ def worker_fn(cfg: Config):
     if cfg.force_recompute:
         logger.info("Force recompute flag set; computing activations.")
     else:
-        logger.info("Missing files %s; computing activations.", ", ".join(missing))
+        logger.info(
+            "Missing files %s; computing activations.",
+            ", ".join(str(f) for f in missing),
+        )
 
-    with open(cfg_fpath, "wb") as fd:
+    with open(run.inference / "config.json", "wb") as fd:
         helpers.dump(cfg, fd)
 
-    assert cfg.data.patches == "image"
-    sae = nn.load(cfg.ckpt).to(cfg.device)
-    md = Metadata.load(cfg.data.shard_root)
+    assert cfg.data.tokens == "content"
+    sae = nn.load(run.ckpt).to(cfg.device)
+    md = Metadata.load(cfg.data.shards)
 
     sparsity_s = torch.zeros((sae.cfg.d_sae,), device=cfg.device)
     mean_values_s = torch.zeros((sae.cfg.d_sae,), device=cfg.device)
 
     # Initialize image-level activations
-    patch_acts_blocks = []
+    token_acts_blocks = []
 
-    batch_size = cfg.data.batch_size // md.n_patches_per_img * md.n_patches_per_img
+    batch_size = (
+        cfg.data.batch_size
+        // md.content_tokens_per_example
+        * md.content_tokens_per_example
+    )
     dataloader = OrderedDataLoader(
         dataclasses.replace(cfg.data, batch_size=batch_size),
     )
@@ -142,30 +140,32 @@ def worker_fn(cfg: Config):
         _, f_x, *_ = sae(vit_acts_bd)
         bsz, d_sae = f_x.shape
 
-        mask_b = torch.isin(batch["patch_labels"], ignore, invert=True)
+        mask_b = torch.isin(batch["token_labels"], ignore, invert=True)
 
         # Update percentile estimator
         for sae_act_s in f_x[mask_b]:
             estimator.update(sae_act_s)
 
         # Update statistics
-        distributions_nm[batch["image_i"][mask_b], :] = f_x[mask_b, : cfg.n_dists]
+        distributions_nm[batch["example_idx"][mask_b], :] = f_x[mask_b, : cfg.n_dists]
         mean_values_s += einops.reduce(f_x[mask_b], "batch d_sae -> d_sae", "sum")
         sparsity_s += einops.reduce((f_x[mask_b] > 0), "batch d_sae -> d_sae", "sum")
 
-        batch_i = batch["image_i"] * md.n_patches_per_img + batch["patch_i"]
-        # Assert that batch_i[0].item() == prev_i + 1
-        assert batch_i[0].item() == prev_i + 1
-        # Assert that batch_i is is already sorted
-        assert (torch.sort(batch_i).values == batch_i).all()
-        # Assert that batch_i is a continuous range from start, ed
-        assert (torch.arange(batch_i[0], batch_i[-1] + 1) == batch_i).all()
+        batch_idx = (
+            batch["example_idx"] * md.content_tokens_per_example + batch["token_idx"]
+        )
+        # Assert that batch_idx[0].item() == prev_i + 1
+        assert batch_idx[0].item() == prev_i + 1
+        # Assert that batch_idx is is already sorted
+        assert (torch.sort(batch_idx).values == batch_idx).all()
+        # Assert that batch_idx is a continuous range from start, ed
+        assert (torch.arange(batch_idx[0], batch_idx[-1] + 1) == batch_idx).all()
 
-        # All masked patches can have at most no activation.
+        # All masked tokens can have at most no activation.
         f_x[~mask_b, :] = 0.0
 
-        patch_acts_blocks.append(scipy.sparse.csr_array(f_x.cpu().numpy()))
-        prev_i = batch_i[-1].item()
+        token_acts_blocks.append(scipy.sparse.csr_array(f_x.cpu().numpy()))
+        prev_i = batch_idx[-1].item()
 
     # Finalize statistics
     mean_values_s /= sparsity_s
@@ -176,22 +176,35 @@ def worker_fn(cfg: Config):
     torch.save(distributions_nm.cpu(), distributions_fpath)
     torch.save(estimator.estimate.cpu(), percentiles_fpath)
     # Sparse CSR array
-    patch_acts = scipy.sparse.vstack(patch_acts_blocks, format="csr")
-    scipy.sparse.save_npz(patch_acts_fpath, patch_acts)
+    token_acts = scipy.sparse.vstack(token_acts_blocks, format="csr")
+    scipy.sparse.save_npz(token_acts_fpath, token_acts)
 
 
 @beartype.beartype
-def main(cfg: tp.Annotated[Config, tyro.conf.arg(name="")], sweep: str | None = None):
-    """Main entry point."""
+def main(
+    cfg: tp.Annotated[Config, tyro.conf.arg(name="")], sweep: pathlib.Path | None = None
+):
+    """
+    Run SAE inference over transformer activations, optionally using a sweep file to submit many jobs at once.
+
+    Args:
+        cfg: Baseline config inference.
+        sweep: Path to .py file defining the sweep parameters.
+    """
 
     if sweep is not None:
-        with open(sweep, "rb") as fd:
-            cfgs, errs = helpers.grid(cfg, tomllib.load(fd))
+        sweep_dcts = configs.load_sweep(sweep)
+        if not sweep_dcts:
+            logger.error("No valid sweeps found in '%s'.", sweep)
+            sys.exit(1)
+
+        cfgs, errs = configs.load_cfgs(cfg, default=Config(), sweep_dcts=sweep_dcts)
 
         if errs:
             for err in errs:
-                logger.error(f"Error in config: {err}")
+                logger.warning("Error in config: %s", err)
             return
+
     else:
         cfgs = [cfg]
 

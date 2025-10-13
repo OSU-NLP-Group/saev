@@ -10,11 +10,11 @@ import beartype
 
 
 @beartype.beartype
-def is_run_root(path: pathlib.Path) -> bool:
+def is_runs_root(path: pathlib.Path) -> bool:
     """
-    Check if `path` is a valid run root directory.
+    Check if `path` is a valid runs root directory.
 
-    A valid run root ends with `saev/runs` and exists as a directory.
+    A valid runs root ends with `saev/runs` and exists as a directory.
 
     Args:
         path: Path to check.
@@ -69,27 +69,30 @@ class Run:
     Represents an SAE training run and some associated data.
 
     Args:
-        root: Root directory, should be $SAEV_NFS/saev/runs/<run_id>. Assumes the run already exists and validates the structure. Use `Run.new()` to create a new run.
+        run_dir: Run directory, should be $SAEV_NFS/saev/runs/<run_id>. Assumes the run already exists and validates the structure. Use `Run.new()` to create a new run.
     """
 
-    def __init__(self, root: pathlib.Path):
-        self.root = root
+    def __init__(self, run_dir: pathlib.Path):
+        self.run_dir = run_dir
 
-        if not self.root.exists():
+        if len(self.run_dir.parts) < 3 or self.run_dir.parts[-3:-1] != ("saev", "runs"):
+            raise ValueError("Run directory is invalid.")
+
+        if not self.run_dir.exists():
             raise FileNotFoundError(
-                f"Run directory does not exist: {self.root}. Use Run.new() to create a new run."
+                f"Run directory does not exist: {self.run_dir}. Use Run.new() to create a new run."
             )
-        if not (self.root / "checkpoint").exists():
+        if not (self.run_dir / "checkpoint").exists():
             raise FileNotFoundError(
-                f"Checkpoint directory does not exist: {self.root / 'checkpoint'}. Use Run.new() to create a new run."
+                f"Checkpoint directory does not exist: {self.run_dir / 'checkpoint'}. Use Run.new() to create a new run."
             )
-        if not (self.root / "links").exists():
+        if not (self.run_dir / "links").exists():
             raise FileNotFoundError(
-                f"Links directory does not exist: {self.root / 'links'}. Use Run.new() to create a new run."
+                f"Links directory does not exist: {self.run_dir / 'links'}. Use Run.new() to create a new run."
             )
-        if not (self.root / "inference").exists():
+        if not (self.run_dir / "inference").exists():
             raise FileNotFoundError(
-                f"Inference directory does not exist: {self.root / 'inference'}. Use Run.new() to create a new run."
+                f"Inference directory does not exist: {self.run_dir / 'inference'}. Use Run.new() to create a new run."
             )
 
     @classmethod
@@ -117,57 +120,57 @@ class Run:
         Returns:
             A new Run instance with all directories and symlinks created.
         """
-        root = runs_root / run_id
-        root.mkdir(parents=True)
-        (root / "checkpoint").mkdir()
-        (root / "links").mkdir()
-        (root / "inference").mkdir()
+        run_dir = runs_root / run_id
+        run_dir.mkdir(parents=True)
+        (run_dir / "checkpoint").mkdir()
+        (run_dir / "links").mkdir()
+        (run_dir / "inference").mkdir()
 
-        (root / "links" / "train-shards").symlink_to(train_shards_dir)
-        (root / "links" / "train-dataset").symlink_to(train_dataset)
-        (root / "links" / "val-shards").symlink_to(val_shards_dir)
-        (root / "links" / "val-dataset").symlink_to(val_dataset)
+        (run_dir / "links" / "train-shards").symlink_to(train_shards_dir)
+        (run_dir / "links" / "train-dataset").symlink_to(train_dataset)
+        (run_dir / "links" / "val-shards").symlink_to(val_shards_dir)
+        (run_dir / "links" / "val-dataset").symlink_to(val_dataset)
 
-        return cls(root)
+        return cls(run_dir)
 
     @property
     def run_id(self) -> str:
         """The run ID, created by wandb."""
-        return self.root.name
+        return self.run_dir.name
 
     @property
     def config(self) -> dict[str, object]:
         """The training run config. Not a train.Config object because we don't want to import from train.py."""
-        config_fpath = self.root / "checkpoint" / "config.json"
+        config_fpath = self.run_dir / "checkpoint" / "config.json"
         with open(config_fpath, encoding="utf-8") as fd:
             return json.load(fd)
 
     @property
     def ckpt(self) -> pathlib.Path:
         """Path to the sae.pt checkpoint."""
-        return self.root / "checkpoint" / "sae.pt"
+        return self.run_dir / "checkpoint" / "sae.pt"
 
     @property
     def val_shards(self) -> pathlib.Path:
         """Path to shard root with metadata.json and acts*.bin files."""
-        return (self.root / "links" / "val-shards").resolve()
+        return (self.run_dir / "links" / "val-shards").resolve()
 
     @property
     def train_shards(self) -> pathlib.Path:
         """Path to shard root with metadata.json and acts*.bin files."""
-        return (self.root / "links" / "train-shards").resolve()
+        return (self.run_dir / "links" / "train-shards").resolve()
 
     @property
     def val_dataset(self) -> pathlib.Path:
         """Path to dataset root."""
-        return (self.root / "links" / "val-dataset").resolve()
+        return (self.run_dir / "links" / "val-dataset").resolve()
 
     @property
     def train_dataset(self) -> pathlib.Path:
         """Path to dataset root."""
-        return (self.root / "links" / "train-dataset").resolve()
+        return (self.run_dir / "links" / "train-dataset").resolve()
 
     @property
     def inference(self) -> pathlib.Path:
         """Path to the inference/ directory."""
-        return self.root / "inference"
+        return self.run_dir / "inference"

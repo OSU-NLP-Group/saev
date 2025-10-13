@@ -1581,11 +1581,11 @@ Guards against silent config drift.</p>
 <tr>
 <td><code>protocol</code></td>
 <td>string</td>
-<td><code>"2.0"</code> (shards after big refactor)</td>
+<td><code>"2.1"</code> (shards after big refactor)</td>
 </tr>
 </tbody>
 </table>
-<p>The <code>data</code> object is <code>dataclasses.asdict(cfg.data)</code>, with an additional <code>__class__</code> field with <code>cfg.data.__class__.__name__</code> as the value.</p>
+<p>The <code>data</code> object is <code>base64.b64encode(pickle.dumps(img_ds)).decode('utf8')</code>.</p>
 <p>The <code>dataset</code> field stores the absolute path to the root directory of the original image dataset, allowing runs to create symlinks back to the source images for visualization and analysis.</p>
 <h3 id="22-shardsjson">2.2. <code>shards.json</code><a class="headerlink" href="#22-shardsjson" title="Permanent link">&para;</a></h3>
 <p>A single array of <code>shard</code> objects, each of which has the following fields:</p>

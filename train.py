@@ -25,6 +25,7 @@ import typing as tp
 
 import beartype
 import einops
+import orjson
 import psutil
 import torch
 import tyro
@@ -163,8 +164,8 @@ def worker_fn(cfgs: list[Config]) -> list[str]:
         )
         nn.dump(run.ckpt, sae)
         logger.info("Dumped checkpoint to '%s'.", run.ckpt)
-        with open(run.root / "checkpoint" / "config.json", "w") as fd:
-            helpers.dump(cfg, fd, indent=4)
+        with open(run.run_dir / "checkpoint" / "config.json", "wb") as fd:
+            helpers.dump(cfg, fd, option=orjson.OPT_INDENT_2)
 
     return ids
 
@@ -537,7 +538,7 @@ def main(
 
     Args:
         cfg: Baseline config for training an SAE.
-        sweep: Path to .toml file defining the sweep parameters.
+        sweep: Path to .py file defining the sweep parameters.
     """
     log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
     logging.basicConfig(level=logging.INFO, format=log_format)
