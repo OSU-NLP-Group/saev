@@ -13,7 +13,7 @@ from .indexed import Config as IndexedConfig
 from .indexed import Dataset as IndexedDataset
 from .ordered import Config as OrderedConfig
 from .ordered import DataLoader as OrderedDataLoader
-from .shards import Metadata
+from .shards import Metadata, PixelAgg
 from .shuffled import Config as ShuffledConfig
 from .shuffled import DataLoader as ShuffledDataLoader
 
@@ -25,6 +25,7 @@ __all__ = [
     "ShuffledDataLoader",
     "ShuffledConfig",
     "Metadata",
+    "PixelAgg",
     "make_ordered_config",
 ]
 

@@ -661,6 +661,12 @@
       
         
       
+        
+      
+        
+      
+        
+      
     
     
     
@@ -1005,6 +1011,15 @@
         
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#saev.data.PixelAgg" class="md-nav__link">
+    <span class="md-ellipsis">
+      PixelAgg
+    </span>
+  </a>
   
 </li>
       
@@ -1511,6 +1526,75 @@
   
   
     <li class="md-nav__item">
+      <a href="../../framework/saev.framework/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.framework
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../framework/inference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.framework.inference
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../framework/shards/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.framework.shards
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../helpers/" class="md-nav__link">
         
   
@@ -1917,7 +2001,7 @@
           <tr class="doc-section-item">
             <td><code><span title="saev.data.IndexedDataset.md">md</span></code></td>
             <td>
-                  <code><a class="autorefs autorefs-internal" title="Metadata(*, family, ckpt, layers, content_tokens_per_example, cls_token, d_model, n_examples, max_tokens_per_shard, data, dataset, pixel_agg=None, dtype='float32', protocol='2.1')
+                  <code><a class="autorefs autorefs-internal" title="Metadata(*, family, ckpt, layers, content_tokens_per_example, cls_token, d_model, n_examples, max_tokens_per_shard, data, dataset, pixel_agg=PixelAgg.MAJORITY, dtype='float32', protocol='2.1')
 
   
       dataclass
@@ -2132,7 +2216,7 @@
 
 
 <h2 id="saev.data.Metadata" class="doc doc-heading">
-              <code class="highlight language-python"><span class="n">Metadata</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">family</span><span class="p">,</span> <span class="n">ckpt</span><span class="p">,</span> <span class="n">layers</span><span class="p">,</span> <span class="n">content_tokens_per_example</span><span class="p">,</span> <span class="n">cls_token</span><span class="p">,</span> <span class="n">d_model</span><span class="p">,</span> <span class="n">n_examples</span><span class="p">,</span> <span class="n">max_tokens_per_shard</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">dataset</span><span class="p">,</span> <span class="n">pixel_agg</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;float32&#39;</span><span class="p">,</span> <span class="n">protocol</span><span class="o">=</span><span class="s1">&#39;2.1&#39;</span><span class="p">)</span></code>
+              <code class="highlight language-python"><span class="n">Metadata</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">family</span><span class="p">,</span> <span class="n">ckpt</span><span class="p">,</span> <span class="n">layers</span><span class="p">,</span> <span class="n">content_tokens_per_example</span><span class="p">,</span> <span class="n">cls_token</span><span class="p">,</span> <span class="n">d_model</span><span class="p">,</span> <span class="n">n_examples</span><span class="p">,</span> <span class="n">max_tokens_per_shard</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">dataset</span><span class="p">,</span> <span class="n">pixel_agg</span><span class="o">=</span><span class="n">PixelAgg</span><span class="o">.</span><span class="n">MAJORITY</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;float32&#39;</span><span class="p">,</span> <span class="n">protocol</span><span class="o">=</span><span class="s1">&#39;2.1&#39;</span><span class="p">)</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
@@ -2323,7 +2407,7 @@
                 <code>pixel_agg</code>
             </td>
             <td>
-                  <code><span title="typing.Literal">Literal</span>[&#39;majority&#39;, &#39;prefer-fg&#39;, None]</code>
+                  <code><a class="autorefs autorefs-internal" title="PixelAgg (saev.data.shards.PixelAgg)" href="../shards/#saev.data.shards.PixelAgg">PixelAgg</a></code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -2331,7 +2415,7 @@
               </div>
             </td>
             <td>
-                  <code>None</code>
+                  <code><span title="saev.data.shards.PixelAgg.MAJORITY">MAJORITY</span></code>
             </td>
           </tr>
           <tr class="doc-section-item">
@@ -2448,7 +2532,7 @@
 
     <div class="doc doc-contents ">
 
-        <p>SHA256 hash of the metadata configuration.</p>
+        <p>First 8 bytes of a SHA256 hash of the metadata configuration.</p>
 
 
     <p><span class="doc-section-title">Returns:</span></p>
@@ -2662,17 +2746,17 @@
 
             <details class="quote">
               <summary>Source code in <code>src/saev/data/shards.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 95</span>
-<span class="normal"> 96</span>
-<span class="normal"> 97</span>
-<span class="normal"> 98</span>
-<span class="normal"> 99</span>
-<span class="normal">100</span>
-<span class="normal">101</span>
-<span class="normal">102</span>
-<span class="normal">103</span>
-<span class="normal">104</span>
-<span class="normal">105</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">dump</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">shards_root</span><span class="p">:</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">):</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">104</span>
+<span class="normal">105</span>
+<span class="normal">106</span>
+<span class="normal">107</span>
+<span class="normal">108</span>
+<span class="normal">109</span>
+<span class="normal">110</span>
+<span class="normal">111</span>
+<span class="normal">112</span>
+<span class="normal">113</span>
+<span class="normal">114</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">dump</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">shards_root</span><span class="p">:</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Dumps a Metadata object to a metadata.json file in shards_root / hash.</span>
 
@@ -2740,21 +2824,22 @@
 
             <details class="quote">
               <summary>Source code in <code>src/saev/data/shards.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">79</span>
-<span class="normal">80</span>
-<span class="normal">81</span>
-<span class="normal">82</span>
-<span class="normal">83</span>
-<span class="normal">84</span>
-<span class="normal">85</span>
-<span class="normal">86</span>
-<span class="normal">87</span>
-<span class="normal">88</span>
-<span class="normal">89</span>
-<span class="normal">90</span>
-<span class="normal">91</span>
-<span class="normal">92</span>
-<span class="normal">93</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@classmethod</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 87</span>
+<span class="normal"> 88</span>
+<span class="normal"> 89</span>
+<span class="normal"> 90</span>
+<span class="normal"> 91</span>
+<span class="normal"> 92</span>
+<span class="normal"> 93</span>
+<span class="normal"> 94</span>
+<span class="normal"> 95</span>
+<span class="normal"> 96</span>
+<span class="normal"> 97</span>
+<span class="normal"> 98</span>
+<span class="normal"> 99</span>
+<span class="normal">100</span>
+<span class="normal">101</span>
+<span class="normal">102</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@classmethod</span>
 <span class="k">def</span><span class="w"> </span><span class="nf">load</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">shards_dir</span><span class="p">:</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;Metadata&quot;</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Loads a Metadata object from a metadata.json file in shards_dir.</span>
@@ -2768,6 +2853,7 @@
         <span class="n">dct</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">fd</span><span class="p">)</span>
     <span class="n">dct</span><span class="p">[</span><span class="s2">&quot;layers&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">dct</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;layers&quot;</span><span class="p">))</span>
     <span class="n">dct</span><span class="p">[</span><span class="s2">&quot;dataset&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="n">dct</span><span class="p">[</span><span class="s2">&quot;dataset&quot;</span><span class="p">])</span>
+    <span class="n">dct</span><span class="p">[</span><span class="s2">&quot;pixel_agg&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">PixelAgg</span><span class="p">(</span><span class="n">dct</span><span class="p">[</span><span class="s2">&quot;pixel_agg&quot;</span><span class="p">])</span>
     <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="o">**</span><span class="n">dct</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
@@ -3219,6 +3305,53 @@
     </div>
 
 </div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="saev.data.PixelAgg" class="doc doc-heading">
+            <code>PixelAgg</code>
+
+
+<a href="#saev.data.PixelAgg" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="enum.Enum">Enum</span></code></p>
+
+
+        <p>How to aggregate pixel-level segmentation labels to token-level labels (only for image segmentation datasets).</p>
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
 
 
 
@@ -3885,8 +4018,7 @@
 
             <details class="quote">
               <summary>Source code in <code>src/saev/data/__init__.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">38</span>
-<span class="normal">39</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">39</span>
 <span class="normal">40</span>
 <span class="normal">41</span>
 <span class="normal">42</span>
@@ -3899,7 +4031,8 @@
 <span class="normal">49</span>
 <span class="normal">50</span>
 <span class="normal">51</span>
-<span class="normal">52</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@beartype</span><span class="o">.</span><span class="n">beartype</span>
+<span class="normal">52</span>
+<span class="normal">53</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@beartype</span><span class="o">.</span><span class="n">beartype</span>
 <span class="k">def</span><span class="w"> </span><span class="nf">make_ordered_config</span><span class="p">(</span>
     <span class="n">shuffled_cfg</span><span class="p">:</span> <span class="n">ShuffledConfig</span><span class="p">,</span> <span class="o">**</span><span class="n">overrides</span><span class="p">:</span> <span class="nb">object</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">OrderedConfig</span><span class="p">:</span>

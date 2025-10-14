@@ -101,9 +101,7 @@ class Run:
         run_id: str,
         *,
         train_shards_dir: pathlib.Path,
-        train_dataset: pathlib.Path,
         val_shards_dir: pathlib.Path,
-        val_dataset: pathlib.Path,
         runs_root: pathlib.Path,
     ) -> "Run":
         """
@@ -112,9 +110,7 @@ class Run:
         Args:
             run_id: The run ID (typically from wandb).
             train_shards_dir: Absolute path to the train shards directory (typically $SAEV_SCRATCH/saev/shards/<shard_hash>).
-            train_dataset: Absolute path to the train dataset directory.
             val_shards_dir: Absolute path to the val shards directory (typically $SAEV_SCRATCH/saev/shards/<shard_hash>).
-            val_dataset: Absolute path to the val dataset directory.
             runs_root: Root directory for runs (typically $SAEV_NFS/saev/runs).
 
         Returns:
@@ -127,9 +123,7 @@ class Run:
         (run_dir / "inference").mkdir()
 
         (run_dir / "links" / "train-shards").symlink_to(train_shards_dir)
-        (run_dir / "links" / "train-dataset").symlink_to(train_dataset)
         (run_dir / "links" / "val-shards").symlink_to(val_shards_dir)
-        (run_dir / "links" / "val-dataset").symlink_to(val_dataset)
 
         return cls(run_dir)
 
@@ -159,16 +153,6 @@ class Run:
     def train_shards(self) -> pathlib.Path:
         """Path to shard root with metadata.json and acts*.bin files."""
         return (self.run_dir / "links" / "train-shards").resolve()
-
-    @property
-    def val_dataset(self) -> pathlib.Path:
-        """Path to dataset root."""
-        return (self.run_dir / "links" / "val-dataset").resolve()
-
-    @property
-    def train_dataset(self) -> pathlib.Path:
-        """Path to dataset root."""
-        return (self.run_dir / "links" / "train-dataset").resolve()
 
     @property
     def inference(self) -> pathlib.Path:

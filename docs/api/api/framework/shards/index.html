@@ -8,13 +8,13 @@
       
       
       
-        <link rel="canonical" href="https://osu-nlp-group.github.io/saev/api/api/nn/objectives/">
+        <link rel="canonical" href="https://osu-nlp-group.github.io/saev/api/api/framework/shards/">
       
       
-        <link rel="prev" href="../modeling/">
+        <link rel="prev" href="../inference/">
       
       
-        <link rel="next" href="../../utils/saev.utils/">
+        <link rel="next" href="../../helpers/">
       
       
       <link rel="icon" href="../../../assets/images/favicon.png">
@@ -22,7 +22,7 @@
     
     
       
-        <title>saev.nn.objectives - saev</title>
+        <title>saev.framework.shards - saev</title>
       
     
     
@@ -70,7 +70,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#saev.nn.objectives" class="md-skip">
+        <a href="#saev.framework.shards" class="md-skip">
           Skip to content
         </a>
       
@@ -104,7 +104,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              saev.nn.objectives
+              saev.framework.shards
             
           </span>
         </div>
@@ -1125,7 +1125,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../framework/saev.framework/" class="md-nav__link">
+      <a href="../saev.framework/" class="md-nav__link">
         
   
   
@@ -1148,7 +1148,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../framework/inference/" class="md-nav__link">
+      <a href="../inference/" class="md-nav__link">
         
   
   
@@ -1168,10 +1168,30 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../../framework/shards/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    saev.framework.shards
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -1182,6 +1202,210 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#saev.framework.shards" class="md-nav__link">
+    <span class="md-ellipsis">
+      shards
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#saev.framework.shards.Config" class="md-nav__link">
+    <span class="md-ellipsis">
+      Config
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Config">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#saev.framework.shards.Config.batch_size" class="md-nav__link">
+    <span class="md-ellipsis">
+      batch_size
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.framework.shards.Config.ckpt" class="md-nav__link">
+    <span class="md-ellipsis">
+      ckpt
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.framework.shards.Config.cls_token" class="md-nav__link">
+    <span class="md-ellipsis">
+      cls_token
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.framework.shards.Config.content_tokens_per_example" class="md-nav__link">
+    <span class="md-ellipsis">
+      content_tokens_per_example
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.framework.shards.Config.d_model" class="md-nav__link">
+    <span class="md-ellipsis">
+      d_model
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.framework.shards.Config.data" class="md-nav__link">
+    <span class="md-ellipsis">
+      data
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.framework.shards.Config.device" class="md-nav__link">
+    <span class="md-ellipsis">
+      device
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.framework.shards.Config.family" class="md-nav__link">
+    <span class="md-ellipsis">
+      family
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.framework.shards.Config.layers" class="md-nav__link">
+    <span class="md-ellipsis">
+      layers
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.framework.shards.Config.log_to" class="md-nav__link">
+    <span class="md-ellipsis">
+      log_to
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.framework.shards.Config.max_tokens_per_shard" class="md-nav__link">
+    <span class="md-ellipsis">
+      max_tokens_per_shard
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.framework.shards.Config.n_hours" class="md-nav__link">
+    <span class="md-ellipsis">
+      n_hours
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.framework.shards.Config.n_workers" class="md-nav__link">
+    <span class="md-ellipsis">
+      n_workers
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.framework.shards.Config.shards_root" class="md-nav__link">
+    <span class="md-ellipsis">
+      shards_root
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.framework.shards.Config.slurm_acct" class="md-nav__link">
+    <span class="md-ellipsis">
+      slurm_acct
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.framework.shards.Config.slurm_partition" class="md-nav__link">
+    <span class="md-ellipsis">
+      slurm_partition
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.framework.shards.Config.ssl" class="md-nav__link">
+    <span class="md-ellipsis">
+      ssl
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#saev.framework.shards.main" class="md-nav__link">
+    <span class="md-ellipsis">
+      main
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -1217,7 +1441,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../saev.nn/" class="md-nav__link">
+      <a href="../../nn/saev.nn/" class="md-nav__link">
         
   
   
@@ -1240,7 +1464,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../modeling/" class="md-nav__link">
+      <a href="../../nn/modeling/" class="md-nav__link">
         
   
   
@@ -1260,30 +1484,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    saev.nn.objectives
-    
-  </span>
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../nn/objectives/" class="md-nav__link">
         
   
   
@@ -1294,252 +1498,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#saev.nn.objectives" class="md-nav__link">
-    <span class="md-ellipsis">
-      objectives
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#saev.nn.objectives.Loss" class="md-nav__link">
-    <span class="md-ellipsis">
-      Loss
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Loss">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#saev.nn.objectives.Loss.loss" class="md-nav__link">
-    <span class="md-ellipsis">
-      loss
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#saev.nn.objectives.Matryoshka" class="md-nav__link">
-    <span class="md-ellipsis">
-      Matryoshka
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Matryoshka">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#saev.nn.objectives.Matryoshka.n_prefixes" class="md-nav__link">
-    <span class="md-ellipsis">
-      n_prefixes
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#saev.nn.objectives.Matryoshka.sparsity_coeff" class="md-nav__link">
-    <span class="md-ellipsis">
-      sparsity_coeff
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#saev.nn.objectives.MatryoshkaLoss" class="md-nav__link">
-    <span class="md-ellipsis">
-      MatryoshkaLoss
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="MatryoshkaLoss">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#saev.nn.objectives.MatryoshkaLoss.l0" class="md-nav__link">
-    <span class="md-ellipsis">
-      l0
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#saev.nn.objectives.MatryoshkaLoss.l1" class="md-nav__link">
-    <span class="md-ellipsis">
-      l1
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#saev.nn.objectives.MatryoshkaLoss.loss" class="md-nav__link">
-    <span class="md-ellipsis">
-      loss
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#saev.nn.objectives.MatryoshkaLoss.mse" class="md-nav__link">
-    <span class="md-ellipsis">
-      mse
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#saev.nn.objectives.MatryoshkaLoss.sparsity" class="md-nav__link">
-    <span class="md-ellipsis">
-      sparsity
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#saev.nn.objectives.MatryoshkaObjective" class="md-nav__link">
-    <span class="md-ellipsis">
-      MatryoshkaObjective
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#saev.nn.objectives.Vanilla" class="md-nav__link">
-    <span class="md-ellipsis">
-      Vanilla
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Vanilla">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#saev.nn.objectives.Vanilla.sparsity_coeff" class="md-nav__link">
-    <span class="md-ellipsis">
-      sparsity_coeff
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#saev.nn.objectives.VanillaLoss" class="md-nav__link">
-    <span class="md-ellipsis">
-      VanillaLoss
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="VanillaLoss">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#saev.nn.objectives.VanillaLoss.l0" class="md-nav__link">
-    <span class="md-ellipsis">
-      l0
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#saev.nn.objectives.VanillaLoss.l1" class="md-nav__link">
-    <span class="md-ellipsis">
-      l1
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#saev.nn.objectives.VanillaLoss.loss" class="md-nav__link">
-    <span class="md-ellipsis">
-      loss
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#saev.nn.objectives.VanillaLoss.mse" class="md-nav__link">
-    <span class="md-ellipsis">
-      mse
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#saev.nn.objectives.VanillaLoss.sparsity" class="md-nav__link">
-    <span class="md-ellipsis">
-      sparsity
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#saev.nn.objectives.sample_prefixes" class="md-nav__link">
-    <span class="md-ellipsis">
-      sample_prefixes
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -1683,15 +1641,23 @@
 
 
 
-  <h1>saev.nn.objectives</h1>
+  <h1>saev.framework.shards</h1>
 
 <div class="doc doc-object doc-module">
 
 
 
-<a id="saev.nn.objectives"></a>
+<a id="saev.framework.shards"></a>
     <div class="doc doc-contents first">
 
+        <p>To save lots of activations, we want to do things in parallel, with lots of slurm jobs, and save multiple files, rather than just one.</p>
+<p>This script handles that additional complexity.</p>
+<p>Conceptually, activations are either thought of as</p>
+<ol>
+<li>A single [n_imgs x n_layers x (n_patches + 1), d_model] tensor. This is a <em>dataset</em></li>
+<li>Multiple [n_imgs_per_shard, n_layers, (n_patches + 1), d_model] tensors. This is a set of sharded activations.</li>
+</ol>
+
 
 
 
@@ -1715,20 +1681,20 @@
 
 
 
-<h2 id="saev.nn.objectives.Loss" class="doc doc-heading">
-              <code class="highlight language-python"><span class="n">Loss</span><span class="p">()</span></code>
+<h2 id="saev.framework.shards.Config" class="doc doc-heading">
+              <code class="highlight language-python"><span class="n">Config</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="n">datasets</span><span class="o">.</span><span class="n">Imagenet</span><span class="p">(),</span> <span class="n">shards_root</span><span class="o">=</span><span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="s1">&#39;$SAEV_SCRATCH/saev/shards/&#39;</span><span class="p">),</span> <span class="n">family</span><span class="o">=</span><span class="s1">&#39;clip&#39;</span><span class="p">,</span> <span class="n">ckpt</span><span class="o">=</span><span class="s1">&#39;ViT-L-14/openai&#39;</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">1024</span><span class="p">,</span> <span class="n">n_workers</span><span class="o">=</span><span class="mi">8</span><span class="p">,</span> <span class="n">d_model</span><span class="o">=</span><span class="mi">1024</span><span class="p">,</span> <span class="n">layers</span><span class="o">=</span><span class="p">(</span><span class="k">lambda</span><span class="p">:</span> <span class="p">[</span><span class="o">-</span><span class="mi">2</span><span class="p">])(),</span> <span class="n">content_tokens_per_example</span><span class="o">=</span><span class="mi">256</span><span class="p">,</span> <span class="n">cls_token</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">pixel_agg</span><span class="o">=</span><span class="n">PixelAgg</span><span class="o">.</span><span class="n">MAJORITY</span><span class="p">,</span> <span class="n">max_tokens_per_shard</span><span class="o">=</span><span class="mi">2400000</span><span class="p">,</span> <span class="n">ssl</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s1">&#39;cuda&#39;</span><span class="p">,</span> <span class="n">n_hours</span><span class="o">=</span><span class="mf">24.0</span><span class="p">,</span> <span class="n">slurm_acct</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">slurm_partition</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">log_to</span><span class="o">=</span><span class="s1">&#39;./logs&#39;</span><span class="p">)</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
   </span>
 
-<a href="#saev.nn.objectives.Loss" class="headerlink" title="Permanent link">&para;</a></h2>
+<a href="#saev.framework.shards.Config" class="headerlink" title="Permanent link">&para;</a></h2>
 
 
     <div class="doc doc-contents ">
 
 
-        <p>The loss term for an autoencoder training batch.</p>
+        <p>Configuration for calculating and saving ViT activations.</p>
 
 
 
@@ -1752,91 +1718,20 @@
 
 
 
-<h3 id="saev.nn.objectives.Loss.loss" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">loss</span></code>
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-property"><code>property</code></small>
-  </span>
-
-<a href="#saev.nn.objectives.Loss.loss" class="headerlink" title="Permanent link">&para;</a></h3>
-
-
-    <div class="doc doc-contents ">
-
-        <p>Total loss.</p>
-
-    </div>
-
-</div>
-
-
-
-
-
-
-  </div>
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-class">
-
-
-
-<h2 id="saev.nn.objectives.Matryoshka" class="doc doc-heading">
-              <code class="highlight language-python"><span class="n">Matryoshka</span><span class="p">(</span><span class="n">sparsity_coeff</span><span class="o">=</span><span class="mf">0.0004</span><span class="p">,</span> <span class="n">n_prefixes</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span></code>
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
-  </span>
-
-<a href="#saev.nn.objectives.Matryoshka" class="headerlink" title="Permanent link">&para;</a></h2>
-
-
-    <div class="doc doc-contents ">
-
-
-        <p>Config for the Matryoshka loss for another arbitrary SAE class.</p>
-<p>Reference code is here: https://github.com/noanabeshima/matryoshka-saes and the original reading is https://sparselatents.com/matryoshka.html and https://arxiv.org/pdf/2503.17547</p>
-
-
-
-
-
-
-
-
-
-
-
-  <div class="doc doc-children">
-
-
-
-
-
-
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h3 id="saev.nn.objectives.Matryoshka.n_prefixes" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">n_prefixes</span> <span class="o">=</span> <span class="mi">10</span></code>
+<h3 id="saev.framework.shards.Config.batch_size" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">batch_size</span> <span class="o">=</span> <span class="mi">1024</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-<a href="#saev.nn.objectives.Matryoshka.n_prefixes" class="headerlink" title="Permanent link">&para;</a></h3>
+<a href="#saev.framework.shards.Config.batch_size" class="headerlink" title="Permanent link">&para;</a></h3>
 
 
     <div class="doc doc-contents ">
 
-        <p>Number of random length prefixes to use for loss calculation.</p>
+        <p>Batch size for ViT inference.</p>
 
     </div>
 
@@ -1846,96 +1741,20 @@
 
 
 
-<h3 id="saev.nn.objectives.Matryoshka.sparsity_coeff" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">sparsity_coeff</span> <span class="o">=</span> <span class="mf">0.0004</span></code>
+<h3 id="saev.framework.shards.Config.ckpt" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">ckpt</span> <span class="o">=</span> <span class="s1">&#39;ViT-L-14/openai&#39;</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-<a href="#saev.nn.objectives.Matryoshka.sparsity_coeff" class="headerlink" title="Permanent link">&para;</a></h3>
+<a href="#saev.framework.shards.Config.ckpt" class="headerlink" title="Permanent link">&para;</a></h3>
 
 
     <div class="doc doc-contents ">
 
-        <p>How much to weight sparsity loss term (if not using TopK/BatchTopK).</p>
-
-    </div>
-
-</div>
-
-
-
-
-
-
-  </div>
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-class">
-
-
-
-<h2 id="saev.nn.objectives.MatryoshkaLoss" class="doc doc-heading">
-              <code class="highlight language-python"><span class="n">MatryoshkaLoss</span><span class="p">(</span><span class="n">mse</span><span class="p">,</span> <span class="n">sparsity</span><span class="p">,</span> <span class="n">l0</span><span class="p">,</span> <span class="n">l1</span><span class="p">)</span></code>
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
-  </span>
-
-<a href="#saev.nn.objectives.MatryoshkaLoss" class="headerlink" title="Permanent link">&para;</a></h2>
-
-
-    <div class="doc doc-contents ">
-            <p class="doc doc-class-bases">
-              Bases: <code><a class="autorefs autorefs-internal" title="Loss()
-
-  
-      dataclass
-   (saev.nn.objectives.Loss)" href="#saev.nn.objectives.Loss">Loss</a></code></p>
-
-
-        <p>The composite loss terms for an training batch.</p>
-
-
-
-
-
-
-
-
-
-
-
-  <div class="doc doc-children">
-
-
-
-
-
-
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h3 id="saev.nn.objectives.MatryoshkaLoss.l0" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">l0</span></code>
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
-  </span>
-
-<a href="#saev.nn.objectives.MatryoshkaLoss.l0" class="headerlink" title="Permanent link">&para;</a></h3>
-
-
-    <div class="doc doc-contents ">
-
-        <p>Sum of L0 magnitudes of hidden activations for all prefix lengths.</p>
+        <p>Specific model checkpoint.</p>
 
     </div>
 
@@ -1945,289 +1764,43 @@
 
 
 
-<h3 id="saev.nn.objectives.MatryoshkaLoss.l1" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">l1</span></code>
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
-  </span>
-
-<a href="#saev.nn.objectives.MatryoshkaLoss.l1" class="headerlink" title="Permanent link">&para;</a></h3>
-
-
-    <div class="doc doc-contents ">
-
-        <p>Sum of L1 magnitudes of hidden activations for all prefix lengths.</p>
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h3 id="saev.nn.objectives.MatryoshkaLoss.loss" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">loss</span></code>
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-property"><code>property</code></small>
-  </span>
-
-<a href="#saev.nn.objectives.MatryoshkaLoss.loss" class="headerlink" title="Permanent link">&para;</a></h3>
-
-
-    <div class="doc doc-contents ">
-
-        <p>Total loss.</p>
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h3 id="saev.nn.objectives.MatryoshkaLoss.mse" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">mse</span></code>
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
-  </span>
-
-<a href="#saev.nn.objectives.MatryoshkaLoss.mse" class="headerlink" title="Permanent link">&para;</a></h3>
-
-
-    <div class="doc doc-contents ">
-
-        <p>Average of reconstruction loss (mean squared error) for all prefix lengths.</p>
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h3 id="saev.nn.objectives.MatryoshkaLoss.sparsity" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">sparsity</span></code>
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
-  </span>
-
-<a href="#saev.nn.objectives.MatryoshkaLoss.sparsity" class="headerlink" title="Permanent link">&para;</a></h3>
-
-
-    <div class="doc doc-contents ">
-
-        <p>Sparsity loss, typically lambda * L1.</p>
-
-    </div>
-
-</div>
-
-
-
-
-
-
-  </div>
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-class">
-
-
-
-<h2 id="saev.nn.objectives.MatryoshkaObjective" class="doc doc-heading">
-              <code class="highlight language-python"><span class="n">MatryoshkaObjective</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span></code>
-
-<a href="#saev.nn.objectives.MatryoshkaObjective" class="headerlink" title="Permanent link">&para;</a></h2>
-
-
-    <div class="doc doc-contents ">
-            <p class="doc doc-class-bases">
-              Bases: <code><span title="saev.nn.objectives.Objective">Objective</span></code></p>
-
-
-        <p>Torch module for calculating the matryoshka loss for an SAE.</p>
-
-
-
-
-
-
-
-
-                  <details class="quote">
-                    <summary>Source code in <code>src/saev/nn/objectives.py</code></summary>
-                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">147</span>
-<span class="normal">148</span>
-<span class="normal">149</span>
-<span class="normal">150</span>
-<span class="normal">151</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">Matryoshka</span><span class="p">):</span>
-    <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
-    <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span> <span class="o">=</span> <span class="n">cfg</span>
-    <span class="c1"># Keep sparsity_coeff as mutable attribute for scheduler compatibility</span>
-    <span class="bp">self</span><span class="o">.</span><span class="n">sparsity_coeff</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">sparsity_coeff</span>
-</code></pre></div></td></tr></table></div>
-                  </details>
-
-
-
-  <div class="doc doc-children">
-
-
-
-
-
-
-
-
-
-
-
-
-  </div>
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-class">
-
-
-
-<h2 id="saev.nn.objectives.Vanilla" class="doc doc-heading">
-              <code class="highlight language-python"><span class="n">Vanilla</span><span class="p">(</span><span class="n">sparsity_coeff</span><span class="o">=</span><span class="mf">0.0004</span><span class="p">)</span></code>
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
-  </span>
-
-<a href="#saev.nn.objectives.Vanilla" class="headerlink" title="Permanent link">&para;</a></h2>
-
-
-    <div class="doc doc-contents ">
-
-
-
-
-
-
-
-
-
-
-
-
-  <div class="doc doc-children">
-
-
-
-
-
-
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h3 id="saev.nn.objectives.Vanilla.sparsity_coeff" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">sparsity_coeff</span> <span class="o">=</span> <span class="mf">0.0004</span></code>
+<h3 id="saev.framework.shards.Config.cls_token" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">cls_token</span> <span class="o">=</span> <span class="kc">True</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-<a href="#saev.nn.objectives.Vanilla.sparsity_coeff" class="headerlink" title="Permanent link">&para;</a></h3>
+<a href="#saev.framework.shards.Config.cls_token" class="headerlink" title="Permanent link">&para;</a></h3>
 
 
     <div class="doc doc-contents ">
 
-        <p>How much to weight sparsity loss term.</p>
+        <p>Whether the model has a [CLS] token.</p>
 
     </div>
 
 </div>
-
-
-
-
-
-
-  </div>
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-class">
-
-
-
-<h2 id="saev.nn.objectives.VanillaLoss" class="doc doc-heading">
-              <code class="highlight language-python"><span class="n">VanillaLoss</span><span class="p">(</span><span class="n">mse</span><span class="p">,</span> <span class="n">sparsity</span><span class="p">,</span> <span class="n">l0</span><span class="p">,</span> <span class="n">l1</span><span class="p">)</span></code>
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
-  </span>
-
-<a href="#saev.nn.objectives.VanillaLoss" class="headerlink" title="Permanent link">&para;</a></h2>
-
-
-    <div class="doc doc-contents ">
-            <p class="doc doc-class-bases">
-              Bases: <code><a class="autorefs autorefs-internal" title="Loss()
-
-  
-      dataclass
-   (saev.nn.objectives.Loss)" href="#saev.nn.objectives.Loss">Loss</a></code></p>
-
-
-        <p>The vanilla loss terms for an training batch.</p>
-
-
-
-
-
-
-
-
-
-
-
-  <div class="doc doc-children">
-
-
-
-
-
-
 
 <div class="doc doc-object doc-attribute">
 
 
 
-<h3 id="saev.nn.objectives.VanillaLoss.l0" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">l0</span></code>
+<h3 id="saev.framework.shards.Config.content_tokens_per_example" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">content_tokens_per_example</span> <span class="o">=</span> <span class="mi">256</span></code>
 
   <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-<a href="#saev.nn.objectives.VanillaLoss.l0" class="headerlink" title="Permanent link">&para;</a></h3>
+<a href="#saev.framework.shards.Config.content_tokens_per_example" class="headerlink" title="Permanent link">&para;</a></h3>
 
 
     <div class="doc doc-contents ">
 
-        <p>L0 magnitude of hidden activations.</p>
+        <p>Number of content tokens per example (depends on model).</p>
 
     </div>
 
@@ -2237,19 +1810,20 @@
 
 
 
-<h3 id="saev.nn.objectives.VanillaLoss.l1" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">l1</span></code>
+<h3 id="saev.framework.shards.Config.d_model" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">d_model</span> <span class="o">=</span> <span class="mi">1024</span></code>
 
   <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-<a href="#saev.nn.objectives.VanillaLoss.l1" class="headerlink" title="Permanent link">&para;</a></h3>
+<a href="#saev.framework.shards.Config.d_model" class="headerlink" title="Permanent link">&para;</a></h3>
 
 
     <div class="doc doc-contents ">
 
-        <p>L1 magnitude of hidden activations.</p>
+        <p>Dimension of the ViT activations (depends on model).</p>
 
     </div>
 
@@ -2259,41 +1833,20 @@
 
 
 
-<h3 id="saev.nn.objectives.VanillaLoss.loss" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">loss</span></code>
+<h3 id="saev.framework.shards.Config.data" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">data</span> <span class="o">=</span> <span class="n">dataclasses</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="p">(</span><span class="n">datasets</span><span class="o">.</span><span class="n">Imagenet</span><span class="p">))</span></code>
 
   <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-property"><code>property</code></small>
-  </span>
-
-<a href="#saev.nn.objectives.VanillaLoss.loss" class="headerlink" title="Permanent link">&para;</a></h3>
-
-
-    <div class="doc doc-contents ">
-
-        <p>Total loss.</p>
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h3 id="saev.nn.objectives.VanillaLoss.mse" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">mse</span></code>
-
-  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-<a href="#saev.nn.objectives.VanillaLoss.mse" class="headerlink" title="Permanent link">&para;</a></h3>
+<a href="#saev.framework.shards.Config.data" class="headerlink" title="Permanent link">&para;</a></h3>
 
 
     <div class="doc doc-contents ">
 
-        <p>Reconstruction loss (mean squared error).</p>
+        <p>Which dataset to use.</p>
 
     </div>
 
@@ -2303,19 +1856,250 @@
 
 
 
-<h3 id="saev.nn.objectives.VanillaLoss.sparsity" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">sparsity</span></code>
+<h3 id="saev.framework.shards.Config.device" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">device</span> <span class="o">=</span> <span class="s1">&#39;cuda&#39;</span></code>
 
   <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-<a href="#saev.nn.objectives.VanillaLoss.sparsity" class="headerlink" title="Permanent link">&para;</a></h3>
+<a href="#saev.framework.shards.Config.device" class="headerlink" title="Permanent link">&para;</a></h3>
 
 
     <div class="doc doc-contents ">
 
-        <p>Sparsity loss, typically lambda * L1.</p>
+        <p>Which device to use.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="saev.framework.shards.Config.family" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">family</span> <span class="o">=</span> <span class="s1">&#39;clip&#39;</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#saev.framework.shards.Config.family" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Which model family.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="saev.framework.shards.Config.layers" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">layers</span> <span class="o">=</span> <span class="n">dataclasses</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="p">(</span><span class="k">lambda</span><span class="p">:</span> <span class="p">[</span><span class="o">-</span><span class="mi">2</span><span class="p">]))</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#saev.framework.shards.Config.layers" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Which layers to save. By default, the second-to-last layer.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="saev.framework.shards.Config.log_to" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">log_to</span> <span class="o">=</span> <span class="s1">&#39;./logs&#39;</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#saev.framework.shards.Config.log_to" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Where to log Slurm job stdout/stderr.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="saev.framework.shards.Config.max_tokens_per_shard" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">max_tokens_per_shard</span> <span class="o">=</span> <span class="mi">2400000</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#saev.framework.shards.Config.max_tokens_per_shard" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Maximum number of activations per shard; 2.4M is approximately 10GB for 1024-dimensional 4-byte activations.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="saev.framework.shards.Config.n_hours" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">n_hours</span> <span class="o">=</span> <span class="mf">24.0</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#saev.framework.shards.Config.n_hours" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Slurm job length.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="saev.framework.shards.Config.n_workers" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">n_workers</span> <span class="o">=</span> <span class="mi">8</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#saev.framework.shards.Config.n_workers" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Number of dataloader workers.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="saev.framework.shards.Config.shards_root" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">shards_root</span> <span class="o">=</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="s1">&#39;$SAEV_SCRATCH/saev/shards/&#39;</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#saev.framework.shards.Config.shards_root" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Where to write shards.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="saev.framework.shards.Config.slurm_acct" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">slurm_acct</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#saev.framework.shards.Config.slurm_acct" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Slurm account string.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="saev.framework.shards.Config.slurm_partition" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">slurm_partition</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#saev.framework.shards.Config.slurm_partition" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Slurm partition.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="saev.framework.shards.Config.ssl" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">ssl</span> <span class="o">=</span> <span class="kc">True</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#saev.framework.shards.Config.ssl" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Whether to use SSL.</p>
 
     </div>
 
@@ -2336,16 +2120,15 @@
 <div class="doc doc-object doc-function">
 
 
-<h2 id="saev.nn.objectives.sample_prefixes" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">sample_prefixes</span><span class="p">(</span><span class="n">d_sae</span><span class="p">,</span> <span class="n">n_prefixes</span><span class="p">,</span> <span class="n">min_prefix_length</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">pareto_power</span><span class="o">=</span><span class="mf">0.5</span><span class="p">)</span></code>
+<h2 id="saev.framework.shards.main" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">main</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span></code>
 
-<a href="#saev.nn.objectives.sample_prefixes" class="headerlink" title="Permanent link">&para;</a></h2>
+<a href="#saev.framework.shards.main" class="headerlink" title="Permanent link">&para;</a></h2>
 
 
     <div class="doc doc-contents ">
 
-        <p>Samples prefix lengths using a Pareto distribution. Derived from "Learning Multi-Level Features with
-Matryoshka Sparse Autoencoders" (https://doi.org/10.48550/arXiv.2503.17547)</p>
+        <p>Save ViT activations for use later on.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -2361,89 +2144,22 @@ Matryoshka Sparse Autoencoders" (https://doi.org/10.48550/arXiv.2503.17547)</p>
       <tbody>
           <tr class="doc-section-item">
             <td>
-                <code>d_sae</code>
+                <code>cfg</code>
             </td>
             <td>
-                  <code><span title="int">int</span></code>
+                  <code><span title="typing.Annotated">Annotated</span>[<a class="autorefs autorefs-internal" title="Config(data=datasets.Imagenet(), shards_root=pathlib.Path('$SAEV_SCRATCH/saev/shards/'), family='clip', ckpt='ViT-L-14/openai', batch_size=1024, n_workers=8, d_model=1024, layers=(lambda: [-2])(), content_tokens_per_example=256, cls_token=True, pixel_agg=PixelAgg.MAJORITY, max_tokens_per_shard=2400000, ssl=True, device='cuda', n_hours=24.0, slurm_acct='', slurm_partition='', log_to='./logs')
+
+  
+      dataclass
+   (saev.framework.shards.Config)" href="#saev.framework.shards.Config">Config</a>, <span title="tyro.conf.arg">arg</span>(name=&#39;&#39;)]</code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Total number of latent dimensions</p>
+                <p>Configuration for activations.</p>
               </div>
             </td>
             <td>
                 <em>required</em>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>n_prefixes</code>
-            </td>
-            <td>
-                  <code><span title="int">int</span></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Number of prefixes to sample</p>
-              </div>
-            </td>
-            <td>
-                <em>required</em>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>min_prefix_length</code>
-            </td>
-            <td>
-                  <code><span title="int">int</span></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Minimum length of any prefix</p>
-              </div>
-            </td>
-            <td>
-                  <code>1</code>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>pareto_power</code>
-            </td>
-            <td>
-                  <code><span title="float">float</span></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Power parameter for Pareto distribution (lower = more uniform)</p>
-              </div>
-            </td>
-            <td>
-                  <code>0.5</code>
-            </td>
-          </tr>
-      </tbody>
-    </table>
-
-
-    <p><span class="doc-section-title">Returns:</span></p>
-    <table>
-      <thead>
-        <tr>
-          <th>Type</th>
-          <th>Description</th>
-        </tr>
-      </thead>
-      <tbody>
-          <tr class="doc-section-item">
-            <td>
-                  <code><span title="jaxtyping.Int64">Int64</span>[<span title="torch.Tensor">Tensor</span>, &#39; n_prefixes&#39;]</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>torch.Tensor: Sorted prefix lengths</p>
-              </div>
             </td>
           </tr>
       </tbody>
@@ -2451,92 +2167,120 @@ Matryoshka Sparse Autoencoders" (https://doi.org/10.48550/arXiv.2503.17547)</p>
 
 
             <details class="quote">
-              <summary>Source code in <code>src/saev/nn/objectives.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">181</span>
-<span class="normal">182</span>
-<span class="normal">183</span>
-<span class="normal">184</span>
-<span class="normal">185</span>
-<span class="normal">186</span>
-<span class="normal">187</span>
-<span class="normal">188</span>
-<span class="normal">189</span>
-<span class="normal">190</span>
-<span class="normal">191</span>
-<span class="normal">192</span>
-<span class="normal">193</span>
-<span class="normal">194</span>
-<span class="normal">195</span>
-<span class="normal">196</span>
-<span class="normal">197</span>
-<span class="normal">198</span>
-<span class="normal">199</span>
-<span class="normal">200</span>
-<span class="normal">201</span>
-<span class="normal">202</span>
-<span class="normal">203</span>
-<span class="normal">204</span>
-<span class="normal">205</span>
-<span class="normal">206</span>
-<span class="normal">207</span>
-<span class="normal">208</span>
-<span class="normal">209</span>
-<span class="normal">210</span>
-<span class="normal">211</span>
-<span class="normal">212</span>
-<span class="normal">213</span>
-<span class="normal">214</span>
-<span class="normal">215</span>
-<span class="normal">216</span>
-<span class="normal">217</span>
-<span class="normal">218</span>
-<span class="normal">219</span>
-<span class="normal">220</span>
-<span class="normal">221</span>
-<span class="normal">222</span>
-<span class="normal">223</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">()</span>
-<span class="nd">@jaxtyped</span><span class="p">(</span><span class="n">typechecker</span><span class="o">=</span><span class="n">beartype</span><span class="o">.</span><span class="n">beartype</span><span class="p">)</span>
-<span class="k">def</span><span class="w"> </span><span class="nf">sample_prefixes</span><span class="p">(</span>
-    <span class="n">d_sae</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">n_prefixes</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">min_prefix_length</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span> <span class="n">pareto_power</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.5</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Int64</span><span class="p">[</span><span class="n">Tensor</span><span class="p">,</span> <span class="s2">&quot; n_prefixes&quot;</span><span class="p">]:</span>
+              <summary>Source code in <code>src/saev/framework/shards.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 73</span>
+<span class="normal"> 74</span>
+<span class="normal"> 75</span>
+<span class="normal"> 76</span>
+<span class="normal"> 77</span>
+<span class="normal"> 78</span>
+<span class="normal"> 79</span>
+<span class="normal"> 80</span>
+<span class="normal"> 81</span>
+<span class="normal"> 82</span>
+<span class="normal"> 83</span>
+<span class="normal"> 84</span>
+<span class="normal"> 85</span>
+<span class="normal"> 86</span>
+<span class="normal"> 87</span>
+<span class="normal"> 88</span>
+<span class="normal"> 89</span>
+<span class="normal"> 90</span>
+<span class="normal"> 91</span>
+<span class="normal"> 92</span>
+<span class="normal"> 93</span>
+<span class="normal"> 94</span>
+<span class="normal"> 95</span>
+<span class="normal"> 96</span>
+<span class="normal"> 97</span>
+<span class="normal"> 98</span>
+<span class="normal"> 99</span>
+<span class="normal">100</span>
+<span class="normal">101</span>
+<span class="normal">102</span>
+<span class="normal">103</span>
+<span class="normal">104</span>
+<span class="normal">105</span>
+<span class="normal">106</span>
+<span class="normal">107</span>
+<span class="normal">108</span>
+<span class="normal">109</span>
+<span class="normal">110</span>
+<span class="normal">111</span>
+<span class="normal">112</span>
+<span class="normal">113</span>
+<span class="normal">114</span>
+<span class="normal">115</span>
+<span class="normal">116</span>
+<span class="normal">117</span>
+<span class="normal">118</span>
+<span class="normal">119</span>
+<span class="normal">120</span>
+<span class="normal">121</span>
+<span class="normal">122</span>
+<span class="normal">123</span>
+<span class="normal">124</span>
+<span class="normal">125</span>
+<span class="normal">126</span>
+<span class="normal">127</span>
+<span class="normal">128</span>
+<span class="normal">129</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@beartype</span><span class="o">.</span><span class="n">beartype</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">(</span><span class="n">cfg</span><span class="p">:</span> <span class="n">tp</span><span class="o">.</span><span class="n">Annotated</span><span class="p">[</span><span class="n">Config</span><span class="p">,</span> <span class="n">tyro</span><span class="o">.</span><span class="n">conf</span><span class="o">.</span><span class="n">arg</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">)]):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Samples prefix lengths using a Pareto distribution. Derived from &quot;Learning Multi-Level Features with</span>
-<span class="sd">    Matryoshka Sparse Autoencoders&quot; (https://doi.org/10.48550/arXiv.2503.17547)</span>
+<span class="sd">    Save ViT activations for use later on.</span>
 
 <span class="sd">    Args:</span>
-<span class="sd">        d_sae: Total number of latent dimensions</span>
-<span class="sd">        n_prefixes: Number of prefixes to sample</span>
-<span class="sd">        min_prefix_length: Minimum length of any prefix</span>
-<span class="sd">        pareto_power: Power parameter for Pareto distribution (lower = more uniform)</span>
-
-<span class="sd">    Returns:</span>
-<span class="sd">        torch.Tensor: Sorted prefix lengths</span>
+<span class="sd">        cfg: Configuration for activations.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">if</span> <span class="n">n_prefixes</span> <span class="o">&lt;=</span> <span class="mi">1</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">([</span><span class="n">d_sae</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">int64</span><span class="p">)</span>
+    <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s2">&quot;dump&quot;</span><span class="p">)</span>
 
-    <span class="k">assert</span> <span class="n">n_prefixes</span> <span class="o">&lt;=</span> <span class="n">d_sae</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">cfg</span><span class="o">.</span><span class="n">ssl</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Ignoring SSL certs. Try not to do this!&quot;</span><span class="p">)</span>
+        <span class="c1"># https://github.com/openai/whisper/discussions/734#discussioncomment-4491761</span>
+        <span class="c1"># Ideally we don&#39;t have to disable SSL but we are only downloading weights.</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">ssl</span>
 
-    <span class="c1"># Calculate probability distribution favoring shorter prefixes</span>
-    <span class="n">lengths</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">d_sae</span><span class="p">)</span>
-    <span class="n">pareto_cdf</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">-</span> <span class="p">((</span><span class="n">min_prefix_length</span> <span class="o">/</span> <span class="n">lengths</span><span class="o">.</span><span class="n">float</span><span class="p">())</span> <span class="o">**</span> <span class="n">pareto_power</span><span class="p">)</span>
-    <span class="n">pareto_pdf</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">([</span><span class="n">pareto_cdf</span><span class="p">[:</span><span class="mi">1</span><span class="p">],</span> <span class="n">pareto_cdf</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span> <span class="o">-</span> <span class="n">pareto_cdf</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]])</span>
-    <span class="n">probability_dist</span> <span class="o">=</span> <span class="n">pareto_pdf</span> <span class="o">/</span> <span class="n">pareto_pdf</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+        <span class="n">ssl</span><span class="o">.</span><span class="n">_create_default_https_context</span> <span class="o">=</span> <span class="n">ssl</span><span class="o">.</span><span class="n">_create_unverified_context</span>
 
-    <span class="c1"># Sample and sort prefix lengths</span>
-    <span class="n">sampled_indices</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">multinomial</span><span class="p">(</span>
-        <span class="n">probability_dist</span><span class="p">,</span> <span class="n">num_samples</span><span class="o">=</span><span class="n">n_prefixes</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">replacement</span><span class="o">=</span><span class="kc">False</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">saev.data</span><span class="w"> </span><span class="kn">import</span> <span class="n">shards</span>
+
+    <span class="n">kwargs</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span>
+        <span class="n">family</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">family</span><span class="p">,</span>
+        <span class="n">ckpt</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">ckpt</span><span class="p">,</span>
+        <span class="n">content_tokens_per_example</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">content_tokens_per_example</span><span class="p">,</span>
+        <span class="n">cls_token</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">cls_token</span><span class="p">,</span>
+        <span class="n">d_model</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">d_model</span><span class="p">,</span>
+        <span class="n">layers</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">layers</span><span class="p">,</span>
+        <span class="n">data</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">data</span><span class="p">,</span>
+        <span class="n">batch_size</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">batch_size</span><span class="p">,</span>
+        <span class="n">n_workers</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">n_workers</span><span class="p">,</span>
+        <span class="n">max_tokens_per_shard</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">max_tokens_per_shard</span><span class="p">,</span>
+        <span class="n">shards_root</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">shards_root</span><span class="p">,</span>
+        <span class="n">device</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
+        <span class="n">pixel_agg</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">pixel_agg</span><span class="p">,</span>
     <span class="p">)</span>
 
-    <span class="c1"># Convert indices to actual prefix lengths</span>
-    <span class="n">prefixes</span> <span class="o">=</span> <span class="n">lengths</span><span class="p">[</span><span class="n">sampled_indices</span><span class="p">]</span>
+    <span class="c1"># Actually record activations.</span>
+    <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">slurm_acct</span><span class="p">:</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">submitit</span>
 
-    <span class="c1"># Add n_latents as the final prefix</span>
-    <span class="n">prefixes</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">((</span><span class="n">prefixes</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">clone</span><span class="p">(),</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">([</span><span class="n">d_sae</span><span class="p">])))</span>
+        <span class="n">executor</span> <span class="o">=</span> <span class="n">submitit</span><span class="o">.</span><span class="n">SlurmExecutor</span><span class="p">(</span><span class="n">folder</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">log_to</span><span class="p">)</span>
+        <span class="n">executor</span><span class="o">.</span><span class="n">update_parameters</span><span class="p">(</span>
+            <span class="n">time</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">n_hours</span> <span class="o">*</span> <span class="mi">60</span><span class="p">),</span>
+            <span class="n">partition</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">slurm_partition</span><span class="p">,</span>
+            <span class="n">gpus_per_node</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+            <span class="n">ntasks_per_node</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+            <span class="n">cpus_per_task</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">n_workers</span> <span class="o">+</span> <span class="mi">4</span><span class="p">,</span>
+            <span class="n">stderr_to_stdout</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">account</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">slurm_acct</span><span class="p">,</span>
+        <span class="p">)</span>
 
-    <span class="n">prefixes</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">prefixes</span><span class="p">,</span> <span class="n">descending</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="n">job</span> <span class="o">=</span> <span class="n">executor</span><span class="o">.</span><span class="n">submit</span><span class="p">(</span><span class="n">shards</span><span class="o">.</span><span class="n">worker_fn</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Running job &#39;</span><span class="si">%s</span><span class="s2">&#39;.&quot;</span><span class="p">,</span> <span class="n">job</span><span class="o">.</span><span class="n">job_id</span><span class="p">)</span>
+        <span class="n">job</span><span class="o">.</span><span class="n">result</span><span class="p">()</span>
 
-    <span class="k">return</span> <span class="n">prefixes</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">int64</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">shards</span><span class="o">.</span><span class="n">worker_fn</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -2587,7 +2331,7 @@ Matryoshka Sparse Autoencoders" (https://doi.org/10.48550/arXiv.2503.17547)</p>
       <nav class="md-footer__inner md-grid" aria-label="Footer" >
         
           
-          <a href="../modeling/" class="md-footer__link md-footer__link--prev" aria-label="Previous: saev.nn.modeling">
+          <a href="../inference/" class="md-footer__link md-footer__link--prev" aria-label="Previous: saev.framework.inference">
             <div class="md-footer__button md-icon">
               
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
@@ -2597,20 +2341,20 @@ Matryoshka Sparse Autoencoders" (https://doi.org/10.48550/arXiv.2503.17547)</p>
                 Previous
               </span>
               <div class="md-ellipsis">
-                saev.nn.modeling
+                saev.framework.inference
               </div>
             </div>
           </a>
         
         
           
-          <a href="../../utils/saev.utils/" class="md-footer__link md-footer__link--next" aria-label="Next: saev.utils">
+          <a href="../../helpers/" class="md-footer__link md-footer__link--next" aria-label="Next: saev.helpers">
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 Next
               </span>
               <div class="md-ellipsis">
-                saev.utils
+                saev.helpers
               </div>
             </div>
             <div class="md-footer__button md-icon">

@@ -8,13 +8,13 @@
       
       
       
-        <link rel="canonical" href="https://osu-nlp-group.github.io/saev/api/api/nn/objectives/">
+        <link rel="canonical" href="https://osu-nlp-group.github.io/saev/api/api/framework/inference/">
       
       
-        <link rel="prev" href="../modeling/">
+        <link rel="prev" href="../saev.framework/">
       
       
-        <link rel="next" href="../../utils/saev.utils/">
+        <link rel="next" href="../shards/">
       
       
       <link rel="icon" href="../../../assets/images/favicon.png">
@@ -22,7 +22,7 @@
     
     
       
-        <title>saev.nn.objectives - saev</title>
+        <title>saev.framework.inference - saev</title>
       
     
     
@@ -70,7 +70,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#saev.nn.objectives" class="md-skip">
+        <a href="#saev.framework.inference" class="md-skip">
           Skip to content
         </a>
       
@@ -104,7 +104,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              saev.nn.objectives
+              saev.framework.inference
             
           </span>
         </div>
@@ -1125,7 +1125,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../framework/saev.framework/" class="md-nav__link">
+      <a href="../saev.framework/" class="md-nav__link">
         
   
   
@@ -1145,10 +1145,30 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../../framework/inference/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    saev.framework.inference
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -1159,6 +1179,156 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#saev.framework.inference" class="md-nav__link">
+    <span class="md-ellipsis">
+      inference
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#saev.framework.inference.Config" class="md-nav__link">
+    <span class="md-ellipsis">
+      Config
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Config">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#saev.framework.inference.Config.data" class="md-nav__link">
+    <span class="md-ellipsis">
+      data
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.framework.inference.Config.device" class="md-nav__link">
+    <span class="md-ellipsis">
+      device
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.framework.inference.Config.force_recompute" class="md-nav__link">
+    <span class="md-ellipsis">
+      force_recompute
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.framework.inference.Config.ignore_labels" class="md-nav__link">
+    <span class="md-ellipsis">
+      ignore_labels
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.framework.inference.Config.log_to" class="md-nav__link">
+    <span class="md-ellipsis">
+      log_to
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.framework.inference.Config.n_dists" class="md-nav__link">
+    <span class="md-ellipsis">
+      n_dists
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.framework.inference.Config.n_hours" class="md-nav__link">
+    <span class="md-ellipsis">
+      n_hours
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.framework.inference.Config.percentile" class="md-nav__link">
+    <span class="md-ellipsis">
+      percentile
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.framework.inference.Config.run" class="md-nav__link">
+    <span class="md-ellipsis">
+      run
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.framework.inference.Config.slurm_acct" class="md-nav__link">
+    <span class="md-ellipsis">
+      slurm_acct
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.framework.inference.Config.slurm_partition" class="md-nav__link">
+    <span class="md-ellipsis">
+      slurm_partition
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#saev.framework.inference.main" class="md-nav__link">
+    <span class="md-ellipsis">
+      main
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -1171,7 +1341,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../framework/shards/" class="md-nav__link">
+      <a href="../shards/" class="md-nav__link">
         
   
   
@@ -1217,7 +1387,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../saev.nn/" class="md-nav__link">
+      <a href="../../nn/saev.nn/" class="md-nav__link">
         
   
   
@@ -1240,7 +1410,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../modeling/" class="md-nav__link">
+      <a href="../../nn/modeling/" class="md-nav__link">
         
   
   
@@ -1260,30 +1430,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    saev.nn.objectives
-    
-  </span>
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../nn/objectives/" class="md-nav__link">
         
   
   
@@ -1294,252 +1444,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#saev.nn.objectives" class="md-nav__link">
-    <span class="md-ellipsis">
-      objectives
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#saev.nn.objectives.Loss" class="md-nav__link">
-    <span class="md-ellipsis">
-      Loss
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Loss">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#saev.nn.objectives.Loss.loss" class="md-nav__link">
-    <span class="md-ellipsis">
-      loss
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#saev.nn.objectives.Matryoshka" class="md-nav__link">
-    <span class="md-ellipsis">
-      Matryoshka
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Matryoshka">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#saev.nn.objectives.Matryoshka.n_prefixes" class="md-nav__link">
-    <span class="md-ellipsis">
-      n_prefixes
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#saev.nn.objectives.Matryoshka.sparsity_coeff" class="md-nav__link">
-    <span class="md-ellipsis">
-      sparsity_coeff
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#saev.nn.objectives.MatryoshkaLoss" class="md-nav__link">
-    <span class="md-ellipsis">
-      MatryoshkaLoss
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="MatryoshkaLoss">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#saev.nn.objectives.MatryoshkaLoss.l0" class="md-nav__link">
-    <span class="md-ellipsis">
-      l0
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#saev.nn.objectives.MatryoshkaLoss.l1" class="md-nav__link">
-    <span class="md-ellipsis">
-      l1
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#saev.nn.objectives.MatryoshkaLoss.loss" class="md-nav__link">
-    <span class="md-ellipsis">
-      loss
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#saev.nn.objectives.MatryoshkaLoss.mse" class="md-nav__link">
-    <span class="md-ellipsis">
-      mse
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#saev.nn.objectives.MatryoshkaLoss.sparsity" class="md-nav__link">
-    <span class="md-ellipsis">
-      sparsity
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#saev.nn.objectives.MatryoshkaObjective" class="md-nav__link">
-    <span class="md-ellipsis">
-      MatryoshkaObjective
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#saev.nn.objectives.Vanilla" class="md-nav__link">
-    <span class="md-ellipsis">
-      Vanilla
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Vanilla">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#saev.nn.objectives.Vanilla.sparsity_coeff" class="md-nav__link">
-    <span class="md-ellipsis">
-      sparsity_coeff
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#saev.nn.objectives.VanillaLoss" class="md-nav__link">
-    <span class="md-ellipsis">
-      VanillaLoss
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="VanillaLoss">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#saev.nn.objectives.VanillaLoss.l0" class="md-nav__link">
-    <span class="md-ellipsis">
-      l0
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#saev.nn.objectives.VanillaLoss.l1" class="md-nav__link">
-    <span class="md-ellipsis">
-      l1
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#saev.nn.objectives.VanillaLoss.loss" class="md-nav__link">
-    <span class="md-ellipsis">
-      loss
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#saev.nn.objectives.VanillaLoss.mse" class="md-nav__link">
-    <span class="md-ellipsis">
-      mse
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#saev.nn.objectives.VanillaLoss.sparsity" class="md-nav__link">
-    <span class="md-ellipsis">
-      sparsity
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#saev.nn.objectives.sample_prefixes" class="md-nav__link">
-    <span class="md-ellipsis">
-      sample_prefixes
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -1683,15 +1587,25 @@
 
 
 
-  <h1>saev.nn.objectives</h1>
+  <h1>saev.framework.inference</h1>
 
 <div class="doc doc-object doc-module">
 
 
 
-<a id="saev.nn.objectives"></a>
+<a id="saev.framework.inference"></a>
     <div class="doc doc-contents first">
 
+        <p>Script for dumping image-level activations in a single pass over the dataset.</p>
+<p>Dumps 5 files:</p>
+<ol>
+<li>mean_values.pt</li>
+<li>sparsity.pt</li>
+<li>distributions.pt</li>
+<li>token_acts.npz</li>
+<li>percentiles_p99.pt</li>
+</ol>
+
 
 
 
@@ -1715,20 +1629,20 @@
 
 
 
-<h2 id="saev.nn.objectives.Loss" class="doc doc-heading">
-              <code class="highlight language-python"><span class="n">Loss</span><span class="p">()</span></code>
+<h2 id="saev.framework.inference.Config" class="doc doc-heading">
+              <code class="highlight language-python"><span class="n">Config</span><span class="p">(</span><span class="n">run</span><span class="o">=</span><span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="s1">&#39;./runs/abcdefg&#39;</span><span class="p">),</span> <span class="n">data</span><span class="o">=</span><span class="n">OrderedConfig</span><span class="p">(),</span> <span class="n">n_dists</span><span class="o">=</span><span class="mi">25</span><span class="p">,</span> <span class="n">percentile</span><span class="o">=</span><span class="mi">99</span><span class="p">,</span> <span class="n">ignore_labels</span><span class="o">=</span><span class="nb">list</span><span class="p">(),</span> <span class="n">force_recompute</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s1">&#39;cuda&#39;</span><span class="p">,</span> <span class="n">slurm_acct</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">slurm_partition</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">n_hours</span><span class="o">=</span><span class="mf">4.0</span><span class="p">,</span> <span class="n">log_to</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">,</span> <span class="s1">&#39;logs&#39;</span><span class="p">))</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
   </span>
 
-<a href="#saev.nn.objectives.Loss" class="headerlink" title="Permanent link">&para;</a></h2>
+<a href="#saev.framework.inference.Config" class="headerlink" title="Permanent link">&para;</a></h2>
 
 
     <div class="doc doc-contents ">
 
 
-        <p>The loss term for an autoencoder training batch.</p>
+        <p>Configuration for computing image activations.</p>
 
 
 
@@ -1752,91 +1666,20 @@
 
 
 
-<h3 id="saev.nn.objectives.Loss.loss" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">loss</span></code>
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-property"><code>property</code></small>
-  </span>
-
-<a href="#saev.nn.objectives.Loss.loss" class="headerlink" title="Permanent link">&para;</a></h3>
-
-
-    <div class="doc doc-contents ">
-
-        <p>Total loss.</p>
-
-    </div>
-
-</div>
-
-
-
-
-
-
-  </div>
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-class">
-
-
-
-<h2 id="saev.nn.objectives.Matryoshka" class="doc doc-heading">
-              <code class="highlight language-python"><span class="n">Matryoshka</span><span class="p">(</span><span class="n">sparsity_coeff</span><span class="o">=</span><span class="mf">0.0004</span><span class="p">,</span> <span class="n">n_prefixes</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span></code>
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
-  </span>
-
-<a href="#saev.nn.objectives.Matryoshka" class="headerlink" title="Permanent link">&para;</a></h2>
-
-
-    <div class="doc doc-contents ">
-
-
-        <p>Config for the Matryoshka loss for another arbitrary SAE class.</p>
-<p>Reference code is here: https://github.com/noanabeshima/matryoshka-saes and the original reading is https://sparselatents.com/matryoshka.html and https://arxiv.org/pdf/2503.17547</p>
-
-
-
-
-
-
-
-
-
-
-
-  <div class="doc doc-children">
-
-
-
-
-
-
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h3 id="saev.nn.objectives.Matryoshka.n_prefixes" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">n_prefixes</span> <span class="o">=</span> <span class="mi">10</span></code>
+<h3 id="saev.framework.inference.Config.data" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">data</span> <span class="o">=</span> <span class="n">OrderedConfig</span><span class="p">()</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-<a href="#saev.nn.objectives.Matryoshka.n_prefixes" class="headerlink" title="Permanent link">&para;</a></h3>
+<a href="#saev.framework.inference.Config.data" class="headerlink" title="Permanent link">&para;</a></h3>
 
 
     <div class="doc doc-contents ">
 
-        <p>Number of random length prefixes to use for loss calculation.</p>
+        <p>Data configuration</p>
 
     </div>
 
@@ -1846,96 +1689,20 @@
 
 
 
-<h3 id="saev.nn.objectives.Matryoshka.sparsity_coeff" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">sparsity_coeff</span> <span class="o">=</span> <span class="mf">0.0004</span></code>
+<h3 id="saev.framework.inference.Config.device" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">device</span> <span class="o">=</span> <span class="s1">&#39;cuda&#39;</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-<a href="#saev.nn.objectives.Matryoshka.sparsity_coeff" class="headerlink" title="Permanent link">&para;</a></h3>
+<a href="#saev.framework.inference.Config.device" class="headerlink" title="Permanent link">&para;</a></h3>
 
 
     <div class="doc doc-contents ">
 
-        <p>How much to weight sparsity loss term (if not using TopK/BatchTopK).</p>
-
-    </div>
-
-</div>
-
-
-
-
-
-
-  </div>
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-class">
-
-
-
-<h2 id="saev.nn.objectives.MatryoshkaLoss" class="doc doc-heading">
-              <code class="highlight language-python"><span class="n">MatryoshkaLoss</span><span class="p">(</span><span class="n">mse</span><span class="p">,</span> <span class="n">sparsity</span><span class="p">,</span> <span class="n">l0</span><span class="p">,</span> <span class="n">l1</span><span class="p">)</span></code>
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
-  </span>
-
-<a href="#saev.nn.objectives.MatryoshkaLoss" class="headerlink" title="Permanent link">&para;</a></h2>
-
-
-    <div class="doc doc-contents ">
-            <p class="doc doc-class-bases">
-              Bases: <code><a class="autorefs autorefs-internal" title="Loss()
-
-  
-      dataclass
-   (saev.nn.objectives.Loss)" href="#saev.nn.objectives.Loss">Loss</a></code></p>
-
-
-        <p>The composite loss terms for an training batch.</p>
-
-
-
-
-
-
-
-
-
-
-
-  <div class="doc doc-children">
-
-
-
-
-
-
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h3 id="saev.nn.objectives.MatryoshkaLoss.l0" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">l0</span></code>
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
-  </span>
-
-<a href="#saev.nn.objectives.MatryoshkaLoss.l0" class="headerlink" title="Permanent link">&para;</a></h3>
-
-
-    <div class="doc doc-contents ">
-
-        <p>Sum of L0 magnitudes of hidden activations for all prefix lengths.</p>
+        <p>Which accelerator to use.</p>
 
     </div>
 
@@ -1945,289 +1712,43 @@
 
 
 
-<h3 id="saev.nn.objectives.MatryoshkaLoss.l1" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">l1</span></code>
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
-  </span>
-
-<a href="#saev.nn.objectives.MatryoshkaLoss.l1" class="headerlink" title="Permanent link">&para;</a></h3>
-
-
-    <div class="doc doc-contents ">
-
-        <p>Sum of L1 magnitudes of hidden activations for all prefix lengths.</p>
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h3 id="saev.nn.objectives.MatryoshkaLoss.loss" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">loss</span></code>
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-property"><code>property</code></small>
-  </span>
-
-<a href="#saev.nn.objectives.MatryoshkaLoss.loss" class="headerlink" title="Permanent link">&para;</a></h3>
-
-
-    <div class="doc doc-contents ">
-
-        <p>Total loss.</p>
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h3 id="saev.nn.objectives.MatryoshkaLoss.mse" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">mse</span></code>
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
-  </span>
-
-<a href="#saev.nn.objectives.MatryoshkaLoss.mse" class="headerlink" title="Permanent link">&para;</a></h3>
-
-
-    <div class="doc doc-contents ">
-
-        <p>Average of reconstruction loss (mean squared error) for all prefix lengths.</p>
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h3 id="saev.nn.objectives.MatryoshkaLoss.sparsity" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">sparsity</span></code>
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
-  </span>
-
-<a href="#saev.nn.objectives.MatryoshkaLoss.sparsity" class="headerlink" title="Permanent link">&para;</a></h3>
-
-
-    <div class="doc doc-contents ">
-
-        <p>Sparsity loss, typically lambda * L1.</p>
-
-    </div>
-
-</div>
-
-
-
-
-
-
-  </div>
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-class">
-
-
-
-<h2 id="saev.nn.objectives.MatryoshkaObjective" class="doc doc-heading">
-              <code class="highlight language-python"><span class="n">MatryoshkaObjective</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span></code>
-
-<a href="#saev.nn.objectives.MatryoshkaObjective" class="headerlink" title="Permanent link">&para;</a></h2>
-
-
-    <div class="doc doc-contents ">
-            <p class="doc doc-class-bases">
-              Bases: <code><span title="saev.nn.objectives.Objective">Objective</span></code></p>
-
-
-        <p>Torch module for calculating the matryoshka loss for an SAE.</p>
-
-
-
-
-
-
-
-
-                  <details class="quote">
-                    <summary>Source code in <code>src/saev/nn/objectives.py</code></summary>
-                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">147</span>
-<span class="normal">148</span>
-<span class="normal">149</span>
-<span class="normal">150</span>
-<span class="normal">151</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">Matryoshka</span><span class="p">):</span>
-    <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
-    <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span> <span class="o">=</span> <span class="n">cfg</span>
-    <span class="c1"># Keep sparsity_coeff as mutable attribute for scheduler compatibility</span>
-    <span class="bp">self</span><span class="o">.</span><span class="n">sparsity_coeff</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">sparsity_coeff</span>
-</code></pre></div></td></tr></table></div>
-                  </details>
-
-
-
-  <div class="doc doc-children">
-
-
-
-
-
-
-
-
-
-
-
-
-  </div>
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-class">
-
-
-
-<h2 id="saev.nn.objectives.Vanilla" class="doc doc-heading">
-              <code class="highlight language-python"><span class="n">Vanilla</span><span class="p">(</span><span class="n">sparsity_coeff</span><span class="o">=</span><span class="mf">0.0004</span><span class="p">)</span></code>
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
-  </span>
-
-<a href="#saev.nn.objectives.Vanilla" class="headerlink" title="Permanent link">&para;</a></h2>
-
-
-    <div class="doc doc-contents ">
-
-
-
-
-
-
-
-
-
-
-
-
-  <div class="doc doc-children">
-
-
-
-
-
-
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h3 id="saev.nn.objectives.Vanilla.sparsity_coeff" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">sparsity_coeff</span> <span class="o">=</span> <span class="mf">0.0004</span></code>
+<h3 id="saev.framework.inference.Config.force_recompute" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">force_recompute</span> <span class="o">=</span> <span class="kc">False</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-<a href="#saev.nn.objectives.Vanilla.sparsity_coeff" class="headerlink" title="Permanent link">&para;</a></h3>
+<a href="#saev.framework.inference.Config.force_recompute" class="headerlink" title="Permanent link">&para;</a></h3>
 
 
     <div class="doc doc-contents ">
 
-        <p>How much to weight sparsity loss term.</p>
+        <p>Force recomputation even if files exist.</p>
 
     </div>
 
 </div>
-
-
-
-
-
-
-  </div>
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-class">
-
-
-
-<h2 id="saev.nn.objectives.VanillaLoss" class="doc doc-heading">
-              <code class="highlight language-python"><span class="n">VanillaLoss</span><span class="p">(</span><span class="n">mse</span><span class="p">,</span> <span class="n">sparsity</span><span class="p">,</span> <span class="n">l0</span><span class="p">,</span> <span class="n">l1</span><span class="p">)</span></code>
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
-  </span>
-
-<a href="#saev.nn.objectives.VanillaLoss" class="headerlink" title="Permanent link">&para;</a></h2>
-
-
-    <div class="doc doc-contents ">
-            <p class="doc doc-class-bases">
-              Bases: <code><a class="autorefs autorefs-internal" title="Loss()
-
-  
-      dataclass
-   (saev.nn.objectives.Loss)" href="#saev.nn.objectives.Loss">Loss</a></code></p>
-
-
-        <p>The vanilla loss terms for an training batch.</p>
-
-
-
-
-
-
-
-
-
-
-
-  <div class="doc doc-children">
-
-
-
-
-
-
 
 <div class="doc doc-object doc-attribute">
 
 
 
-<h3 id="saev.nn.objectives.VanillaLoss.l0" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">l0</span></code>
+<h3 id="saev.framework.inference.Config.ignore_labels" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">ignore_labels</span> <span class="o">=</span> <span class="n">dataclasses</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">list</span><span class="p">)</span></code>
 
   <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-<a href="#saev.nn.objectives.VanillaLoss.l0" class="headerlink" title="Permanent link">&para;</a></h3>
+<a href="#saev.framework.inference.Config.ignore_labels" class="headerlink" title="Permanent link">&para;</a></h3>
 
 
     <div class="doc doc-contents ">
 
-        <p>L0 magnitude of hidden activations.</p>
+        <p>Which token labels to ignore when calculating summarized image activations.</p>
 
     </div>
 
@@ -2237,19 +1758,20 @@
 
 
 
-<h3 id="saev.nn.objectives.VanillaLoss.l1" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">l1</span></code>
+<h3 id="saev.framework.inference.Config.log_to" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">log_to</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">,</span> <span class="s1">&#39;logs&#39;</span><span class="p">)</span></code>
 
   <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-<a href="#saev.nn.objectives.VanillaLoss.l1" class="headerlink" title="Permanent link">&para;</a></h3>
+<a href="#saev.framework.inference.Config.log_to" class="headerlink" title="Permanent link">&para;</a></h3>
 
 
     <div class="doc doc-contents ">
 
-        <p>L1 magnitude of hidden activations.</p>
+        <p>Where to log Slurm job stdout/stderr.</p>
 
     </div>
 
@@ -2259,41 +1781,20 @@
 
 
 
-<h3 id="saev.nn.objectives.VanillaLoss.loss" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">loss</span></code>
+<h3 id="saev.framework.inference.Config.n_dists" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">n_dists</span> <span class="o">=</span> <span class="mi">25</span></code>
 
   <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-property"><code>property</code></small>
-  </span>
-
-<a href="#saev.nn.objectives.VanillaLoss.loss" class="headerlink" title="Permanent link">&para;</a></h3>
-
-
-    <div class="doc doc-contents ">
-
-        <p>Total loss.</p>
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h3 id="saev.nn.objectives.VanillaLoss.mse" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">mse</span></code>
-
-  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-<a href="#saev.nn.objectives.VanillaLoss.mse" class="headerlink" title="Permanent link">&para;</a></h3>
+<a href="#saev.framework.inference.Config.n_dists" class="headerlink" title="Permanent link">&para;</a></h3>
 
 
     <div class="doc doc-contents ">
 
-        <p>Reconstruction loss (mean squared error).</p>
+        <p>Number of features to save distributions for.</p>
 
     </div>
 
@@ -2303,19 +1804,112 @@
 
 
 
-<h3 id="saev.nn.objectives.VanillaLoss.sparsity" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">sparsity</span></code>
+<h3 id="saev.framework.inference.Config.n_hours" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">n_hours</span> <span class="o">=</span> <span class="mf">4.0</span></code>
 
   <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
       <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
   </span>
 
-<a href="#saev.nn.objectives.VanillaLoss.sparsity" class="headerlink" title="Permanent link">&para;</a></h3>
+<a href="#saev.framework.inference.Config.n_hours" class="headerlink" title="Permanent link">&para;</a></h3>
 
 
     <div class="doc doc-contents ">
 
-        <p>Sparsity loss, typically lambda * L1.</p>
+        <p>Slurm job length in hours.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="saev.framework.inference.Config.percentile" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">percentile</span> <span class="o">=</span> <span class="mi">99</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#saev.framework.inference.Config.percentile" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Percentile to estimate for outlier detection.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="saev.framework.inference.Config.run" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">run</span> <span class="o">=</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="s1">&#39;./runs/abcdefg&#39;</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#saev.framework.inference.Config.run" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Path to the sae.pt file.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="saev.framework.inference.Config.slurm_acct" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">slurm_acct</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#saev.framework.inference.Config.slurm_acct" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Slurm account string. Empty means to not use Slurm.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="saev.framework.inference.Config.slurm_partition" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">slurm_partition</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#saev.framework.inference.Config.slurm_partition" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Slurm partition.</p>
 
     </div>
 
@@ -2336,16 +1930,15 @@
 <div class="doc doc-object doc-function">
 
 
-<h2 id="saev.nn.objectives.sample_prefixes" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">sample_prefixes</span><span class="p">(</span><span class="n">d_sae</span><span class="p">,</span> <span class="n">n_prefixes</span><span class="p">,</span> <span class="n">min_prefix_length</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">pareto_power</span><span class="o">=</span><span class="mf">0.5</span><span class="p">)</span></code>
+<h2 id="saev.framework.inference.main" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">main</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">sweep</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
 
-<a href="#saev.nn.objectives.sample_prefixes" class="headerlink" title="Permanent link">&para;</a></h2>
+<a href="#saev.framework.inference.main" class="headerlink" title="Permanent link">&para;</a></h2>
 
 
     <div class="doc doc-contents ">
 
-        <p>Samples prefix lengths using a Pareto distribution. Derived from "Learning Multi-Level Features with
-Matryoshka Sparse Autoencoders" (https://doi.org/10.48550/arXiv.2503.17547)</p>
+        <p>Run SAE inference over transformer activations, optionally using a sweep file to submit many jobs at once.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -2361,14 +1954,18 @@ Matryoshka Sparse Autoencoders" (https://doi.org/10.48550/arXiv.2503.17547)</p>
       <tbody>
           <tr class="doc-section-item">
             <td>
-                <code>d_sae</code>
+                <code>cfg</code>
             </td>
             <td>
-                  <code><span title="int">int</span></code>
+                  <code><span title="typing.Annotated">Annotated</span>[<a class="autorefs autorefs-internal" title="Config(run=pathlib.Path('./runs/abcdefg'), data=OrderedConfig(), n_dists=25, percentile=99, ignore_labels=list(), force_recompute=False, device='cuda', slurm_acct='', slurm_partition='', n_hours=4.0, log_to=os.path.join('.', 'logs'))
+
+  
+      dataclass
+   (saev.framework.inference.Config)" href="#saev.framework.inference.Config">Config</a>, <span title="tyro.conf.arg">arg</span>(name=&#39;&#39;)]</code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Total number of latent dimensions</p>
+                <p>Baseline config inference.</p>
               </div>
             </td>
             <td>
@@ -2377,73 +1974,18 @@ Matryoshka Sparse Autoencoders" (https://doi.org/10.48550/arXiv.2503.17547)</p>
           </tr>
           <tr class="doc-section-item">
             <td>
-                <code>n_prefixes</code>
+                <code>sweep</code>
             </td>
             <td>
-                  <code><span title="int">int</span></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Number of prefixes to sample</p>
-              </div>
-            </td>
-            <td>
-                <em>required</em>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>min_prefix_length</code>
-            </td>
-            <td>
-                  <code><span title="int">int</span></code>
+                  <code><span title="pathlib.Path">Path</span> | None</code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Minimum length of any prefix</p>
+                <p>Path to .py file defining the sweep parameters.</p>
               </div>
             </td>
             <td>
-                  <code>1</code>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>pareto_power</code>
-            </td>
-            <td>
-                  <code><span title="float">float</span></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Power parameter for Pareto distribution (lower = more uniform)</p>
-              </div>
-            </td>
-            <td>
-                  <code>0.5</code>
-            </td>
-          </tr>
-      </tbody>
-    </table>
-
-
-    <p><span class="doc-section-title">Returns:</span></p>
-    <table>
-      <thead>
-        <tr>
-          <th>Type</th>
-          <th>Description</th>
-        </tr>
-      </thead>
-      <tbody>
-          <tr class="doc-section-item">
-            <td>
-                  <code><span title="jaxtyping.Int64">Int64</span>[<span title="torch.Tensor">Tensor</span>, &#39; n_prefixes&#39;]</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>torch.Tensor: Sorted prefix lengths</p>
-              </div>
+                  <code>None</code>
             </td>
           </tr>
       </tbody>
@@ -2451,11 +1993,8 @@ Matryoshka Sparse Autoencoders" (https://doi.org/10.48550/arXiv.2503.17547)</p>
 
 
             <details class="quote">
-              <summary>Source code in <code>src/saev/nn/objectives.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">181</span>
-<span class="normal">182</span>
-<span class="normal">183</span>
-<span class="normal">184</span>
+              <summary>Source code in <code>src/saev/framework/inference.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">184</span>
 <span class="normal">185</span>
 <span class="normal">186</span>
 <span class="normal">187</span>
@@ -2494,49 +2033,78 @@ Matryoshka Sparse Autoencoders" (https://doi.org/10.48550/arXiv.2503.17547)</p>
 <span class="normal">220</span>
 <span class="normal">221</span>
 <span class="normal">222</span>
-<span class="normal">223</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">()</span>
-<span class="nd">@jaxtyped</span><span class="p">(</span><span class="n">typechecker</span><span class="o">=</span><span class="n">beartype</span><span class="o">.</span><span class="n">beartype</span><span class="p">)</span>
-<span class="k">def</span><span class="w"> </span><span class="nf">sample_prefixes</span><span class="p">(</span>
-    <span class="n">d_sae</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">n_prefixes</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">min_prefix_length</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span> <span class="n">pareto_power</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.5</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Int64</span><span class="p">[</span><span class="n">Tensor</span><span class="p">,</span> <span class="s2">&quot; n_prefixes&quot;</span><span class="p">]:</span>
+<span class="normal">223</span>
+<span class="normal">224</span>
+<span class="normal">225</span>
+<span class="normal">226</span>
+<span class="normal">227</span>
+<span class="normal">228</span>
+<span class="normal">229</span>
+<span class="normal">230</span>
+<span class="normal">231</span>
+<span class="normal">232</span>
+<span class="normal">233</span>
+<span class="normal">234</span>
+<span class="normal">235</span>
+<span class="normal">236</span>
+<span class="normal">237</span>
+<span class="normal">238</span>
+<span class="normal">239</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@beartype</span><span class="o">.</span><span class="n">beartype</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">(</span>
+    <span class="n">cfg</span><span class="p">:</span> <span class="n">tp</span><span class="o">.</span><span class="n">Annotated</span><span class="p">[</span><span class="n">Config</span><span class="p">,</span> <span class="n">tyro</span><span class="o">.</span><span class="n">conf</span><span class="o">.</span><span class="n">arg</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">)],</span> <span class="n">sweep</span><span class="p">:</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Samples prefix lengths using a Pareto distribution. Derived from &quot;Learning Multi-Level Features with</span>
-<span class="sd">    Matryoshka Sparse Autoencoders&quot; (https://doi.org/10.48550/arXiv.2503.17547)</span>
+<span class="sd">    Run SAE inference over transformer activations, optionally using a sweep file to submit many jobs at once.</span>
 
 <span class="sd">    Args:</span>
-<span class="sd">        d_sae: Total number of latent dimensions</span>
-<span class="sd">        n_prefixes: Number of prefixes to sample</span>
-<span class="sd">        min_prefix_length: Minimum length of any prefix</span>
-<span class="sd">        pareto_power: Power parameter for Pareto distribution (lower = more uniform)</span>
-
-<span class="sd">    Returns:</span>
-<span class="sd">        torch.Tensor: Sorted prefix lengths</span>
+<span class="sd">        cfg: Baseline config inference.</span>
+<span class="sd">        sweep: Path to .py file defining the sweep parameters.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">if</span> <span class="n">n_prefixes</span> <span class="o">&lt;=</span> <span class="mi">1</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">([</span><span class="n">d_sae</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">int64</span><span class="p">)</span>
 
-    <span class="k">assert</span> <span class="n">n_prefixes</span> <span class="o">&lt;=</span> <span class="n">d_sae</span>
+    <span class="k">if</span> <span class="n">sweep</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">sweep_dcts</span> <span class="o">=</span> <span class="n">configs</span><span class="o">.</span><span class="n">load_sweep</span><span class="p">(</span><span class="n">sweep</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">sweep_dcts</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">&quot;No valid sweeps found in &#39;</span><span class="si">%s</span><span class="s2">&#39;.&quot;</span><span class="p">,</span> <span class="n">sweep</span><span class="p">)</span>
+            <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
 
-    <span class="c1"># Calculate probability distribution favoring shorter prefixes</span>
-    <span class="n">lengths</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">d_sae</span><span class="p">)</span>
-    <span class="n">pareto_cdf</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">-</span> <span class="p">((</span><span class="n">min_prefix_length</span> <span class="o">/</span> <span class="n">lengths</span><span class="o">.</span><span class="n">float</span><span class="p">())</span> <span class="o">**</span> <span class="n">pareto_power</span><span class="p">)</span>
-    <span class="n">pareto_pdf</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">([</span><span class="n">pareto_cdf</span><span class="p">[:</span><span class="mi">1</span><span class="p">],</span> <span class="n">pareto_cdf</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span> <span class="o">-</span> <span class="n">pareto_cdf</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]])</span>
-    <span class="n">probability_dist</span> <span class="o">=</span> <span class="n">pareto_pdf</span> <span class="o">/</span> <span class="n">pareto_pdf</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+        <span class="n">cfgs</span><span class="p">,</span> <span class="n">errs</span> <span class="o">=</span> <span class="n">configs</span><span class="o">.</span><span class="n">load_cfgs</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="n">Config</span><span class="p">(),</span> <span class="n">sweep_dcts</span><span class="o">=</span><span class="n">sweep_dcts</span><span class="p">)</span>
 
-    <span class="c1"># Sample and sort prefix lengths</span>
-    <span class="n">sampled_indices</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">multinomial</span><span class="p">(</span>
-        <span class="n">probability_dist</span><span class="p">,</span> <span class="n">num_samples</span><span class="o">=</span><span class="n">n_prefixes</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">replacement</span><span class="o">=</span><span class="kc">False</span>
-    <span class="p">)</span>
+        <span class="k">if</span> <span class="n">errs</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">err</span> <span class="ow">in</span> <span class="n">errs</span><span class="p">:</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Error in config: </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">err</span><span class="p">)</span>
+            <span class="k">return</span>
 
-    <span class="c1"># Convert indices to actual prefix lengths</span>
-    <span class="n">prefixes</span> <span class="o">=</span> <span class="n">lengths</span><span class="p">[</span><span class="n">sampled_indices</span><span class="p">]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">cfgs</span> <span class="o">=</span> <span class="p">[</span><span class="n">cfg</span><span class="p">]</span>
 
-    <span class="c1"># Add n_latents as the final prefix</span>
-    <span class="n">prefixes</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">((</span><span class="n">prefixes</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">clone</span><span class="p">(),</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">([</span><span class="n">d_sae</span><span class="p">])))</span>
+    <span class="k">assert</span> <span class="nb">all</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">slurm_acct</span> <span class="o">==</span> <span class="n">cfgs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">slurm_acct</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">cfgs</span><span class="p">)</span>
+    <span class="n">cfg</span> <span class="o">=</span> <span class="n">cfgs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
 
-    <span class="n">prefixes</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">prefixes</span><span class="p">,</span> <span class="n">descending</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">slurm_acct</span><span class="p">:</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">submitit</span>
 
-    <span class="k">return</span> <span class="n">prefixes</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">int64</span><span class="p">)</span>
+        <span class="n">executor</span> <span class="o">=</span> <span class="n">submitit</span><span class="o">.</span><span class="n">SlurmExecutor</span><span class="p">(</span><span class="n">folder</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">log_to</span><span class="p">)</span>
+        <span class="n">executor</span><span class="o">.</span><span class="n">update_parameters</span><span class="p">(</span>
+            <span class="n">time</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">n_hours</span> <span class="o">*</span> <span class="mi">60</span><span class="p">),</span>
+            <span class="n">partition</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">slurm_partition</span><span class="p">,</span>
+            <span class="n">gpus_per_node</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+            <span class="n">ntasks_per_node</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+            <span class="n">cpus_per_task</span><span class="o">=</span><span class="mi">8</span><span class="p">,</span>
+            <span class="n">stderr_to_stdout</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">account</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">slurm_acct</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">with</span> <span class="n">executor</span><span class="o">.</span><span class="n">batch</span><span class="p">():</span>
+            <span class="n">jobs</span> <span class="o">=</span> <span class="p">[</span><span class="n">executor</span><span class="o">.</span><span class="n">submit</span><span class="p">(</span><span class="n">worker_fn</span><span class="p">,</span> <span class="n">c</span><span class="p">)</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">cfgs</span><span class="p">]</span>
+
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Submitted </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">jobs</span><span class="p">)</span><span class="si">}</span><span class="s2"> job(s).&quot;</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">j</span><span class="p">,</span> <span class="n">job</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">jobs</span><span class="p">):</span>
+            <span class="n">job</span><span class="o">.</span><span class="n">result</span><span class="p">()</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Job </span><span class="si">{</span><span class="n">job</span><span class="o">.</span><span class="n">job_id</span><span class="si">}</span><span class="s2"> finished (</span><span class="si">{</span><span class="n">j</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">jobs</span><span class="p">)</span><span class="si">}</span><span class="s2">).&quot;</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">cfgs</span><span class="p">:</span>
+            <span class="n">worker_fn</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>
+
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Jobs done.&quot;</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -2587,7 +2155,7 @@ Matryoshka Sparse Autoencoders" (https://doi.org/10.48550/arXiv.2503.17547)</p>
       <nav class="md-footer__inner md-grid" aria-label="Footer" >
         
           
-          <a href="../modeling/" class="md-footer__link md-footer__link--prev" aria-label="Previous: saev.nn.modeling">
+          <a href="../saev.framework/" class="md-footer__link md-footer__link--prev" aria-label="Previous: saev.framework">
             <div class="md-footer__button md-icon">
               
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
@@ -2597,20 +2165,20 @@ Matryoshka Sparse Autoencoders" (https://doi.org/10.48550/arXiv.2503.17547)</p>
                 Previous
               </span>
               <div class="md-ellipsis">
-                saev.nn.modeling
+                saev.framework
               </div>
             </div>
           </a>
         
         
           
-          <a href="../../utils/saev.utils/" class="md-footer__link md-footer__link--next" aria-label="Next: saev.utils">
+          <a href="../shards/" class="md-footer__link md-footer__link--next" aria-label="Next: saev.framework.shards">
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 Next
               </span>
               <div class="md-ellipsis">
-                saev.utils
+                saev.framework.shards
               </div>
             </div>
             <div class="md-footer__button md-icon">

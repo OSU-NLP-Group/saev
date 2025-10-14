@@ -13,7 +13,6 @@ from torch import Tensor
 @jaxtyped(typechecker=beartype.beartype)
 def ap_ref(y: Bool[Tensor, "..."], s: Float[Tensor, "..."]) -> float:
     """sklearn baseline, y,s 1-D numpy"""
-    print(y.shape, s.shape)
     return average_precision_score(y.cpu().numpy(), s.cpu().numpy())
 
 

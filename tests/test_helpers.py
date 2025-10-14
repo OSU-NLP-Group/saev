@@ -1,6 +1,7 @@
 import collections
 import os
 import tempfile
+import tracemalloc
 
 import beartype
 import numpy as np
@@ -445,3 +446,183 @@ def test_csr_topk_with_duplicates():
         np.testing.assert_allclose(
             indexed_values, np_result.values[i], rtol=1e-5, atol=1e-7
         )
+
+
+def test_csr_topk_memory_axis1():
+    """Test that axis=1 memory usage is reasonable (processes one row at a time)."""
+    # Create a moderately sized sparse matrix
+    n_rows, n_cols = 1000, 500
+    sparsity = 0.9
+    n_nonzero = int(n_rows * n_cols * (1 - sparsity))
+
+    dense = np.zeros((n_rows, n_cols), dtype=np.float32)
+    indices = np.random.choice(n_rows * n_cols, size=n_nonzero, replace=False)
+    rows = indices // n_cols
+    cols = indices % n_cols
+    values = np.random.randn(n_nonzero).astype(np.float32)
+    dense[rows, cols] = values
+
+    csr = scipy.sparse.csr_matrix(dense)
+
+    # Measure memory usage
+    tracemalloc.start()
+    result = helpers.csr_topk(csr, k=10, axis=1)
+    current, peak = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+
+    # Memory should be reasonable - much less than the full dense matrix
+    # Dense matrix would be: n_rows * n_cols * 4 bytes = 2 MB
+    # Peak should be well under that since we process row-by-row
+    dense_size_mb = (n_rows * n_cols * 4) / (1024 * 1024)
+    peak_mb = peak / (1024 * 1024)
+
+    # Assert peak memory is less than 50% of dense matrix size
+    assert peak_mb < 0.5 * dense_size_mb, (
+        f"Peak memory {peak_mb:.2f} MB exceeds 50% of dense size {dense_size_mb:.2f} MB"
+    )
+
+    # Verify result shape
+    assert result.values.shape == (n_rows, 10)
+    assert result.indices.shape == (n_rows, 10)
+
+
+def test_csr_topk_memory_axis0_batch_scaling():
+    """Test that axis=0 memory scales with batch_size, not total rows."""
+    n_rows, n_cols = 5000, 100
+    k = 5
+    sparsity = 0.95
+    n_nonzero = int(n_rows * n_cols * (1 - sparsity))
+
+    # Create sparse matrix
+    dense = np.zeros((n_rows, n_cols), dtype=np.float32)
+    indices = np.random.choice(n_rows * n_cols, size=n_nonzero, replace=False)
+    rows = indices // n_cols
+    cols = indices % n_cols
+    values = np.random.randn(n_nonzero).astype(np.float32)
+    dense[rows, cols] = values
+    csr = scipy.sparse.csr_matrix(dense)
+
+    # Test with small batch size
+    tracemalloc.start()
+    result_small = helpers.csr_topk(csr, k=k, axis=0, batch_size=100)
+    _, peak_small = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+
+    # Test with larger batch size
+    tracemalloc.start()
+    result_large = helpers.csr_topk(csr, k=k, axis=0, batch_size=1000)
+    _, peak_large = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+
+    # Results should be the same
+    np.testing.assert_allclose(result_small.values, result_large.values)
+
+    # Larger batch should use more memory
+    assert peak_large > peak_small, (
+        f"Larger batch_size should use more memory: "
+        f"small={peak_small / 1024 / 1024:.2f} MB, "
+        f"large={peak_large / 1024 / 1024:.2f} MB"
+    )
+
+    # But memory should scale reasonably (roughly linearly with batch size)
+    # Allow some overhead, so check if within 20x ratio (10x batch size increase)
+    ratio = peak_large / peak_small
+    assert ratio < 20, f"Memory ratio {ratio:.2f} too high for 10x batch size increase"
+
+
+def test_csr_topk_memory_axis0_bounded():
+    """Test that axis=0 memory doesn't grow with number of rows beyond batch size."""
+    n_cols = 200
+    k = 10
+    batch_size = 512
+    sparsity = 0.9
+
+    # Test with moderate number of rows
+    n_rows_small = 2000
+    n_nonzero_small = int(n_rows_small * n_cols * (1 - sparsity))
+    dense_small = np.zeros((n_rows_small, n_cols), dtype=np.float32)
+    indices_small = np.random.choice(
+        n_rows_small * n_cols, size=n_nonzero_small, replace=False
+    )
+    rows_small = indices_small // n_cols
+    cols_small = indices_small % n_cols
+    values_small = np.random.randn(n_nonzero_small).astype(np.float32)
+    dense_small[rows_small, cols_small] = values_small
+    csr_small = scipy.sparse.csr_matrix(dense_small)
+
+    tracemalloc.start()
+    _ = helpers.csr_topk(csr_small, k=k, axis=0, batch_size=batch_size)
+    _, peak_small = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+
+    # Test with many more rows (5x)
+    n_rows_large = 10000
+    n_nonzero_large = int(n_rows_large * n_cols * (1 - sparsity))
+    dense_large = np.zeros((n_rows_large, n_cols), dtype=np.float32)
+    indices_large = np.random.choice(
+        n_rows_large * n_cols, size=n_nonzero_large, replace=False
+    )
+    rows_large = indices_large // n_cols
+    cols_large = indices_large % n_cols
+    values_large = np.random.randn(n_nonzero_large).astype(np.float32)
+    dense_large[rows_large, cols_large] = values_large
+    csr_large = scipy.sparse.csr_matrix(dense_large)
+
+    tracemalloc.start()
+    _ = helpers.csr_topk(csr_large, k=k, axis=0, batch_size=batch_size)
+    _, peak_large = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+
+    # Memory should not grow significantly with more rows (same batch_size)
+    # Allow for some growth due to tracking arrays, but should be bounded
+    ratio = peak_large / peak_small
+    assert ratio < 2.0, (
+        f"Memory should not grow significantly with 5x more rows: "
+        f"ratio={ratio:.2f}, small={peak_small / 1024 / 1024:.2f} MB, "
+        f"large={peak_large / 1024 / 1024:.2f} MB"
+    )
+
+
+def test_csr_topk_memory_axis0_large_matrix_estimate():
+    """Test memory usage with parameters similar to real use case and verify it's reasonable."""
+    # Simulate a smaller version of the real use case:
+    # Real: (5.2M rows, 16K cols, k=20)
+    # Test: (10K rows, 1K cols, k=20) - scaled down 500x on rows, 16x on cols
+    n_rows, n_cols = 10000, 1000
+    k = 20
+    batch_size = 1024
+    sparsity = 0.98  # Similar to real case
+
+    n_nonzero = int(n_rows * n_cols * (1 - sparsity))
+    dense = np.zeros((n_rows, n_cols), dtype=np.float32)
+    indices = np.random.choice(n_rows * n_cols, size=n_nonzero, replace=False)
+    rows = indices // n_cols
+    cols = indices % n_cols
+    values = np.random.randn(n_nonzero).astype(np.float32)
+    dense[rows, cols] = values
+    csr = scipy.sparse.csr_matrix(dense)
+
+    tracemalloc.start()
+    result = helpers.csr_topk(csr, k=k, axis=0, batch_size=batch_size)
+    current, peak = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+
+    # Calculate expected memory components:
+    # 1. Dense batch: batch_size * n_cols * 4 bytes
+    batch_size_mb = (batch_size * n_cols * 4) / (1024 * 1024)
+    # 2. Tracking arrays: k * n_cols * (4 + 8 + 4 + 4) bytes
+    #    (values, indices, min_values, counts)
+    tracking_size_mb = (k * n_cols * 20) / (1024 * 1024)
+
+    peak_mb = peak / (1024 * 1024)
+    expected_mb = batch_size_mb + tracking_size_mb
+
+    # Peak should be within 3x of expected (allows for overhead and copies)
+    assert peak_mb < 3 * expected_mb, (
+        f"Peak memory {peak_mb:.2f} MB exceeds 3x expected {expected_mb:.2f} MB "
+        f"(batch={batch_size_mb:.2f} MB + tracking={tracking_size_mb:.2f} MB)"
+    )
+
+    # Verify result shape
+    assert result.values.shape == (k, n_cols)
+    assert result.indices.shape == (k, n_cols)

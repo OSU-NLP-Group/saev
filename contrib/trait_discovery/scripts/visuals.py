@@ -5,7 +5,7 @@ Only has to work for butterflies, beetles and fish. And let's start with just bu
 import dataclasses
 import logging
 import math
-import os
+import pathlib
 import random
 import typing as tp
 
@@ -13,7 +13,7 @@ import beartype
 import glasbey
 import numpy as np
 import polars as pl
-import tdiscovery.datasets
+import scipy.sparse
 import torch
 import tyro
 from jaxtyping import Float, jaxtyped
@@ -22,6 +22,7 @@ from torch import Tensor
 
 import saev.data
 import saev.data.transforms
+import saev.disk
 import saev.helpers
 import saev.nn
 import saev.utils.statistics
@@ -37,14 +38,10 @@ logger = logging.getLogger("visuals")
 class Config:
     """Configuration for unified activation computation."""
 
-    root: str = os.path.join(".", "acts", "butterflies", "abcdefg")
-    """Path to the saved SAE image activations."""
-    acts: saev.data.IndexedConfig = saev.data.IndexedConfig()
+    run: pathlib.Path = pathlib.Path("./runs/abcdefg")
+    """Run directory."""
+    shards_dir: pathlib.Path = pathlib.Path("./shards/abcdefg")
     """Activations."""
-    ckpt: str = os.path.join(".", "checkpoints", "sae.pt")
-    """Path to the sae.pt file."""
-    imgs: tdiscovery.datasets.Config = tdiscovery.datasets.Config()
-    """Which image dataset to use."""
     img_scale: float = 1.0
     """How much to scale images by (use higher numbers for high-res visuals)."""
     ignore_labels: list[int] = dataclasses.field(default_factory=list)
@@ -78,9 +75,9 @@ class Config:
 class Example:
     img: Image.Image
     seg: Image.Image | None  # Segmentation mask if available
-    patches: Float[Tensor, " n_patches"]
+    tokens: Float[np.ndarray, " content_tokens_per_example"]
     # Metadata
-    img_i: int
+    idx: int
     target: int
     label: str
     extra: dict[str, object] = dataclasses.field(default_factory=dict)
@@ -138,17 +135,12 @@ def plot_activation_distributions(cfg: Config, distributions: Float[Tensor, "m n
     return fig
 
 
-@beartype.beartype
-def safe_load(path: str) -> torch.Tensor:
-    return torch.load(path, map_location="cpu", weights_only=True)
-
-
 @jaxtyped(typechecker=beartype.beartype)
 def make_seg(
     seg: Image.Image,
     n_patches: int,
     patch_size: int,
-    pixel_agg: tp.Literal["majority", "prefer-fg"],
+    pixel_agg: saev.data.shards.PixelAgg,
     bg_label: int,
     palette: list[tuple[float, float, float]],
 ) -> Image.Image:
@@ -158,7 +150,7 @@ def make_seg(
     patch_grid_h = h // patch_size
     patch_grid_w = w // patch_size
     patch_labels = (
-        saev.data.writers.pixel_to_patch_labels(
+        saev.data.shards.pixel_to_patch_labels(
             seg, n_patches, patch_size, pixel_agg, bg_label
         )
         .numpy()
@@ -178,59 +170,69 @@ def make_seg(
 
 
 @beartype.beartype
+def safe_load(path: pathlib.Path) -> Tensor:
+    return torch.load(path, map_location="cpu", weights_only=True)
+
+
+@beartype.beartype
 @torch.inference_mode()
 def main(cfg: tp.Annotated[Config, tyro.conf.arg(name="")]):
     """Generate visual outputs for particular latents."""
 
     try:
-        img_acts_ns = safe_load(os.path.join(cfg.root, "img_acts.pt"))
-        sparsity_s = safe_load(os.path.join(cfg.root, "sparsity.pt"))
-        mean_values_s = safe_load(os.path.join(cfg.root, "mean_values.pt"))
-        distributions = safe_load(os.path.join(cfg.root, "distributions.pt"))
+        run = saev.disk.Run(cfg.run)
+        token_acts = scipy.sparse.load_npz(run.inference / "token_acts.npz")
+        mean_values_s = safe_load(run.inference / "mean_values.pt")
+        sparsity_s = safe_load(run.inference / "sparsity.pt")
+        # distributions = safe_load(run.inference / "distributions.pt")
     except FileNotFoundError as err:
         logger.error("Required activation files not found: %s", err)
         logger.error("Please first compute activations.")
         return
 
     # Create indexed activations dataset for efficient patch retrieval
-    act_ds = saev.data.Dataset(cfg.acts)
-    md = act_ds.metadata
-    n_patches = md.n_patches_per_img
-    vit_cls = saev.data.models.load_vit_cls(md.vit_family)
-    resize_tr = vit_cls.make_resize(md.vit_ckpt, n_patches, scale=cfg.img_scale)
-    img_ds = tdiscovery.datasets.get_dataset(
-        cfg.imgs, img_tr=resize_tr, seg_tr=resize_tr
+    md = saev.data.Metadata.load(cfg.shards_dir)
+    vit_cls = saev.data.models.load_model_cls(md.family)
+    resize_tr = vit_cls.make_resize(
+        md.ckpt, md.content_tokens_per_example, scale=cfg.img_scale
+    )
+    img_cfg = md.make_data_cfg()
+    img_ds = saev.data.datasets.get_dataset(
+        img_cfg, img_transform=resize_tr, seg_transform=resize_tr
     )
 
     logger.info("Loaded data.")
 
-    obs_df = pl.DataFrame(
-        [img_ds.get_metadata(i) for i in range(len(img_ds))], infer_schema_length=None
-    )
-    obs_fpath = os.path.join(cfg.root, "obs.parquet")
-    obs_df.write_parquet(obs_fpath)
-    logger.info("Saved obs.parquet with %d rows to '%s'.", obs_df.height, obs_fpath)
+    # obs_df = pl.DataFrame(
+    #     [img_ds.get_metadata(i) for i in range(len(img_ds))], infer_schema_length=None
+    # )
+    # obs_fpath = os.path.join(cfg.root, "obs.parquet")
+    # obs_df.write_parquet(obs_fpath)
+    # logger.info("Saved obs.parquet with %d rows to '%s'.", obs_df.height, obs_fpath)
 
     # Load SAE model for on-demand reconstruction
-    sae = saev.nn.load(cfg.ckpt).to(cfg.device)
+    sae = saev.nn.load(run.ckpt).to(cfg.device)
+
+    topk_example_idx = (
+        saev.helpers.csr_topk(token_acts, k=cfg.top_k, axis=0).indices
+        // md.content_tokens_per_example
+    )
 
     var_df = pl.DataFrame({
         "feature": range(sae.cfg.d_sae),
         "log10_freq": torch.log10(sparsity_s).tolist(),
         "log10_value": torch.log10(mean_values_s).tolist(),
-        "top_img_i": torch.topk(img_acts_ns, k=cfg.top_k, dim=0).indices.T.tolist(),
+        "topk_example_idx": topk_example_idx.T.tolist(),
     })
-    var_fpath = os.path.join(cfg.root, "var.parquet")
+    var_fpath = run.inference / "var.parquet"
     var_df.write_parquet(var_fpath)
     logger.info("Saved var.parquet with %d rows to '%s'.", var_df.height, var_fpath)
 
-    fig_fpath = os.path.join(
-        cfg.root, f"{cfg.n_distributions}_activation_distributions.png"
-    )
-    plot_activation_distributions(cfg, distributions).savefig(fig_fpath, dpi=300)
-    logger.info(
-        "Saved %d activation distributions to '%s'.", cfg.n_distributions, fig_fpath
-    )
+    # fig_fpath = run.inference / f"{cfg.n_distributions}_activation_distributions.png"
+    # plot_activation_distributions(cfg, distributions).savefig(fig_fpath, dpi=300)
+    # logger.info(
+    #     "Saved %d activation distributions to '%s'.", cfg.n_distributions, fig_fpath
+    # )
 
     min_log_freq, max_log_freq = cfg.log_freq_range
     min_log_value, max_log_value = cfg.log_value_range
@@ -248,125 +250,14 @@ def main(cfg: tp.Annotated[Config, tyro.conf.arg(name="")]):
     random.shuffle(random_features)
     features += random_features[: cfg.n_latents]
 
-    INIT = -1
-
-    # Algorithm
-    # =========
-    # 1. We want to run inference on all (1920) patches on the top k (20) images for each of the selected SAE latents (400).
-    # 2. Use a torch.utils.data.Subset on top of act_ds with the selected patches in combination with a torch.utils.data.DataLoader to get the relevant patches using multiple dataloading processes.
-    # 3. As you iterate over those patches in batches, use the SAE to calculate f_x[:, latents] for the latents we care about.
-    # Keep these values in RAM (400 x 1920 x 20 x 4 bytes = 61.4 MB), then iterate through the images and save the actual highlighted images themselves.
-
-    # Build list of all patch indices we need and track which features need which images
-
-    # Collect all top images for all features at once
-    # mapping is a lookup from (image index, feature index) -> rank.
-    rank_lookup_nf = torch.full((len(img_ds), len(features)), INIT)
-    all_img_i, all_patch_i = [], []
-
-    for f_i, f in enumerate(saev.helpers.progress(features, desc="pick patches")):
-        # Get top k unique images for this feature
-        feature_acts_n = img_acts_ns[:, f]
-
-        # Assertions
-        assert feature_acts_n.ndim == 1
-        assert (feature_acts_n >= 0.0).all(), "SAE activations must be non-negative"
-
-        img_i = torch.argsort(feature_acts_n, descending=True)[: cfg.top_k]
-
-        assert img_i.numel() == cfg.top_k
-        assert (img_i >= 0).all(), "Image indices must be non-negative"
-        msg = "Image indices must be in [0, {len(img_ds)})"
-        assert (img_i < len(img_ds)).all(), msg
-
-        rank_lookup_nf[img_i, f_i] = torch.arange(len(img_i))
-
-        # Vectorized computation of all patch indices for this feature's top images
-        all_patch_i.append(
-            (
-                img_i.view(-1, 1) * n_patches + torch.arange(n_patches).view(1, -1)
-            ).ravel()
-        )
-        all_img_i.append(img_i)
-
-    assert (rank_lookup_nf < cfg.top_k).all(), f"Ranks must be in [{INIT}, {cfg.top_k})"
-
-    # Concatenate all patch indices
-    all_patch_i = torch.unique(torch.cat(all_patch_i)).sort().values
-    all_img_i = torch.stack(all_img_i)
-
-    assert all_img_i.shape == (len(features), cfg.top_k)
-
-    # Store patch activations for each feature's top k images
-    patch_values_fkp = torch.full(
-        (len(features), cfg.top_k, n_patches), INIT, dtype=torch.float32
+    topk_example_idx = np.stack(var_df.get_column("topk_example_idx").to_numpy())
+    assert topk_example_idx.shape == (sae.cfg.d_sae, cfg.top_k)
+    topk_example_idx = topk_example_idx[features]
+    topk_token_idx = (
+        topk_example_idx[:, :, None] * md.content_tokens_per_example
+        + np.arange(md.content_tokens_per_example)[None, None, :]
     )
-    logger.info(
-        "%.1f%% unique patches.", all_patch_i.numel() / patch_values_fkp.numel() * 100
-    )
-
-    # Create DataLoader with the patches we need
-    dl = torch.utils.data.DataLoader(
-        torch.utils.data.Subset(act_ds, all_patch_i),
-        batch_size=cfg.sae_batch_size,
-        drop_last=False,
-        shuffle=False,
-    )
-
-    ignore = torch.tensor(cfg.ignore_labels)
-
-    # Process patches and compute SAE activations
-    for batch in saev.helpers.progress(dl, desc="SAE inference"):
-        # Patch indices must be in [0, n_patches).
-        assert (batch["patch_i"] >= 0).all(), "Patch indices must be non-negative"
-        msg = f"Patch indices must be in [0, {n_patches})"
-        assert (batch["patch_i"] < n_patches).all(), msg
-
-        vit_acts_bd = batch["act"].to(cfg.device)
-        # Run SAE encoding to get latent activations
-        f_x = sae.encode(vit_acts_bd)
-
-        bsz, d_sae = f_x.shape
-
-        # All values of f_x should be non-negative.
-        assert (f_x >= 0).all(), "SAE activations must be non-negative"
-
-        b_i, f_i = torch.where(rank_lookup_nf[batch["image_i"]] >= 0)
-
-        assert b_i.ndim == 1, "img_i must be a vector"
-        assert len(b_i) >= bsz
-        assert (b_i >= 0).all(), "Batch indices must be non-negative."
-        assert (b_i <= bsz).all(), "Batch indices must index in the batch."
-
-        # Feature indices must also be non-negative
-        assert f_i.ndim == 1, "f_i must be a vector"
-        assert len(f_i) >= bsz
-        assert (f_i >= 0).all(), "Feature indices must be non-negative."
-        # Feature indices must be less than the number of features
-        msg = "Feature indices must be in [0, {len(features)})."
-        assert (f_i < len(features)).all(), msg
-
-        rank = rank_lookup_nf[batch["image_i"]][b_i, f_i]
-        assert (rank >= 0).all(), "Ranks must be non-negative."
-        assert (rank < cfg.top_k).all(), f"Ranks must be in [0, {cfg.top_k})."
-
-        # Every patch value should be set exactly once.
-        set_at = (f_i, rank, batch["patch_i"][b_i])
-        msg = "No patches should be updated twice."
-        assert (patch_values_fkp[set_at] == INIT).all(), msg
-
-        patch_acts = f_x[b_i, f_i]
-        patch_labels = batch["patch_label"][b_i]
-        patch_acts[torch.isin(patch_labels, ignore)] = 0.0
-
-        # After indexing, latents should still be non-negative.
-        msg = "SAE latent activations should be non-negative"
-        assert (patch_acts >= 0).all(), msg
-
-        patch_values_fkp[set_at] = patch_acts.cpu()
-
-    # Since INIT is negative, >= 0 is the same as checking that all values have been set appropriately.
-    assert (patch_values_fkp >= 0).all()
+    assert topk_token_idx.max() < token_acts.shape[0]
 
     palette = [
         tuple(rgb) for rgb in glasbey.create_palette(palette_size=256, as_hex=False)
@@ -374,52 +265,55 @@ def main(cfg: tp.Annotated[Config, tyro.conf.arg(name="")]):
     for f_i, f in enumerate(
         saev.helpers.progress(features, desc="saving imgs", every=1)
     ):
-        feature_dir = os.path.join(cfg.root, "features", str(f))
-        os.makedirs(feature_dir, exist_ok=True)
+        feature_dir = run.inference / "features" / str(f)
+        feature_dir.mkdir(exist_ok=True, parents=True)
 
+        f_token_idx = topk_token_idx[f_i]
+        token_values_kp = token_acts[f_token_idx.ravel()][:, f].reshape(cfg.top_k, -1)
+        token_values_kp = token_values_kp.toarray()
         examples = []
 
-        patch_values_kp = patch_values_fkp[f_i]
-
-        for img_i, patch_values_p in zip(all_img_i[f_i].tolist(), patch_values_kp):
-            sample = img_ds[img_i]
+        for example_idx, token_values_p in zip(
+            topk_example_idx[f_i].tolist(), token_values_kp
+        ):
+            sample = img_ds[example_idx]
 
             example = Example(
                 img=sample["image"],
                 seg=sample.get("patch_labels", None),
-                patches=patch_values_p,
-                img_i=img_i,
+                tokens=token_values_p,
+                idx=example_idx,
                 target=sample["target"],
                 label=sample["label"],
             )
             examples.append(example)
 
         # How to scale values.
-        upper = patch_values_kp.max().item()
+        upper = token_values_kp.max().item()
 
         for j, example in enumerate(examples):
             # 1. Save original image under {j}_img.png
-            example.img.save(os.path.join(feature_dir, f"{j}_img.png"))
+            example.img.save(feature_dir / f"{j}_img.png")
             # 2. Save SAE highlighted image under {j}_sae_img.png
             img_with_highlights = saev.viz.add_highlights(
-                example.img, example.patches.numpy(), vit_cls.patch_size, upper=upper
+                example.img, example.tokens, vit_cls.patch_size, upper=upper
             )
-            img_with_highlights.save(os.path.join(feature_dir, f"{j}_sae_img.png"))
+            img_with_highlights.save(feature_dir / f"{j}_sae_img.png")
 
             if example.seg is not None:
                 # 3. Save original segmentation under {j}_seg.png
                 seg = make_seg(
                     example.seg,
-                    n_patches,
+                    md.content_tokens_per_example,
                     vit_cls.patch_size,
                     md.pixel_agg,
-                    md.data.get("bg-label", 0),
+                    img_ds.cfg.bg_label,
                     palette,
                 )
-                seg.save(os.path.join(feature_dir, f"{j}_seg.png"))
+                seg.save(feature_dir / f"{j}_seg.png")
 
                 # 4. Save SAE highlighted segmentation under {j}_sae_seg.png
                 seg_with_highlights = saev.viz.add_highlights(
-                    seg, example.patches.numpy(), vit_cls.patch_size, upper=upper
+                    seg, example.tokens, vit_cls.patch_size, upper=upper
                 )
-                seg_with_highlights.save(os.path.join(feature_dir, f"{j}_sae_seg.png"))
+                seg_with_highlights.save(feature_dir / f"{j}_sae_seg.png")

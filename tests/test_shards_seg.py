@@ -8,7 +8,7 @@ import torch
 from PIL import Image
 
 from saev.data import datasets
-from saev.data.shards import pixel_to_patch_labels, worker_fn
+from saev.data.shards import PixelAgg, pixel_to_patch_labels, worker_fn
 
 
 @contextlib.contextmanager
@@ -50,7 +50,7 @@ def test_labels_bin_is_generated(data_cfg):
             max_tokens_per_shard=256,
             shards_root=shards_root,
             device="cpu",
-            pixel_agg="prefer-fg",
+            pixel_agg=PixelAgg.PREFER_FG,
         )
 
         labels_path = shards_dir / "labels.bin"
@@ -84,7 +84,7 @@ def test_labels_bin_shape_and_dtype(data_cfg):
             max_tokens_per_shard=256,
             shards_root=shards_root,
             device="cpu",
-            pixel_agg="prefer-fg",
+            pixel_agg=PixelAgg.PREFER_FG,
         )
 
         labels_path = shards_dir / "labels.bin"
@@ -115,7 +115,7 @@ def test_labels_bin_value_range(data_cfg):
             max_tokens_per_shard=256,
             shards_root=shards_root,
             device="cpu",
-            pixel_agg="prefer-fg",
+            pixel_agg=PixelAgg.PREFER_FG,
         )
 
         labels_path = shards_dir / "labels.bin"
@@ -146,7 +146,7 @@ def test_labels_bin_with_cls_token(data_cfg):
             max_tokens_per_shard=256,
             shards_root=shards_root,
             device="cpu",
-            pixel_agg="prefer-fg",
+            pixel_agg=PixelAgg.PREFER_FG,
         )
 
         labels_path = shards_dir / "labels.bin"
@@ -176,7 +176,7 @@ def test_labels_bin_multi_shard(data_cfg):
             max_tokens_per_shard=80,  # Force multiple shards
             shards_root=shards_root,
             device="cpu",
-            pixel_agg="prefer-fg",
+            pixel_agg=PixelAgg.PREFER_FG,
         )
 
         labels_path = shards_dir / "labels.bin"
@@ -262,7 +262,7 @@ def test_pixel_to_patch_labels_prefer_fg():
         segmentation,
         n_patches=4,
         patch_size=2,
-        pixel_agg="prefer-fg",
+        pixel_agg=PixelAgg.PREFER_FG,
         bg_label=0,
     )
 

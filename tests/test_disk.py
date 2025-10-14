@@ -44,19 +44,9 @@ def populated_runs_root(tmp_path):
     (val_scratch / "acts000000.bin").touch()
     (val_scratch / "labels.bin").touch()
 
-    # Create train dataset directory
-    train_dataset = tmp_path / "datasets" / "butterflies-train"
-    train_dataset.mkdir(parents=True)
-
-    # Create val dataset directory
-    val_dataset = tmp_path / "datasets" / "butterflies-val"
-    val_dataset.mkdir(parents=True)
-
     # Create symlinks
     (links / "train-shards").symlink_to(train_scratch)
-    (links / "train-dataset").symlink_to(train_dataset)
     (links / "val-shards").symlink_to(val_scratch)
-    (links / "val-dataset").symlink_to(val_dataset)
 
     # Create inference directory
     inference = runs_root / "inference"
@@ -72,17 +62,11 @@ def test_new_run_creates_directories(tmp_path):
     train_shards_dpath.mkdir(parents=True)
     val_shards_dpath = tmp_path / "scratch" / "shards" / "def456"
     val_shards_dpath.mkdir(parents=True)
-    train_dataset_dpath = tmp_path / "datasets" / "butterflies-train"
-    train_dataset_dpath.mkdir(parents=True)
-    val_dataset_dpath = tmp_path / "datasets" / "butterflies-val"
-    val_dataset_dpath.mkdir(parents=True)
 
     run = Run.new(
         run_id="test_run_123",
         train_shards_dir=train_shards_dpath,
-        train_dataset=train_dataset_dpath,
         val_shards_dir=val_shards_dpath,
-        val_dataset=val_dataset_dpath,
         runs_root=runs_root,
     )
 
@@ -91,13 +75,9 @@ def test_new_run_creates_directories(tmp_path):
     assert (run.run_dir / "links").exists()
     assert (run.run_dir / "inference").exists()
     assert (run.run_dir / "links" / "train-shards").is_symlink()
-    assert (run.run_dir / "links" / "train-dataset").is_symlink()
     assert (run.run_dir / "links" / "val-shards").is_symlink()
-    assert (run.run_dir / "links" / "val-dataset").is_symlink()
     assert run.train_shards == train_shards_dpath
-    assert run.train_dataset == train_dataset_dpath
     assert run.val_shards == val_shards_dpath
-    assert run.val_dataset == val_dataset_dpath
 
 
 def test_existing_run_validates_structure(populated_runs_root):
@@ -107,8 +87,6 @@ def test_existing_run_validates_structure(populated_runs_root):
     assert run.ckpt.exists()
     assert run.train_shards.exists()
     assert run.val_shards.exists()
-    assert run.train_dataset.exists()
-    assert run.val_dataset.exists()
     assert run.inference.exists()
 
 
@@ -149,19 +127,6 @@ def test_shards_property_resolves_symlink(populated_runs_root):
     assert (run.val_shards / "metadata.json").exists()
     assert (run.val_shards / "acts000000.bin").exists()
     assert (run.val_shards / "labels.bin").exists()
-
-
-def test_dataset_property_resolves_symlink(populated_runs_root):
-    """Test that dataset property resolves the dataset symlink correctly."""
-    run = Run(populated_runs_root)
-
-    assert run.train_dataset.is_absolute()
-    assert run.train_dataset.exists()
-    assert run.train_dataset.name == "butterflies-train"
-
-    assert run.val_dataset.is_absolute()
-    assert run.val_dataset.exists()
-    assert run.val_dataset.name == "butterflies-val"
 
 
 def test_inference_property_returns_inference_dir(populated_runs_root):
@@ -222,14 +187,6 @@ def test_config_property_missing_config_raises(tmp_path):
     val_scratch = tmp_path / "scratch" / "shards" / "uvw012"
     val_scratch.mkdir(parents=True)
     (links / "val-shards").symlink_to(val_scratch)
-
-    train_dataset = tmp_path / "datasets" / "test-train"
-    train_dataset.mkdir(parents=True)
-    (links / "train-dataset").symlink_to(train_dataset)
-
-    val_dataset = tmp_path / "datasets" / "test-val"
-    val_dataset.mkdir(parents=True)
-    (links / "val-dataset").symlink_to(val_dataset)
 
     (runs_root / "inference").mkdir()
 

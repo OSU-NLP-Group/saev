@@ -5,6 +5,7 @@ Library code for reading and writing sharded activations to disk.
 
 import base64
 import dataclasses
+import enum
 import hashlib
 import json
 import logging
@@ -28,6 +29,13 @@ from .. import disk, helpers
 from . import datasets
 
 logger = logging.getLogger(__name__)
+
+
+class PixelAgg(enum.Enum):
+    """How to aggregate pixel-level segmentation labels to token-level labels (only for image segmentation datasets)."""
+
+    MAJORITY = "majority"
+    PREFER_FG = "prefer-fg"
 
 
 @beartype.beartype
@@ -62,7 +70,7 @@ class Metadata:
     max_tokens_per_shard: int
     data: str
     dataset: pathlib.Path
-    pixel_agg: tp.Literal["majority", "prefer-fg", None] = None
+    pixel_agg: PixelAgg = PixelAgg.MAJORITY
     dtype: tp.Literal["float32"] = "float32"
     protocol: tp.Literal["1.0.0", "1.1", "2.1"] = "2.1"
 
@@ -90,6 +98,7 @@ class Metadata:
             dct = json.load(fd)
         dct["layers"] = tuple(dct.pop("layers"))
         dct["dataset"] = pathlib.Path(dct["dataset"])
+        dct["pixel_agg"] = PixelAgg(dct["pixel_agg"])
         return cls(**dct)
 
     def dump(self, shards_root: pathlib.Path):
@@ -107,13 +116,13 @@ class Metadata:
     @property
     def hash(self) -> str:
         """
-        SHA256 hash of the metadata configuration.
+        First 8 bytes of a SHA256 hash of the metadata configuration.
 
         Returns:
             Hexadecimal hash string uniquely identifying this configuration.
         """
         cfg_bytes = helpers.dumps(self, option=orjson.OPT_SORT_KEYS)
-        return hashlib.sha256(cfg_bytes).hexdigest()
+        return hashlib.sha256(cfg_bytes).hexdigest()[:8]
 
     @property
     def tokens_per_example(self) -> int:
@@ -576,7 +585,7 @@ def worker_fn(
     max_tokens_per_shard: int,
     shards_root: pathlib.Path,
     device: str,
-    pixel_agg: tp.Literal["majority", "prefer-fg", None] = None,
+    pixel_agg: PixelAgg = PixelAgg.MAJORITY,
 ) -> pathlib.Path:
     """
     Args:
@@ -606,7 +615,7 @@ def worker_fn(
         # This was a default in pytorch until 1.12
         torch.backends.cuda.matmul.allow_tf32 = True
         torch.backends.cudnn.benchmark = True
-        torch.backends.cudnn.deterministic = False
+        torch.backends.cudnn.deterministic = True
 
     log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
     logging.basicConfig(level=logging.INFO, format=log_format)
@@ -673,7 +682,7 @@ def worker_fn(
         max_tokens_per_shard=max_tokens_per_shard,
         data=base64.b64encode(pickle.dumps(data)).decode("utf8"),
         dataset=data.root,
-        pixel_agg=pixel_agg if datasets.is_img_seg_dataset(data) else None,
+        pixel_agg=pixel_agg,
     )
     md.dump(shards_root)
 
@@ -762,7 +771,7 @@ def pixel_to_patch_labels(
     seg: Image.Image,
     n_patches: int,
     patch_size: int,
-    pixel_agg: tp.Literal["majority", "prefer-fg"] = "majority",
+    pixel_agg: PixelAgg = PixelAgg.MAJORITY,
     bg_label: int = 0,
     max_classes: int = 256,
 ) -> UInt8[Tensor, " n_patches"]:
@@ -811,10 +820,10 @@ def pixel_to_patch_labels(
         n_patches, max_classes
     )
 
-    if pixel_agg == "majority":
+    if pixel_agg is PixelAgg.MAJORITY:
         # Take the most common label in each patch
         patch_labels = counts.argmax(dim=1)
-    elif pixel_agg == "prefer-fg":
+    elif pixel_agg is PixelAgg.PREFER_FG:
         # Take the most common non-background label, or background if all background
         nonbg = counts.clone()
         nonbg[:, bg_label] = 0

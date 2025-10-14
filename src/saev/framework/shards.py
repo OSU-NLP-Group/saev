@@ -17,7 +17,7 @@ import typing as tp
 import beartype
 import tyro
 
-from saev.data import datasets
+from saev.data import PixelAgg, datasets
 
 log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
 logging.basicConfig(level=logging.INFO, format=log_format)
@@ -50,7 +50,7 @@ class Config:
     """Number of content tokens per example (depends on model)."""
     cls_token: bool = True
     """Whether the model has a [CLS] token."""
-    pixel_agg: tp.Literal["majority", "prefer-fg"] = "majority"
+    pixel_agg: tyro.conf.EnumChoicesFromValues[PixelAgg] = PixelAgg.MAJORITY
     max_tokens_per_shard: int = 2_400_000
     """Maximum number of activations per shard; 2.4M is approximately 10GB for 1024-dimensional 4-byte activations."""
 

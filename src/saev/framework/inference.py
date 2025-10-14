@@ -70,11 +70,13 @@ class Config:
 @torch.inference_mode()
 def worker_fn(cfg: Config):
     run = disk.Run(cfg.run)
-    mean_values_fpath = run.inference / "mean_values.pt"
-    sparsity_fpath = run.inference / "sparsity.pt"
-    distributions_fpath = run.inference / "distributions.pt"
-    token_acts_fpath = run.inference / "token_acts.npz"
-    percentiles_fpath = run.inference / f"percentiles_p{cfg.percentile}.pt"
+    md = Metadata.load(cfg.data.shards)
+    root = run.inference / md.hash
+    mean_values_fpath = root / "mean_values.pt"
+    sparsity_fpath = root / "sparsity.pt"
+    distributions_fpath = root / "distributions.pt"
+    token_acts_fpath = root / "token_acts.npz"
+    percentiles_fpath = root / f"percentiles_p{cfg.percentile}.pt"
 
     # Check if we need to compute activations
     fpaths = [
@@ -104,7 +106,6 @@ def worker_fn(cfg: Config):
 
     assert cfg.data.tokens == "content"
     sae = nn.load(run.ckpt).to(cfg.device)
-    md = Metadata.load(cfg.data.shards)
 
     sparsity_s = torch.zeros((sae.cfg.d_sae,), device=cfg.device)
     mean_values_s = torch.zeros((sae.cfg.d_sae,), device=cfg.device)

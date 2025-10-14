@@ -1146,3 +1146,29 @@ This landed:
 - Way better user docs
 
 So now I will train an ADE20K DINOv3 SAE.
+
+# 10/11/2025
+
+Rather than store a reference to a dataset path (which *might* be useful to humans), you can just load the dataset itself in code (which is useful to scripts).
+
+```py
+import importlib
+import sys
+
+
+importlib.import_module(act_ds.md.__class__.__module__)  # <module 'saev.data.shards' from '/users/PAS1576/samuelstevens/projects/saev/src/saev/data/shards.py'>
+class_obj = getattr(sys.modules[act_ds.md.__class__.__module__], act_ds.md.__class__.__name__)
+class_obj  # <class 'saev.data.shards.Metadata'>
+```
+
+# 10/13/2025
+
+What the heck am I doing?
+
+I need to train a DINOv3 SAE on ADE20K. I need to see some visuals. I need to do the same for FishVista. I need to use the semantic patch labels to evaluate the quality of the SAE probes. And I need to write.
+
+What is the goal? Why do we care about this?
+
+# 10/14/2025
+
+

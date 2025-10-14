@@ -460,6 +460,7 @@ def np_topk(arr: np.ndarray, k: int, axis: int | None = None) -> NumpyTopK:
     return NumpyTopK(values=topk_values, indices=topk_indices)
 
 
+@beartype.beartype
 def _csr_topk_axis0(
     arr: scipy.sparse.csr_array | scipy.sparse.csr_matrix, k: int, batch_size: int
 ) -> NumpyTopK:
@@ -485,12 +486,11 @@ def _csr_topk_axis0(
     counts = np.zeros(n_cols, dtype=np.int32)  # Current number of values per column
 
     # Process rows in batches
-    for batch_start in range(0, n_rows, batch_size):
-        batch_end = min(batch_start + batch_size, n_rows)
-        batch_dense = arr[batch_start:batch_end].toarray()
+    for start, end in batched_idx(n_rows, batch_size):
+        batch_dense = arr[start:end].toarray()
 
         for local_row in range(batch_dense.shape[0]):
-            global_row = batch_start + local_row
+            global_row = start + local_row
             row_data = batch_dense[local_row, :]
 
             # Determine which columns need updating
@@ -539,6 +539,7 @@ def _csr_topk_axis0(
     return NumpyTopK(values=result_values, indices=result_indices)
 
 
+@beartype.beartype
 def _csr_topk_axis1(
     arr: scipy.sparse.csr_array | scipy.sparse.csr_matrix, k: int
 ) -> NumpyTopK:
