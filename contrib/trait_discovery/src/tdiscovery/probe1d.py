@@ -146,6 +146,8 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
         device: str = "cuda",
         n_iter: int = 100,
         ridge: float = 1e-8,
+        class_chunk_size: int = 8,
+        event_chunk_size: int = 1_000_000,
     ):
         self.n_latents = n_latents
         self.n_classes = n_classes
@@ -153,6 +155,8 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
         self.device = device
         self.n_iter = n_iter
         self.ridge = ridge  # L2 regularization strength
+        self.class_chunk_size = class_chunk_size
+        self.event_chunk_size = event_chunk_size
         self.logger = logging.getLogger("sparse1d")
         self.eps = 1e-15
 
@@ -166,137 +170,237 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
 
         n_samples, n_latents = x.shape
         assert n_latents == self.n_latents
-        shape = (self.n_latents, self.n_classes)
         dd = dict(dtype=torch.float32, device=self.device)
 
-        # Move data to device
+        # Move sparse matrix to device
         x = x.to(self.device)
-        y = y.to(self.device)
 
-        # Initialize parameters
-        self.coef_ = torch.zeros(shape, **dd)
-        self.intercept_ = torch.zeros(shape, **dd)
+        # Initialize parameters (full size)
+        self.coef_ = torch.zeros((self.n_latents, self.n_classes), **dd)
+        self.intercept_ = torch.zeros((self.n_latents, self.n_classes), **dd)
 
-        # Calculate initial intercept as logit of class prevalence
-        pi = y.sum(dim=0)  # Total positives per class [n_classes]
+        # Calculate pi (total positives per class) on CPU to save memory
+        # We'll move class slabs to device as needed
+        pi = y.sum(dim=0).to(torch.float32)  # [n_classes]
         prevalence = pi / n_samples
-        # Clip to avoid log(0) or log(1)
         prevalence = torch.clamp(prevalence, self.eps, 1 - self.eps)
-        # Broadcast to all latents
-        self.intercept_[:] = einops.repeat(
-            torch.logit(prevalence), "c -> l c", l=self.n_latents
-        )
 
-        # Get CSR components
+        # Get CSR components once
         crow_indices = x.crow_indices()
         col_indices = x.col_indices()
         values = x.values()
 
-        prev_loss = torch.full(shape, torch.inf, **dd)
+        # Count nnz per latent once (used for zero contributions)
+        nnz_per_latent = torch.bincount(col_indices, minlength=self.n_latents)
+        n_zeros_per_latent = n_samples - nnz_per_latent  # [n_latents]
 
-        for it in range(self.n_iter):
-            # Compute mu_0 and s_0 for zero entries (when x_j = 0)
-            mu_0 = torch.sigmoid(self.intercept_)  # [n_latents, n_classes]
-            s_0 = mu_0 * (1 - mu_0)
+        # Process classes in chunks
+        for c0 in range(0, self.n_classes, self.class_chunk_size):
+            c1 = min(c0 + self.class_chunk_size, self.n_classes)
+            Cb = c1 - c0
 
-            # Work with all non-zero entries at once
-            # Get row indices for each non-zero value
-            row_indices = torch.repeat_interleave(
-                torch.arange(n_samples, device=self.device),
-                crow_indices[1:] - crow_indices[:-1],
+            self.logger.debug(f"Processing classes {c0}:{c1} ({Cb} classes)")
+
+            # Initialize params for this class slab
+            self.intercept_[:, c0:c1] = einops.repeat(
+                torch.logit(prevalence[c0:c1]).to(self.device),
+                "c -> l c",
+                l=self.n_latents,
+            )
+            # coef already initialized to zero
+
+            # Move class slab of labels to device
+            y_slab = y[:, c0:c1].to(self.device)  # [n_samples, Cb]
+            pi_slab = pi[c0:c1].to(self.device)  # [Cb]
+
+            prev_loss = torch.full((self.n_latents, Cb), torch.inf, **dd)
+
+            # Newton iterations for this class slab
+            for it in range(self.n_iter):
+                # Compute mu_0 and s_0 for zero entries
+                mu_0 = torch.sigmoid(self.intercept_[:, c0:c1])  # [n_latents, Cb]
+                s_0 = mu_0 * (1 - mu_0)
+
+                # Initialize accumulators for this iteration
+                m_nz = torch.zeros((self.n_latents, Cb), **dd)
+                g1 = torch.zeros((self.n_latents, Cb), **dd)
+                s0_acc = torch.zeros((self.n_latents, Cb), **dd)
+                s1 = torch.zeros((self.n_latents, Cb), **dd)
+                s2 = torch.zeros((self.n_latents, Cb), **dd)
+
+                # Stream over event/row blocks
+                for r0 in range(0, n_samples, self.event_chunk_size):
+                    r1 = min(r0 + self.event_chunk_size, n_samples)
+
+                    # Get nnz range for this row block
+                    start = crow_indices[r0].item()
+                    end = crow_indices[r1].item()
+
+                    if start == end:
+                        # No nonzeros in this block
+                        continue
+
+                    # Get CSR data for this block
+                    cols_chunk = col_indices[start:end]  # [E_chunk]
+                    vals_chunk = values[start:end]  # [E_chunk]
+
+                    # Build temporary row_indices for [r0:r1]
+                    lengths_per_row = (
+                        crow_indices[r0 + 1 : r1 + 1] - crow_indices[r0:r1]
+                    )
+                    row_idx_chunk = torch.repeat_interleave(
+                        torch.arange(r1 - r0, device=self.device), lengths_per_row
+                    )  # [E_chunk], values in [0, r1-r0)
+
+                    # Get labels for this chunk
+                    y_chunk = y_slab[r0:r1]  # [Rb, Cb]
+                    y_nz = y_chunk[row_idx_chunk]  # [E_chunk, Cb]
+
+                    # Gather params for this chunk's latents
+                    b_cols = self.intercept_[cols_chunk][:, c0:c1]  # [E_chunk, Cb]
+                    w_cols = self.coef_[cols_chunk][:, c0:c1]  # [E_chunk, Cb]
+
+                    # Compute eta, mu, s for nonzeros
+                    vals_expanded = vals_chunk.view(-1, 1)  # [E_chunk, 1]
+                    eta = b_cols + w_cols * vals_expanded
+                    mu = torch.sigmoid(eta)
+                    mu = torch.clamp(mu, self.eps, 1 - self.eps)
+                    s = mu * (1 - mu)
+
+                    # Accumulate statistics
+                    m_nz.index_add_(0, cols_chunk, mu)
+                    g1.index_add_(0, cols_chunk, (mu - y_nz) * vals_expanded)
+                    s0_acc.index_add_(0, cols_chunk, s)
+                    s1.index_add_(0, cols_chunk, s * vals_expanded)
+                    s2.index_add_(0, cols_chunk, s * (vals_expanded**2))
+
+                # Add zero contributions
+                n_zeros_expanded = n_zeros_per_latent.float().view(-1, 1)  # [L, 1]
+                g0 = m_nz + n_zeros_expanded * mu_0 - pi_slab.view(1, -1)
+
+                # Add L2 regularization
+                g1 = g1 + self.ridge * self.coef_[:, c0:c1]
+
+                # S0 includes zero contributions and ridge
+                s0_total = s0_acc + n_zeros_expanded * s_0 + self.ridge
+                s2 = s2 + self.ridge
+
+                # Calculate Newton updates (2x2 system per (latent, class))
+                det_h = s0_total * s2 - s1 * s1
+                det_h = torch.where(
+                    torch.abs(det_h) < 1e-10, torch.ones_like(det_h) * 1e-10, det_h
+                )
+
+                db = (s2 * g0 - s1 * g1) / det_h
+                dw = (-s1 * g0 + s0_total * g1) / det_h
+
+                # Apply updates to this class slab
+                self.intercept_[:, c0:c1] -= db
+                self.coef_[:, c0:c1] -= dw
+
+                # Check convergence for this class slab
+                loss_slab = self._compute_loss_slab(
+                    x,
+                    y_slab,
+                    c0,
+                    c1,
+                    crow_indices,
+                    col_indices,
+                    values,
+                    n_samples,
+                    pi_slab,
+                )
+
+                loss_change = torch.abs(prev_loss - loss_slab)
+                if torch.all(loss_change < self.tol):
+                    self.logger.debug(f"Classes {c0}:{c1} converged at iteration {it}")
+                    break
+
+                prev_loss = loss_slab.clone()
+            else:
+                self.logger.debug(
+                    f"Classes {c0}:{c1} did not converge after {self.n_iter} iterations"
+                )
+
+            # Free memory
+            del y_slab, pi_slab
+
+    def _compute_loss_slab(
+        self,
+        x: Float[Tensor, "n_samples n_latents"],
+        y_slab: Tensor,  # Float[Tensor, "n_samples Cb"]
+        c0: int,
+        c1: int,
+        crow_indices: Tensor,
+        col_indices: Tensor,
+        values: Tensor,
+        n_samples: int,
+        pi_slab: Tensor,  # Float[Tensor, "Cb"]
+    ) -> Tensor:  # Float[Tensor, "n_latents Cb"]
+        """Compute loss for a class slab using event chunking."""
+        Cb = c1 - c0
+        dd = dict(dtype=torch.float32, device=self.device)
+        loss = torch.zeros((self.n_latents, Cb), **dd)
+
+        # Compute mu_0 for zero entries
+        mu_0 = torch.sigmoid(self.intercept_[:, c0:c1])
+        mu_0 = torch.clamp(mu_0, self.eps, 1 - self.eps)
+
+        # Count positives and negatives per class
+        n_pos = pi_slab  # [Cb]
+        n_neg = n_samples - n_pos  # [Cb]
+
+        # Initialize with all-zeros contribution
+        loss = -n_pos.view(1, -1) * torch.log(mu_0) - n_neg.view(1, -1) * torch.log(
+            1 - mu_0
+        )
+
+        # Stream over events to compute corrections
+        for r0 in range(0, n_samples, self.event_chunk_size):
+            r1 = min(r0 + self.event_chunk_size, n_samples)
+
+            start = crow_indices[r0].item()
+            end = crow_indices[r1].item()
+
+            if start == end:
+                continue
+
+            cols_chunk = col_indices[start:end]
+            vals_chunk = values[start:end]
+
+            lengths_per_row = crow_indices[r0 + 1 : r1 + 1] - crow_indices[r0:r1]
+            row_idx_chunk = torch.repeat_interleave(
+                torch.arange(r1 - r0, device=self.device), lengths_per_row
             )
 
-            # Get the y values for each non-zero entry
-            y_nz = y[row_indices]  # [nnz, n_classes]
+            y_chunk = y_slab[r0:r1]
+            y_nz = y_chunk[row_idx_chunk]  # [E_chunk, Cb]
 
-            # Compute logits, mu, and s for all non-zero entries at once
-            # x_values has shape [nnz], col_indices has shape [nnz]
-            x_values_expanded = einops.rearrange(values, "nnz -> nnz 1")
-
-            # self.intercept_[col_indices] has shape [nnz, n_classes]
-            # self.coef_[col_indices] has shape [nnz, n_classes]
-            eta = (
-                self.intercept_[col_indices]
-                + self.coef_[col_indices] * x_values_expanded
-            )
+            # Compute mu for nonzeros
+            vals_expanded = vals_chunk.view(-1, 1)
+            b_cols = self.intercept_[cols_chunk][:, c0:c1]
+            w_cols = self.coef_[cols_chunk][:, c0:c1]
+            eta = b_cols + w_cols * vals_expanded
             mu = torch.sigmoid(eta)
             mu = torch.clamp(mu, self.eps, 1 - self.eps)
-            s = mu * (1 - mu)
 
-            # Compute residuals
-            residual = mu - y_nz
-
-            # Accumulate statistics using scatter_add
-            m_nz = torch.zeros(shape, **dd)
-            g1 = torch.zeros(shape, **dd)
-            s0 = torch.zeros(shape, **dd)
-            s1 = torch.zeros(shape, **dd)
-            s2 = torch.zeros(shape, **dd)
-
-            # Use index_add to accumulate values for each latent
-            m_nz.index_add_(0, col_indices, mu)
-            g1.index_add_(0, col_indices, residual * x_values_expanded)
-            s0.index_add_(0, col_indices, s)
-            s1.index_add_(0, col_indices, s * x_values_expanded)
-            s2.index_add_(0, col_indices, s * x_values_expanded**2)
-
-            # Count nnz per latent
-            nnz_per_latent = torch.bincount(col_indices, minlength=self.n_latents)
-
-            # Add contributions from zero entries
-            n_zeros_per_latent = n_samples - nnz_per_latent  # [n_latents]
-            n_zeros_expanded = einops.rearrange(n_zeros_per_latent.float(), "l -> l 1")
-
-            # G0 = M_nz + (N-n)*mu_0 - pi
-            pi_expanded = einops.rearrange(pi, "c -> 1 c")
-            g0 = m_nz + n_zeros_expanded * mu_0 - pi_expanded
-
-            # Add L2 regularization gradient for weights
-            g1 = g1 + self.ridge * self.coef_
-
-            # S0 includes zero contributions
-            s0 = s0 + n_zeros_expanded * s_0
-
-            # Add L2 regularization to diagonal of Hessian
-            # Add to both s0 and s2 for numerical stability
-            s0 = s0 + self.ridge
-            s2 = s2 + self.ridge
-
-            # Calculate Newton updates
-            det_h = s0 * s2 - s1 * s1
-
-            # Check for numerical issues
-            det_h = torch.where(
-                torch.abs(det_h) < 1e-10, torch.ones_like(det_h) * 1e-10, det_h
+            # Compute corrections
+            mu_0_nz = mu_0[cols_chunk]  # [E_chunk, Cb]
+            zero_contrib = y_nz * torch.log(mu_0_nz) + (1 - y_nz) * torch.log(
+                1 - mu_0_nz
             )
+            actual_contrib = y_nz * torch.log(mu) + (1 - y_nz) * torch.log(1 - mu)
 
-            # Newton updates
-            db = (s2 * g0 - s1 * g1) / det_h
-            dw = (-s1 * g0 + s0 * g1) / det_h
+            loss.index_add_(0, cols_chunk, zero_contrib - actual_contrib)
 
-            # Apply updates
-            self.intercept_ -= db
-            self.coef_ -= dw
-
-            # Calculate loss for convergence check
-            self.loss_ = self._compute_loss(x, y)
-
-            # Check convergence
-            loss_change = torch.abs(prev_loss - self.loss_)
-            if torch.all(loss_change < self.tol):
-                self.logger.debug(f"Converged at iteration {it}")
-                break
-
-            prev_loss = self.loss_.clone()
-        else:
-            self.logger.debug(f"Did not converge after {self.n_iter} iterations")
+        return loss / n_samples
 
     def _compute_loss(
         self,
         x: Float[Tensor, "n_samples n_latents"],
         y: Float[Tensor, "n_samples n_classes"],
     ) -> Float[Tensor, "n_latents n_classes"]:
-        """Compute negative log-likelihood loss for all (latent, class) pairs."""
+        """Compute negative log-likelihood loss for all (latent, class) pairs using chunking."""
         n_samples = x.shape[0]
         loss = torch.zeros(
             (self.n_latents, self.n_classes), dtype=torch.float32, device=self.device
@@ -307,54 +411,25 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
         col_indices = x.col_indices()
         values = x.values()
 
-        # Compute mu_0 for zero entries
-        mu_0 = torch.sigmoid(self.intercept_)
-        mu_0 = torch.clamp(mu_0, self.eps, 1 - self.eps)
+        # Compute pi on CPU
+        pi = y.sum(dim=0).to(torch.float32)  # [n_classes]
 
-        # Initialize with contribution from all-zeros (will subtract non-zeros)
-        # For zero entries: -y*log(mu_0) - (1-y)*log(1-mu_0)
-        # Vectorized computation for all latents and classes at once
-        n_pos = y.sum(dim=0)  # [n_classes] - number of positive samples per class
-        n_neg = n_samples - n_pos  # [n_classes] - number of negative samples per class
+        # Process classes in chunks
+        for c0 in range(0, self.n_classes, self.class_chunk_size):
+            c1 = min(c0 + self.class_chunk_size, self.n_classes)
 
-        # Broadcast n_pos and n_neg to [n_latents, n_classes]
-        n_pos_expanded = einops.repeat(n_pos, "c -> l c", l=self.n_latents)
-        n_neg_expanded = einops.repeat(n_neg, "c -> l c", l=self.n_latents)
+            # Move class slab to device
+            y_slab = y[:, c0:c1].to(self.device)
+            pi_slab = pi[c0:c1].to(self.device)
 
-        # Compute loss for all (latent, class) pairs at once
-        loss = -n_pos_expanded * torch.log(mu_0) - n_neg_expanded * torch.log(1 - mu_0)
-
-        # Vectorized correction for non-zero entries
-        if col_indices.numel() > 0:
-            # Get row indices for each non-zero value
-            row_indices = torch.repeat_interleave(
-                torch.arange(n_samples, device=self.device),
-                crow_indices[1:] - crow_indices[:-1],
+            # Compute loss for this slab
+            loss[:, c0:c1] = self._compute_loss_slab(
+                x, y_slab, c0, c1, crow_indices, col_indices, values, n_samples, pi_slab
             )
 
-            # Get the y values for each non-zero entry
-            y_nz = y[row_indices]  # [nnz, n_classes]
+            del y_slab, pi_slab
 
-            # Compute mu for all non-zero entries at once
-            x_values_expanded = einops.rearrange(values, "nnz -> nnz 1")
-            eta = (
-                self.intercept_[col_indices]
-                + self.coef_[col_indices] * x_values_expanded
-            )
-            mu = torch.sigmoid(eta)
-            mu = torch.clamp(mu, self.eps, 1 - self.eps)
-
-            # Compute corrections for each non-zero entry
-            # Remove zero contribution and add actual contribution
-            zero_contrib = y_nz * torch.log(mu_0[col_indices]) + (1 - y_nz) * torch.log(
-                1 - mu_0[col_indices]
-            )
-            actual_contrib = y_nz * torch.log(mu) + (1 - y_nz) * torch.log(1 - mu)
-
-            # Accumulate corrections
-            loss.index_add_(0, col_indices, zero_contrib - actual_contrib)
-
-        return loss / n_samples  # Return mean NLL
+        return loss
 
     @torch.no_grad()
     def loss_matrix(
@@ -372,6 +447,68 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
 
         return self._compute_loss(x, y)
 
+    def _compute_accuracy_slab(
+        self,
+        x: Float[Tensor, "n_samples n_latents"],
+        y_slab: Tensor,  # Float[Tensor, "n_samples Cb"]
+        c0: int,
+        c1: int,
+        crow_indices: Tensor,
+        col_indices: Tensor,
+        values: Tensor,
+        n_samples: int,
+    ) -> Tensor:  # Float[Tensor, "n_latents Cb"]
+        """Compute accuracy for a class slab using event chunking."""
+
+        # Predictions for zero entries
+        mu_0 = torch.sigmoid(self.intercept_[:, c0:c1])
+        pred_0 = (mu_0 > 0.5).float()  # [n_latents, Cb]
+
+        # Initialize accuracy by counting correct zero predictions
+        # For each (latent, class) pair, count how many samples match pred_0
+        pred_0_expanded = pred_0.unsqueeze(1)  # [n_latents, 1, Cb]
+        y_expanded = y_slab.unsqueeze(0)  # [1, n_samples, Cb]
+        acc = (pred_0_expanded == y_expanded).float().sum(dim=1)  # [n_latents, Cb]
+
+        # Stream over events to compute corrections for nonzeros
+        for r0 in range(0, n_samples, self.event_chunk_size):
+            r1 = min(r0 + self.event_chunk_size, n_samples)
+
+            start = crow_indices[r0].item()
+            end = crow_indices[r1].item()
+
+            if start == end:
+                continue
+
+            cols_chunk = col_indices[start:end]
+            vals_chunk = values[start:end]
+
+            lengths_per_row = crow_indices[r0 + 1 : r1 + 1] - crow_indices[r0:r1]
+            row_idx_chunk = torch.repeat_interleave(
+                torch.arange(r1 - r0, device=self.device), lengths_per_row
+            )
+
+            y_chunk = y_slab[r0:r1]
+            y_nz = y_chunk[row_idx_chunk]  # [E_chunk, Cb]
+
+            # Compute predictions for nonzeros
+            vals_expanded = vals_chunk.view(-1, 1)
+            b_cols = self.intercept_[cols_chunk][:, c0:c1]
+            w_cols = self.coef_[cols_chunk][:, c0:c1]
+            eta = b_cols + w_cols * vals_expanded
+            mu = torch.sigmoid(eta)
+            pred_nz = (mu > 0.5).float()
+
+            # Compute correction: swap zero prediction for actual prediction
+            pred_0_nz = pred_0[cols_chunk]  # [E_chunk, Cb]
+            zero_correct = (pred_0_nz == y_nz).float()
+            nz_correct = (pred_nz == y_nz).float()
+            correction = nz_correct - zero_correct
+
+            acc.index_add_(0, cols_chunk, correction)
+
+        return acc / n_samples
+
     @torch.no_grad()
     def loss_matrix_with_aux(
         self,
@@ -382,71 +519,35 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
         sklearn.utils.validation.check_is_fitted(self, "intercept_")
         sklearn.utils.validation.check_is_fitted(self, "coef_")
 
-        # Move data to device and ensure correct types
+        # Move sparse matrix to device
         x = x.to(self.device)
-        y = y.to(self.device).float()
-
-        loss = self._compute_loss(x, y)
-
-        # Compute auxiliary metrics
         n_samples = x.shape[0]
 
+        # Compute loss using chunked implementation
+        loss = self._compute_loss(x, y)
+
         # Count nnz per latent
-        crow_indices = x.crow_indices()
         col_indices = x.col_indices()
         nnz_per_latent = torch.bincount(col_indices, minlength=self.n_latents)
 
-        # Compute accuracy (at threshold 0.5)
-        # For zero entries
-        mu_0 = torch.sigmoid(self.intercept_)
-        pred_0 = (mu_0 > 0.5).float()
+        # Compute accuracy using chunked implementation
+        crow_indices = x.crow_indices()
+        values = x.values()
 
-        # Count correct predictions assuming all entries are zero
-        # pred_0 shape: [n_latents, n_classes]
-        # y shape: [n_samples, n_classes]
-        # Vectorized across all classes at once
-        pred_0_expanded = einops.rearrange(
-            pred_0, "l c -> l 1 c"
-        )  # [n_latents, 1, n_classes]
-        y_expanded = einops.rearrange(y, "s c -> 1 s c")  # [1, n_samples, n_classes]
-        # Compare and sum over samples
-        acc = (
-            (pred_0_expanded == y_expanded).float().sum(dim=1)
-        )  # [n_latents, n_classes]
+        acc = torch.zeros(
+            (self.n_latents, self.n_classes), dtype=torch.float32, device=self.device
+        )
 
-        # Vectorized correction for non-zero entries
-        if col_indices.numel() > 0:
-            # Get row indices for each non-zero value
-            row_indices = torch.repeat_interleave(
-                torch.arange(n_samples, device=self.device),
-                crow_indices[1:] - crow_indices[:-1],
+        for c0 in range(0, self.n_classes, self.class_chunk_size):
+            c1 = min(c0 + self.class_chunk_size, self.n_classes)
+
+            y_slab = y[:, c0:c1].to(self.device).float()
+
+            acc[:, c0:c1] = self._compute_accuracy_slab(
+                x, y_slab, c0, c1, crow_indices, col_indices, values, n_samples
             )
 
-            # Get the y values for each non-zero entry
-            y_nz = y[row_indices]  # [nnz, n_classes]
-
-            # Compute predictions for non-zero entries
-            x_values_expanded = einops.rearrange(x.values(), "nnz -> nnz 1")
-            eta = (
-                self.intercept_[col_indices]
-                + self.coef_[col_indices] * x_values_expanded
-            )
-            mu = torch.sigmoid(eta)
-            pred_nz = (mu > 0.5).float()
-
-            # For each non-zero entry, adjust the accuracy
-            # Remove the zero prediction and add the actual prediction
-            pred_0_nz = pred_0[col_indices]  # [nnz, n_classes]
-
-            # Correction: -1 if zero was correct but nonzero is wrong, +1 if zero was wrong but nonzero is correct
-            zero_correct = (pred_0_nz == y_nz).float()
-            nz_correct = (pred_nz == y_nz).float()
-            correction = nz_correct - zero_correct
-
-            # Accumulate corrections
-            acc.index_add_(0, col_indices, correction)
-
-        acc = acc / n_samples  # Convert to accuracy
+            del y_slab
 
         aux = {
             "accuracy": acc,

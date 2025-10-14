@@ -129,5 +129,165 @@ def test_fit_against_sklearn_on_gpu(seed):
 
     # Compare results (move back to CPU for comparison)
     torch.testing.assert_close(
-        loss_sparse.cpu(), torch.tensor(loss_ref, dtype=torch.float32), rtol=1e-4, atol=1e-4
+        loss_sparse.cpu(),
+        torch.tensor(loss_ref, dtype=torch.float32),
+        rtol=1e-4,
+        atol=1e-4,
     )
+
+
+@pytest.mark.parametrize("seed", range(3))
+@pytest.mark.parametrize("class_chunk_size", [2, 4, 6])
+def test_chunked_classes_vs_full(seed, class_chunk_size):
+    """Verify that processing classes in chunks gives same results as processing all at once."""
+    torch.manual_seed(seed)
+    n_samples, n_latents, n_classes = 32, 8, 6
+    x = torch.randn(n_samples, n_latents)
+
+    # Make sparse k=3 per sample
+    topk = torch.topk(x.abs(), k=3, dim=1)
+    mask = torch.zeros_like(x, dtype=torch.bool)
+    mask.scatter_(1, topk.indices, True)
+    x[~mask] = 0
+    x_sparse = x.to_sparse_csr()
+
+    # Generate labels
+    true_w = torch.randn(n_latents, n_classes) * 0.5
+    true_b = torch.randn(1, n_classes)
+    logits = (x @ true_w) + true_b
+    y = torch.bernoulli(torch.sigmoid(logits))
+
+    # Fit with full batch (all classes at once)
+    probe_full = Sparse1DProbe(
+        n_latents=n_latents,
+        n_classes=n_classes,
+        device="cpu",
+        ridge=1e-8,
+        class_chunk_size=n_classes,  # Process all classes at once
+    )
+    probe_full.fit(x_sparse, y)
+
+    # Fit with chunked classes
+    probe_chunked = Sparse1DProbe(
+        n_latents=n_latents,
+        n_classes=n_classes,
+        device="cpu",
+        ridge=1e-8,
+        class_chunk_size=class_chunk_size,
+    )
+    probe_chunked.fit(x_sparse, y)
+
+    # Parameters should match (with slightly relaxed tolerance due to independent convergence)
+    torch.testing.assert_close(
+        probe_full.coef_, probe_chunked.coef_, rtol=1e-3, atol=1e-3
+    )
+    torch.testing.assert_close(
+        probe_full.intercept_, probe_chunked.intercept_, rtol=1e-3, atol=1e-3
+    )
+
+    # Loss should match
+    loss_full = probe_full.loss_matrix(x_sparse, y)
+    loss_chunked = probe_chunked.loss_matrix(x_sparse, y)
+    torch.testing.assert_close(loss_full, loss_chunked, rtol=1e-3, atol=1e-3)
+
+
+@pytest.mark.parametrize("seed", range(3))
+def test_chunked_events_vs_full(seed):
+    """Verify that processing events/rows in chunks gives same results as processing all at once."""
+    torch.manual_seed(seed)
+    n_samples, n_latents, n_classes = 64, 8, 4
+    x = torch.randn(n_samples, n_latents)
+
+    # Make sparse k=3 per sample
+    topk = torch.topk(x.abs(), k=3, dim=1)
+    mask = torch.zeros_like(x, dtype=torch.bool)
+    mask.scatter_(1, topk.indices, True)
+    x[~mask] = 0
+    x_sparse = x.to_sparse_csr()
+
+    # Generate labels
+    true_w = torch.randn(n_latents, n_classes) * 0.5
+    true_b = torch.randn(1, n_classes)
+    logits = (x @ true_w) + true_b
+    y = torch.bernoulli(torch.sigmoid(logits))
+
+    # Fit without event chunking (process all rows at once)
+    probe_full = Sparse1DProbe(
+        n_latents=n_latents,
+        n_classes=n_classes,
+        device="cpu",
+        ridge=1e-8,
+        event_chunk_size=n_samples,
+    )
+    probe_full.fit(x_sparse, y)
+
+    # Fit with event chunking (process 16 rows at a time)
+    probe_chunked = Sparse1DProbe(
+        n_latents=n_latents,
+        n_classes=n_classes,
+        device="cpu",
+        ridge=1e-8,
+        event_chunk_size=16,
+    )
+    probe_chunked.fit(x_sparse, y)
+
+    # Parameters should match (with slightly relaxed tolerance due to chunking)
+    torch.testing.assert_close(
+        probe_full.coef_, probe_chunked.coef_, rtol=1e-3, atol=1e-3
+    )
+    torch.testing.assert_close(
+        probe_full.intercept_, probe_chunked.intercept_, rtol=1e-3, atol=1e-3
+    )
+
+
+@pytest.mark.slow
+def test_realistic_scale():
+    """Test that chunked implementation can handle realistic dimensions without OOM."""
+    torch.manual_seed(42)
+    # Smaller version of ADE20K: 1K images × 256 patches = 256K samples
+    n_samples, n_latents, n_classes = 256_000, 1024, 50
+    # Simulate sparse activations with L0=100
+    nnz_per_sample = 100
+
+    # Build sparse CSR matrix efficiently
+    indices = []
+    indptr = [0]
+    data = []
+
+    for i in range(n_samples):
+        # Random latents activated for this sample
+        cols = np.random.choice(n_latents, size=nnz_per_sample, replace=False)
+        vals = np.random.randn(nnz_per_sample).astype(np.float32)
+
+        indices.extend(cols)
+        data.extend(vals)
+        indptr.append(len(indices))
+
+    x_sparse = torch.sparse_csr_tensor(
+        torch.tensor(indptr, dtype=torch.int32),
+        torch.tensor(indices, dtype=torch.int32),
+        torch.tensor(data, dtype=torch.float32),
+        size=(n_samples, n_latents),
+    )
+
+    # Random labels
+    y = torch.zeros((n_samples, n_classes), dtype=torch.float32)
+    y[torch.arange(n_samples), torch.randint(0, n_classes, (n_samples,))] = 1.0
+
+    # Should not OOM with chunking
+    probe = Sparse1DProbe(
+        n_latents=n_latents,
+        n_classes=n_classes,
+        device="cpu",
+        ridge=1e-8,
+        class_chunk_size=8,
+        event_chunk_size=10_000,
+        n_iter=5,  # Fewer iterations for speed
+    )
+    probe.fit(x_sparse, y)
+
+    # Verify it produced reasonable results
+    assert probe.coef_.shape == (n_latents, n_classes)
+    assert probe.intercept_.shape == (n_latents, n_classes)
+    assert not torch.isnan(probe.coef_).any()
+    assert not torch.isnan(probe.intercept_).any()
