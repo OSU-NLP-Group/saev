@@ -199,6 +199,328 @@ def test_chunked_classes_vs_full(seed, class_slab_size):
     torch.testing.assert_close(loss_full, loss_chunked, rtol=1e-3, atol=1e-3)
 
 
+def _generate_sparse_dataset(
+    seed: int,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    torch.manual_seed(seed)
+    n_samples, n_latents, n_classes = 40, 6, 5
+    x = torch.randn(n_samples, n_latents)
+
+    topk = torch.topk(x.abs(), k=3, dim=1)
+    mask = torch.zeros_like(x, dtype=torch.bool)
+    mask.scatter_(1, topk.indices, True)
+    x[~mask] = 0
+    x_sparse = x.to_sparse_csr()
+
+    true_w = torch.randn(n_latents, n_classes) * 0.7
+    true_b = torch.randn(1, n_classes)
+    logits = (x @ true_w) + true_b
+    y = torch.bernoulli(torch.sigmoid(logits))
+
+    return x, x_sparse, y
+
+
+def _sklearn_reference_dense(
+    x: torch.Tensor,
+    y: torch.Tensor,
+    *,
+    C: float,
+    max_iter: int,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    n_samples, n_latents = x.shape
+    n_classes = y.shape[1]
+
+    loss_ref = np.zeros((n_latents, n_classes))
+    coef_ref = np.zeros_like(loss_ref)
+    intercept_ref = np.zeros_like(loss_ref)
+
+    for i in range(n_latents):
+        xi = x[:, i : i + 1].numpy()
+        for c in range(n_classes):
+            yc = y[:, c].numpy()
+
+            lr = LogisticRegression(
+                fit_intercept=True,
+                solver="lbfgs",
+                C=C,
+                max_iter=max_iter,
+            )
+            lr.fit(xi, yc)
+
+            z = lr.intercept_[0] + lr.coef_[0, 0] * xi.squeeze()
+            mu = 1.0 / (1.0 + np.exp(-z))
+            mu = np.clip(mu, 1e-7, 1 - 1e-7)
+
+            loss_ref[i, c] = -(yc * np.log(mu) + (1 - yc) * np.log(1 - mu)).mean()
+            coef_ref[i, c] = lr.coef_[0, 0]
+            intercept_ref[i, c] = lr.intercept_[0]
+
+    return loss_ref, coef_ref, intercept_ref
+
+
+def _reference_metrics(
+    x: torch.Tensor,
+    y: torch.Tensor,
+    threshold: float,
+    clamp_eps: float = 1e-7,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    n_samples, n_latents = x.shape
+    n_classes = y.shape[1]
+
+    loss_ref = np.zeros((n_latents, n_classes))
+    tp_ref = np.zeros((n_latents, n_classes))
+    fp_ref = np.zeros((n_latents, n_classes))
+    tn_ref = np.zeros((n_latents, n_classes))
+    fn_ref = np.zeros((n_latents, n_classes))
+
+    for i in range(n_latents):
+        xi = x[:, i : i + 1].numpy()
+        for c in range(n_classes):
+            yc = y[:, c].numpy()
+
+            lr = LogisticRegression(
+                fit_intercept=True,
+                solver="lbfgs",
+                C=1e10,
+                max_iter=400,
+            )
+            lr.fit(xi, yc)
+
+            z = lr.intercept_[0] + lr.coef_[0, 0] * xi.squeeze()
+            mu = 1.0 / (1.0 + np.exp(-z))
+            mu = np.clip(mu, clamp_eps, 1 - clamp_eps)
+            preds = mu > threshold
+
+            loss_ref[i, c] = -(yc * np.log(mu) + (1 - yc) * np.log(1 - mu)).mean()
+            yc_bool = yc.astype(bool)
+            tp_ref[i, c] = np.logical_and(preds, yc_bool).sum()
+            fp_ref[i, c] = np.logical_and(preds, ~yc_bool).sum()
+            fn_ref[i, c] = np.logical_and(~preds, yc_bool).sum()
+            tn_ref[i, c] = np.logical_and(~preds, ~yc_bool).sum()
+
+    return loss_ref, tp_ref, fp_ref, tn_ref, fn_ref
+
+
+def _assert_probe_matches_reference(
+    threshold: float,
+    clamp_eps: float = 1e-7,
+) -> None:
+    x, x_sparse, y = _generate_sparse_dataset(seed=0)
+
+    probe = Sparse1DProbe(
+        n_latents=x_sparse.shape[1],
+        n_classes=y.shape[1],
+        device="cpu",
+        ridge=1e-8,
+        class_slab_size=2,
+        row_batch_size=16,
+    )
+    probe.eps = clamp_eps
+    probe.fit(x_sparse, y)
+
+    loss, tp, fp, tn, fn = probe.loss_matrix_with_aux(
+        x_sparse, y.bool(), threshold=threshold
+    )
+
+    loss_ref, tp_ref, fp_ref, tn_ref, fn_ref = _reference_metrics(
+        x, y, threshold, clamp_eps=clamp_eps
+    )
+
+    torch.testing.assert_close(
+        loss.cpu(),
+        torch.tensor(loss_ref, dtype=torch.float32),
+        rtol=1e-5,
+        atol=1e-5,
+    )
+    torch.testing.assert_close(
+        tp.cpu(),
+        torch.tensor(tp_ref, dtype=torch.float32),
+        rtol=0,
+        atol=0,
+    )
+    torch.testing.assert_close(
+        fp.cpu(),
+        torch.tensor(fp_ref, dtype=torch.float32),
+        rtol=0,
+        atol=0,
+    )
+    torch.testing.assert_close(
+        tn.cpu(),
+        torch.tensor(tn_ref, dtype=torch.float32),
+        rtol=0,
+        atol=0,
+    )
+    torch.testing.assert_close(
+        fn.cpu(),
+        torch.tensor(fn_ref, dtype=torch.float32),
+        rtol=0,
+        atol=0,
+    )
+
+
+def test_confusion_against_sklearn_threshold_point_five():
+    _assert_probe_matches_reference(threshold=0.5)
+
+
+def test_confusion_against_sklearn_threshold_point_two():
+    _assert_probe_matches_reference(threshold=0.2)
+
+
+def test_confusion_against_sklearn_threshold_point_eight():
+    _assert_probe_matches_reference(threshold=0.8)
+
+
+@pytest.mark.slow
+def test_fit_matches_sklearn_on_ill_conditioned_sparse_inputs():
+    torch.manual_seed(0)
+    g = torch.Generator().manual_seed(0)
+    n_samples, n_latents, n_classes = 32, 4, 2
+
+    exponents = torch.randint(-4, 5, (n_samples, n_latents), generator=g).float()
+    scales = torch.pow(torch.tensor(10.0), exponents)
+    base = torch.randn((n_samples, n_latents), generator=g)
+    x_dense = base * scales
+
+    topk = torch.topk(x_dense.abs(), k=3, dim=1)
+    mask = torch.zeros_like(x_dense, dtype=torch.bool)
+    mask.scatter_(1, topk.indices, True)
+    x_dense = torch.where(mask, x_dense, torch.zeros_like(x_dense))
+
+    nnz_per_latent = mask.sum(dim=0)
+    for latent_idx in range(n_latents):
+        if nnz_per_latent[latent_idx] > 0:
+            continue
+        row_idx = latent_idx % n_samples
+        scale = torch.pow(
+            torch.tensor(10.0),
+            torch.randint(-4, 5, (), generator=g).float(),
+        )
+        x_dense[row_idx, latent_idx] = torch.randn((), generator=g) * scale
+        mask[row_idx, latent_idx] = True
+
+    true_w = torch.randn((n_latents, n_classes), generator=g) * 1.8
+    true_b = torch.randn((1, n_classes), generator=g)
+    logits = x_dense @ true_w + true_b
+    y = torch.bernoulli(torch.sigmoid(logits))
+
+    loss_ref, coef_ref, intercept_ref = _sklearn_reference_dense(
+        x_dense, y, C=5_000.0, max_iter=400
+    )
+
+    x_sparse = x_dense.to_sparse_csr()
+    probe = Sparse1DProbe(
+        n_latents=n_latents,
+        n_classes=n_classes,
+        device="cpu",
+        ridge=1e-6,
+        n_iter=40,
+        tol=1e-6,
+        row_batch_size=32,
+        class_slab_size=2,
+    )
+    probe.logger.setLevel(logging.ERROR)
+    probe.fit(x_sparse, y)
+
+    loss = probe.loss_matrix(x_sparse, y)
+    torch.testing.assert_close(
+        loss.cpu(),
+        torch.tensor(loss_ref, dtype=torch.float32),
+        rtol=5e-3,
+        atol=5e-3,
+    )
+    torch.testing.assert_close(
+        probe.coef_.cpu(),
+        torch.tensor(coef_ref, dtype=torch.float32),
+        rtol=5e-3,
+        atol=5e-3,
+    )
+    torch.testing.assert_close(
+        probe.intercept_.cpu(),
+        torch.tensor(intercept_ref, dtype=torch.float32),
+        rtol=5e-3,
+        atol=5e-3,
+    )
+
+
+def test_confusion_against_sklearn_threshold_extremes():
+    torch.manual_seed(123)
+    g = torch.Generator().manual_seed(123)
+    n_samples, n_latents, n_classes = 48, 5, 3
+
+    raw = torch.randn((n_samples, n_latents), generator=g)
+    exponents = torch.randint(-4, 5, (n_samples, n_latents), generator=g).float()
+    scales = torch.pow(torch.tensor(10.0), exponents)
+    x_dense = raw * scales
+
+    topk = torch.topk(x_dense.abs(), k=3, dim=1)
+    mask = torch.zeros_like(x_dense, dtype=torch.bool)
+    mask.scatter_(1, topk.indices, True)
+    x_dense = torch.where(mask, x_dense, torch.zeros_like(x_dense))
+
+    nnz_per_latent = mask.sum(dim=0)
+    for latent_idx in range(n_latents):
+        if nnz_per_latent[latent_idx] > 0:
+            continue
+        row_idx = latent_idx % n_samples
+        scale = torch.pow(
+            torch.tensor(10.0),
+            torch.randint(-4, 5, (), generator=g).float(),
+        )
+        x_dense[row_idx, latent_idx] = torch.randn((), generator=g) * scale
+
+    true_w = torch.randn((n_latents, n_classes), generator=g) * 3.2
+    true_b = torch.randn((1, n_classes), generator=g) * 1.2
+    logits = x_dense @ true_w + true_b
+    y = torch.bernoulli(torch.sigmoid(logits))
+
+    x_sparse = x_dense.to_sparse_csr()
+    probe = Sparse1DProbe(
+        n_latents=n_latents,
+        n_classes=n_classes,
+        device="cpu",
+        ridge=1e-8,
+        n_iter=60,
+        tol=1e-6,
+        row_batch_size=16,
+        class_slab_size=3,
+    )
+    clamp_eps = 1e-5
+    probe.eps = clamp_eps
+    probe.logger.setLevel(logging.ERROR)
+    probe.fit(x_sparse, y)
+
+    for threshold in (0.02, 0.98):
+        loss, tp, fp, tn, fn = probe.loss_matrix_with_aux(
+            x_sparse, y.bool(), threshold=threshold
+        )
+        (
+            loss_ref,
+            tp_ref,
+            fp_ref,
+            tn_ref,
+            fn_ref,
+        ) = _reference_metrics(x_dense, y, threshold, clamp_eps=clamp_eps)
+
+        torch.testing.assert_close(
+            loss.cpu(),
+            torch.tensor(loss_ref, dtype=torch.float32),
+            rtol=1e-2,
+            atol=1e-2,
+        )
+        for actual, expected in (
+            (tp, tp_ref),
+            (fp, fp_ref),
+            (tn, tn_ref),
+            (fn, fn_ref),
+        ):
+            torch.testing.assert_close(
+                actual.cpu(),
+                torch.tensor(expected, dtype=torch.float32),
+                rtol=0,
+                atol=0,
+            )
+
+
 @pytest.mark.parametrize("seed", range(3))
 def test_chunked_events_vs_full(seed):
     """Verify that processing events/rows in chunks gives same results as processing all at once."""
@@ -246,47 +568,6 @@ def test_chunked_events_vs_full(seed):
     torch.testing.assert_close(
         probe_full.intercept_, probe_chunked.intercept_, rtol=1e-3, atol=1e-3
     )
-
-
-def test_accuracy_matches_dense():
-    """Accuracy computed via chunked implementation should match dense reference."""
-    torch.manual_seed(0)
-    n_samples, n_latents, n_classes = 40, 6, 5
-    x = torch.randn(n_samples, n_latents)
-
-    topk = torch.topk(x.abs(), k=3, dim=1)
-    mask = torch.zeros_like(x, dtype=torch.bool)
-    mask.scatter_(1, topk.indices, True)
-    x[~mask] = 0
-    x_sparse = x.to_sparse_csr()
-
-    true_w = torch.randn(n_latents, n_classes) * 0.7
-    true_b = torch.randn(1, n_classes)
-    logits = (x @ true_w) + true_b
-    y = torch.bernoulli(torch.sigmoid(logits))
-
-    probe = Sparse1DProbe(
-        n_latents=n_latents,
-        n_classes=n_classes,
-        device="cpu",
-        ridge=1e-8,
-        class_slab_size=2,
-        row_batch_size=16,
-    )
-    probe.fit(x_sparse, y)
-
-    _, aux = probe.loss_matrix_with_aux(x_sparse, y.bool())
-    acc_sparse = aux["accuracy"].cpu()
-
-    with torch.no_grad():
-        logits_dense = probe.intercept_.unsqueeze(0) + probe.coef_.unsqueeze(
-            0
-        ) * x.unsqueeze(2)
-        pred_dense = torch.sigmoid(logits_dense) > 0.5
-        y_expanded = y.unsqueeze(1).bool()
-        acc_dense = (pred_dense == y_expanded).float().mean(dim=0)
-
-    torch.testing.assert_close(acc_sparse, acc_dense, rtol=1e-5, atol=1e-5)
 
 
 @pytest.mark.slow
