@@ -16,17 +16,25 @@ and training sweeps. The heavy lifting occurs in `Sparse1DProbe`, which exposes
 the learned coefficients, loss computation helpers, and accuracy diagnostics.
 """
 
+import dataclasses
 import logging
+import pathlib
+import typing as tp
 from collections.abc import Iterator
 from typing import NamedTuple
 
 import beartype
 import einops
+import numpy as np
+import scipy.sparse
 import sklearn.base
 import torch
+import tyro
 from jaxtyping import Bool, Float, Int, jaxtyped
 from torch import Tensor
 
+import saev.data
+import saev.disk
 import saev.helpers
 
 
@@ -95,6 +103,7 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
 
         n_samples, n_latents = x.shape
         assert n_latents == self.n_latents
+        n_samples_f = float(n_samples)
 
         device = torch.device(self.device)
 
@@ -132,31 +141,41 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
             if device.type != "cpu":
                 y_slab = y_slab.pin_memory()
             y_slab_device = y_slab.to(device, non_blocking=device.type != "cpu")
+            pi_slab_device = pi_device[c0:c1]
 
             intercept_slab = self.intercept_[:, c0:c1]
             coef_slab = self.coef_[:, c0:c1]
+            n_classes_slab = c1 - c0
+
+            best_loss_per_class = torch.full(
+                (n_classes_slab,),
+                float("inf"),
+                device=device,
+                dtype=torch.float32,
+            )
+            best_latent_per_class = torch.full(
+                (n_classes_slab,), -1, device=device, dtype=torch.int64
+            )
+            best_coef_per_class = torch.zeros(
+                (n_classes_slab,), device=device, dtype=torch.float32
+            )
+            best_intercept_per_class = torch.zeros(
+                (n_classes_slab,), device=device, dtype=torch.float32
+            )
 
             for it in range(self.n_iter):
                 # For x_j = 0, we can pre-calculate mu and s.
                 mu_0 = torch.sigmoid(intercept_slab).clamp_(self.eps, 1 - self.eps)
                 s_0 = mu_0 * (1 - mu_0)
 
-                # All are R^{D x Cb}
-                mu_nz = torch.zeros(
-                    (self.n_latents, c1 - c0), device=device, dtype=torch.float32
-                )
-                g1 = torch.zeros(
-                    (self.n_latents, c1 - c0), device=device, dtype=torch.float32
-                )
-                h0 = torch.zeros(
-                    (self.n_latents, c1 - c0), device=device, dtype=torch.float32
-                )
-                h1 = torch.zeros(
-                    (self.n_latents, c1 - c0), device=device, dtype=torch.float32
-                )
-                h2 = torch.zeros(
-                    (self.n_latents, c1 - c0), device=device, dtype=torch.float32
-                )
+                # All are R^{D x c_b}
+                mu_nz = torch.zeros_like(intercept_slab)
+                g1 = torch.zeros_like(intercept_slab)
+                h0 = torch.zeros_like(intercept_slab)
+                h1 = torch.zeros_like(intercept_slab)
+                h2 = torch.zeros_like(intercept_slab)
+                loss_nz = torch.zeros_like(mu_nz)
+                pos_nz = torch.zeros_like(mu_nz)
 
                 for batch in self._iter_sparse_events(x):
                     self.logger.debug(
@@ -184,14 +203,54 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
                     h0.index_add_(0, batch.latent_idx, s_EC)
                     h1.index_add_(0, batch.latent_idx, s_EC * values_E1)
                     h2.index_add_(0, batch.latent_idx, s_EC * (values_E1**2))
+                    nz_loss = -(
+                        y_nz_EC * torch.log(mu_EC) + (1 - y_nz_EC) * torch.log1p(-mu_EC)
+                    )
+                    loss_nz.index_add_(0, batch.latent_idx, nz_loss)
+                    pos_nz.index_add_(0, batch.latent_idx, y_nz_EC)
 
-                g0 = mu_nz + n_zeros_per_latent * mu_0 - pi_device[c0:c1]
+                g0 = mu_nz + n_zeros_per_latent * mu_0 - pi_slab_device
                 g1 = g1 + self.ridge * coef_slab
 
                 h0 = h0 + n_zeros_per_latent * s_0 + self.ridge
                 h2 = h2 + self.ridge
+                mean_loss_value = float("nan")
+                pos_zero = torch.clamp(
+                    pi_slab_device.view(1, n_classes_slab) - pos_nz, min=0.0
+                )
+                pos_zero = torch.minimum(pos_zero, n_zeros_per_latent)
+                neg_zero = n_zeros_per_latent - pos_zero
+                zero_loss = -(
+                    pos_zero * torch.log(mu_0) + neg_zero * torch.log1p(-mu_0)
+                )
+                loss_slab = (loss_nz + zero_loss) / n_samples_f
+                mean_loss_value = loss_slab.mean().item()
 
-                det_h = h0 * h2 - h1 * h1
+                curr_best_loss, curr_best_latent_idx = loss_slab.min(dim=0)
+                improved_mask = curr_best_loss < best_loss_per_class
+                if improved_mask.any():
+                    class_idx_vec = torch.arange(
+                        n_classes_slab, device=device, dtype=torch.int64
+                    )
+                    selected_coef = coef_slab[curr_best_latent_idx, class_idx_vec]
+                    selected_intercept = intercept_slab[
+                        curr_best_latent_idx, class_idx_vec
+                    ]
+                    best_loss_per_class = torch.where(
+                        improved_mask, curr_best_loss, best_loss_per_class
+                    )
+                    best_latent_per_class = torch.where(
+                        improved_mask, curr_best_latent_idx, best_latent_per_class
+                    )
+                    best_coef_per_class = torch.where(
+                        improved_mask, selected_coef, best_coef_per_class
+                    )
+                    best_intercept_per_class = torch.where(
+                        improved_mask, selected_intercept, best_intercept_per_class
+                    )
+
+                det_h_raw = h0 * h2 - h1 * h1
+                det_h = det_h_raw.clone()
                 det_h_sign = det_h.sign()
                 det_h_sign = torch.where(
                     det_h_sign == 0, torch.ones_like(det_h_sign), det_h_sign
@@ -207,17 +266,135 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
                 if not check_convergence:
                     continue
 
-                max_grad = torch.stack((g0.abs().max(), g1.abs().max())).max()
-                max_update = torch.stack((db.abs().max(), dw.abs().max())).max()
+                abs_g0 = g0.abs()
+                abs_g1 = g1.abs()
+                abs_db = db.abs()
+                abs_dw = dw.abs()
+
+                g0_flat = abs_g0.view(-1)
+                g1_flat = abs_g1.view(-1)
+                db_flat = abs_db.view(-1)
+                dw_flat = abs_dw.view(-1)
+
+                max_g0_val, max_g0_idx = g0_flat.max(dim=0)
+                max_g1_val, max_g1_idx = g1_flat.max(dim=0)
+                max_db_val, max_db_idx = db_flat.max(dim=0)
+                max_dw_val, max_dw_idx = dw_flat.max(dim=0)
+
+                grad_source_is_g0 = max_g0_val >= max_g1_val
+                update_source_is_db = max_db_val >= max_dw_val
+
+                grad_idx = torch.unravel_index(
+                    max_g0_idx if grad_source_is_g0 else max_g1_idx, abs_g0.shape
+                )
+                update_idx = torch.unravel_index(
+                    max_db_idx if update_source_is_db else max_dw_idx, abs_db.shape
+                )
+
+                grad_latent_idx = int(grad_idx[0])
+                grad_class_offset = int(grad_idx[1])
+                update_latent_idx = int(update_idx[0])
+                update_class_offset = int(update_idx[1])
+
+                grad_class_idx = c0 + grad_class_offset
+                update_class_idx = c0 + update_class_offset
+
+                grad_loss_value = loss_slab[grad_latent_idx, grad_class_offset].item()
+                update_loss_value = loss_slab[
+                    update_latent_idx, update_class_offset
+                ].item()
+
+                grad_coef_value = coef_slab[grad_latent_idx, grad_class_offset].item()
+                grad_intercept_value = intercept_slab[
+                    grad_latent_idx, grad_class_offset
+                ].item()
+                update_coef_value = coef_slab[
+                    update_latent_idx, update_class_offset
+                ].item()
+                update_intercept_value = intercept_slab[
+                    update_latent_idx, update_class_offset
+                ].item()
+
+                grad_det_raw = det_h_raw[grad_latent_idx, grad_class_offset].item()
+                grad_det_clamped = det_h[grad_latent_idx, grad_class_offset].item()
+                update_det_raw = det_h_raw[
+                    update_latent_idx, update_class_offset
+                ].item()
+                update_det_clamped = det_h[
+                    update_latent_idx, update_class_offset
+                ].item()
+
+                grad_nnz = nnz_per_latent[grad_latent_idx].item()
+                update_nnz = nnz_per_latent[update_latent_idx].item()
+
+                quantile_targets = torch.tensor((0.5, 0.95), device=device)
+                g0_quantiles = torch.quantile(g0_flat, quantile_targets).tolist()
+                g1_quantiles = torch.quantile(g1_flat, quantile_targets).tolist()
+                loss_quantiles = torch.quantile(
+                    loss_slab.view(-1), quantile_targets
+                ).tolist()
+
+                max_grad = torch.stack((max_g0_val, max_g1_val)).max()
+                max_update = torch.stack((max_db_val, max_dw_val)).max()
 
                 self.logger.info(
-                    "Classes %s:%s at iteration %s: grad=%s, update=%s",
+                    "Classes %s:%s at iteration %s: loss=%s, grad=%s, update=%s",
                     c0,
                     c1,
                     it,
+                    mean_loss_value,
                     max_grad.item(),
                     max_update.item(),
                 )
+
+                if improved_mask.any():
+                    improved_classes = torch.nonzero(improved_mask).squeeze(1)
+                    max_report = min(4, int(improved_classes.numel()))
+                    summary_parts = []
+                    for idx in improved_classes[:max_report]:
+                        class_idx = c0 + int(idx.item())
+                        latent_idx = int(curr_best_latent_idx[idx].item())
+                        summary_parts.append(
+                            f"{class_idx}->{latent_idx} loss={curr_best_loss[idx].item():.6f}"
+                        )
+                    if improved_classes.numel() > max_report:
+                        summary_parts.append("...")
+                    self.logger.info(
+                        "improved_best_latents %s", ", ".join(summary_parts)
+                    )
+
+                if self.logger.isEnabledFor(logging.DEBUG):
+                    self.logger.debug(
+                        "worst_grad source=%s latent=%s class=%s nnz=%s coef=%s intercept=%s loss=%s det_raw=%s det_clamped=%s g0_q50=%s g0_q95=%s g1_q50=%s g1_q95=%s loss_q50=%s loss_q95=%s",
+                        "g0" if grad_source_is_g0 else "g1",
+                        grad_latent_idx,
+                        grad_class_idx,
+                        grad_nnz,
+                        grad_coef_value,
+                        grad_intercept_value,
+                        grad_loss_value,
+                        grad_det_raw,
+                        grad_det_clamped,
+                        g0_quantiles[0],
+                        g0_quantiles[1],
+                        g1_quantiles[0],
+                        g1_quantiles[1],
+                        loss_quantiles[0],
+                        loss_quantiles[1],
+                    )
+                    self.logger.debug(
+                        "worst_update source=%s latent=%s class=%s nnz=%s coef=%s intercept=%s loss=%s det_raw=%s det_clamped=%s delta=%s",
+                        "db" if update_source_is_db else "dw",
+                        update_latent_idx,
+                        update_class_idx,
+                        update_nnz,
+                        update_coef_value,
+                        update_intercept_value,
+                        update_loss_value,
+                        update_det_raw,
+                        update_det_clamped,
+                        (max_db_val if update_source_is_db else max_dw_val).item(),
+                    )
                 if torch.isnan(max_grad) or torch.isnan(max_update):
                     continue
 
@@ -232,6 +409,33 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
                     c0,
                     c1,
                     self.n_iter,
+                )
+
+            if self.logger.isEnabledFor(logging.INFO):
+                best_summary = []
+                for offset, loss_value, latent_idx, coef_value, intercept_value in zip(
+                    range(n_classes_slab),
+                    best_loss_per_class.tolist(),
+                    best_latent_per_class.tolist(),
+                    best_coef_per_class.tolist(),
+                    best_intercept_per_class.tolist(),
+                ):
+                    class_idx = c0 + offset
+                    nnz_value = (
+                        int(nnz_per_latent[latent_idx].item()) if latent_idx >= 0 else 0
+                    )
+                    best_summary.append(
+                        (
+                            f"class={class_idx} latent={latent_idx} "
+                            f"loss={loss_value:.6f} coef={coef_value:.3f} "
+                            f"intercept={intercept_value:.3f} nnz={nnz_value}"
+                        )
+                    )
+                self.logger.info(
+                    "Best latents after classes %s:%s -> %s",
+                    c0,
+                    c1,
+                    " | ".join(best_summary),
                 )
 
             del y_slab_device
@@ -281,7 +485,7 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
     def _compute_loss_slab(
         self,
         x: Float[Tensor, "n_samples n_latents"],
-        y_slab: Tensor,  # Float[Tensor, "n_samples Cb"]
+        y_slab: Tensor,  # Float[Tensor, "n_samples c_b"]
         c0: int,
         c1: int,
         n_samples: int,
@@ -290,9 +494,8 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
     ) -> Tensor:
         """Compute loss for a class slab using event chunking."""
 
-        Cb = c1 - c0
         loss = torch.zeros(
-            (self.n_latents, Cb), dtype=torch.float32, device=self.device
+            (self.n_latents, c1 - c0), dtype=torch.float32, device=self.device
         )
         pos_nz = torch.zeros_like(loss)
 
@@ -317,7 +520,7 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
             loss.index_add_(0, cols_chunk, nz_loss)
             pos_nz.index_add_(0, cols_chunk, y_nz)
 
-        pos_zero = torch.clamp(pi_slab.view(1, Cb) - pos_nz, min=0.0)
+        pos_zero = torch.clamp(pi_slab.view(1, c1 - c0) - pos_nz, min=0.0)
         pos_zero = torch.minimum(pos_zero, n_zeros_per_latent)
         neg_zero = n_zeros_per_latent - pos_zero
 
@@ -400,9 +603,8 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
     ) -> Tensor:
         """Compute accuracy for a class slab using event chunking."""
 
-        Cb = c1 - c0
         correct = torch.zeros(
-            (self.n_latents, Cb), dtype=torch.float32, device=self.device
+            (self.n_latents, c1 - c0), dtype=torch.float32, device=self.device
         )
         pos_nz = torch.zeros_like(correct)
 
@@ -430,7 +632,7 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
             correct.index_add_(0, cols_chunk, nz_correct)
             pos_nz.index_add_(0, cols_chunk, y_nz)
 
-        pos_zero = torch.clamp(pi_slab.view(1, Cb) - pos_nz, min=0.0)
+        pos_zero = torch.clamp(pi_slab.view(1, c1 - c0) - pos_nz, min=0.0)
         pos_zero = torch.minimum(pos_zero, n_zeros_per_latent)
         neg_zero = n_zeros_per_latent - pos_zero
         correct_zero = torch.where(pred_zero, pos_zero, neg_zero)
@@ -498,3 +700,142 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
         }
 
         return loss, aux
+
+
+@beartype.beartype
+@dataclasses.dataclass(frozen=True)
+class Config:
+    run: pathlib.Path = pathlib.Path("./runs/abcdefg")
+    """Run directory."""
+    shards_dir: pathlib.Path = pathlib.Path("./shards/e967c008")
+    """Shards directory."""
+    debug: bool = False
+    """Debug logging."""
+    # Hardware
+    device: str = "cuda"
+    """Which accelerator to use."""
+    slurm_acct: str = ""
+    """Slurm account string. Empty means to not use Slurm."""
+    slurm_partition: str = ""
+    """Slurm partition."""
+    n_hours: float = 4.0
+    """Slurm job length in hours."""
+    log_to: pathlib.Path = pathlib.Path("./logs")
+    """Where to log Slurm job stdout/stderr."""
+
+
+def sp_csr_to_pt(csr: scipy.sparse.sparray, *, device: str) -> Tensor:
+    return torch.sparse_csr_tensor(csr.indptr, csr.indices, csr.data, device=device)
+
+
+@beartype.beartype
+def worker_fn(cfg: Config) -> int:
+    log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
+    level = logging.DEBUG if cfg.debug else logging.INFO
+    logging.basicConfig(level=level, format=log_format)
+    logger = logging.getLogger("probe1d")
+
+    logger.info("Started main().")
+    if cfg.device == "cuda" and not torch.cuda.is_available():
+        logger.warning("No CUDA device available, using CPU.")
+        cfg = dataclasses.replace(cfg, device="cpu")
+
+    if not (cfg.shards_dir / "labels.bin").exists():
+        logger.error("--shards-dir %s doesn't have a labels.bin.", cfg.shards_dir)
+        return 1
+
+    run = saev.disk.Run(cfg.run)
+
+    if not (run.inference / cfg.shards_dir.name).exists():
+        logger.error(
+            "Directory %s doesn't exist. Use inference.py to run inference.",
+            run.inference / cfg.shards_dir.name,
+        )
+        return 1
+
+    # Load metadata
+    md = saev.data.Metadata.load(cfg.shards_dir)
+    logger.info("Loaded metadata from %s.", cfg.shards_dir)
+
+    # Load SAE activations (sparse matrix)
+    token_acts = scipy.sparse.load_npz(
+        run.inference / cfg.shards_dir.name / "token_acts.npz"
+    )
+    logger.info(
+        "Loaded activations: shape=%s, nnz=%d.", token_acts.shape, token_acts.nnz
+    )
+    n_samples, n_latents = token_acts.shape
+    token_acts = sp_csr_to_pt(token_acts, device=cfg.device)
+    logger.info("Converted activations to Tensor on %s.", cfg.device)
+
+    # Load patch labels from labels.bin
+    labels = np.memmap(
+        cfg.shards_dir / "labels.bin",
+        mode="r",
+        dtype=np.uint8,
+        shape=(md.n_examples, md.content_tokens_per_example),
+    )
+    logger.info("Loaded labels: shape=%s.", labels.shape)
+
+    # Flatten labels to (n_samples,) and convert to one-hot
+    n_classes = int(labels.max()) + 1
+    logger.info("Found %d classes in labels.", n_classes)
+
+    # Convert to one-hot encoding
+    y = np.zeros((n_samples, n_classes), dtype=float)
+    y[np.arange(n_samples), labels.reshape(n_samples)] = 1.0
+    y = torch.from_numpy(y)
+    logger.info("Created one-hot labels: shape=%s.", y.shape)
+
+    # Fit probe
+    probe = Sparse1DProbe(
+        n_latents=n_latents, n_classes=n_classes, device=cfg.device, ridge=1e-8
+    )
+    logger.info("Fitting probe with %d latents and %d classes.", n_latents, n_classes)
+    probe.fit(token_acts, y)
+    logger.info("Fit probe.")
+
+    # Compute loss
+    loss_matrix = probe.loss_matrix(token_acts, y)
+    mean_loss = loss_matrix.mean().item()
+    logger.info("Mean loss across all (latent, class) pairs: %.6f", mean_loss)
+
+    return 0
+
+
+@beartype.beartype
+def cli(cfg: tp.Annotated[Config, tyro.conf.arg(name="")]) -> int:
+    """
+    Fit a sparse 1D probe to each combination of SAE latent and segmentation class.
+
+    Args:
+        cfg: Config.
+    """
+    log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
+    level = logging.DEBUG if cfg.debug else logging.INFO
+    logging.basicConfig(level=level, format=log_format)
+    logger = logging.getLogger("probe1d")
+
+    logger.info("Started cli().")
+
+    if cfg.slurm_acct:
+        import submitit
+
+        executor = submitit.SlurmExecutor(folder=cfg.log_to)
+        executor.update_parameters(
+            time=int(cfg.n_hours * 60),
+            partition=cfg.slurm_partition,
+            gpus_per_node=1,
+            ntasks_per_node=1,
+            cpus_per_task=8,
+            stderr_to_stdout=True,
+            account=cfg.slurm_acct,
+        )
+        job = executor.submit(worker_fn, cfg)
+        logger.info("Running job '%s'.", job.job_id)
+        job.result()
+
+    else:
+        worker_fn(cfg)
+
+    logger.info("Jobs done.")
