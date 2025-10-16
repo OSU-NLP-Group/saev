@@ -98,7 +98,6 @@ def main(cfg: tp.Annotated[Config, tyro.conf.arg(name="")]) -> int:
 
     # Compute loss
     loss_matrix = probe.loss_matrix(token_acts, y)
-    breakpoint()
     mean_loss = loss_matrix.mean().item()
     logger.info("Mean loss across all (latent, class) pairs: %.6f", mean_loss)
 

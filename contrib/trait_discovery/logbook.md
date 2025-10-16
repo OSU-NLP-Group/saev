@@ -1169,6 +1169,8 @@ I need to train a DINOv3 SAE on ADE20K. I need to see some visuals. I need to do
 
 What is the goal? Why do we care about this?
 
-# 10/14/2025
+# 10/16/2025
 
-
+I think my sparse probe method works. It appears to be quite slow, but it matches all the reference tests.
+So now I need to actually evaluate some stupid SAEs on this godforsaken task.
+Luckily, I think I have a script to do that.

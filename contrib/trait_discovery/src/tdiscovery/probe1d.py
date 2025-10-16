@@ -1,132 +1,52 @@
-r"""Per-feature x per-class 1D logistic probes on SAE activations.
+"""Sparse 1D logistic probes for trait discovery.
 
-Some feedback:
+This module implements Newton-style optimization and evaluation for
+per-latent / per-class logistic probes on high-sparsity SAE activations.
+The key invariants across implementations are:
 
-Short answer: as written, this will OOM long before it gets a chance to be "slow." The killer is every place you expand from nnz → (nnz, n\_classes). With 22k×256 = 5.632M samples and L0=400, you have \~2.2528B nonzeros. Anything of shape (nnz, 151) is astronomically large.
+* Sparse feature matrix `x` is streamed in CSR format without materializing
+  tensors shaped `(nnz, n_classes)`.
+* Classes are processed in configurable slabs (`class_slab_size`) while rows are
+  processed in configurable micro-batches (`row_batch_size`).
+* All compute paths (`fit`, `loss_matrix`, `loss_matrix_with_aux`) share the
+  same sparse event iterator to guarantee identical traversal order.
 
-Here’s a surgical pass through `fit()` with concrete sizes and fixes.
-
-# What blows up (and why)
-
-* `y = y.to(self.device)`
-  If `y` is float32, that’s 5.632M×151×4B ≈ 3.4 GB on GPU. This is already chunky. Prefer processing **one class (or a tiny slab of classes)** at a time so you only keep 5.6M labels in memory (≈22 MB as uint8/bool).
-
-* `row_indices = torch.repeat_interleave(...)`
-  Length = nnz = 2,252,800,000.
-  int32: \~9.0 GB; int64: \~18 GB. This alone can eat your remaining memory. You must avoid materializing full `row_indices`—compute it **per row-block** (microbatch over rows), so the repeated\_interleave vector is at most tens of millions long at any moment.
-
-* `y_nz = y[row_indices]  # [nnz, n_classes]`
-  This is the show-stopper. Shape \~ (2.25B, 151).
-  Even fp16: 2.25e9×151×2B ≈ 680 GB. fp32 is \~1.36 TB. Impossible. Fix: loop over **classes** (or tiny class slabs, e.g., 4–8) and **event microbatches** (row-blocks), so at any instant you only touch (E\_chunk, C\_chunk).
-
-* `eta = self.intercept_[col_indices] + self.coef_[col_indices] * x_values_expanded`
-  `self.intercept_[col_indices]` is also (nnz, n\_classes). Same explosion as above. Gather (L, C\_chunk) once, then index with (E\_chunk,) to get (E\_chunk, C\_chunk) only.
-
-* `mu`, `s`, `residual` allocated as (nnz, n\_classes)
-  Same problem—compute in **chunks** and **don’t store** these big intermediates at all; compute-and-accumulate.
-
-Everything else (the (L, C) accumulators, params, counts) is tiny by comparison (a few hundred MB total).
-
-# How to restructure so it runs
-
-1. **Loop over classes (or a small slab):**
-
-```python
-for c0 in range(0, n_classes, Cb):  # e.g., Cb = 4 or 8
-    b = self.intercept_[:, c0:c0+Cb]    # (L, Cb)
-    w = self.coef_[:, c0:c0+Cb]         # (L, Cb)
-    mu0 = torch.sigmoid(b); s0 = mu0*(1-mu0)
-    # init accumulators M_nz, G1, S0, S1, S2 as (L, Cb) zeros
-```
-
-2. **Stream rows in blocks** to avoid a mega `row_indices`:
-
-```python
-for r0 in range(0, n_samples, Rb):     # e.g., Rb = 1–8 million rows
-    r1 = min(r0+Rb, n_samples)
-    # From CSR: [start:end) spans all nnz in these rows
-    start = crow_indices[r0].item()
-    end   = crow_indices[r1].item()
-    cols  = col_indices[start:end]      # (E_chunk,)
-    vals  = values[start:end]           # (E_chunk,)
-    # Build a TEMPORARY row_indices only for [r0:r1]
-    # lengths_per_row = crow[r0+1:r1+1] - crow[r0:r1]
-    # row_idx_chunk = repeat_interleave(lengths_per_row)  # length = E_chunk (fits)
-    y_chunk = y[r0:r1, c0:c0+Cb]        # (Rb, Cb)
-    y_nz    = y_chunk[row_idx_chunk]    # (E_chunk, Cb)  <-- manageable
-    # Gather params by latent for this event chunk
-    b_cols = b[cols]                    # (E_chunk, Cb)
-    w_cols = w[cols]                    # (E_chunk, Cb)
-    # Compute and ACCUMULATE on the fly (don’t keep mu/s around):
-    eta = b_cols + w_cols * vals.view(-1,1)
-    mu  = torch.sigmoid(eta)
-    s   = mu * (1 - mu)
-    # segmented reduction by latent index:
-    M_nz.index_add_(0, cols, mu)
-    G1.index_add_(0, cols, (mu - y_nz) * vals.view(-1,1))
-    S0.index_add_(0, cols, s)
-    S1.index_add_(0, cols, s * vals.view(-1,1))
-    S2.index_add_(0, cols, s * (vals**2).view(-1,1))
-```
-
-3. **Zero-part + Newton update for the class slab:**
-
-```python
-nnz_per_latent = torch.bincount(col_indices, minlength=L)  # (L,) – once globally
-Z = (n_samples - nnz_per_latent).view(L,1).float()
-
-G0 = M_nz + Z * mu0 - pi[c0:c0+Cb].view(1, Cb)
-S0 = S0 + Z * s0
-# ridge: G1 += lambda*w ; S2 += lambda (true L2). Add small damping to both diag entries if needed.
-```
-
-Then compute `db, dw` from the 2×2 per-(latent, class) systems and update `b, w`. Write back to `self.intercept_[:, c0:c0+Cb]`, `self.coef_[:, c0:c0+Cb]`. Repeat until convergence.
-
-4. **Loss**: compute in the same class/event microbatch loops using the “zero baseline + nonzero correction” you wrote, but **accumulate directly** into the (L, Cb) loss matrix via `index_add_`—don’t allocate (nnz, Cb).
-
-# Will it be too slow?
-
-Once you avoid the (nnz, n\_classes) tensors, the bottleneck becomes **scatter/index\_add over \~2.25B events per class per Newton iteration**.
-
-Very rough order-of-magnitude:
-
-* Events: E = 2.2528e9.
-* Classes: C = 151.
-* Event–class operations per iteration: E×C ≈ 3.40e11.
-* Per event–class you do \~10–20 flops and a handful of memory ops plus a scatter-add. This is **memory/atomics bound**, not compute bound.
-
-Empirically on A100s:
-
-* Coalesced `index_add_` (after sorting by `cols`) can push **hundreds of millions** of updates/sec; unsorted atomics can be far worse.
-* If you hit \~100M event–class updates/sec, that’s \~3.4e3 s ≈ **57 min per Newton iteration**.
-* With 6–10 Newton steps, you’re in the **6–10 hour** ballpark per SAE, which meets your “<12 hours” target—*if* you implement class+row microbatching, keep dtypes lean (bf16/half for activations), and reduce atomic contention (see below).
-
-This is not a guarantee—throughput depends a lot on:
-
-* **Atomics contention**: many events hitting the same latent line. Sorting `cols` within each event chunk before `index_add_` (or using `torch_scatter`/segmented reductions) often gives a **2–5×** boost.
-* **Chunk sizes**: tune `Rb` (rows per block) and `Cb` (classes per slab) so your temporary buffers stay <1–2 GB and your kernels stay saturated.
-* **Dtypes**: keep `vals` (activations) in fp16/bf16 and `y` in uint8/bool; keep accumulators in fp32.
-
-# Minimal changes you should make now
-
-* Do **not** allocate `row_indices` for the whole matrix; build it per row-block.
-* Do **not** allocate anything with shape `(nnz, n_classes)`. Always tile classes and events.
-* Move `y` to GPU **per class slab** (or stream from pinned host memory).
-* Consider **sorting** `cols` inside each chunk (`torch.sort`) and apply the same permutation to `vals` and `row_idx_chunk`; then use `index_add_` or `segment_reduce` to cut atomics.
-* Keep `values` and `mu` computations in **bf16/fp16**; keep accumulators in fp32.
-* In `_compute_loss`, reuse the same class/event microbatching; don’t rebuild huge arrays.
-
-If you want, I can rewrite your `fit()` skeleton into a tiled version (classes × row-blocks) with placeholders for chunk sizes and a micro-benchmark harness so you can time E×C throughput on one A100 and extrapolate.
+The public surface area is intentionally small and designed to be used by tests
+and training sweeps. The heavy lifting occurs in `Sparse1DProbe`, which exposes
+the learned coefficients, loss computation helpers, and accuracy diagnostics.
 """
 
 import logging
+from collections.abc import Iterator
+from typing import NamedTuple
 
 import beartype
 import einops
 import sklearn.base
 import torch
-from jaxtyping import Bool, Float, jaxtyped
+from jaxtyping import Bool, Float, Int, jaxtyped
 from torch import Tensor
+
+import saev.helpers
+
+
+@jaxtyped(typechecker=beartype.beartype)
+class SparseEventsBatch(NamedTuple):
+    """Streaming view over CSR non-zeros for a row-aligned batch.
+
+    Args:
+        row_start: Inclusive row index where this batch starts.
+        row_end: Exclusive row index where this batch ends.
+        latent_idx: Column indices of the non-zero entries in this batch.
+        values: Values of the non-zero entries in this batch.
+        row_idx: Absolute row index for each non-zero entry.
+    """
+
+    row_start: int
+    row_end: int
+    latent_idx: Int[Tensor, " event"]
+    values: Float[Tensor, " event"]
+    row_idx: Int[Tensor, " event"]
 
 
 @jaxtyped(typechecker=beartype.beartype)
@@ -135,6 +55,11 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
 
     `fit(x, y)` streams sparse x and optimizes (b, w) for every (latent, class) pair.
     Results are exposed as attributes and helper methods.
+
+    To make fit() memory-efficient: tile across classes and stream over rows. Never create anything shaped (nnz, n_classes).
+
+    Args:
+
     """
 
     def __init__(
@@ -146,8 +71,8 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
         device: str = "cuda",
         n_iter: int = 100,
         ridge: float = 1e-8,
-        class_chunk_size: int = 8,
-        event_chunk_size: int = 1_000_000,
+        class_slab_size: int = 8,
+        row_batch_size: int = 1024,
     ):
         self.n_latents = n_latents
         self.n_classes = n_classes
@@ -155,10 +80,10 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
         self.device = device
         self.n_iter = n_iter
         self.ridge = ridge  # L2 regularization strength
-        self.class_chunk_size = class_chunk_size
-        self.event_chunk_size = event_chunk_size
+        self.class_slab_size = class_slab_size
+        self.row_batch_size = row_batch_size
         self.logger = logging.getLogger("sparse1d")
-        self.eps = 1e-15
+        self.eps = 1e-7
 
     @torch.no_grad()
     def fit(
@@ -170,160 +95,188 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
 
         n_samples, n_latents = x.shape
         assert n_latents == self.n_latents
-        dd = dict(dtype=torch.float32, device=self.device)
 
-        # Move sparse matrix to device
-        x = x.to(self.device)
+        device = torch.device(self.device)
 
-        # Initialize parameters (full size)
-        self.coef_ = torch.zeros((self.n_latents, self.n_classes), **dd)
-        self.intercept_ = torch.zeros((self.n_latents, self.n_classes), **dd)
+        x = x.to(device)
+        y = y.to(dtype=torch.float32, device="cpu")
 
-        # Calculate pi (total positives per class) on CPU to save memory
-        # We'll move class slabs to device as needed
-        pi = y.sum(dim=0).to(torch.float32)  # [n_classes]
-        prevalence = pi / n_samples
-        prevalence = torch.clamp(prevalence, self.eps, 1 - self.eps)
+        self.coef_ = torch.zeros(
+            (self.n_latents, self.n_classes), device=device, dtype=torch.float32
+        )
+        self.intercept_ = torch.zeros(
+            (self.n_latents, self.n_classes), device=device, dtype=torch.float32
+        )
 
-        # Get CSR components once
+        pi = y.sum(dim=0)
+        prevalence = torch.clamp(pi / float(n_samples), self.eps, 1 - self.eps)
+        base_intercept = torch.logit(prevalence).to(device)
+        self.intercept_.copy_(
+            einops.repeat(base_intercept, "c -> l c", l=self.n_latents)
+        )
+
+        nnz_per_latent = torch.bincount(x.col_indices(), minlength=self.n_latents)
+        n_zeros_per_latent = (
+            (n_samples - nnz_per_latent)
+            .to(device=device, dtype=torch.float32)
+            .view(-1, 1)
+        )
+
+        pi_device = pi.to(device)
+        check_convergence = self.tol > 0
+
+        for c0, c1 in saev.helpers.batched_idx(self.n_classes, self.class_slab_size):
+            self.logger.debug(f"Processing classes {c0}:{c1} ({c1 - c0} classes)")
+
+            y_slab = y[:, c0:c1]
+            if device.type != "cpu":
+                y_slab = y_slab.pin_memory()
+            y_slab_device = y_slab.to(device, non_blocking=device.type != "cpu")
+
+            intercept_slab = self.intercept_[:, c0:c1]
+            coef_slab = self.coef_[:, c0:c1]
+
+            for it in range(self.n_iter):
+                # For x_j = 0, we can pre-calculate mu and s.
+                mu_0 = torch.sigmoid(intercept_slab).clamp_(self.eps, 1 - self.eps)
+                s_0 = mu_0 * (1 - mu_0)
+
+                # All are R^{D x Cb}
+                mu_nz = torch.zeros(
+                    (self.n_latents, c1 - c0), device=device, dtype=torch.float32
+                )
+                g1 = torch.zeros(
+                    (self.n_latents, c1 - c0), device=device, dtype=torch.float32
+                )
+                h0 = torch.zeros(
+                    (self.n_latents, c1 - c0), device=device, dtype=torch.float32
+                )
+                h1 = torch.zeros(
+                    (self.n_latents, c1 - c0), device=device, dtype=torch.float32
+                )
+                h2 = torch.zeros(
+                    (self.n_latents, c1 - c0), device=device, dtype=torch.float32
+                )
+
+                for batch in self._iter_sparse_events(x):
+                    self.logger.debug(
+                        "Rows %d:%d: %d non-zero elements.",
+                        batch.row_start,
+                        batch.row_end,
+                        batch.values.numel(),
+                    )
+
+                    values_E1 = batch.values[:, None]
+
+                    eta_EC = (
+                        self.intercept_[batch.latent_idx, c0:c1]
+                        + self.coef_[batch.latent_idx, c0:c1] * values_E1
+                    )
+                    mu_EC = torch.sigmoid(eta_EC).clamp_(self.eps, 1 - self.eps)
+                    s_EC = mu_EC * (1 - mu_EC)
+
+                    y_nz_EC = y_slab_device[batch.row_idx, :]
+
+                    residual_EC = mu_EC - y_nz_EC
+
+                    mu_nz.index_add_(0, batch.latent_idx, mu_EC)
+                    g1.index_add_(0, batch.latent_idx, residual_EC * values_E1)
+                    h0.index_add_(0, batch.latent_idx, s_EC)
+                    h1.index_add_(0, batch.latent_idx, s_EC * values_E1)
+                    h2.index_add_(0, batch.latent_idx, s_EC * (values_E1**2))
+
+                g0 = mu_nz + n_zeros_per_latent * mu_0 - pi_device[c0:c1]
+                g1 = g1 + self.ridge * coef_slab
+
+                h0 = h0 + n_zeros_per_latent * s_0 + self.ridge
+                h2 = h2 + self.ridge
+
+                det_h = h0 * h2 - h1 * h1
+                det_h_sign = det_h.sign()
+                det_h_sign = torch.where(
+                    det_h_sign == 0, torch.ones_like(det_h_sign), det_h_sign
+                )
+                det_h = torch.where(det_h.abs() < 1e-12, det_h_sign * 1e-12, det_h)
+
+                db = (h2 * g0 - h1 * g1) / det_h
+                dw = (-h1 * g0 + h0 * g1) / det_h
+
+                intercept_slab -= db
+                coef_slab -= dw
+
+                if not check_convergence:
+                    continue
+
+                max_grad = torch.stack((g0.abs().max(), g1.abs().max())).max()
+                max_update = torch.stack((db.abs().max(), dw.abs().max())).max()
+
+                self.logger.info(
+                    "Classes %s:%s at iteration %s: grad=%s, update=%s",
+                    c0,
+                    c1,
+                    it,
+                    max_grad.item(),
+                    max_update.item(),
+                )
+                if torch.isnan(max_grad) or torch.isnan(max_update):
+                    continue
+
+                if max_grad < self.tol and max_update < self.tol:
+                    self.logger.info(
+                        "Classes %s:%s converged at iteration %s.", c0, c1, it
+                    )
+                    break
+            else:
+                self.logger.warning(
+                    "Classes %s:%s did not converge after %s iterations",
+                    c0,
+                    c1,
+                    self.n_iter,
+                )
+
+            del y_slab_device
+
+    def _iter_sparse_events(
+        self,
+        x: Float[Tensor, "n_samples n_latents"],
+    ) -> Iterator[SparseEventsBatch]:
+        """Yield CSR non-zero spans for each row batch.
+
+        Args:
+            x: Sparse CSR matrix with shape `(n_samples, n_latents)` that we are streaming over.
+
+        Yields:
+            `SparseEventsBatch` objects describing the rows spanned by the batch,
+            their latent indices, non-zero values, and global row indices.
+        """
+
         crow_indices = x.crow_indices()
         col_indices = x.col_indices()
         values = x.values()
+        n_samples = x.shape[0]
 
-        # Count nnz per latent once (used for zero contributions)
-        nnz_per_latent = torch.bincount(col_indices, minlength=self.n_latents)
-        n_zeros_per_latent = n_samples - nnz_per_latent  # [n_latents]
+        for r0, r1 in saev.helpers.batched_idx(n_samples, self.row_batch_size):
+            start = crow_indices[r0].item()
+            end = crow_indices[r1].item()
+            if start == end:
+                continue
 
-        # Process classes in chunks
-        for c0 in range(0, self.n_classes, self.class_chunk_size):
-            c1 = min(c0 + self.class_chunk_size, self.n_classes)
-            Cb = c1 - c0
-
-            self.logger.debug(f"Processing classes {c0}:{c1} ({Cb} classes)")
-
-            # Initialize params for this class slab
-            self.intercept_[:, c0:c1] = einops.repeat(
-                torch.logit(prevalence[c0:c1]).to(self.device),
-                "c -> l c",
-                l=self.n_latents,
+            lengths_per_row = crow_indices[r0 + 1 : r1 + 1] - crow_indices[r0:r1]
+            row_idx_local = torch.repeat_interleave(
+                torch.arange(
+                    r1 - r0, device=x.device, dtype=torch.long, requires_grad=False
+                ),
+                lengths_per_row,
             )
-            # coef already initialized to zero
+            row_idx = row_idx_local + r0
 
-            # Move class slab of labels to device
-            y_slab = y[:, c0:c1].to(self.device)  # [n_samples, Cb]
-            pi_slab = pi[c0:c1].to(self.device)  # [Cb]
-
-            prev_loss = torch.full((self.n_latents, Cb), torch.inf, **dd)
-
-            # Newton iterations for this class slab
-            for it in range(self.n_iter):
-                # Compute mu_0 and s_0 for zero entries
-                mu_0 = torch.sigmoid(self.intercept_[:, c0:c1])  # [n_latents, Cb]
-                s_0 = mu_0 * (1 - mu_0)
-
-                # Initialize accumulators for this iteration
-                m_nz = torch.zeros((self.n_latents, Cb), **dd)
-                g1 = torch.zeros((self.n_latents, Cb), **dd)
-                s0_acc = torch.zeros((self.n_latents, Cb), **dd)
-                s1 = torch.zeros((self.n_latents, Cb), **dd)
-                s2 = torch.zeros((self.n_latents, Cb), **dd)
-
-                # Stream over event/row blocks
-                for r0 in range(0, n_samples, self.event_chunk_size):
-                    r1 = min(r0 + self.event_chunk_size, n_samples)
-
-                    # Get nnz range for this row block
-                    start = crow_indices[r0].item()
-                    end = crow_indices[r1].item()
-
-                    if start == end:
-                        # No nonzeros in this block
-                        continue
-
-                    # Get CSR data for this block
-                    cols_chunk = col_indices[start:end]  # [E_chunk]
-                    vals_chunk = values[start:end]  # [E_chunk]
-
-                    # Build temporary row_indices for [r0:r1]
-                    lengths_per_row = (
-                        crow_indices[r0 + 1 : r1 + 1] - crow_indices[r0:r1]
-                    )
-                    row_idx_chunk = torch.repeat_interleave(
-                        torch.arange(r1 - r0, device=self.device), lengths_per_row
-                    )  # [E_chunk], values in [0, r1-r0)
-
-                    # Get labels for this chunk
-                    y_chunk = y_slab[r0:r1]  # [Rb, Cb]
-                    y_nz = y_chunk[row_idx_chunk]  # [E_chunk, Cb]
-
-                    # Gather params for this chunk's latents
-                    b_cols = self.intercept_[cols_chunk][:, c0:c1]  # [E_chunk, Cb]
-                    w_cols = self.coef_[cols_chunk][:, c0:c1]  # [E_chunk, Cb]
-
-                    # Compute eta, mu, s for nonzeros
-                    vals_expanded = vals_chunk.view(-1, 1)  # [E_chunk, 1]
-                    eta = b_cols + w_cols * vals_expanded
-                    mu = torch.sigmoid(eta)
-                    mu = torch.clamp(mu, self.eps, 1 - self.eps)
-                    s = mu * (1 - mu)
-
-                    # Accumulate statistics
-                    m_nz.index_add_(0, cols_chunk, mu)
-                    g1.index_add_(0, cols_chunk, (mu - y_nz) * vals_expanded)
-                    s0_acc.index_add_(0, cols_chunk, s)
-                    s1.index_add_(0, cols_chunk, s * vals_expanded)
-                    s2.index_add_(0, cols_chunk, s * (vals_expanded**2))
-
-                # Add zero contributions
-                n_zeros_expanded = n_zeros_per_latent.float().view(-1, 1)  # [L, 1]
-                g0 = m_nz + n_zeros_expanded * mu_0 - pi_slab.view(1, -1)
-
-                # Add L2 regularization
-                g1 = g1 + self.ridge * self.coef_[:, c0:c1]
-
-                # S0 includes zero contributions and ridge
-                s0_total = s0_acc + n_zeros_expanded * s_0 + self.ridge
-                s2 = s2 + self.ridge
-
-                # Calculate Newton updates (2x2 system per (latent, class))
-                det_h = s0_total * s2 - s1 * s1
-                det_h = torch.where(
-                    torch.abs(det_h) < 1e-10, torch.ones_like(det_h) * 1e-10, det_h
-                )
-
-                db = (s2 * g0 - s1 * g1) / det_h
-                dw = (-s1 * g0 + s0_total * g1) / det_h
-
-                # Apply updates to this class slab
-                self.intercept_[:, c0:c1] -= db
-                self.coef_[:, c0:c1] -= dw
-
-                # Check convergence for this class slab
-                loss_slab = self._compute_loss_slab(
-                    x,
-                    y_slab,
-                    c0,
-                    c1,
-                    crow_indices,
-                    col_indices,
-                    values,
-                    n_samples,
-                    pi_slab,
-                )
-
-                loss_change = torch.abs(prev_loss - loss_slab)
-                if torch.all(loss_change < self.tol):
-                    self.logger.debug(f"Classes {c0}:{c1} converged at iteration {it}")
-                    break
-
-                prev_loss = loss_slab.clone()
-            else:
-                self.logger.debug(
-                    f"Classes {c0}:{c1} did not converge after {self.n_iter} iterations"
-                )
-
-            # Free memory
-            del y_slab, pi_slab
+            yield SparseEventsBatch(
+                row_start=r0,
+                row_end=r1,
+                latent_idx=col_indices[start:end],
+                values=values[start:end],
+                row_idx=row_idx,
+            )
 
     def _compute_loss_slab(
         self,
@@ -331,69 +284,47 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
         y_slab: Tensor,  # Float[Tensor, "n_samples Cb"]
         c0: int,
         c1: int,
-        crow_indices: Tensor,
-        col_indices: Tensor,
-        values: Tensor,
         n_samples: int,
-        pi_slab: Tensor,  # Float[Tensor, "Cb"]
-    ) -> Tensor:  # Float[Tensor, "n_latents Cb"]
+        pi_slab: Tensor,
+        n_zeros_per_latent: Tensor,
+    ) -> Tensor:
         """Compute loss for a class slab using event chunking."""
+
         Cb = c1 - c0
-        dd = dict(dtype=torch.float32, device=self.device)
-        loss = torch.zeros((self.n_latents, Cb), **dd)
-
-        # Compute mu_0 for zero entries
-        mu_0 = torch.sigmoid(self.intercept_[:, c0:c1])
-        mu_0 = torch.clamp(mu_0, self.eps, 1 - self.eps)
-
-        # Count positives and negatives per class
-        n_pos = pi_slab  # [Cb]
-        n_neg = n_samples - n_pos  # [Cb]
-
-        # Initialize with all-zeros contribution
-        loss = -n_pos.view(1, -1) * torch.log(mu_0) - n_neg.view(1, -1) * torch.log(
-            1 - mu_0
+        loss = torch.zeros(
+            (self.n_latents, Cb), dtype=torch.float32, device=self.device
         )
+        pos_nz = torch.zeros_like(loss)
 
-        # Stream over events to compute corrections
-        for r0 in range(0, n_samples, self.event_chunk_size):
-            r1 = min(r0 + self.event_chunk_size, n_samples)
+        intercept_slab = self.intercept_[:, c0:c1]
+        coef_slab = self.coef_[:, c0:c1]
 
-            start = crow_indices[r0].item()
-            end = crow_indices[r1].item()
+        mu_0 = torch.sigmoid(intercept_slab).clamp_(self.eps, 1 - self.eps)
 
-            if start == end:
-                continue
+        for batch in self._iter_sparse_events(x):
+            cols_chunk = batch.latent_idx
+            vals_chunk = batch.values
+            row_idx_chunk = batch.row_idx
+            y_nz = y_slab[row_idx_chunk]
 
-            cols_chunk = col_indices[start:end]
-            vals_chunk = values[start:end]
-
-            lengths_per_row = crow_indices[r0 + 1 : r1 + 1] - crow_indices[r0:r1]
-            row_idx_chunk = torch.repeat_interleave(
-                torch.arange(r1 - r0, device=self.device), lengths_per_row
-            )
-
-            y_chunk = y_slab[r0:r1]
-            y_nz = y_chunk[row_idx_chunk]  # [E_chunk, Cb]
-
-            # Compute mu for nonzeros
             vals_expanded = vals_chunk.view(-1, 1)
-            b_cols = self.intercept_[cols_chunk][:, c0:c1]
-            w_cols = self.coef_[cols_chunk][:, c0:c1]
+            b_cols = intercept_slab[cols_chunk]
+            w_cols = coef_slab[cols_chunk]
             eta = b_cols + w_cols * vals_expanded
-            mu = torch.sigmoid(eta)
-            mu = torch.clamp(mu, self.eps, 1 - self.eps)
+            mu = torch.sigmoid(eta).clamp_(self.eps, 1 - self.eps)
 
-            # Compute corrections
-            mu_0_nz = mu_0[cols_chunk]  # [E_chunk, Cb]
-            zero_contrib = y_nz * torch.log(mu_0_nz) + (1 - y_nz) * torch.log(
-                1 - mu_0_nz
-            )
-            actual_contrib = y_nz * torch.log(mu) + (1 - y_nz) * torch.log(1 - mu)
+            nz_loss = -(y_nz * torch.log(mu) + (1 - y_nz) * torch.log1p(-mu))
+            loss.index_add_(0, cols_chunk, nz_loss)
+            pos_nz.index_add_(0, cols_chunk, y_nz)
 
-            loss.index_add_(0, cols_chunk, zero_contrib - actual_contrib)
+        pos_zero = torch.clamp(pi_slab.view(1, Cb) - pos_nz, min=0.0)
+        pos_zero = torch.minimum(pos_zero, n_zeros_per_latent)
+        neg_zero = n_zeros_per_latent - pos_zero
 
-        return loss / n_samples
+        zero_loss = -(pos_zero * torch.log(mu_0) + neg_zero * torch.log1p(-mu_0))
+        loss = loss + zero_loss
+
+        return loss / float(n_samples)
 
     def _compute_loss(
         self,
@@ -407,24 +338,34 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
         )
 
         # Get CSR components
-        crow_indices = x.crow_indices()
         col_indices = x.col_indices()
-        values = x.values()
+        nnz_per_latent = torch.bincount(col_indices, minlength=self.n_latents)
+        n_zeros_per_latent = (
+            (n_samples - nnz_per_latent)
+            .to(device=self.device, dtype=torch.float32)
+            .view(-1, 1)
+        )
 
         # Compute pi on CPU
-        pi = y.sum(dim=0).to(torch.float32)  # [n_classes]
+        pi = y.sum(dim=0, dtype=torch.float64).to(torch.float32)
 
         # Process classes in chunks
-        for c0 in range(0, self.n_classes, self.class_chunk_size):
-            c1 = min(c0 + self.class_chunk_size, self.n_classes)
+        for c0 in range(0, self.n_classes, self.class_slab_size):
+            c1 = min(c0 + self.class_slab_size, self.n_classes)
 
             # Move class slab to device
-            y_slab = y[:, c0:c1].to(self.device)
+            y_slab = y[:, c0:c1].to(self.device).to(torch.float32)
             pi_slab = pi[c0:c1].to(self.device)
 
             # Compute loss for this slab
             loss[:, c0:c1] = self._compute_loss_slab(
-                x, y_slab, c0, c1, crow_indices, col_indices, values, n_samples, pi_slab
+                x,
+                y_slab,
+                c0,
+                c1,
+                n_samples,
+                pi_slab,
+                n_zeros_per_latent,
             )
 
             del y_slab, pi_slab
@@ -450,64 +391,52 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
     def _compute_accuracy_slab(
         self,
         x: Float[Tensor, "n_samples n_latents"],
-        y_slab: Tensor,  # Float[Tensor, "n_samples Cb"]
+        y_slab: Tensor,
         c0: int,
         c1: int,
-        crow_indices: Tensor,
-        col_indices: Tensor,
-        values: Tensor,
         n_samples: int,
-    ) -> Tensor:  # Float[Tensor, "n_latents Cb"]
+        pi_slab: Tensor,
+        n_zeros_per_latent: Tensor,
+    ) -> Tensor:
         """Compute accuracy for a class slab using event chunking."""
 
-        # Predictions for zero entries
-        mu_0 = torch.sigmoid(self.intercept_[:, c0:c1])
-        pred_0 = (mu_0 > 0.5).float()  # [n_latents, Cb]
+        Cb = c1 - c0
+        correct = torch.zeros(
+            (self.n_latents, Cb), dtype=torch.float32, device=self.device
+        )
+        pos_nz = torch.zeros_like(correct)
 
-        # Initialize accuracy by counting correct zero predictions
-        # For each (latent, class) pair, count how many samples match pred_0
-        pred_0_expanded = pred_0.unsqueeze(1)  # [n_latents, 1, Cb]
-        y_expanded = y_slab.unsqueeze(0)  # [1, n_samples, Cb]
-        acc = (pred_0_expanded == y_expanded).float().sum(dim=1)  # [n_latents, Cb]
+        intercept_slab = self.intercept_[:, c0:c1]
+        coef_slab = self.coef_[:, c0:c1]
 
-        # Stream over events to compute corrections for nonzeros
-        for r0 in range(0, n_samples, self.event_chunk_size):
-            r1 = min(r0 + self.event_chunk_size, n_samples)
+        mu_0 = torch.sigmoid(intercept_slab).clamp_(self.eps, 1 - self.eps)
+        pred_zero = mu_0 > 0.5
 
-            start = crow_indices[r0].item()
-            end = crow_indices[r1].item()
+        for batch in self._iter_sparse_events(x):
+            cols_chunk = batch.latent_idx
+            vals_chunk = batch.values
+            row_idx_chunk = batch.row_idx
+            y_nz = y_slab[row_idx_chunk]
+            y_nz_bool = y_nz > 0.5
 
-            if start == end:
-                continue
-
-            cols_chunk = col_indices[start:end]
-            vals_chunk = values[start:end]
-
-            lengths_per_row = crow_indices[r0 + 1 : r1 + 1] - crow_indices[r0:r1]
-            row_idx_chunk = torch.repeat_interleave(
-                torch.arange(r1 - r0, device=self.device), lengths_per_row
-            )
-
-            y_chunk = y_slab[r0:r1]
-            y_nz = y_chunk[row_idx_chunk]  # [E_chunk, Cb]
-
-            # Compute predictions for nonzeros
             vals_expanded = vals_chunk.view(-1, 1)
-            b_cols = self.intercept_[cols_chunk][:, c0:c1]
-            w_cols = self.coef_[cols_chunk][:, c0:c1]
-            eta = b_cols + w_cols * vals_expanded
-            mu = torch.sigmoid(eta)
-            pred_nz = (mu > 0.5).float()
+            b_cols = intercept_slab[cols_chunk]
+            w_cols = coef_slab[cols_chunk]
+            mu = torch.sigmoid(b_cols + w_cols * vals_expanded)
+            pred_nz_bool = mu > 0.5
 
-            # Compute correction: swap zero prediction for actual prediction
-            pred_0_nz = pred_0[cols_chunk]  # [E_chunk, Cb]
-            zero_correct = (pred_0_nz == y_nz).float()
-            nz_correct = (pred_nz == y_nz).float()
-            correction = nz_correct - zero_correct
+            nz_correct = (pred_nz_bool == y_nz_bool).to(torch.float32)
 
-            acc.index_add_(0, cols_chunk, correction)
+            correct.index_add_(0, cols_chunk, nz_correct)
+            pos_nz.index_add_(0, cols_chunk, y_nz)
 
-        return acc / n_samples
+        pos_zero = torch.clamp(pi_slab.view(1, Cb) - pos_nz, min=0.0)
+        pos_zero = torch.minimum(pos_zero, n_zeros_per_latent)
+        neg_zero = n_zeros_per_latent - pos_zero
+        correct_zero = torch.where(pred_zero, pos_zero, neg_zero)
+        correct = correct + correct_zero
+
+        return correct / float(n_samples)
 
     @torch.no_grad()
     def loss_matrix_with_aux(
@@ -529,25 +458,36 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
         # Count nnz per latent
         col_indices = x.col_indices()
         nnz_per_latent = torch.bincount(col_indices, minlength=self.n_latents)
+        n_zeros_per_latent = (
+            (n_samples - nnz_per_latent)
+            .to(device=self.device, dtype=torch.float32)
+            .view(-1, 1)
+        )
 
         # Compute accuracy using chunked implementation
-        crow_indices = x.crow_indices()
-        values = x.values()
+        pi = y.sum(dim=0, dtype=torch.float64).to(torch.float32)
 
         acc = torch.zeros(
             (self.n_latents, self.n_classes), dtype=torch.float32, device=self.device
         )
 
-        for c0 in range(0, self.n_classes, self.class_chunk_size):
-            c1 = min(c0 + self.class_chunk_size, self.n_classes)
+        for c0 in range(0, self.n_classes, self.class_slab_size):
+            c1 = min(c0 + self.class_slab_size, self.n_classes)
 
-            y_slab = y[:, c0:c1].to(self.device).float()
+            y_slab = y[:, c0:c1].to(self.device).to(torch.float32)
+            pi_slab = pi[c0:c1].to(self.device)
 
             acc[:, c0:c1] = self._compute_accuracy_slab(
-                x, y_slab, c0, c1, crow_indices, col_indices, values, n_samples
+                x,
+                y_slab,
+                c0,
+                c1,
+                n_samples,
+                pi_slab,
+                n_zeros_per_latent,
             )
 
-            del y_slab
+            del y_slab, pi_slab
 
         aux = {
             "accuracy": acc,

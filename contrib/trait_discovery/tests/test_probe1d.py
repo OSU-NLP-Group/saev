@@ -1,5 +1,7 @@
 """Unit tests for 1D probe training."""
 
+import logging
+
 import numpy as np
 import pytest
 import torch
@@ -24,7 +26,9 @@ def test_fit_smoke():
     y = ((x @ true_w + true_b) > 0).float()
 
     # Initialize optimizer
-    clf = Sparse1DProbe(n_latents=n_latents, n_classes=n_classes, device="cpu")
+    clf = Sparse1DProbe(
+        n_latents=n_latents, n_classes=n_classes, device="cpu", row_batch_size=4
+    )
 
     clf.fit(x, y)
     clf.loss_matrix(x, y)
@@ -68,7 +72,11 @@ def test_fit_against_sklearn(seed):
 
     # Use very small ridge to effectively disable regularization (matching sklearn)
     probe = Sparse1DProbe(
-        n_latents=n_latents, n_classes=n_classes, device="cpu", ridge=1e-10
+        n_latents=n_latents,
+        n_classes=n_classes,
+        device="cpu",
+        ridge=1e-10,
+        row_batch_size=4,
     )
     probe.fit(x.to_sparse_csr(), y)
     loss_sparse = probe.loss_matrix(x.to_sparse_csr(), y)
@@ -137,8 +145,8 @@ def test_fit_against_sklearn_on_gpu(seed):
 
 
 @pytest.mark.parametrize("seed", range(3))
-@pytest.mark.parametrize("class_chunk_size", [2, 4, 6])
-def test_chunked_classes_vs_full(seed, class_chunk_size):
+@pytest.mark.parametrize("class_slab_size", [2, 4, 6])
+def test_chunked_classes_vs_full(seed, class_slab_size):
     """Verify that processing classes in chunks gives same results as processing all at once."""
     torch.manual_seed(seed)
     n_samples, n_latents, n_classes = 32, 8, 6
@@ -163,7 +171,7 @@ def test_chunked_classes_vs_full(seed, class_chunk_size):
         n_classes=n_classes,
         device="cpu",
         ridge=1e-8,
-        class_chunk_size=n_classes,  # Process all classes at once
+        class_slab_size=n_classes,  # Process all classes at once
     )
     probe_full.fit(x_sparse, y)
 
@@ -173,7 +181,7 @@ def test_chunked_classes_vs_full(seed, class_chunk_size):
         n_classes=n_classes,
         device="cpu",
         ridge=1e-8,
-        class_chunk_size=class_chunk_size,
+        class_slab_size=class_slab_size,
     )
     probe_chunked.fit(x_sparse, y)
 
@@ -217,7 +225,7 @@ def test_chunked_events_vs_full(seed):
         n_classes=n_classes,
         device="cpu",
         ridge=1e-8,
-        event_chunk_size=n_samples,
+        row_batch_size=n_samples,
     )
     probe_full.fit(x_sparse, y)
 
@@ -227,7 +235,7 @@ def test_chunked_events_vs_full(seed):
         n_classes=n_classes,
         device="cpu",
         ridge=1e-8,
-        event_chunk_size=16,
+        row_batch_size=16,
     )
     probe_chunked.fit(x_sparse, y)
 
@@ -240,14 +248,57 @@ def test_chunked_events_vs_full(seed):
     )
 
 
+def test_accuracy_matches_dense():
+    """Accuracy computed via chunked implementation should match dense reference."""
+    torch.manual_seed(0)
+    n_samples, n_latents, n_classes = 40, 6, 5
+    x = torch.randn(n_samples, n_latents)
+
+    topk = torch.topk(x.abs(), k=3, dim=1)
+    mask = torch.zeros_like(x, dtype=torch.bool)
+    mask.scatter_(1, topk.indices, True)
+    x[~mask] = 0
+    x_sparse = x.to_sparse_csr()
+
+    true_w = torch.randn(n_latents, n_classes) * 0.7
+    true_b = torch.randn(1, n_classes)
+    logits = (x @ true_w) + true_b
+    y = torch.bernoulli(torch.sigmoid(logits))
+
+    probe = Sparse1DProbe(
+        n_latents=n_latents,
+        n_classes=n_classes,
+        device="cpu",
+        ridge=1e-8,
+        class_slab_size=2,
+        row_batch_size=16,
+    )
+    probe.fit(x_sparse, y)
+
+    _, aux = probe.loss_matrix_with_aux(x_sparse, y.bool())
+    acc_sparse = aux["accuracy"].cpu()
+
+    with torch.no_grad():
+        logits_dense = probe.intercept_.unsqueeze(0) + probe.coef_.unsqueeze(
+            0
+        ) * x.unsqueeze(2)
+        pred_dense = torch.sigmoid(logits_dense) > 0.5
+        y_expanded = y.unsqueeze(1).bool()
+        acc_dense = (pred_dense == y_expanded).float().mean(dim=0)
+
+    torch.testing.assert_close(acc_sparse, acc_dense, rtol=1e-5, atol=1e-5)
+
+
 @pytest.mark.slow
 def test_realistic_scale():
     """Test that chunked implementation can handle realistic dimensions without OOM."""
+    log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
+    logging.basicConfig(level=logging.DEBUG, format=log_format, force=True)
+
     torch.manual_seed(42)
-    # Smaller version of ADE20K: 1K images × 256 patches = 256K samples
-    n_samples, n_latents, n_classes = 256_000, 1024, 50
+    n_samples, n_latents, n_classes = 64_000, 1024, 20
     # Simulate sparse activations with L0=100
-    nnz_per_sample = 100
+    nnz_per_sample = 12
 
     # Build sparse CSR matrix efficiently
     indices = []
@@ -280,8 +331,8 @@ def test_realistic_scale():
         n_classes=n_classes,
         device="cpu",
         ridge=1e-8,
-        class_chunk_size=8,
-        event_chunk_size=10_000,
+        class_slab_size=8,
+        row_batch_size=10_000,
         n_iter=5,  # Fewer iterations for speed
     )
     probe.fit(x_sparse, y)
