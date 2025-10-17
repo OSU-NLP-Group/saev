@@ -53,6 +53,18 @@ class SparseEventsBatch(NamedTuple):
     row_idx: Int[Tensor, " event"]
 
 
+@dataclasses.dataclass
+class SlabStats:
+    g0: Float[Tensor, "n_latents c_b"]
+    g1: Float[Tensor, "n_latents c_b"]
+    h0: Float[Tensor, "n_latents c_b"]
+    h1: Float[Tensor, "n_latents c_b"]
+    h2: Float[Tensor, "n_latents c_b"]
+    loss_nz: Float[Tensor, "n_latents c_b"]
+    pos_nz: Float[Tensor, "n_latents c_b"]
+    mu_nz: Float[Tensor, "n_latents c_b"]
+
+
 class LMStepResult(NamedTuple):
     """Holds state returned by `_solve_lm_step`."""
 
@@ -64,6 +76,43 @@ class LMStepResult(NamedTuple):
     h2_eff: Float[Tensor, "n_latents c_b"]
     lambda_next: Float[Tensor, "n_latents c_b"]
     predicted_reduction: Float[Tensor, "n_latents c_b"]
+
+
+@dataclasses.dataclass
+class LMIterationContext:
+    class_range: tuple[int, int]
+    iteration: int
+    mean_loss_value: float
+    loss_slab: Float[Tensor, "n_latents c_b"]
+    stats: SlabStats
+    lambda_prev: Float[Tensor, "n_latents c_b"]
+    lambda_next: Float[Tensor, "n_latents c_b"]
+    db: Float[Tensor, "n_latents c_b"]
+    dw: Float[Tensor, "n_latents c_b"]
+    improved_mask: Tensor
+    curr_best_loss: Tensor
+    curr_best_latent_idx: Tensor
+    best_update_summary: list[str]
+    coef_slab: Float[Tensor, "n_latents c_b"]
+    intercept_slab: Float[Tensor, "n_latents c_b"]
+    nnz_per_latent: Tensor
+    mu_0: Float[Tensor, "n_latents c_b"]
+    n_zeros_per_latent: Float[Tensor, "n_latents 1"]
+    pi_slab_device: Tensor
+    lambda_step: LMStepResult
+
+
+@dataclasses.dataclass
+class IterationSummary:
+    class_range: tuple[int, int]
+    iteration: int
+    mean_loss: float
+    max_grad: float
+    max_update: float
+    lambda_min: float
+    lambda_max: float
+    predicted_reduction_max: float
+    predicted_reduction_mean: float
 
 
 @jaxtyped(typechecker=beartype.beartype)
@@ -96,6 +145,7 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
         lm_lambda_grow: float = 10.0,
         lm_lambda_min: float = 1e-12,
         lm_lambda_max: float = 1e12,
+        iteration_hook: tp.Callable[[IterationSummary], None] | None = None,
     ):
         if not 0.0 < lm_lambda_shrink < 1.0:
             msg = f"lm_lambda_shrink must be in (0,1), got {lm_lambda_shrink}."
@@ -129,6 +179,10 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
         self.lm_lambda_grow = lm_lambda_grow
         self.lm_lambda_min = lm_lambda_min
         self.lm_lambda_max = lm_lambda_max
+        self.iteration_hook = iteration_hook
+        self._quantile_targets = torch.tensor(
+            (0.5, 0.95), dtype=torch.float32, device="cpu"
+        )
 
     @torch.no_grad()
     def fit(
@@ -211,65 +265,33 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
                 mu_0 = torch.sigmoid(intercept_slab).clamp_(self.eps, 1 - self.eps)
                 s_0 = mu_0 * (1 - mu_0)
 
-                # All are R^{D x c_b}
-                mu_nz = torch.zeros_like(intercept_slab)
-                g1 = torch.zeros_like(intercept_slab)
-                h0 = torch.zeros_like(intercept_slab)
-                h1 = torch.zeros_like(intercept_slab)
-                h2 = torch.zeros_like(intercept_slab)
-                loss_nz = torch.zeros_like(mu_nz)
-                pos_nz = torch.zeros_like(mu_nz)
-
-                for batch in self._iter_sparse_events(x):
-                    values_E1 = batch.values[:, None]
-
-                    eta_EC = (
-                        self.intercept_[batch.latent_idx, c0:c1]
-                        + self.coef_[batch.latent_idx, c0:c1] * values_E1
-                    )
-                    mu_EC = torch.sigmoid(eta_EC).clamp_(self.eps, 1 - self.eps)
-                    s_EC = mu_EC * (1 - mu_EC)
-
-                    y_nz_EC = y_slab_device[batch.row_idx, :]
-
-                    residual_EC = mu_EC - y_nz_EC
-
-                    mu_nz.index_add_(0, batch.latent_idx, mu_EC)
-                    g1.index_add_(0, batch.latent_idx, residual_EC * values_E1)
-                    h0.index_add_(0, batch.latent_idx, s_EC)
-                    h1.index_add_(0, batch.latent_idx, s_EC * values_E1)
-                    h2.index_add_(0, batch.latent_idx, s_EC * (values_E1**2))
-                    nz_loss = -(
-                        y_nz_EC * torch.log(mu_EC) + (1 - y_nz_EC) * torch.log1p(-mu_EC)
-                    )
-                    loss_nz.index_add_(0, batch.latent_idx, nz_loss)
-                    pos_nz.index_add_(0, batch.latent_idx, y_nz_EC)
-
-                g0 = mu_nz + n_zeros_per_latent * mu_0 - pi_slab_device
-                g1 = g1 + self.ridge * coef_slab
-
-                h0 = h0 + n_zeros_per_latent * s_0 + self.ridge
-                h2 = h2 + self.ridge
-                mean_loss_value = float("nan")
+                stats = self._accumulate_slab_stats(
+                    x=x,
+                    y_slab=y_slab_device,
+                    intercept_slab=intercept_slab,
+                    coef_slab=coef_slab,
+                    mu_0=mu_0,
+                    s_0=s_0,
+                    n_zeros_per_latent=n_zeros_per_latent,
+                    pi_slab_device=pi_slab_device,
+                )
                 pos_zero = torch.clamp(
-                    pi_slab_device.view(1, n_classes_slab) - pos_nz, min=0.0
+                    pi_slab_device.view(1, n_classes_slab) - stats.pos_nz, min=0.0
                 )
                 pos_zero = torch.minimum(pos_zero, n_zeros_per_latent)
                 neg_zero = n_zeros_per_latent - pos_zero
                 zero_loss = -(
                     pos_zero * torch.log(mu_0) + neg_zero * torch.log1p(-mu_0)
                 )
-                loss_slab = (loss_nz + zero_loss) / n_samples_f
+                loss_slab = (stats.loss_nz + zero_loss) / n_samples_f
                 mean_loss_value = loss_slab.mean().item()
 
                 lambda_prev = lambda_slab.clone()
-                lm_step = self._solve_lm_step(g0, g1, h0, h1, h2, lambda_prev)
+                lm_step = self._solve_lm_step(
+                    stats.g0, stats.g1, stats.h0, stats.h1, stats.h2, lambda_prev
+                )
                 db = lm_step.db
                 dw = lm_step.dw
-                det_h = lm_step.det_h
-                det_h_raw = lm_step.det_h_raw
-                h0 = lm_step.h0_eff
-                h2 = lm_step.h2_eff
                 lambda_slab = lm_step.lambda_next
 
                 curr_best_loss, curr_best_latent_idx = loss_slab.min(dim=0)
@@ -277,59 +299,46 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
                     curr_best_latent_idx != best_latent_per_class,
                     curr_best_loss + 1e-6 < best_loss_per_class,
                 )
-                if improved_mask.any():
-                    class_idx_vec = torch.arange(
-                        n_classes_slab, device=device, dtype=torch.int64
-                    )
-                    selected_coef = coef_slab[curr_best_latent_idx, class_idx_vec]
-                    selected_intercept = intercept_slab[
-                        curr_best_latent_idx, class_idx_vec
-                    ]
-                    best_loss_per_class = torch.where(
-                        improved_mask, curr_best_loss, best_loss_per_class
-                    )
-                    best_latent_per_class = torch.where(
-                        improved_mask, curr_best_latent_idx, best_latent_per_class
-                    )
-                    best_coef_per_class = torch.where(
-                        improved_mask, selected_coef, best_coef_per_class
-                    )
-                    best_intercept_per_class = torch.where(
-                        improved_mask, selected_intercept, best_intercept_per_class
-                    )
-
-                intercept_slab -= db
-                coef_slab -= dw
-
-                max_grad_val, max_update_val = self._log_lm_step(
-                    c0=c0,
-                    c1=c1,
-                    iteration=it,
-                    loss_slab=loss_slab,
-                    mean_loss_value=mean_loss_value,
-                    g0=g0,
-                    g1=g1,
-                    db=db,
-                    dw=dw,
-                    det_h_raw=det_h_raw,
-                    det_h=det_h,
-                    h0=h0,
-                    h1=h1,
-                    h2=h2,
-                    lambda_prev=lambda_prev,
-                    lambda_next=lambda_slab,
-                    improved_mask=improved_mask,
+                best_update_summary = self._update_best_latents(
+                    best_loss_per_class=best_loss_per_class,
+                    best_latent_per_class=best_latent_per_class,
+                    best_coef_per_class=best_coef_per_class,
+                    best_intercept_per_class=best_intercept_per_class,
                     curr_best_loss=curr_best_loss,
                     curr_best_latent_idx=curr_best_latent_idx,
                     coef_slab=coef_slab,
                     intercept_slab=intercept_slab,
+                    improved_mask=improved_mask,
+                    global_class_start=c0,
+                )
+
+                intercept_slab -= db
+                coef_slab -= dw
+
+                context = LMIterationContext(
+                    class_range=(c0, c1),
+                    iteration=it,
+                    mean_loss_value=mean_loss_value,
+                    loss_slab=loss_slab,
+                    stats=stats,
+                    lambda_prev=lambda_prev,
+                    lambda_next=lambda_slab,
+                    db=db,
+                    dw=dw,
+                    improved_mask=improved_mask,
+                    curr_best_loss=curr_best_loss,
+                    curr_best_latent_idx=curr_best_latent_idx,
+                    best_update_summary=best_update_summary,
+                    coef_slab=coef_slab,
+                    intercept_slab=intercept_slab,
                     nnz_per_latent=nnz_per_latent,
-                    mu_nz=mu_nz,
                     mu_0=mu_0,
                     n_zeros_per_latent=n_zeros_per_latent,
                     pi_slab_device=pi_slab_device,
                     lambda_step=lm_step,
                 )
+
+                max_grad_val, max_update_val = self._log_lm_step(context)
 
                 if not check_convergence:
                     continue
@@ -421,6 +430,68 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
                 row_idx=row_idx,
             )
 
+    def _accumulate_slab_stats(
+        self,
+        *,
+        x: Float[Tensor, "n_samples n_latents"],
+        y_slab: Float[Tensor, "n_samples c_b"],
+        intercept_slab: Float[Tensor, "n_latents c_b"],
+        coef_slab: Float[Tensor, "n_latents c_b"],
+        mu_0: Float[Tensor, "n_latents c_b"],
+        s_0: Float[Tensor, "n_latents c_b"],
+        n_zeros_per_latent: Float[Tensor, "n_latents 1"],
+        pi_slab_device: Tensor,
+    ) -> SlabStats:
+        """Compute per-latent statistics for a class slab."""
+
+        mu_nz = torch.zeros_like(intercept_slab)
+        g1 = torch.zeros_like(intercept_slab)
+        h0 = torch.zeros_like(intercept_slab)
+        h1 = torch.zeros_like(intercept_slab)
+        h2 = torch.zeros_like(intercept_slab)
+        loss_nz = torch.zeros_like(intercept_slab)
+        pos_nz = torch.zeros_like(intercept_slab)
+
+        for batch in self._iter_sparse_events(x):
+            values_E1 = batch.values[:, None]
+
+            eta_EC = (
+                intercept_slab[batch.latent_idx]
+                + coef_slab[batch.latent_idx] * values_E1
+            )
+            mu_EC = torch.sigmoid(eta_EC).clamp_(self.eps, 1 - self.eps)
+            s_EC = mu_EC * (1 - mu_EC)
+
+            y_nz_EC = y_slab[batch.row_idx]
+            residual_EC = mu_EC - y_nz_EC
+
+            mu_nz.index_add_(0, batch.latent_idx, mu_EC)
+            g1.index_add_(0, batch.latent_idx, residual_EC * values_E1)
+            h0.index_add_(0, batch.latent_idx, s_EC)
+            h1.index_add_(0, batch.latent_idx, s_EC * values_E1)
+            h2.index_add_(0, batch.latent_idx, s_EC * (values_E1**2))
+            nz_loss = -(
+                y_nz_EC * torch.log(mu_EC) + (1 - y_nz_EC) * torch.log1p(-mu_EC)
+            )
+            loss_nz.index_add_(0, batch.latent_idx, nz_loss)
+            pos_nz.index_add_(0, batch.latent_idx, y_nz_EC)
+
+        g0 = mu_nz + n_zeros_per_latent * mu_0 - pi_slab_device.view(1, -1)
+        g1 = g1 + self.ridge * coef_slab
+        h0 = h0 + n_zeros_per_latent * s_0 + self.ridge
+        h2 = h2 + self.ridge
+
+        return SlabStats(
+            g0=g0,
+            g1=g1,
+            h0=h0,
+            h1=h1,
+            h2=h2,
+            loss_nz=loss_nz,
+            pos_nz=pos_nz,
+            mu_nz=mu_nz,
+        )
+
     def _solve_lm_step(
         self,
         g0: Float[Tensor, "n_latents c_b"],
@@ -475,45 +546,67 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
             predicted_reduction=predicted_reduction,
         )
 
-    def _log_lm_step(
+    def _update_best_latents(
         self,
         *,
-        c0: int,
-        c1: int,
-        iteration: int,
-        loss_slab: Float[Tensor, "n_latents c_b"],
-        mean_loss_value: float,
-        g0: Float[Tensor, "n_latents c_b"],
-        g1: Float[Tensor, "n_latents c_b"],
-        db: Float[Tensor, "n_latents c_b"],
-        dw: Float[Tensor, "n_latents c_b"],
-        det_h_raw: Float[Tensor, "n_latents c_b"],
-        det_h: Float[Tensor, "n_latents c_b"],
-        h0: Float[Tensor, "n_latents c_b"],
-        h1: Float[Tensor, "n_latents c_b"],
-        h2: Float[Tensor, "n_latents c_b"],
-        lambda_prev: Float[Tensor, "n_latents c_b"],
-        lambda_next: Float[Tensor, "n_latents c_b"],
-        improved_mask: Tensor,
+        best_loss_per_class: Tensor,
+        best_latent_per_class: Tensor,
+        best_coef_per_class: Tensor,
+        best_intercept_per_class: Tensor,
         curr_best_loss: Tensor,
         curr_best_latent_idx: Tensor,
         coef_slab: Float[Tensor, "n_latents c_b"],
         intercept_slab: Float[Tensor, "n_latents c_b"],
-        nnz_per_latent: Tensor,
-        mu_nz: Float[Tensor, "n_latents c_b"],
-        mu_0: Float[Tensor, "n_latents c_b"],
-        n_zeros_per_latent: Float[Tensor, "n_latents 1"],
-        pi_slab_device: Tensor,
-        lambda_step: LMStepResult,
-    ) -> tuple[float, float]:
+        improved_mask: Tensor,
+        global_class_start: int,
+    ) -> list[str]:
+        if not bool(improved_mask.any()):
+            return []
+
+        improved_offsets = torch.nonzero(improved_mask, as_tuple=False).flatten()
+        best_loss_per_class.index_copy_(
+            0, improved_offsets, curr_best_loss.index_select(0, improved_offsets)
+        )
+        best_latent_per_class.index_copy_(
+            0,
+            improved_offsets,
+            curr_best_latent_idx.index_select(0, improved_offsets),
+        )
+
+        gathered_latents = curr_best_latent_idx.index_select(0, improved_offsets)
+        best_coef_values = coef_slab[gathered_latents, improved_offsets]
+        best_intercept_values = intercept_slab[gathered_latents, improved_offsets]
+
+        best_coef_per_class.index_copy_(0, improved_offsets, best_coef_values)
+        best_intercept_per_class.index_copy_(0, improved_offsets, best_intercept_values)
+
+        summaries: list[str] = []
+        losses_improved = curr_best_loss.index_select(0, improved_offsets)
+        limit = min(4, int(improved_offsets.numel()))
+        for offset_tensor, latent_tensor, loss_tensor in zip(
+            improved_offsets[:limit].tolist(),
+            gathered_latents[:limit].tolist(),
+            losses_improved[:limit].tolist(),
+        ):
+            class_idx = global_class_start + offset_tensor
+            summaries.append(f"{class_idx}->{latent_tensor} loss={loss_tensor:.6f}")
+
+        remaining = int(improved_offsets.numel())
+        if remaining > limit:
+            summaries.append(f"+{remaining - limit} more")
+
+        return summaries
+
+    def _log_lm_step(self, ctx: LMIterationContext) -> tuple[float, float]:
         logger = self.logger
         need_info = logger.isEnabledFor(logging.INFO)
         need_debug = logger.isEnabledFor(logging.DEBUG)
 
-        abs_g0 = g0.abs()
-        abs_g1 = g1.abs()
-        abs_db = db.abs()
-        abs_dw = dw.abs()
+        stats = ctx.stats
+        abs_g0 = stats.g0.abs()
+        abs_g1 = stats.g1.abs()
+        abs_db = ctx.db.abs()
+        abs_dw = ctx.dw.abs()
 
         g0_flat = abs_g0.view(-1)
         g1_flat = abs_g1.view(-1)
@@ -528,8 +621,8 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
         max_grad_val = torch.stack((max_g0_val, max_g1_val)).max().item()
         max_update_val = torch.stack((max_db_val, max_dw_val)).max().item()
 
-        lambda_min_value = lambda_next.min().item()
-        lambda_max_value = lambda_next.max().item()
+        lambda_min_value = ctx.lambda_next.min().item()
+        lambda_max_value = ctx.lambda_next.max().item()
 
         if need_info:
             logger.info(
@@ -537,34 +630,41 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
                     "Classes %s:%s at iteration %s: loss=%.6f, grad=%s, update=%s "
                     "lambda=[%.3e, %.3e]"
                 ),
-                c0,
-                c1,
-                iteration,
-                mean_loss_value,
+                ctx.class_range[0],
+                ctx.class_range[1],
+                ctx.iteration,
+                ctx.mean_loss_value,
                 max_grad_val,
                 max_update_val,
                 lambda_min_value,
                 lambda_max_value,
             )
-            if improved_mask.any():
-                improved_classes = torch.nonzero(
-                    improved_mask, as_tuple=False
-                ).flatten()
-                max_report = min(4, int(improved_classes.numel()))
-                summary_parts: list[str] = []
-                for idx in improved_classes[:max_report]:
-                    class_idx = c0 + int(idx.item())
-                    latent_idx = int(curr_best_latent_idx[idx].item())
-                    summary_parts.append(
-                        f"{class_idx}->{latent_idx} loss={curr_best_loss[idx].item():.6f}"
-                    )
-                if improved_classes.numel() > max_report:
-                    remaining = int(improved_classes.numel() - max_report)
-                    summary_parts.append(f"+{remaining} more")
-                logger.info("improved_best_latents %s", ", ".join(summary_parts))
+            if ctx.best_update_summary:
+                logger.info(
+                    "improved_best_latents %s", ", ".join(ctx.best_update_summary)
+                )
 
+        summary = IterationSummary(
+            class_range=ctx.class_range,
+            iteration=ctx.iteration,
+            mean_loss=ctx.mean_loss_value,
+            max_grad=max_grad_val,
+            max_update=max_update_val,
+            lambda_min=lambda_min_value,
+            lambda_max=lambda_max_value,
+            predicted_reduction_max=float(
+                ctx.lambda_step.predicted_reduction.max().item()
+            ),
+            predicted_reduction_mean=float(
+                ctx.lambda_step.predicted_reduction.mean().item()
+            ),
+        )
+        if self.iteration_hook is not None:
+            self.iteration_hook(summary)
+
+        result = (max_grad_val, max_update_val)
         if not need_debug:
-            return max_grad_val, max_update_val
+            return result
 
         grad_source_is_g0 = max_g0_val >= max_g1_val
         update_source_is_db = max_db_val >= max_dw_val
@@ -581,64 +681,88 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
         update_latent_idx = int(update_idx[0])
         update_class_offset = int(update_idx[1])
 
-        grad_class_idx = c0 + grad_class_offset
-        update_class_idx = c0 + update_class_offset
+        grad_class_idx = ctx.class_range[0] + grad_class_offset
+        update_class_idx = ctx.class_range[0] + update_class_offset
 
-        grad_coef_value = coef_slab[grad_latent_idx, grad_class_offset].item()
-        grad_intercept_value = intercept_slab[grad_latent_idx, grad_class_offset].item()
-        grad_loss_value = loss_slab[grad_latent_idx, grad_class_offset].item()
-        grad_det_raw = det_h_raw[grad_latent_idx, grad_class_offset].item()
-        grad_det_clamped = det_h[grad_latent_idx, grad_class_offset].item()
-        grad_nnz = nnz_per_latent[grad_latent_idx].item()
-        grad_g0_value = g0[grad_latent_idx, grad_class_offset].item()
-        grad_mu_nz_value = mu_nz[grad_latent_idx, grad_class_offset].item()
-        grad_mu0_value = mu_0[grad_latent_idx, grad_class_offset].item()
-        grad_n_zeros_value = n_zeros_per_latent[grad_latent_idx, 0].item()
+        grad_coef_value = ctx.coef_slab[grad_latent_idx, grad_class_offset].item()
+        grad_intercept_value = ctx.intercept_slab[
+            grad_latent_idx, grad_class_offset
+        ].item()
+        grad_loss_value = ctx.loss_slab[grad_latent_idx, grad_class_offset].item()
+        grad_det_raw = ctx.lambda_step.det_h_raw[
+            grad_latent_idx, grad_class_offset
+        ].item()
+        grad_det_clamped = ctx.lambda_step.det_h[
+            grad_latent_idx, grad_class_offset
+        ].item()
+        grad_nnz = ctx.nnz_per_latent[grad_latent_idx].item()
+        grad_g0_value = stats.g0[grad_latent_idx, grad_class_offset].item()
+        grad_mu_nz_value = stats.mu_nz[grad_latent_idx, grad_class_offset].item()
+        grad_mu0_value = ctx.mu_0[grad_latent_idx, grad_class_offset].item()
+        grad_n_zeros_value = ctx.n_zeros_per_latent[grad_latent_idx, 0].item()
         grad_g0_zero_value = grad_n_zeros_value * grad_mu0_value
-        grad_pi_value = pi_slab_device[grad_class_offset].item()
-        grad_g1_value = g1[grad_latent_idx, grad_class_offset].item()
+        grad_pi_value = ctx.pi_slab_device[grad_class_offset].item()
+        grad_g1_value = stats.g1[grad_latent_idx, grad_class_offset].item()
         grad_g1_ridge_value = self.ridge * grad_coef_value
         grad_g1_nz_value = grad_g1_value - grad_g1_ridge_value
-        grad_h0_value = h0[grad_latent_idx, grad_class_offset].item()
-        grad_h1_value = h1[grad_latent_idx, grad_class_offset].item()
-        grad_h2_value = h2[grad_latent_idx, grad_class_offset].item()
-        grad_lambda_value = lambda_prev[grad_latent_idx, grad_class_offset].item()
+        grad_h0_value = ctx.lambda_step.h0_eff[
+            grad_latent_idx, grad_class_offset
+        ].item()
+        grad_h1_value = stats.h1[grad_latent_idx, grad_class_offset].item()
+        grad_h2_value = ctx.lambda_step.h2_eff[
+            grad_latent_idx, grad_class_offset
+        ].item()
+        grad_lambda_value = ctx.lambda_prev[grad_latent_idx, grad_class_offset].item()
 
-        update_coef_value = coef_slab[update_latent_idx, update_class_offset].item()
-        update_intercept_value = intercept_slab[
+        update_coef_value = ctx.coef_slab[update_latent_idx, update_class_offset].item()
+        update_intercept_value = ctx.intercept_slab[
             update_latent_idx, update_class_offset
         ].item()
-        update_loss_value = loss_slab[update_latent_idx, update_class_offset].item()
-        update_det_raw = det_h_raw[update_latent_idx, update_class_offset].item()
-        update_det_clamped = det_h[update_latent_idx, update_class_offset].item()
-        update_nnz = nnz_per_latent[update_latent_idx].item()
-        update_g0_value = g0[update_latent_idx, update_class_offset].item()
-        update_mu_nz_value = mu_nz[update_latent_idx, update_class_offset].item()
-        update_mu0_value = mu_0[update_latent_idx, update_class_offset].item()
-        update_n_zeros_value = n_zeros_per_latent[update_latent_idx, 0].item()
+        update_loss_value = ctx.loss_slab[update_latent_idx, update_class_offset].item()
+        update_det_raw = ctx.lambda_step.det_h_raw[
+            update_latent_idx, update_class_offset
+        ].item()
+        update_det_clamped = ctx.lambda_step.det_h[
+            update_latent_idx, update_class_offset
+        ].item()
+        update_nnz = ctx.nnz_per_latent[update_latent_idx].item()
+        update_g0_value = stats.g0[update_latent_idx, update_class_offset].item()
+        update_mu_nz_value = stats.mu_nz[update_latent_idx, update_class_offset].item()
+        update_mu0_value = ctx.mu_0[update_latent_idx, update_class_offset].item()
+        update_n_zeros_value = ctx.n_zeros_per_latent[update_latent_idx, 0].item()
         update_g0_zero_value = update_n_zeros_value * update_mu0_value
-        update_pi_value = pi_slab_device[update_class_offset].item()
-        update_g1_value = g1[update_latent_idx, update_class_offset].item()
+        update_pi_value = ctx.pi_slab_device[update_class_offset].item()
+        update_g1_value = stats.g1[update_latent_idx, update_class_offset].item()
         update_g1_ridge_value = self.ridge * update_coef_value
         update_g1_nz_value = update_g1_value - update_g1_ridge_value
-        update_h0_value = h0[update_latent_idx, update_class_offset].item()
-        update_h1_value = h1[update_latent_idx, update_class_offset].item()
-        update_h2_value = h2[update_latent_idx, update_class_offset].item()
-        update_lambda_value = lambda_prev[update_latent_idx, update_class_offset].item()
-        update_db_value = db[update_latent_idx, update_class_offset].item()
-        update_dw_value = dw[update_latent_idx, update_class_offset].item()
+        update_h0_value = ctx.lambda_step.h0_eff[
+            update_latent_idx, update_class_offset
+        ].item()
+        update_h1_value = stats.h1[update_latent_idx, update_class_offset].item()
+        update_h2_value = ctx.lambda_step.h2_eff[
+            update_latent_idx, update_class_offset
+        ].item()
+        update_lambda_value = ctx.lambda_prev[
+            update_latent_idx, update_class_offset
+        ].item()
+        update_db_value = ctx.db[update_latent_idx, update_class_offset].item()
+        update_dw_value = ctx.dw[update_latent_idx, update_class_offset].item()
 
-        quantile_targets = torch.tensor((0.5, 0.95), device=g0.device, dtype=g0.dtype)
+        quantile_targets = self._quantile_targets.to(
+            device=stats.g0.device, dtype=stats.g0.dtype
+        )
         g0_quantiles = torch.quantile(g0_flat, quantile_targets).tolist()
         g1_quantiles = torch.quantile(g1_flat, quantile_targets).tolist()
-        loss_quantiles = torch.quantile(loss_slab.view(-1), quantile_targets).tolist()
+        loss_quantiles = torch.quantile(
+            ctx.loss_slab.view(-1), quantile_targets
+        ).tolist()
 
         logger.debug(
             "Classes %s:%s predicted_reduction max=%s mean=%s",
-            c0,
-            c1,
-            float(lambda_step.predicted_reduction.max().item()),
-            float(lambda_step.predicted_reduction.mean().item()),
+            ctx.class_range[0],
+            ctx.class_range[1],
+            float(ctx.lambda_step.predicted_reduction.max().item()),
+            float(ctx.lambda_step.predicted_reduction.mean().item()),
         )
         logger.debug(
             "worst_grad source=%s latent=%s class=%s nnz=%s coef=%s intercept=%s "
@@ -707,7 +831,7 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
             update_dw_value,
         )
 
-        return max_grad_val, max_update_val
+        return result
 
     def _compute_loss_slab(
         self,
