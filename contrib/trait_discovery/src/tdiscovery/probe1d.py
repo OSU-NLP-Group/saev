@@ -55,6 +55,19 @@ class SparseEventsBatch(NamedTuple):
 
 @dataclasses.dataclass
 class SlabStats:
+    """Aggregated Newton statistics for a `(latent, class)` slab.
+
+    Attributes:
+        g0: Gradient of the intercept component.
+        g1: Gradient of the weight component.
+        h0: Hessian entry for intercept x intercept.
+        h1: Hessian entry for intercept x weight.
+        h2: Hessian entry for weight x weight.
+        loss_nz: Sum of negative log-likelihood over non-zero events.
+        pos_nz: Count of positive labels observed in non-zero events.
+        mu_nz: Sum of predicted probabilities on non-zero events.
+    """
+
     g0: Float[Tensor, "n_latents c_b"]
     g1: Float[Tensor, "n_latents c_b"]
     h0: Float[Tensor, "n_latents c_b"]
@@ -80,6 +93,31 @@ class LMStepResult(NamedTuple):
 
 @dataclasses.dataclass
 class LMIterationContext:
+    """Snapshot of state passed to `_log_lm_step` for reporting.
+
+    Attributes:
+        class_range: Inclusive/exclusive class indices `(c0, c1)` for this slab.
+        iteration: Zero-based iteration counter within the slab loop.
+        mean_loss_value: Mean NLL across the slab at this iteration.
+        loss_slab: Full loss matrix for this slab.
+        stats: Newton statistics accumulated by `_accumulate_slab_stats`.
+        lambda_prev: Damping tensor before the LM update.
+        lambda_next: Damping tensor after the LM update.
+        db: Newton update for intercepts.
+        dw: Newton update for coefficients.
+        improved_mask: Boolean mask of classes whose best latent improved.
+        curr_best_loss: Current best losses per class within the slab.
+        curr_best_latent_idx: Indices of the best latent per class.
+        best_update_summary: Human-readable summaries of improvements.
+        coef_slab: Coefficient slice for the slab (post-update).
+        intercept_slab: Intercept slice for the slab (post-update).
+        nnz_per_latent: Non-zero counts per latent.
+        mu_0: Predicted probability for zero activations.
+        n_zeros_per_latent: Count of implicit zeros per latent.
+        pi_slab_device: Positive counts per class on device.
+        lambda_step: Result of `_solve_lm_step` for further diagnostics.
+    """
+
     class_range: tuple[int, int]
     iteration: int
     mean_loss_value: float
@@ -104,6 +142,12 @@ class LMIterationContext:
 
 @dataclasses.dataclass
 class IterationSummary:
+    """Lightweight iteration metrics emitted via `iteration_hook`.
+
+    Attributes map one-to-one with the values logged inside `_log_lm_step` so
+    external consumers can record convergence traces without parsing logs.
+    """
+
     class_range: tuple[int, int]
     iteration: int
     mean_loss: float
@@ -442,7 +486,21 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
         n_zeros_per_latent: Float[Tensor, "n_latents 1"],
         pi_slab_device: Tensor,
     ) -> SlabStats:
-        """Compute per-latent statistics for a class slab."""
+        """Compute per-latent Newton statistics for a class slab.
+
+        Args:
+            x: Sparse CSR activations for all samples.
+            y_slab: Dense label matrix for the current class slab.
+            intercept_slab: Intercept parameters for the slab.
+            coef_slab: Coefficient parameters for the slab.
+            mu_0: Sigmoid of intercepts reused for zero activations.
+            s_0: Variance term `mu_0 * (1 - mu_0)` for zeros.
+            n_zeros_per_latent: Count of implicit zeros per latent.
+            pi_slab_device: Positive label counts per class on device.
+
+        Returns:
+            SlabStats populated with gradients, Hessians, and auxiliary sums.
+        """
 
         mu_nz = torch.zeros_like(intercept_slab)
         g1 = torch.zeros_like(intercept_slab)
@@ -501,7 +559,19 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
         h2: Float[Tensor, "n_latents c_b"],
         lambda_prev: Float[Tensor, "n_latents c_b"],
     ) -> LMStepResult:
-        """Solve the LM-damped Newton system and adapt the damping parameter."""
+        """Solve the LM-damped Newton system and adapt the damping parameter.
+
+        Args:
+            g0: Gradients w.r.t. intercepts.
+            g1: Gradients w.r.t. weights.
+            h0: Intercept-intercept Hessian entries.
+            h1: Intercept-weight Hessian entries.
+            h2: Weight-weight Hessian entries.
+            lambda_prev: Damping parameter from the previous iteration.
+
+        Returns:
+            LMStepResult containing the Newton step, Hessians, and next damping.
+        """
 
         det_h_raw = h0 * h2 - h1 * h1
 
@@ -560,6 +630,8 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
         improved_mask: Tensor,
         global_class_start: int,
     ) -> list[str]:
+        """Update running best latents per class and summarize improvements."""
+
         if not bool(improved_mask.any()):
             return []
 
@@ -598,6 +670,14 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
         return summaries
 
     def _log_lm_step(self, ctx: LMIterationContext) -> tuple[float, float]:
+        """Emit diagnostics for a single LM iteration.
+
+        Args:
+            ctx: Snapshot containing tensors and metadata for logging.
+
+        Returns:
+            tuple[float, float]: Max gradient magnitude and max update magnitude.
+        """
         logger = self.logger
         need_info = logger.isEnabledFor(logging.INFO)
         need_debug = logger.isEnabledFor(logging.DEBUG)
