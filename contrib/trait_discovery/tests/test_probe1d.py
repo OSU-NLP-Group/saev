@@ -1,16 +1,55 @@
 """Unit tests for 1D probe training."""
 
 import logging
+import warnings
 
 import numpy as np
 import pytest
 import torch
+import torch.nn.functional as F
+from sklearn.exceptions import ConvergenceWarning
 from sklearn.linear_model import LogisticRegression
 from tdiscovery.probe1d import Sparse1DProbe
 
 cuda_available = pytest.mark.skipif(
     not torch.cuda.is_available(), reason="requires GPU"
 )
+
+
+def _train_probe_and_sklearn(
+    x_dense: torch.Tensor,
+    y: torch.Tensor,
+    *,
+    ridge: float = 1e-8,
+    n_iter: int = 80,
+    lm_max_update: float = 8.0,
+) -> tuple[Sparse1DProbe, LogisticRegression]:
+    x_sparse = x_dense.to_sparse_csr()
+    probe = Sparse1DProbe(
+        n_latents=x_dense.shape[1],
+        n_classes=y.shape[1],
+        device="cpu",
+        ridge=ridge,
+        n_iter=n_iter,
+        row_batch_size=256,
+        class_slab_size=y.shape[1],
+        lm_max_update=lm_max_update,
+    )
+    probe.logger.setLevel(logging.ERROR)
+    probe.fit(x_sparse, y.to(torch.float32))
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=ConvergenceWarning)
+        lr = LogisticRegression(
+            fit_intercept=True,
+            solver="lbfgs",
+            C=1e10,
+            max_iter=2000,
+        )
+        lr.fit(
+            x_dense.numpy(),
+            y.squeeze(1).numpy(),
+        )
+    return probe, lr
 
 
 def test_fit_smoke():
@@ -142,6 +181,90 @@ def test_fit_against_sklearn_on_gpu(seed):
         rtol=1e-4,
         atol=1e-4,
     )
+
+
+def test_ill_conditioned_extreme_intercept_matches_sklearn():
+    torch.manual_seed(0)
+    n_samples = 256
+    x_dense = torch.zeros(n_samples, 1, dtype=torch.float32)
+
+    active_idx = torch.randperm(n_samples)[:48]
+    x_dense[active_idx, 0] = 1.8 + 0.4 * torch.randn(active_idx.shape[0])
+
+    logits_true = -2.8 + 2.0 * x_dense[:, 0]
+    probs = torch.sigmoid(logits_true)
+    y = torch.bernoulli(probs).unsqueeze(1)
+    if int(y.sum().item()) == 0:
+        y[active_idx[0], 0] = 1.0
+    if int((y == 0).sum().item()) == 0:
+        zero_idx = torch.randint(0, n_samples, (1,)).item()
+        y[zero_idx, 0] = 0.0
+
+    probe, lr = _train_probe_and_sklearn(x_dense, y, n_iter=12)
+
+    w_probe = probe.coef_[0, 0].item()
+    b_probe = probe.intercept_[0, 0].item()
+
+    w_ref = float(lr.coef_[0, 0])
+    b_ref = float(lr.intercept_[0])
+
+    np.testing.assert_allclose(w_probe, w_ref, rtol=5e-2, atol=5e-2)
+    np.testing.assert_allclose(b_probe, b_ref, rtol=5e-2, atol=5e-2)
+
+    logits_probe = b_probe + w_probe * x_dense[:, 0]
+    logits_ref = b_ref + w_ref * x_dense[:, 0]
+    loss_probe = F.binary_cross_entropy_with_logits(
+        logits_probe, y.squeeze(1), reduction="mean"
+    )
+    loss_ref = F.binary_cross_entropy_with_logits(
+        logits_ref, y.squeeze(1), reduction="mean"
+    )
+    torch.testing.assert_close(loss_probe, loss_ref, rtol=1e-3, atol=1e-4)
+
+
+def test_ill_conditioned_large_scale_matches_sklearn():
+    torch.manual_seed(1)
+    n_samples = 256
+    x_dense = torch.empty(n_samples, 1, dtype=torch.float32)
+
+    signs = torch.bernoulli(torch.full((n_samples,), 0.35)).bool()
+    large_value = 200.0
+    x_dense[:, 0] = torch.where(
+        signs,
+        torch.full((n_samples,), large_value, dtype=torch.float32),
+        torch.full((n_samples,), -large_value, dtype=torch.float32),
+    )
+    x_dense[:, 0] += 0.5 * torch.randn(n_samples)
+
+    logits_true = 0.2 + 0.01 * x_dense[:, 0]
+    probs = torch.sigmoid(logits_true).clamp(1e-6, 1 - 1e-6)
+    y = torch.bernoulli(probs).unsqueeze(1)
+    if int(y.sum().item()) == 0:
+        y[0, 0] = 1.0
+    if int((y == 0).sum().item()) == 0:
+        zero_idx = torch.randint(0, n_samples, (1,)).item()
+        y[zero_idx, 0] = 0.0
+
+    probe, lr = _train_probe_and_sklearn(x_dense, y, n_iter=15)
+
+    w_probe = probe.coef_[0, 0].item()
+    b_probe = probe.intercept_[0, 0].item()
+
+    w_ref = float(lr.coef_[0, 0])
+    b_ref = float(lr.intercept_[0])
+
+    np.testing.assert_allclose(w_probe, w_ref, rtol=5e-2, atol=5e-2)
+    np.testing.assert_allclose(b_probe, b_ref, rtol=5e-2, atol=5e-2)
+
+    logits_probe = b_probe + w_probe * x_dense[:, 0]
+    logits_ref = b_ref + w_ref * x_dense[:, 0]
+    loss_probe = F.binary_cross_entropy_with_logits(
+        logits_probe, y.squeeze(1), reduction="mean"
+    )
+    loss_ref = F.binary_cross_entropy_with_logits(
+        logits_ref, y.squeeze(1), reduction="mean"
+    )
+    torch.testing.assert_close(loss_probe, loss_ref, rtol=1e-3, atol=1e-4)
 
 
 @pytest.mark.parametrize("seed", range(3))
@@ -568,6 +691,30 @@ def test_chunked_events_vs_full(seed):
     torch.testing.assert_close(
         probe_full.intercept_, probe_chunked.intercept_, rtol=1e-3, atol=1e-3
     )
+
+
+def test_lm_step_caps_huge_updates():
+    probe = Sparse1DProbe(
+        n_latents=1,
+        n_classes=1,
+        device="cpu",
+        lm_max_update=10.0,
+        lm_max_adapt_iters=3,
+    )
+
+    g0 = torch.tensor([[5.0e6]], dtype=torch.float32)
+    g1 = torch.zeros_like(g0)
+    h0 = torch.tensor([[0.5]], dtype=torch.float32)
+    h1 = torch.zeros_like(g0)
+    h2 = torch.tensor([[1.0]], dtype=torch.float32)
+    lambda_prev = torch.full_like(g0, probe.lm_lambda_init)
+
+    step = probe._solve_lm_step(g0, g1, h0, h1, h2, lambda_prev)
+
+    assert torch.all(step.db.abs() <= 10.0001)
+    assert torch.all(step.dw.abs() <= 10.0001)
+    assert torch.all(step.clipped_mask)
+    assert torch.all(step.lambda_next >= lambda_prev)
 
 
 @pytest.mark.slow

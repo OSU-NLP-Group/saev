@@ -83,6 +83,7 @@ class LMStepResult(NamedTuple):
 
     db: Float[Tensor, "n_latents c_b"]
     dw: Float[Tensor, "n_latents c_b"]
+    clipped_mask: Bool[Tensor, "n_latents c_b"]
     det_h: Float[Tensor, "n_latents c_b"]
     det_h_raw: Float[Tensor, "n_latents c_b"]
     h0_eff: Float[Tensor, "n_latents c_b"]
@@ -189,6 +190,8 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
         lm_lambda_grow: float = 10.0,
         lm_lambda_min: float = 1e-12,
         lm_lambda_max: float = 1e12,
+        lm_max_update: float = 50.0,
+        lm_max_adapt_iters: int = 6,
         iteration_hook: tp.Callable[[IterationSummary], None] | None = None,
     ):
         if not 0.0 < lm_lambda_shrink < 1.0:
@@ -205,6 +208,12 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
                 f"lm_lambda_max must be >= lm_lambda_min, "
                 f"got {lm_lambda_max} < {lm_lambda_min}."
             )
+            raise ValueError(msg)
+        if not lm_max_update > 0:
+            msg = f"lm_max_update must be >0, got {lm_max_update}."
+            raise ValueError(msg)
+        if lm_max_adapt_iters <= 0:
+            msg = f"lm_max_adapt_iters must be positive, got {lm_max_adapt_iters}."
             raise ValueError(msg)
 
         self.n_latents = n_latents
@@ -223,6 +232,8 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
         self.lm_lambda_grow = lm_lambda_grow
         self.lm_lambda_min = lm_lambda_min
         self.lm_lambda_max = lm_lambda_max
+        self.lm_max_update = lm_max_update
+        self.lm_max_adapt_iters = lm_max_adapt_iters
         self.iteration_hook = iteration_hook
         self._quantile_targets = torch.tensor(
             (0.5, 0.95), dtype=torch.float32, device="cpu"
@@ -574,44 +585,131 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
         """
 
         det_h_raw = h0 * h2 - h1 * h1
-
         h0_clamped = torch.clamp(h0, min=self.hessian_floor)
         h2_clamped = torch.clamp(h2, min=self.hessian_floor)
-        h0_eff = h0_clamped + lambda_prev
-        h2_eff = h2_clamped + lambda_prev
 
-        det_h = h0_eff * h2_eff - h1 * h1
-        det_h_sign = det_h.sign()
-        det_h_sign = torch.where(
-            det_h_sign == 0, torch.ones_like(det_h_sign), det_h_sign
+        lambda_curr = torch.clamp(
+            lambda_prev, min=self.lm_lambda_min, max=self.lm_lambda_max
         )
-        det_h = torch.where(det_h.abs() < 1e-12, det_h_sign * 1e-12, det_h)
 
-        db = (h2_eff * g0 - h1 * g1) / det_h
-        dw = (-h1 * g0 + h0_eff * g1) / det_h
-        predicted_reduction = 0.5 * (db * g0 + dw * g1)
+        db_result = torch.zeros_like(g0)
+        dw_result = torch.zeros_like(g0)
+        h0_eff_result = torch.zeros_like(g0)
+        h2_eff_result = torch.zeros_like(g0)
+        det_result = torch.zeros_like(g0)
+        lambda_applied = lambda_curr.clone()
+        success_mask = torch.zeros_like(g0, dtype=torch.bool)
+
+        for _ in range(self.lm_max_adapt_iters):
+            h0_eff = h0_clamped + lambda_curr
+            h2_eff = h2_clamped + lambda_curr
+            det_h = h0_eff * h2_eff - h1 * h1
+            det_h_sign = det_h.sign()
+            det_h_sign = torch.where(
+                det_h_sign == 0, torch.ones_like(det_h_sign), det_h_sign
+            )
+            det_h = torch.where(det_h.abs() < 1e-12, det_h_sign * 1e-12, det_h)
+
+            db = (h2_eff * g0 - h1 * g1) / det_h
+            dw = (-h1 * g0 + h0_eff * g1) / det_h
+
+            step_mag = torch.maximum(db.abs(), dw.abs())
+            predicted_reduction_iter = 0.5 * (db * g0 + dw * g1)
+            finite_mask = torch.isfinite(db) & torch.isfinite(dw)
+            success_iter = (
+                finite_mask
+                & (step_mag <= self.lm_max_update)
+                & (predicted_reduction_iter > 0.0)
+            )
+            new_success = success_iter & (~success_mask)
+
+            if bool(new_success.any()):
+                db_result[new_success] = db[new_success]
+                dw_result[new_success] = dw[new_success]
+                h0_eff_result[new_success] = h0_eff[new_success]
+                h2_eff_result[new_success] = h2_eff[new_success]
+                det_result[new_success] = det_h[new_success]
+                lambda_applied[new_success] = lambda_curr[new_success]
+
+            success_mask = success_mask | success_iter
+            if success_mask.all():
+                break
+
+            failure_mask = ~success_iter
+            if not bool(failure_mask.any()):
+                break
+
+            lambda_curr = torch.where(
+                failure_mask,
+                torch.clamp(
+                    lambda_curr * self.lm_lambda_grow,
+                    min=self.lm_lambda_min,
+                    max=self.lm_lambda_max,
+                ),
+                lambda_curr,
+            )
+
+        remaining = ~success_mask
+        clipped_mask = remaining.clone()
+
+        if bool(remaining.any()):
+            h0_eff = h0_clamped + lambda_curr
+            h2_eff = h2_clamped + lambda_curr
+            det_h = h0_eff * h2_eff - h1 * h1
+            det_h_sign = det_h.sign()
+            det_h_sign = torch.where(
+                det_h_sign == 0, torch.ones_like(det_h_sign), det_h_sign
+            )
+            det_h = torch.where(det_h.abs() < 1e-12, det_h_sign * 1e-12, det_h)
+
+            db = (h2_eff * g0 - h1 * g1) / det_h
+            dw = (-h1 * g0 + h0_eff * g1) / det_h
+
+            step_mag = torch.maximum(db.abs(), dw.abs())
+            finite_mask = torch.isfinite(db) & torch.isfinite(dw)
+            scale = torch.ones_like(step_mag)
+            scale = torch.where(
+                step_mag > self.lm_max_update,
+                self.lm_max_update / (step_mag + 1e-12),
+                scale,
+            )
+            scale = torch.where(finite_mask, scale, torch.zeros_like(scale))
+            db = torch.where(finite_mask, db * scale, torch.zeros_like(db))
+            dw = torch.where(finite_mask, dw * scale, torch.zeros_like(dw))
+
+            clipped_mask = remaining & (
+                (step_mag > self.lm_max_update) | (~finite_mask)
+            )
+
+            db_result[remaining] = db[remaining]
+            dw_result[remaining] = dw[remaining]
+            h0_eff_result[remaining] = h0_eff[remaining]
+            h2_eff_result[remaining] = h2_eff[remaining]
+            det_result[remaining] = det_h[remaining]
+            lambda_applied[remaining] = lambda_curr[remaining]
+
+        predicted_reduction = 0.5 * (db_result * g0 + dw_result * g1)
 
         lambda_success = torch.clamp(
-            lambda_prev * self.lm_lambda_shrink,
+            lambda_applied * self.lm_lambda_shrink,
             min=self.lm_lambda_min,
             max=self.lm_lambda_max,
         )
         lambda_fail = torch.clamp(
-            lambda_prev * self.lm_lambda_grow,
+            lambda_applied * self.lm_lambda_grow,
             min=self.lm_lambda_min,
             max=self.lm_lambda_max,
         )
-        lambda_next = torch.where(
-            predicted_reduction > 0.0, lambda_success, lambda_fail
-        )
+        lambda_next = torch.where(success_mask, lambda_success, lambda_fail)
 
         return LMStepResult(
-            db=db,
-            dw=dw,
-            det_h=det_h,
+            db=db_result,
+            dw=dw_result,
+            clipped_mask=clipped_mask,
+            det_h=det_result,
             det_h_raw=det_h_raw,
-            h0_eff=h0_eff,
-            h2_eff=h2_eff,
+            h0_eff=h0_eff_result,
+            h2_eff=h2_eff_result,
             lambda_next=lambda_next,
             predicted_reduction=predicted_reduction,
         )
@@ -704,21 +802,40 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
         lambda_min_value = ctx.lambda_next.min().item()
         lambda_max_value = ctx.lambda_next.max().item()
 
+        clipped_count = int(ctx.lambda_step.clipped_mask.sum().item())
+
         if need_info:
-            logger.info(
-                (
-                    "Classes %s:%s at iteration %s: loss=%.6f, grad=%s, update=%s "
-                    "lambda=[%.3e, %.3e]"
-                ),
-                ctx.class_range[0],
-                ctx.class_range[1],
-                ctx.iteration,
-                ctx.mean_loss_value,
-                max_grad_val,
-                max_update_val,
-                lambda_min_value,
-                lambda_max_value,
-            )
+            if clipped_count:
+                logger.info(
+                    (
+                        "Classes %s:%s at iteration %s: loss=%.6f, grad=%s, update=%s "
+                        "lambda=[%.3e, %.3e] clipped=%d"
+                    ),
+                    ctx.class_range[0],
+                    ctx.class_range[1],
+                    ctx.iteration,
+                    ctx.mean_loss_value,
+                    max_grad_val,
+                    max_update_val,
+                    lambda_min_value,
+                    lambda_max_value,
+                    clipped_count,
+                )
+            else:
+                logger.info(
+                    (
+                        "Classes %s:%s at iteration %s: loss=%.6f, grad=%s, update=%s "
+                        "lambda=[%.3e, %.3e]"
+                    ),
+                    ctx.class_range[0],
+                    ctx.class_range[1],
+                    ctx.iteration,
+                    ctx.mean_loss_value,
+                    max_grad_val,
+                    max_update_val,
+                    lambda_min_value,
+                    lambda_max_value,
+                )
             if ctx.best_update_summary:
                 logger.info(
                     "improved_best_latents %s", ", ".join(ctx.best_update_summary)
@@ -1177,6 +1294,8 @@ class Config:
     # Hardware
     device: str = "cuda"
     """Which accelerator to use."""
+    mem_gb: int = 80
+    """Node memory in GB."""
     slurm_acct: str = ""
     """Slurm account string. Empty means to not use Slurm."""
     slurm_partition: str = ""
@@ -1299,12 +1418,18 @@ def cli(cfg: tp.Annotated[Config, tyro.conf.arg(name="")]) -> int:
         import submitit
 
         executor = submitit.SlurmExecutor(folder=cfg.log_to)
+        n_cpus = 8
+        if cfg.mem_gb // 10 > n_cpus:
+            logger.info(
+                "Using %d CPUs instead of %d to get more RAM.", cfg.mem_gb // 10, n_cpus
+            )
+            n_cpus = cfg.mem_gb // 10
         executor.update_parameters(
             time=int(cfg.n_hours * 60),
             partition=cfg.slurm_partition,
             gpus_per_node=1,
             ntasks_per_node=1,
-            cpus_per_task=8,
+            cpus_per_task=n_cpus,
             stderr_to_stdout=True,
             account=cfg.slurm_acct,
         )
