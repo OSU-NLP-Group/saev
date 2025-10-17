@@ -1,6 +1,6 @@
 # Regressions
 
-Last checked: 2025-10-13
+Last checked: 2025-10-16
 
 # 7 failing test(s)
 
@@ -14,4 +14,4 @@ Last checked: 2025-10-13
 
 # Coverage
 
-Coverage: 2013/2961 lines (68.0%)
+Coverage: 2118/3247 lines (65.2%)

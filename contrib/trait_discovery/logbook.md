@@ -1175,3 +1175,32 @@ I think my sparse probe method works. It appears to be quite slow, but it matche
 So now I need to actually evaluate some stupid SAEs on this godforsaken task.
 Luckily, I think I have a script to do that.
 Holy shit I think it worked.
+
+# 10/17/2025
+
+Some things to work on:
+
+1. train/val split for probe
+2. report normalized cross entropy
+
+I would like to compare a bunch of different metrics for these different SAEs.
+What questions do I want to answer?
+
+- Are vanilla or matryoshka better?
+- How does the probe's explained variance correlate with other metrics?
+
+In summary 
+Trained 16K x 151 1D logistic probes on the ADE20K training split.
+Took the latent with the minimum loss for each of the 151 classes, then compared the mean loss (binary cross entropy) against the mean loss if you just use the class prevalence as a baseline (basically bias term only, no weight term).
+This is explained variance, and is R = 1 - CE / CE_baseline.
+If CE is 0, then R is 1.
+If CE is the same as CE_baseline, then R is 0.
+If CE is worse than CE_baseline, then R is negative.
+So R is in the range (-inf, 1].
+
+An 16K latent matryoshka SAE trained on DINOv3 layer 13 with ADE20K training data gets R = 0.104.
+
+Now I just need to:
+
+- Do the probe on train/test, instead of fitting it on train and then evaluating on train as well
+- Compare against a bunch of other different SAEs (more/fewer latents, matryoshka vs vanilla, layer 13 vs layer 21, etc)

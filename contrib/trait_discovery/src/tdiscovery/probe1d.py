@@ -13,6 +13,7 @@ The public surface area is intentionally small and designed to be used by tests 
 
 import dataclasses
 import logging
+import math
 import pathlib
 import typing as tp
 from collections.abc import Iterator
@@ -50,6 +51,19 @@ class SparseEventsBatch(NamedTuple):
     latent_idx: Int[Tensor, " event"]
     values: Float[Tensor, " event"]
     row_idx: Int[Tensor, " event"]
+
+
+class LMStepResult(NamedTuple):
+    """Holds state returned by `_solve_lm_step`."""
+
+    db: Float[Tensor, "n_latents c_b"]
+    dw: Float[Tensor, "n_latents c_b"]
+    det_h: Float[Tensor, "n_latents c_b"]
+    det_h_raw: Float[Tensor, "n_latents c_b"]
+    h0_eff: Float[Tensor, "n_latents c_b"]
+    h2_eff: Float[Tensor, "n_latents c_b"]
+    lambda_next: Float[Tensor, "n_latents c_b"]
+    predicted_reduction: Float[Tensor, "n_latents c_b"]
 
 
 @jaxtyped(typechecker=beartype.beartype)
@@ -237,11 +251,6 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
                 h0 = h0 + n_zeros_per_latent * s_0 + self.ridge
                 h2 = h2 + self.ridge
                 mean_loss_value = float("nan")
-                det_h_raw = h0 * h2 - h1 * h1
-                h0_clamped = torch.clamp(h0, min=self.hessian_floor)
-                h2_clamped = torch.clamp(h2, min=self.hessian_floor)
-                h0 = h0_clamped + lambda_slab
-                h2 = h2_clamped + lambda_slab
                 pos_zero = torch.clamp(
                     pi_slab_device.view(1, n_classes_slab) - pos_nz, min=0.0
                 )
@@ -252,6 +261,16 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
                 )
                 loss_slab = (loss_nz + zero_loss) / n_samples_f
                 mean_loss_value = loss_slab.mean().item()
+
+                lambda_prev = lambda_slab.clone()
+                lm_step = self._solve_lm_step(g0, g1, h0, h1, h2, lambda_prev)
+                db = lm_step.db
+                dw = lm_step.dw
+                det_h = lm_step.det_h
+                det_h_raw = lm_step.det_h_raw
+                h0 = lm_step.h0_eff
+                h2 = lm_step.h2_eff
+                lambda_slab = lm_step.lambda_next
 
                 curr_best_loss, curr_best_latent_idx = loss_slab.min(dim=0)
                 improved_mask = torch.logical_or(
@@ -279,252 +298,46 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
                         improved_mask, selected_intercept, best_intercept_per_class
                     )
 
-                det_h = h0 * h2 - h1 * h1
-                det_h_sign = det_h.sign()
-                det_h_sign = torch.where(
-                    det_h_sign == 0, torch.ones_like(det_h_sign), det_h_sign
-                )
-                det_h = torch.where(det_h.abs() < 1e-12, det_h_sign * 1e-12, det_h)
-
-                db = (h2 * g0 - h1 * g1) / det_h
-                dw = (-h1 * g0 + h0 * g1) / det_h
-                predicted_reduction = 0.5 * (db * g0 + dw * g1)
-
                 intercept_slab -= db
                 coef_slab -= dw
-                lambda_prev = lambda_slab
-                lambda_success = torch.clamp(
-                    lambda_prev * self.lm_lambda_shrink,
-                    min=self.lm_lambda_min,
-                    max=self.lm_lambda_max,
-                )
-                lambda_fail = torch.clamp(
-                    lambda_prev * self.lm_lambda_grow,
-                    min=self.lm_lambda_min,
-                    max=self.lm_lambda_max,
-                )
-                lambda_slab = torch.where(
-                    predicted_reduction > 0.0, lambda_success, lambda_fail
+
+                max_grad_val, max_update_val = self._log_lm_step(
+                    c0=c0,
+                    c1=c1,
+                    iteration=it,
+                    loss_slab=loss_slab,
+                    mean_loss_value=mean_loss_value,
+                    g0=g0,
+                    g1=g1,
+                    db=db,
+                    dw=dw,
+                    det_h_raw=det_h_raw,
+                    det_h=det_h,
+                    h0=h0,
+                    h1=h1,
+                    h2=h2,
+                    lambda_prev=lambda_prev,
+                    lambda_next=lambda_slab,
+                    improved_mask=improved_mask,
+                    curr_best_loss=curr_best_loss,
+                    curr_best_latent_idx=curr_best_latent_idx,
+                    coef_slab=coef_slab,
+                    intercept_slab=intercept_slab,
+                    nnz_per_latent=nnz_per_latent,
+                    mu_nz=mu_nz,
+                    mu_0=mu_0,
+                    n_zeros_per_latent=n_zeros_per_latent,
+                    pi_slab_device=pi_slab_device,
+                    lambda_step=lm_step,
                 )
 
                 if not check_convergence:
                     continue
 
-                abs_g0 = g0.abs()
-                abs_g1 = g1.abs()
-                abs_db = db.abs()
-                abs_dw = dw.abs()
-
-                g0_flat = abs_g0.view(-1)
-                g1_flat = abs_g1.view(-1)
-                db_flat = abs_db.view(-1)
-                dw_flat = abs_dw.view(-1)
-
-                max_g0_val, max_g0_idx = g0_flat.max(dim=0)
-                max_g1_val, max_g1_idx = g1_flat.max(dim=0)
-                max_db_val, max_db_idx = db_flat.max(dim=0)
-                max_dw_val, max_dw_idx = dw_flat.max(dim=0)
-
-                grad_source_is_g0 = max_g0_val >= max_g1_val
-                update_source_is_db = max_db_val >= max_dw_val
-
-                grad_idx = torch.unravel_index(
-                    max_g0_idx if grad_source_is_g0 else max_g1_idx, abs_g0.shape
-                )
-                update_idx = torch.unravel_index(
-                    max_db_idx if update_source_is_db else max_dw_idx, abs_db.shape
-                )
-
-                grad_latent_idx = int(grad_idx[0])
-                grad_class_offset = int(grad_idx[1])
-                update_latent_idx = int(update_idx[0])
-                update_class_offset = int(update_idx[1])
-
-                grad_class_idx = c0 + grad_class_offset
-                update_class_idx = c0 + update_class_offset
-
-                grad_loss_value = loss_slab[grad_latent_idx, grad_class_offset].item()
-                update_loss_value = loss_slab[
-                    update_latent_idx, update_class_offset
-                ].item()
-
-                grad_coef_value = coef_slab[grad_latent_idx, grad_class_offset].item()
-                grad_intercept_value = intercept_slab[
-                    grad_latent_idx, grad_class_offset
-                ].item()
-                update_coef_value = coef_slab[
-                    update_latent_idx, update_class_offset
-                ].item()
-                update_intercept_value = intercept_slab[
-                    update_latent_idx, update_class_offset
-                ].item()
-
-                grad_det_raw = det_h_raw[grad_latent_idx, grad_class_offset].item()
-                grad_det_clamped = det_h[grad_latent_idx, grad_class_offset].item()
-                update_det_raw = det_h_raw[
-                    update_latent_idx, update_class_offset
-                ].item()
-                update_det_clamped = det_h[
-                    update_latent_idx, update_class_offset
-                ].item()
-
-                grad_nnz = nnz_per_latent[grad_latent_idx].item()
-                update_nnz = nnz_per_latent[update_latent_idx].item()
-
-                quantile_targets = torch.tensor((0.5, 0.95), device=device)
-                g0_quantiles = torch.quantile(g0_flat, quantile_targets).tolist()
-                g1_quantiles = torch.quantile(g1_flat, quantile_targets).tolist()
-                loss_quantiles = torch.quantile(
-                    loss_slab.view(-1), quantile_targets
-                ).tolist()
-
-                max_grad = torch.stack((max_g0_val, max_g1_val)).max()
-                max_update = torch.stack((max_db_val, max_dw_val)).max()
-                lambda_min_value = lambda_slab.min().item()
-                lambda_max_value = lambda_slab.max().item()
-
-                self.logger.info(
-                    (
-                        "Classes %s:%s at iteration %s: loss=%.6f, grad=%s, update=%s "
-                        "lambda=[%.3e, %.3e]"
-                    ),
-                    c0,
-                    c1,
-                    it,
-                    mean_loss_value,
-                    max_grad.item(),
-                    max_update.item(),
-                    lambda_min_value,
-                    lambda_max_value,
-                )
-
-                if improved_mask.any():
-                    improved_classes = torch.nonzero(
-                        improved_mask, as_tuple=False
-                    ).flatten()
-                    max_report = min(4, int(improved_classes.numel()))
-                    summary_parts = []
-                    for idx in improved_classes[:max_report]:
-                        class_idx = c0 + int(idx.item())
-                        latent_idx = int(curr_best_latent_idx[idx].item())
-                        summary_parts.append(
-                            f"{class_idx}->{latent_idx} loss={curr_best_loss[idx].item():.6f}"
-                        )
-                    if improved_classes.numel() > max_report:
-                        remaining = int(improved_classes.numel() - max_report)
-                        summary_parts.append(f"+{remaining} more")
-                    self.logger.info(
-                        "improved_best_latents %s", ", ".join(summary_parts)
-                    )
-
-                if self.logger.isEnabledFor(logging.DEBUG):
-                    grad_g0_value = g0[grad_latent_idx, grad_class_offset].item()
-                    grad_mu_nz_value = mu_nz[grad_latent_idx, grad_class_offset].item()
-                    grad_mu0_value = mu_0[grad_latent_idx, grad_class_offset].item()
-                    grad_n_zeros_value = n_zeros_per_latent[grad_latent_idx, 0].item()
-                    grad_g0_zero_value = grad_n_zeros_value * grad_mu0_value
-                    grad_pi_value = pi_slab_device[grad_class_offset].item()
-                    grad_g1_value = g1[grad_latent_idx, grad_class_offset].item()
-                    grad_g1_ridge_value = self.ridge * grad_coef_value
-                    grad_g1_nz_value = grad_g1_value - grad_g1_ridge_value
-                    grad_h0_value = h0[grad_latent_idx, grad_class_offset].item()
-                    grad_h1_value = h1[grad_latent_idx, grad_class_offset].item()
-                    grad_h2_value = h2[grad_latent_idx, grad_class_offset].item()
-
-                    update_g0_value = g0[update_latent_idx, update_class_offset].item()
-                    update_mu_nz_value = mu_nz[
-                        update_latent_idx, update_class_offset
-                    ].item()
-                    update_mu0_value = mu_0[
-                        update_latent_idx, update_class_offset
-                    ].item()
-                    update_n_zeros_value = n_zeros_per_latent[
-                        update_latent_idx, 0
-                    ].item()
-                    update_g0_zero_value = update_n_zeros_value * update_mu0_value
-                    update_pi_value = pi_slab_device[update_class_offset].item()
-                    update_g1_value = g1[update_latent_idx, update_class_offset].item()
-                    update_g1_ridge_value = self.ridge * update_coef_value
-                    update_g1_nz_value = update_g1_value - update_g1_ridge_value
-                    update_h0_value = h0[update_latent_idx, update_class_offset].item()
-                    update_h1_value = h1[update_latent_idx, update_class_offset].item()
-                    update_h2_value = h2[update_latent_idx, update_class_offset].item()
-                    update_db_value = db[update_latent_idx, update_class_offset].item()
-                    update_dw_value = dw[update_latent_idx, update_class_offset].item()
-                    grad_lambda_value = lambda_prev[
-                        grad_latent_idx, grad_class_offset
-                    ].item()
-                    update_lambda_value = lambda_prev[
-                        update_latent_idx, update_class_offset
-                    ].item()
-
-                    self.logger.debug(
-                        "worst_grad source=%s latent=%s class=%s nnz=%s coef=%s intercept=%s loss=%s det_raw=%s det_clamped=%s g0_q50=%s g0_q95=%s g1_q50=%s g1_q95=%s loss_q50=%s loss_q95=%s",
-                        "g0" if grad_source_is_g0 else "g1",
-                        grad_latent_idx,
-                        grad_class_idx,
-                        grad_nnz,
-                        grad_coef_value,
-                        grad_intercept_value,
-                        grad_loss_value,
-                        grad_det_raw,
-                        grad_det_clamped,
-                        g0_quantiles[0],
-                        g0_quantiles[1],
-                        g1_quantiles[0],
-                        g1_quantiles[1],
-                        loss_quantiles[0],
-                        loss_quantiles[1],
-                    )
-                    self.logger.debug(
-                        "worst_update source=%s latent=%s class=%s nnz=%s coef=%s intercept=%s loss=%s det_raw=%s det_clamped=%s delta=%s",
-                        "db" if update_source_is_db else "dw",
-                        update_latent_idx,
-                        update_class_idx,
-                        update_nnz,
-                        update_coef_value,
-                        update_intercept_value,
-                        update_loss_value,
-                        update_det_raw,
-                        update_det_clamped,
-                        (max_db_val if update_source_is_db else max_dw_val).item(),
-                    )
-                    self.logger.debug(
-                        "worst_grad_diagnostics g0=%s g0_nz=%s g0_zero=%s g0_pi=%s "
-                        "g1=%s g1_nz=%s g1_ridge=%s h0=%s h1=%s h2=%s lambda=%s",
-                        grad_g0_value,
-                        grad_mu_nz_value,
-                        grad_g0_zero_value,
-                        grad_pi_value,
-                        grad_g1_value,
-                        grad_g1_nz_value,
-                        grad_g1_ridge_value,
-                        grad_h0_value,
-                        grad_h1_value,
-                        grad_h2_value,
-                        grad_lambda_value,
-                    )
-                    self.logger.debug(
-                        "worst_update_diagnostics g0=%s g0_nz=%s g0_zero=%s g0_pi=%s "
-                        "g1=%s g1_nz=%s g1_ridge=%s h0=%s h1=%s h2=%s lambda=%s db=%s dw=%s",
-                        update_g0_value,
-                        update_mu_nz_value,
-                        update_g0_zero_value,
-                        update_pi_value,
-                        update_g1_value,
-                        update_g1_nz_value,
-                        update_g1_ridge_value,
-                        update_h0_value,
-                        update_h1_value,
-                        update_h2_value,
-                        update_lambda_value,
-                        update_db_value,
-                        update_dw_value,
-                    )
-                if torch.isnan(max_grad) or torch.isnan(max_update):
+                if math.isnan(max_grad_val) or math.isnan(max_update_val):
                     continue
 
-                if max_grad < self.tol and max_update < self.tol:
+                if max_grad_val < self.tol and max_update_val < self.tol:
                     self.logger.info(
                         "Classes %s:%s converged at iteration %s.", c0, c1, it
                     )
@@ -607,6 +420,294 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
                 values=values[start:end],
                 row_idx=row_idx,
             )
+
+    def _solve_lm_step(
+        self,
+        g0: Float[Tensor, "n_latents c_b"],
+        g1: Float[Tensor, "n_latents c_b"],
+        h0: Float[Tensor, "n_latents c_b"],
+        h1: Float[Tensor, "n_latents c_b"],
+        h2: Float[Tensor, "n_latents c_b"],
+        lambda_prev: Float[Tensor, "n_latents c_b"],
+    ) -> LMStepResult:
+        """Solve the LM-damped Newton system and adapt the damping parameter."""
+
+        det_h_raw = h0 * h2 - h1 * h1
+
+        h0_clamped = torch.clamp(h0, min=self.hessian_floor)
+        h2_clamped = torch.clamp(h2, min=self.hessian_floor)
+        h0_eff = h0_clamped + lambda_prev
+        h2_eff = h2_clamped + lambda_prev
+
+        det_h = h0_eff * h2_eff - h1 * h1
+        det_h_sign = det_h.sign()
+        det_h_sign = torch.where(
+            det_h_sign == 0, torch.ones_like(det_h_sign), det_h_sign
+        )
+        det_h = torch.where(det_h.abs() < 1e-12, det_h_sign * 1e-12, det_h)
+
+        db = (h2_eff * g0 - h1 * g1) / det_h
+        dw = (-h1 * g0 + h0_eff * g1) / det_h
+        predicted_reduction = 0.5 * (db * g0 + dw * g1)
+
+        lambda_success = torch.clamp(
+            lambda_prev * self.lm_lambda_shrink,
+            min=self.lm_lambda_min,
+            max=self.lm_lambda_max,
+        )
+        lambda_fail = torch.clamp(
+            lambda_prev * self.lm_lambda_grow,
+            min=self.lm_lambda_min,
+            max=self.lm_lambda_max,
+        )
+        lambda_next = torch.where(
+            predicted_reduction > 0.0, lambda_success, lambda_fail
+        )
+
+        return LMStepResult(
+            db=db,
+            dw=dw,
+            det_h=det_h,
+            det_h_raw=det_h_raw,
+            h0_eff=h0_eff,
+            h2_eff=h2_eff,
+            lambda_next=lambda_next,
+            predicted_reduction=predicted_reduction,
+        )
+
+    def _log_lm_step(
+        self,
+        *,
+        c0: int,
+        c1: int,
+        iteration: int,
+        loss_slab: Float[Tensor, "n_latents c_b"],
+        mean_loss_value: float,
+        g0: Float[Tensor, "n_latents c_b"],
+        g1: Float[Tensor, "n_latents c_b"],
+        db: Float[Tensor, "n_latents c_b"],
+        dw: Float[Tensor, "n_latents c_b"],
+        det_h_raw: Float[Tensor, "n_latents c_b"],
+        det_h: Float[Tensor, "n_latents c_b"],
+        h0: Float[Tensor, "n_latents c_b"],
+        h1: Float[Tensor, "n_latents c_b"],
+        h2: Float[Tensor, "n_latents c_b"],
+        lambda_prev: Float[Tensor, "n_latents c_b"],
+        lambda_next: Float[Tensor, "n_latents c_b"],
+        improved_mask: Tensor,
+        curr_best_loss: Tensor,
+        curr_best_latent_idx: Tensor,
+        coef_slab: Float[Tensor, "n_latents c_b"],
+        intercept_slab: Float[Tensor, "n_latents c_b"],
+        nnz_per_latent: Tensor,
+        mu_nz: Float[Tensor, "n_latents c_b"],
+        mu_0: Float[Tensor, "n_latents c_b"],
+        n_zeros_per_latent: Float[Tensor, "n_latents 1"],
+        pi_slab_device: Tensor,
+        lambda_step: LMStepResult,
+    ) -> tuple[float, float]:
+        logger = self.logger
+        need_info = logger.isEnabledFor(logging.INFO)
+        need_debug = logger.isEnabledFor(logging.DEBUG)
+
+        abs_g0 = g0.abs()
+        abs_g1 = g1.abs()
+        abs_db = db.abs()
+        abs_dw = dw.abs()
+
+        g0_flat = abs_g0.view(-1)
+        g1_flat = abs_g1.view(-1)
+        db_flat = abs_db.view(-1)
+        dw_flat = abs_dw.view(-1)
+
+        max_g0_val, max_g0_idx = g0_flat.max(dim=0)
+        max_g1_val, max_g1_idx = g1_flat.max(dim=0)
+        max_db_val, max_db_idx = db_flat.max(dim=0)
+        max_dw_val, max_dw_idx = dw_flat.max(dim=0)
+
+        max_grad_val = torch.stack((max_g0_val, max_g1_val)).max().item()
+        max_update_val = torch.stack((max_db_val, max_dw_val)).max().item()
+
+        lambda_min_value = lambda_next.min().item()
+        lambda_max_value = lambda_next.max().item()
+
+        if need_info:
+            logger.info(
+                (
+                    "Classes %s:%s at iteration %s: loss=%.6f, grad=%s, update=%s "
+                    "lambda=[%.3e, %.3e]"
+                ),
+                c0,
+                c1,
+                iteration,
+                mean_loss_value,
+                max_grad_val,
+                max_update_val,
+                lambda_min_value,
+                lambda_max_value,
+            )
+            if improved_mask.any():
+                improved_classes = torch.nonzero(
+                    improved_mask, as_tuple=False
+                ).flatten()
+                max_report = min(4, int(improved_classes.numel()))
+                summary_parts: list[str] = []
+                for idx in improved_classes[:max_report]:
+                    class_idx = c0 + int(idx.item())
+                    latent_idx = int(curr_best_latent_idx[idx].item())
+                    summary_parts.append(
+                        f"{class_idx}->{latent_idx} loss={curr_best_loss[idx].item():.6f}"
+                    )
+                if improved_classes.numel() > max_report:
+                    remaining = int(improved_classes.numel() - max_report)
+                    summary_parts.append(f"+{remaining} more")
+                logger.info("improved_best_latents %s", ", ".join(summary_parts))
+
+        if not need_debug:
+            return max_grad_val, max_update_val
+
+        grad_source_is_g0 = max_g0_val >= max_g1_val
+        update_source_is_db = max_db_val >= max_dw_val
+
+        grad_idx = torch.unravel_index(
+            max_g0_idx if grad_source_is_g0 else max_g1_idx, abs_g0.shape
+        )
+        update_idx = torch.unravel_index(
+            max_db_idx if update_source_is_db else max_dw_idx, abs_db.shape
+        )
+
+        grad_latent_idx = int(grad_idx[0])
+        grad_class_offset = int(grad_idx[1])
+        update_latent_idx = int(update_idx[0])
+        update_class_offset = int(update_idx[1])
+
+        grad_class_idx = c0 + grad_class_offset
+        update_class_idx = c0 + update_class_offset
+
+        grad_coef_value = coef_slab[grad_latent_idx, grad_class_offset].item()
+        grad_intercept_value = intercept_slab[grad_latent_idx, grad_class_offset].item()
+        grad_loss_value = loss_slab[grad_latent_idx, grad_class_offset].item()
+        grad_det_raw = det_h_raw[grad_latent_idx, grad_class_offset].item()
+        grad_det_clamped = det_h[grad_latent_idx, grad_class_offset].item()
+        grad_nnz = nnz_per_latent[grad_latent_idx].item()
+        grad_g0_value = g0[grad_latent_idx, grad_class_offset].item()
+        grad_mu_nz_value = mu_nz[grad_latent_idx, grad_class_offset].item()
+        grad_mu0_value = mu_0[grad_latent_idx, grad_class_offset].item()
+        grad_n_zeros_value = n_zeros_per_latent[grad_latent_idx, 0].item()
+        grad_g0_zero_value = grad_n_zeros_value * grad_mu0_value
+        grad_pi_value = pi_slab_device[grad_class_offset].item()
+        grad_g1_value = g1[grad_latent_idx, grad_class_offset].item()
+        grad_g1_ridge_value = self.ridge * grad_coef_value
+        grad_g1_nz_value = grad_g1_value - grad_g1_ridge_value
+        grad_h0_value = h0[grad_latent_idx, grad_class_offset].item()
+        grad_h1_value = h1[grad_latent_idx, grad_class_offset].item()
+        grad_h2_value = h2[grad_latent_idx, grad_class_offset].item()
+        grad_lambda_value = lambda_prev[grad_latent_idx, grad_class_offset].item()
+
+        update_coef_value = coef_slab[update_latent_idx, update_class_offset].item()
+        update_intercept_value = intercept_slab[
+            update_latent_idx, update_class_offset
+        ].item()
+        update_loss_value = loss_slab[update_latent_idx, update_class_offset].item()
+        update_det_raw = det_h_raw[update_latent_idx, update_class_offset].item()
+        update_det_clamped = det_h[update_latent_idx, update_class_offset].item()
+        update_nnz = nnz_per_latent[update_latent_idx].item()
+        update_g0_value = g0[update_latent_idx, update_class_offset].item()
+        update_mu_nz_value = mu_nz[update_latent_idx, update_class_offset].item()
+        update_mu0_value = mu_0[update_latent_idx, update_class_offset].item()
+        update_n_zeros_value = n_zeros_per_latent[update_latent_idx, 0].item()
+        update_g0_zero_value = update_n_zeros_value * update_mu0_value
+        update_pi_value = pi_slab_device[update_class_offset].item()
+        update_g1_value = g1[update_latent_idx, update_class_offset].item()
+        update_g1_ridge_value = self.ridge * update_coef_value
+        update_g1_nz_value = update_g1_value - update_g1_ridge_value
+        update_h0_value = h0[update_latent_idx, update_class_offset].item()
+        update_h1_value = h1[update_latent_idx, update_class_offset].item()
+        update_h2_value = h2[update_latent_idx, update_class_offset].item()
+        update_lambda_value = lambda_prev[update_latent_idx, update_class_offset].item()
+        update_db_value = db[update_latent_idx, update_class_offset].item()
+        update_dw_value = dw[update_latent_idx, update_class_offset].item()
+
+        quantile_targets = torch.tensor((0.5, 0.95), device=g0.device, dtype=g0.dtype)
+        g0_quantiles = torch.quantile(g0_flat, quantile_targets).tolist()
+        g1_quantiles = torch.quantile(g1_flat, quantile_targets).tolist()
+        loss_quantiles = torch.quantile(loss_slab.view(-1), quantile_targets).tolist()
+
+        logger.debug(
+            "Classes %s:%s predicted_reduction max=%s mean=%s",
+            c0,
+            c1,
+            float(lambda_step.predicted_reduction.max().item()),
+            float(lambda_step.predicted_reduction.mean().item()),
+        )
+        logger.debug(
+            "worst_grad source=%s latent=%s class=%s nnz=%s coef=%s intercept=%s "
+            "loss=%s det_raw=%s det_clamped=%s g0_q50=%s g0_q95=%s g1_q50=%s "
+            "g1_q95=%s loss_q50=%s loss_q95=%s",
+            "g0" if grad_source_is_g0 else "g1",
+            grad_latent_idx,
+            grad_class_idx,
+            grad_nnz,
+            grad_coef_value,
+            grad_intercept_value,
+            grad_loss_value,
+            grad_det_raw,
+            grad_det_clamped,
+            g0_quantiles[0],
+            g0_quantiles[1],
+            g1_quantiles[0],
+            g1_quantiles[1],
+            loss_quantiles[0],
+            loss_quantiles[1],
+        )
+        logger.debug(
+            "worst_update source=%s latent=%s class=%s nnz=%s coef=%s intercept=%s "
+            "loss=%s det_raw=%s det_clamped=%s delta=%s",
+            "db" if update_source_is_db else "dw",
+            update_latent_idx,
+            update_class_idx,
+            update_nnz,
+            update_coef_value,
+            update_intercept_value,
+            update_loss_value,
+            update_det_raw,
+            update_det_clamped,
+            (max_db_val if update_source_is_db else max_dw_val).item(),
+        )
+        logger.debug(
+            "worst_grad_diagnostics g0=%s g0_nz=%s g0_zero=%s g0_pi=%s g1=%s "
+            "g1_nz=%s g1_ridge=%s h0=%s h1=%s h2=%s lambda=%s",
+            grad_g0_value,
+            grad_mu_nz_value,
+            grad_g0_zero_value,
+            grad_pi_value,
+            grad_g1_value,
+            grad_g1_nz_value,
+            grad_g1_ridge_value,
+            grad_h0_value,
+            grad_h1_value,
+            grad_h2_value,
+            grad_lambda_value,
+        )
+        logger.debug(
+            "worst_update_diagnostics g0=%s g0_nz=%s g0_zero=%s g0_pi=%s g1=%s "
+            "g1_nz=%s g1_ridge=%s h0=%s h1=%s h2=%s lambda=%s db=%s dw=%s",
+            update_g0_value,
+            update_mu_nz_value,
+            update_g0_zero_value,
+            update_pi_value,
+            update_g1_value,
+            update_g1_nz_value,
+            update_g1_ridge_value,
+            update_h0_value,
+            update_h1_value,
+            update_h2_value,
+            update_lambda_value,
+            update_db_value,
+            update_dw_value,
+        )
+
+        return max_grad_val, max_update_val
 
     def _compute_loss_slab(
         self,

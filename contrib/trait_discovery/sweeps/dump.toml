@@ -7,7 +7,6 @@ ckpt = [
   # "/fs/ess/PAS2136/samuelstevens/checkpoints/saev/k61ivi9z/sae.pt",
 ]
 
-top_k = 1
 dump_to = "/fs/scratch/PAS2136/samuelstevens/saev/acts/bfly-fg-v0"
 slurm_acct = "PAS2136"
 slurm_partition = "nextgen"

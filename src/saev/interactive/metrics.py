@@ -6,9 +6,11 @@ app = marimo.App(width="medium")
 
 @app.cell
 def _():
+    import base64
     import itertools
     import json
     import os
+    import pickle
 
     import altair as alt
     import beartype
@@ -26,6 +28,7 @@ def _():
         Float,
         adjust_text,
         alt,
+        base64,
         beartype,
         itertools,
         jaxtyped,
@@ -33,6 +36,7 @@ def _():
         mo,
         np,
         os,
+        pickle,
         pl,
         plt,
         saev,
@@ -87,9 +91,9 @@ def _(WANDB_PROJECT, WANDB_USERNAME, mo, tag_input):
 def _(df, mo):
     # All unique (model, layer) pairs
     pairs = (
-        df.select(["model_key", "config/data/layer"])
+        df.select(["model_key", "config/val_data/layer"])
         .unique()
-        .sort(by=["model_key", "config/data/layer"])
+        .sort(by=["model_key", "config/val_data/layer"])
         .iter_rows()
     )
 
@@ -137,7 +141,7 @@ def _(
         show_ids: bool,
         l0_col: str = "summary/eval/l0",
         mse_col: str = "summary/eval/mse",
-        layer_col: str = "config/data/layer",
+        layer_col: str = "config/val_data/layer",
         model_col: str = "model_key",
     ):
         """
@@ -239,10 +243,10 @@ def _(
         models, layers = zip(*[k.rsplit("|", 1) for k in selected_keys])
         pairs_df = pl.DataFrame({
             "model_key": list(models),
-            "config/data/layer": list(map(int, layers)),
+            "config/val_data/layer": list(map(int, layers)),
         })
         filtered_df = df.join(
-            pairs_df, on=["model_key", "config/data/layer"], how="inner"
+            pairs_df, on=["model_key", "config/val_data/layer"], how="inner"
         )
     else:
         filtered_df = pl.DataFrame(schema=df.schema)
@@ -259,7 +263,7 @@ def _(alt, df, layers, mo, pl):
     chart = mo.ui.altair_chart(
         alt.Chart(
             df.filter(
-                pl.col("config/data/layer").is_in([int(layer) for layer in layers])
+                pl.col("config/val_data/layer").is_in([int(layer) for layer in layers])
             ).select(
                 "summary/eval/l0",
                 "summary/eval/mse",
@@ -267,7 +271,7 @@ def _(alt, df, layers, mo, pl):
                 "config/objective/sparsity_coeff",
                 "config/lr",
                 "config/sae/d_sae",
-                "config/data/layer",
+                "config/val_data/layer",
                 "model_key",
             )
         )
@@ -277,7 +281,7 @@ def _(alt, df, layers, mo, pl):
             y=alt.Y("summary/eval/mse"),
             tooltip=["id", "config/lr"],
             color="config/lr:Q",
-            shape="config/data/layer:N",
+            shape="config/val_data/layer:N",
             # shape="config/objective/sparsity_coeff:N",
             # shape="config/sae/d_sae:N",
             # shape="model_key",
@@ -516,8 +520,12 @@ def _(
 
             # config
             row.update(**{
-                f"config/data/{key}": value
-                for key, value in run.config.pop("data").items()
+                f"config/train_data/{key}": value
+                for key, value in run.config.pop("train_data").items()
+            })
+            row.update(**{
+                f"config/val_data/{key}": value
+                for key, value in run.config.pop("val_data").items()
             })
             row.update(**{
                 f"config/sae/{key}": value
@@ -534,8 +542,10 @@ def _(
 
             try:
                 # Check if metadata is available in WandB config
-                wandb_metadata = row.get("config/data/metadata")
-                metadata = find_metadata(row["config/data/shard_root"], wandb_metadata)
+                wandb_metadata = row.get("config/train_data/metadata")
+                metadata = find_metadata(
+                    row["config/train_data/shards"], wandb_metadata
+                )
             except MetadataAccessError as err:
                 print(f"Bad run {run.id}: {err}")
                 continue
@@ -548,14 +558,14 @@ def _(
                 continue
             row["data_key"] = data_key
 
-            row["config/d_vit"] = metadata["d_vit"]
+            row["config/d_model"] = metadata["d_model"]
             rows.append(row)
 
         if not rows:
             raise ValueError("No runs found.")
 
         df = pl.DataFrame(rows).with_columns(
-            (pl.col("config/sae/d_vit") * pl.col("config/sae/exp_factor")).alias(
+            (pl.col("config/sae/d_model") * pl.col("config/sae/exp_factor")).alias(
                 "config/sae/d_sae"
             )
         )
@@ -566,15 +576,19 @@ def _(
 
 
 @app.cell
-def _(beartype):
+def _(base64, beartype, pickle, saev):
     @beartype.beartype
     def get_model_key(metadata: dict[str, object]) -> str:
         family = next(
-            metadata[key] for key in ("vit_family", "model_family") if key in metadata
+            metadata[key]
+            for key in ("vit_family", "model_family", "family")
+            if key in metadata
         )
 
         ckpt = next(
-            metadata[key] for key in ("vit_ckpt", "model_ckpt") if key in metadata
+            metadata[key]
+            for key in ("vit_ckpt", "model_ckpt", "ckpt")
+            if key in metadata
         )
 
         if family == "dinov2" and ckpt == "dinov2_vitb14_reg":
@@ -597,44 +611,12 @@ def _(beartype):
 
     @beartype.beartype
     def get_data_key(metadata: dict[str, object]) -> str | None:
-        if (
-            "train_mini" in metadata["data"]["root"]
-            and metadata["data"]["__class__"] == "ImageFolder"
-        ):
-            return "iNat21"
+        data_cfg = pickle.loads(base64.b64decode(metadata["data"].encode("utf8")))
 
-        if (
-            "all-beetles" in metadata["data"]["root"]
-            and metadata["data"]["__class__"] == "ImageFolder"
-        ):
-            return "Beetles"
-
-        if (
-            "fish-vista-imgfolder" in metadata["data"]["root"]
-            and metadata["data"]["__class__"] == "ImageFolder"
-        ):
-            return "FishVista"
-
-        if (
-            "butterflies" in metadata["data"]["root"]
-            and metadata["data"]["__class__"] == "ImageFolder"
-        ):
-            return "Heliconius"
-
-        if (
-            "butterflies-segfolder" in metadata["data"]["root"]
-            and metadata["data"]["__class__"] == "SegFolder"
-        ):
-            return "Heliconius"
-
-        if (
-            "ADE" in metadata["data"]["root"]
-            and metadata["data"]["__class__"] == "SegFolder"
+        if isinstance(data_cfg, saev.data.datasets.ImgSegFolder) and "ADE" in str(
+            data_cfg.root
         ):
             return "ADE20K"
-
-        if "train" in metadata["data"] and "Imagenet" in metadata["data"]:
-            return "ImageNet-1K"
 
         print(f"Unknown data: {metadata['data']}")
         return None

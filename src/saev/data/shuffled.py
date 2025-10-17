@@ -79,7 +79,7 @@ class ExampleOutOfBoundsError(Exception):
 def _io_worker(
     worker_id: int,
     cfg: Config,
-    metadata: shards.Metadata,
+    md: shards.Metadata,
     work_queue: queue.Queue[int | None],
     reservoir: buffers.ReservoirBuffer,
     stop_event: threading.Event,
@@ -104,7 +104,7 @@ def _io_worker(
         logging.getLevelName(logger.getEffectiveLevel()),
     )
 
-    layer_i = metadata.layers.index(cfg.layer)
+    layer_i = md.layers.index(cfg.layer)
     shard_info = shards.ShardInfo.load(cfg.shards)
 
     # Pre-conditions
@@ -132,11 +132,11 @@ def _io_worker(
             fname = f"acts{shard_i:06}.bin"
             logger.info("Opening %s.", fname)
 
-            ex_i_offset = shard_i * metadata.examples_per_shard
+            ex_i_offset = shard_i * md.examples_per_shard
 
             acts_fpath = os.path.join(cfg.shards, fname)
             mmap = np.memmap(
-                acts_fpath, mode="r", dtype=np.float32, shape=metadata.shard_shape
+                acts_fpath, mode="r", dtype=np.float32, shape=md.shard_shape
             )
             t2 = time.perf_counter()
 
@@ -144,8 +144,8 @@ def _io_worker(
             for start, end in helpers.batched_idx(
                 shard_info[shard_i].n_examples, chunk_size
             ):
-                for t in range(metadata.content_tokens_per_example):
-                    token_idx = t + int(metadata.cls_token)
+                for t in range(md.content_tokens_per_example):
+                    token_idx = t + int(md.cls_token)
 
                     # If filtering by labels, check which samples to keep
                     if cfg.ignore_labels:
@@ -185,8 +185,8 @@ def _io_worker(
                         meta[:, 0] = ex_i_offset + torch.arange(start, end)
 
                     last_ex_i = meta[:, 0].max().item()
-                    if last_ex_i >= metadata.n_examples:
-                        err = ExampleOutOfBoundsError(metadata, last_ex_i)
+                    if last_ex_i >= md.n_examples:
+                        err = ExampleOutOfBoundsError(md, last_ex_i)
                         logger.warning(err.message)
                         raise err
 

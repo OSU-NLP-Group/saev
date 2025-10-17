@@ -15,12 +15,14 @@ def _():
     import polars as pl
     from jaxtyping import Float, jaxtyped
 
-    return Float, beartype, bisect, jaxtyped, mo, np, pathlib, pl
+    import saev.disk
+
+    return Float, beartype, bisect, jaxtyped, mo, np, pathlib, pl, saev
 
 
 @app.cell
 def _(pathlib):
-    root = pathlib.Path("/fs/scratch/PAS2136/samuelstevens/saev/acts/bfly-fg-v0/")
+    root = pathlib.Path("/fs/ess/PAS2136/samuelstevens/saev/runs/")
     return (root,)
 
 
@@ -33,7 +35,7 @@ def _(mo, root):
         except FileNotFoundError:
             choices = []
 
-        return mo.ui.dropdown(choices, label="Checkpoint")
+        return mo.ui.dropdown(choices, label="Checkpoint", searchable=True)
 
     ckpt_dropdown = make_ckpt_dropdown()
     return (ckpt_dropdown,)
@@ -43,6 +45,12 @@ def _(mo, root):
 def _(ckpt_dropdown):
     ckpt_dropdown
     return
+
+
+@app.cell
+def _(ckpt_dropdown, root, saev):
+    run = saev.disk.Run(root / ckpt_dropdown.value)
+    return (run,)
 
 
 @app.cell
@@ -68,17 +76,17 @@ def _(pl):
 
         return obs, target2fields
 
-    return (add_target,)
+    return
 
 
 @app.cell
-def _(add_target, ckpt_dropdown, pl, root):
-    img_obs, target2fields = add_target(
-        pl.read_parquet(root / ckpt_dropdown.value / "obs.parquet"),
-        ["Taxonomic_Name", "View"],
-    )
-    sae_var = pl.read_parquet(root / ckpt_dropdown.value / "var.parquet")
-    return img_obs, sae_var, target2fields
+def _(pl, run):
+    # img_obs, target2fields = add_target(
+    #     pl.read_parquet(root / ckpt_dropdown.value / "obs.parquet"),
+    #     ["Taxonomic_Name", "View"],
+    # )
+    sae_var = pl.read_parquet(run.inference / "var.parquet")
+    return (sae_var,)
 
 
 @app.cell
@@ -90,10 +98,10 @@ def _(ckpt_dropdown, mo):
 
 
 @app.cell
-def _(bisect, ckpt_dropdown, mo, root):
+def _(bisect, mo, run):
     features = sorted([
         int(path.name)
-        for path in (root / ckpt_dropdown.value / "features").iterdir()
+        for path in (run.inference / "features").iterdir()
         if path.name.isdigit()
     ])
 
@@ -214,10 +222,8 @@ def _(
 
 @app.cell
 def _(
-    ckpt_dropdown,
-    img_obs,
     mo,
-    root,
+    run,
     sae_var,
     show_img_switch,
     show_sae_img_switch,
@@ -225,7 +231,7 @@ def _(
     show_seg_switch,
 ):
     def show_img(feature: int, i: int):
-        neuron_dir = root / ckpt_dropdown.value / "features" / str(feature)
+        neuron_dir = run.inference / "features" / str(feature)
 
         imgs = []
 
@@ -270,13 +276,13 @@ def _(
             )
 
         feature = sae_var.row(feature, named=True)
-        metadata = img_obs.row(feature["top_img_i"][i], named=True)
+        # metadata = img_obs.row(feature["top_img_i"][i], named=True)
 
         return mo.vstack(
             [
                 mo.hstack(imgs),
-                mo.md(metadata["Taxonomic_Name"]),
-                mo.md(metadata["Image_name"]),
+                # mo.md(metadata["Taxonomic_Name"]),
+                # mo.md(metadata["Image_name"]),
             ],
             align="center",
         )

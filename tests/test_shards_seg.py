@@ -235,7 +235,7 @@ def test_pixel_to_patch_labels_majority():
     segmentation = Image.fromarray(seg_array)
 
     patch_labels = pixel_to_patch_labels(
-        segmentation, n_patches=4, patch_size=2, pixel_agg="majority"
+        segmentation, n_patches=4, patch_size=2, pixel_agg=PixelAgg.MAJORITY
     )
 
     expected = torch.tensor([0, 1, 2, 3], dtype=torch.uint8)

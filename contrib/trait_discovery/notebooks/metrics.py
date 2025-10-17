@@ -10,96 +10,129 @@ def _():
 
     import beartype
     import marimo as mo
+    import matplotlib.pyplot as plt
     import numpy as np
-    import polars as pl
-    import torch
-    from jaxtyping import Float, jaxtyped
 
-    return Float, beartype, jaxtyped, mo, np, pathlib, pl, torch
+    import saev.data
+    import saev.disk
+
+    return beartype, mo, np, pathlib, plt, saev
 
 
 @app.cell
-def _(pathlib):
-    root = pathlib.Path(
-        "/fs/scratch/PAS2136/samuelstevens/saev/acts/butterflies/g49kbj2j"
+def _(pathlib, saev):
+    run = saev.disk.Run(
+        pathlib.Path("/fs/ess/PAS2136/samuelstevens/saev/runs/8atno5xa/")
     )
-    return (root,)
+    shards_root = pathlib.Path("/fs/scratch/PAS2136/samuelstevens/saev/shards")
+    return run, shards_root
 
 
 @app.cell
-def _(pl, root, torch):
-    obs = pl.read_parquet(root / "img_obs.parquet").with_columns(
-        i=pl.int_range(pl.len()).alias("index")
-    )
+def _(beartype, np, pathlib, saev, shards_root):
+    @beartype.beartype
+    def get_baseline_ce(shards_dir: pathlib.Path):
+        md = saev.data.Metadata.load(shards_dir)
+        labels = np.memmap(
+            shards_dir / "labels.bin",
+            mode="r",
+            dtype=np.uint8,
+            shape=(md.n_examples, md.content_tokens_per_example),
+        )
 
-    x = torch.load(root / "img_acts.pt").numpy()
-    return obs, x
+        n_samples = np.prod(labels.shape)
 
+        n_classes = labels.max() + 1
+        # Convert to one-hot encoding
+        y = np.zeros((n_samples, n_classes), dtype=float)
+        y[np.arange(n_samples), labels.reshape(n_samples)] = 1.0
 
-@app.cell
-def _(obs):
-    target_map = {
-        target: label
-        for target, label in obs.select("target", "label").unique().iter_rows()
-    }
-    return (target_map,)
+        prob = y.mean(axis=0)
+        return -(prob * np.log(prob) + (1 - prob) * np.log(1 - prob))
 
-
-@app.cell
-def _(Float, beartype, jaxtyped, mo, np, obs, percentiles, pl, x):
-    @jaxtyped(typechecker=beartype.beartype)
-    def get_precision(
-        x_ns: Float[np.ndarray, "n_imgs d_sae"], obs: pl.DataFrame
-    ) -> Float[np.ndarray, "n_classes d_sae"]:
-        n_imgs, d_sae = x_ns.shape
-        n_classes = obs.select("target").unique().height
-
-        # purity[c, f] = #(images i with a_i,f > threshold AND Y_i = c) / #(images i with a_i,f > threshold)
-        # O[n,d]: latent is "on"
-        on_ns = x_ns > percentiles[None, :]
-        denom_s = on_ns.sum(axis=0).astype(np.float32)
-
-        # One-hot Y[n,c]
-        labels = obs.get_column("target").to_numpy()
-        y_nc = np.zeros((n_imgs, n_classes), dtype=np.int8)
-        y_nc[labels >= 0, labels[labels >= 0]] = 1
-
-        precision_cs = np.zeros((n_classes, d_sae), dtype=np.float32)
-        for c_idx in mo.status.progress_bar(range(n_classes)):
-            mask_n = labels == c_idx
-            # Numerator: rows where Y==c, summed over images
-            num_s = on_ns[mask_n, :].sum(axis=0).astype(np.float32)
-            with np.errstate(divide="ignore", invalid="ignore"):
-                precision_cs[c_idx, :] = num_s / denom_s
-        precision_cs[:, denom_s == 0] = -1
-        return precision_cs
-
-    prec = get_precision(x, obs)
-    prec
-    return (prec,)
+    baseline_ce = get_baseline_ce(shards_root / "e967c008")
+    baseline_ce.mean().item()
+    return (baseline_ce,)
 
 
 @app.cell
-def _(pl, prec, target_map):
-    prec_df = pl.DataFrame([
-        {"species": target_map[i], "precision": prec[i, latent], "latent": latent}
-        for i, latent in enumerate(prec.argmax(axis=1))
-    ])
-    prec_df.filter(pl.col("species").str.contains("lat"))
-    return (prec_df,)
+def _(np, run):
+    with np.load(run.inference / "e967c008" / "probe1d/probe1d_metrics.npz") as fd:
+        loss = fd["loss"]
+        biases = fd["biases"]
+        weights = fd["weights"]
+        tp = fd["tp"]
+        tn = fd["tn"]
+        fp = fd["fp"]
+        fn = fd["fn"]
+    return biases, fn, fp, loss, tn, tp, weights
 
 
 @app.cell
-def _(prec_df):
-    print(" ".join(map(str, prec_df.get_column("latent").to_list())))
+def _():
     return
 
 
 @app.cell
-def _(np, x):
-    percentiles = np.quantile(x, 0.95, axis=0)
-    percentiles
-    return (percentiles,)
+def _(fn, fp, mo, tn, tp):
+    acc = (tp + tn) / (tp + tn + fp + fn)
+
+    mo.md(f"Accuracy: {acc.max(axis=0).mean().item() * 100:.3f}%")
+    return
+
+
+@app.cell
+def _(baseline_ce, loss, np, plt):
+    def _():
+        fig, ax = plt.subplots(dpi=200, layout="constrained")
+        ax.hist(
+            1 - loss.min(axis=0) / baseline_ce,
+            bins=np.linspace(0, 1, 51),
+            label=f"8atno5xa ({(1 - loss.min(axis=0) / baseline_ce).mean().item():.3f})",
+        )
+        ax.set_xlim(0, 1)
+        ax.set_xlabel("Variance Explained")
+        ax.set_ylabel("Count of 151 Classes")
+        ax.legend()
+        ax.spines[["top", "right"]].set_visible(False)
+        return fig
+
+    _()
+    return
+
+
+@app.cell
+def _(plt, weights):
+    def _():
+        fig, ax = plt.subplots(dpi=200, layout="constrained")
+        ax.hist(weights.ravel(), bins=100)
+        ax.set_yscale("log")
+
+        ax.spines[["top", "right"]].set_visible(False)
+        return fig
+
+    _()
+    return
+
+
+@app.cell
+def _(biases, np):
+    np.histogram(biases.ravel(), bins=20)
+    return
+
+
+@app.cell
+def _(biases, plt):
+    def _():
+        fig, ax = plt.subplots(dpi=200, layout="constrained")
+        ax.hist(biases.ravel(), bins=100)
+        ax.set_yscale("log")
+
+        ax.spines[["top", "right"]].set_visible(False)
+        return fig
+
+    _()
+    return
 
 
 if __name__ == "__main__":

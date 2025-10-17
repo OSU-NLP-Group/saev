@@ -29,7 +29,7 @@ from saev.utils import statistics
 
 log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
 logging.basicConfig(level=logging.INFO, format=log_format)
-logger = logging.getLogger("activations.py")
+logger = logging.getLogger("inference.py")
 
 
 @beartype.beartype
@@ -62,6 +62,8 @@ class Config:
     """Slurm partition."""
     n_hours: float = 4.0
     """Slurm job length in hours."""
+    mem_gb: int = 80
+    """Node memory in GB."""
     log_to: str = os.path.join(".", "logs")
     """Where to log Slurm job stdout/stderr."""
 
@@ -72,6 +74,8 @@ def worker_fn(cfg: Config):
     run = disk.Run(cfg.run)
     md = Metadata.load(cfg.data.shards)
     root = run.inference / md.hash
+    root.mkdir(exist_ok=True, parents=True)
+
     mean_values_fpath = root / "mean_values.pt"
     sparsity_fpath = root / "sparsity.pt"
     distributions_fpath = root / "distributions.pt"
@@ -101,7 +105,7 @@ def worker_fn(cfg: Config):
             ", ".join(str(f) for f in missing),
         )
 
-    with open(run.inference / "config.json", "wb") as fd:
+    with open(root / "config.json", "wb") as fd:
         helpers.dump(cfg, fd)
 
     assert cfg.data.tokens == "content"
@@ -135,7 +139,7 @@ def worker_fn(cfg: Config):
 
     prev_i = -1
 
-    for batch in helpers.progress(dataloader, desc="activations"):
+    for batch in helpers.progress(dataloader):
         # Get SAE activations (shared computation)
         vit_acts_bd = batch["act"].to(cfg.device)
         _, f_x, *_ = sae(vit_acts_bd)
@@ -172,13 +176,15 @@ def worker_fn(cfg: Config):
     mean_values_s /= sparsity_s
     sparsity_s /= dataloader.n_samples
 
+    # Sparse CSR array
+    token_acts = scipy.sparse.vstack(token_acts_blocks, format="csr")
+    scipy.sparse.save_npz(token_acts_fpath, token_acts)
+
+    # Statistics
     torch.save(mean_values_s.cpu(), mean_values_fpath)
     torch.save(sparsity_s.cpu(), sparsity_fpath)
     torch.save(distributions_nm.cpu(), distributions_fpath)
     torch.save(estimator.estimate.cpu(), percentiles_fpath)
-    # Sparse CSR array
-    token_acts = scipy.sparse.vstack(token_acts_blocks, format="csr")
-    scipy.sparse.save_npz(token_acts_fpath, token_acts)
 
 
 @beartype.beartype
@@ -216,12 +222,20 @@ def main(
         import submitit
 
         executor = submitit.SlurmExecutor(folder=cfg.log_to)
+
+        n_cpus = 8
+        if cfg.mem_gb // 10 > n_cpus:
+            logger.info(
+                "Using %d CPUs instead of %d to get more RAM.", cfg.mem_gb // 10, n_cpus
+            )
+            n_cpus = cfg.mem_gb // 10
+
         executor.update_parameters(
             time=int(cfg.n_hours * 60),
             partition=cfg.slurm_partition,
             gpus_per_node=1,
             ntasks_per_node=1,
-            cpus_per_task=8,
+            cpus_per_task=n_cpus,
             stderr_to_stdout=True,
             account=cfg.slurm_acct,
         )
