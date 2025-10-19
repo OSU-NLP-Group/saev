@@ -177,7 +177,7 @@ def sigmoid(z: np.ndarray | float) -> np.ndarray:
 
 
 @beartype.beartype
-class SlowProbe(sklearn.base.BaseEstimator):
+class Reference1DProbe(sklearn.base.BaseEstimator):
     def __init__(
         self,
         ridge: float = 1e-8,
@@ -233,7 +233,7 @@ class SlowProbe(sklearn.base.BaseEstimator):
         else:
             if X.ndim != 2 or X.shape[1] != 1:
                 msg = (
-                    "SlowProbe expects exactly one feature; "
+                    "Reference1DProbe expects exactly one feature; "
                     f"received array with shape {X.shape}."
                 )
                 raise ValueError(msg)
@@ -414,7 +414,7 @@ class SlowProbe(sklearn.base.BaseEstimator):
 
     def decision_function(self, X):
         if not hasattr(self, "coef_") or not hasattr(self, "intercept_"):
-            msg = "SlowProbe instance is not fitted yet."
+            msg = "Reference1DProbe instance is not fitted yet."
             raise RuntimeError(msg)
         X = np.asarray(X, dtype=float)
         if X.ndim == 1:
@@ -422,7 +422,7 @@ class SlowProbe(sklearn.base.BaseEstimator):
         else:
             if X.ndim != 2 or X.shape[1] != 1:
                 msg = (
-                    "SlowProbe expects exactly one feature; "
+                    "Reference1DProbe expects exactly one feature; "
                     f"received array with shape {X.shape}."
                 )
                 raise ValueError(msg)
@@ -444,15 +444,6 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
     """Streaming Newton optimizer for per-latent logistic probes.
 
     For each latent ell and class c we fit a logistic model with parameters (b_{ell,c}, w_{ell,c}) on the sparse SAE activations `x_{j,ell}`. The loss is the negative log-likelihood L(b, w) = sum_j BCE(y_{j,c}, sigma(b + w x_{j,ell})). We initialize b_{ell,c} to the class prevalence logit logit(pi_c) so the model starts at the intercept-only optimum, and keep w_{ell,c}=0.
-
-    One Newton step proceeds as follows.
-
-    1. Clamp probabilities away from 0/1 with eps=1e-7 and reuse mu_0 = sigma(b_{ell,c}) and s_0 = mu_0(1-mu_0) for the implicit zeros. This stabilizes the BCE against saturated logits.
-    2. Stream the non-zero events of the CSR matrix and accumulate the sufficient statistics described in the Probe1D design doc: gradients G_0, G_1 and Hessian entries H_0, H_1, H_2. Zeros contribute in closed form via mu_0 and s_0. We also record sum mu_nonzero to reuse in the gradient.
-    3. Add ridge terms: G_1 <- G_1 + lambda w_{ell,c} and H_2 <- H_2 + lambda. For the intercept we regularize the deviation from the prevalence baseline, G_0 <- G_0 + lambda (b_{ell,c} - logit(pi_c)) and H_0 <- H_0 + lambda. This keeps the maximum-likelihood solution finite even when the pair is (nearly) separable.
-    4. Solve the 2x2 Newton system using a Levenberg-Marquardt damping step (Levenberg 1944, Marquardt 1963). Concretely, we add the current damping lambda_k to the diagonal (H_0 + lambda_k, H_2 + lambda_k) before inverting, compute Delta b, Delta w, and predict the quadratic reduction 0.5 (Delta b G_0 + Delta w G_1).
-    5. Guard the step with a simple trust-region update inspired by More's dogleg methods: if abs(Delta b) or abs(Delta w) exceeds `lm_max_update`, or if the predicted reduction is non-positive/NaN, enlarge lambda_k (by `lm_lambda_grow`) and retry, up to `lm_max_adapt_iters`. Remaining coordinates are clipped to the trust radius. Successful coordinates shrink lambda_k by `lm_lambda_shrink`.
-    6. Apply (b, w) <- (b, w) - (Delta b, Delta w), recompute the zero-loss contributions, and continue until gradients and step sizes fall below `tol` or `n_iter` iterations have been attempted.
 
     The implementation keeps memory bounded by iterating rows in batches (`row_batch_size`) and classes in slabs (`class_slab_size`), never materializing tensors shaped (nnz, n_classes). All tensor traversals use the same event iterator so the loss and metric routines stay numerically aligned with training.
     """

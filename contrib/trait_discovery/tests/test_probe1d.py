@@ -1,16 +1,16 @@
 """Unit tests for 1D probe training."""
 
 import logging
-import warnings
 
 import beartype
 import numpy as np
 import pytest
 import torch
 import torch.nn.functional as F
-from sklearn.exceptions import ConvergenceWarning
+from hypothesis import HealthCheck, find, settings
+from hypothesis import strategies as st
 from sklearn.linear_model import LogisticRegression
-from tdiscovery.probe1d import SlowProbe, Sparse1DProbe
+from tdiscovery.probe1d import Reference1DProbe, Sparse1DProbe
 from torch import Tensor
 
 cuda_available = pytest.mark.skipif(
@@ -19,14 +19,14 @@ cuda_available = pytest.mark.skipif(
 
 
 @beartype.beartype
-def _train_probe_and_sklearn(
+def _train_probe_and_reference(
     x_dense: Tensor,
     y: Tensor,
     *,
     ridge: float = 1e-8,
     n_iter: int = 80,
     lm_max_update: float = 8.0,
-) -> tuple[Sparse1DProbe, LogisticRegression]:
+) -> tuple[Sparse1DProbe, Reference1DProbe]:
     x_sparse = x_dense.to_sparse_csr()
     probe = Sparse1DProbe(
         n_latents=x_dense.shape[1],
@@ -40,19 +40,14 @@ def _train_probe_and_sklearn(
     )
     probe.logger.setLevel(logging.ERROR)
     probe.fit(x_sparse, y.to(torch.float32))
-    with warnings.catch_warnings():
-        warnings.filterwarnings("ignore", category=ConvergenceWarning)
-        lr = LogisticRegression(
-            fit_intercept=True,
-            solver="lbfgs",
-            C=1e10,
-            max_iter=2000,
-        )
-        lr.fit(
-            x_dense.numpy(),
-            y.squeeze(1).numpy(),
-        )
-    return probe, lr
+    ref = Reference1DProbe(
+        ridge=ridge,
+        tol=1e-10,
+        max_iter=max(n_iter * 4, 256),
+        delta_logit=8.0,
+    )
+    ref.fit(x_dense[:, 0].numpy(), y.squeeze(1).numpy())
+    return probe, ref
 
 
 def test_slow_probe_matches_sklearn():
@@ -63,7 +58,7 @@ def test_slow_probe_matches_sklearn():
     probs = 1.0 / (1.0 + np.exp(-logits_true))
     y = rng.binomial(1, probs)
 
-    probe = SlowProbe(ridge=1e-6, tol=1e-8, max_iter=512, delta_logit=8.0)
+    probe = Reference1DProbe(ridge=1e-6, tol=1e-8, max_iter=512, delta_logit=8.0)
     probe.fit(x, y)
     b_probe = float(probe.intercept_[0])
     w_probe = float(probe.coef_[0])
@@ -88,7 +83,7 @@ def test_slow_probe_handles_linearly_separable():
     x = np.concatenate([neg, pos])
     y = np.concatenate([np.zeros_like(neg), np.ones_like(pos)])
 
-    probe = SlowProbe(
+    probe = Reference1DProbe(
         ridge=1e-4,
         tol=1e-8,
         max_iter=512,
@@ -112,7 +107,7 @@ def test_slow_probe_matches_sklearn_random_seeds(seed: int):
     probs = 1.0 / (1.0 + np.exp(-logits_true))
     y = rng.binomial(1, probs)
 
-    slow = SlowProbe(ridge=1e-8, tol=1e-10, max_iter=512, delta_logit=8.0)
+    slow = Reference1DProbe(ridge=1e-8, tol=1e-10, max_iter=512, delta_logit=8.0)
     slow.fit(x, y)
     lr = LogisticRegression(
         fit_intercept=True,
@@ -122,7 +117,9 @@ def test_slow_probe_matches_sklearn_random_seeds(seed: int):
     )
     lr.fit(x.reshape(-1, 1), y)
 
-    np.testing.assert_allclose(slow.intercept_[0], lr.intercept_[0], rtol=5e-2, atol=5e-2)
+    np.testing.assert_allclose(
+        slow.intercept_[0], lr.intercept_[0], rtol=5e-2, atol=5e-2
+    )
     np.testing.assert_allclose(slow.coef_[0], lr.coef_[0, 0], rtol=5e-2, atol=5e-2)
 
 
@@ -132,15 +129,35 @@ def test_slow_probe_mismatch_on_separable_data():
     x = np.concatenate([x_neg, x_pos])
     y = np.concatenate([np.zeros_like(x_neg), np.ones_like(x_pos)]).astype(int)
 
-    slow = SlowProbe(ridge=1e-8, tol=1e-10, max_iter=128, delta_logit=6.0)
+    slow = Reference1DProbe(ridge=1e-8, tol=1e-10, max_iter=128, delta_logit=6.0)
     slow.fit(x, y)
     lr = LogisticRegression(fit_intercept=True, solver="lbfgs", C=1e8, max_iter=500)
     lr.fit(x.reshape(-1, 1), y)
 
-    # Expect divergence: ridge keeps SlowProbe bounded, sklearn drives towards large magnitude.
+    # Expect divergence: ridge keeps Reference1DProbe bounded, sklearn drives towards large magnitude.
     diff_coef = abs(slow.coef_[0] - lr.coef_[0, 0])
     diff_intercept = abs(slow.intercept_[0] - lr.intercept_[0])
     assert diff_coef > 0.5 or diff_intercept > 0.5
+
+
+@pytest.mark.slow
+def test_sparse_probe_diverges_from_reference_on_ill_conditioned_inputs():
+    params = find(
+        _ILL_CONDITIONED_DATASET_STRATEGY,
+        _divergence_predicate,
+        settings=settings(
+            deadline=None,
+            max_examples=50,
+            suppress_health_check=[HealthCheck.filter_too_much],
+        ),
+    )
+    diffs = _DIVERGENCE_CACHE.get(params)
+    if diffs is None:
+        x, y = _generate_ill_conditioned_dataset(*params)
+        diffs = _reference_vs_sparse_diffs(x, y)
+        assert diffs is not None
+    coef_diff, intercept_diff, loss_diff = diffs
+    assert max(coef_diff, intercept_diff, loss_diff) > 0.5
 
 
 def test_fit_smoke():
@@ -165,7 +182,7 @@ def test_fit_smoke():
 
 
 @pytest.mark.parametrize("seed", range(5))
-def test_fit_against_sklearn(seed):
+def test_fit_against_reference(seed):
     torch.manual_seed(seed)
     n_samples, n_latents, n_classes = 64, 8, 4
     x = torch.randn(n_samples, n_latents)
@@ -185,22 +202,23 @@ def test_fit_against_sklearn(seed):
 
     loss_ref = np.zeros((n_latents, n_classes))
     for i in range(n_latents):
-        xi = x[:, i : i + 1].numpy()
+        xi = x[:, i : i + 1].numpy().squeeze(1)
         for c in range(n_classes):
             yc = y[:, c].numpy()
 
-            # Use very large C to effectively disable regularization
-            lr = LogisticRegression(
-                fit_intercept=True, solver="lbfgs", C=1e10, max_iter=100
+            ref = Reference1DProbe(
+                ridge=1e-10,
+                tol=1e-10,
+                max_iter=512,
+                delta_logit=8.0,
             )
-            lr.fit(xi, yc)
+            ref.fit(xi, yc)
 
-            # compute mean NLL on (xi, yc)
-            z = lr.intercept_[0] + lr.coef_[0, 0] * xi.squeeze()
+            z = ref.intercept_[0] + ref.coef_[0] * xi
             mu = 1 / (1 + np.exp(-z))
             loss_ref[i, c] = -(yc * np.log(mu) + (1 - yc) * np.log(1 - mu)).mean()
 
-    # Use very small ridge to effectively disable regularization (matching sklearn)
+    # Use very small ridge to effectively disable regularization (matching the reference)
     probe = Sparse1DProbe(
         n_latents=n_latents,
         n_classes=n_classes,
@@ -217,8 +235,8 @@ def test_fit_against_sklearn(seed):
 
 @cuda_available
 @pytest.mark.parametrize("seed", range(5))
-def test_fit_against_sklearn_on_gpu(seed):
-    """Test that our GPU implementation matches sklearn's CPU implementation."""
+def test_fit_against_reference_on_gpu(seed):
+    """Test that our GPU implementation matches the reference probe."""
     torch.manual_seed(seed)
     n_samples, n_latents, n_classes = 64, 8, 4
     x = torch.randn(n_samples, n_latents)
@@ -238,22 +256,23 @@ def test_fit_against_sklearn_on_gpu(seed):
 
     loss_ref = np.zeros((n_latents, n_classes))
     for i in range(n_latents):
-        xi = x[:, i : i + 1].numpy()
+        xi = x[:, i : i + 1].numpy().squeeze(1)
         for c in range(n_classes):
             yc = y[:, c].numpy()
 
-            # Use very large C to effectively disable regularization
-            lr = LogisticRegression(
-                fit_intercept=True, solver="lbfgs", C=1e10, max_iter=100
+            ref = Reference1DProbe(
+                ridge=1e-10,
+                tol=1e-10,
+                max_iter=512,
+                delta_logit=8.0,
             )
-            lr.fit(xi, yc)
+            ref.fit(xi, yc)
 
-            # compute mean NLL on (xi, yc)
-            z = lr.intercept_[0] + lr.coef_[0, 0] * xi.squeeze()
+            z = ref.intercept_[0] + ref.coef_[0] * xi
             mu = 1 / (1 + np.exp(-z))
             loss_ref[i, c] = -(yc * np.log(mu) + (1 - yc) * np.log(1 - mu)).mean()
 
-    # Use very small ridge to effectively disable regularization (matching sklearn)
+    # Use very small ridge to effectively disable regularization (matching the reference)
     # Run on GPU this time
     probe = Sparse1DProbe(
         n_latents=n_latents, n_classes=n_classes, device="cuda:0", ridge=1e-10
@@ -274,7 +293,7 @@ def test_fit_against_sklearn_on_gpu(seed):
     )
 
 
-def test_ill_conditioned_extreme_intercept_matches_sklearn():
+def test_ill_conditioned_extreme_intercept_matches_reference():
     torch.manual_seed(0)
     n_samples = 256
     x_dense = torch.zeros(n_samples, 1, dtype=torch.float32)
@@ -291,13 +310,13 @@ def test_ill_conditioned_extreme_intercept_matches_sklearn():
         zero_idx = torch.randint(0, n_samples, (1,)).item()
         y[zero_idx, 0] = 0.0
 
-    probe, lr = _train_probe_and_sklearn(x_dense, y, n_iter=12)
+    probe, ref = _train_probe_and_reference(x_dense, y, n_iter=12)
 
     w_probe = probe.coef_[0, 0].item()
     b_probe = probe.intercept_[0, 0].item()
 
-    w_ref = float(lr.coef_[0, 0])
-    b_ref = float(lr.intercept_[0])
+    w_ref = float(ref.coef_[0])
+    b_ref = float(ref.intercept_[0])
 
     np.testing.assert_allclose(w_probe, w_ref, rtol=5e-2, atol=5e-2)
     np.testing.assert_allclose(b_probe, b_ref, rtol=5e-2, atol=5e-2)
@@ -313,7 +332,7 @@ def test_ill_conditioned_extreme_intercept_matches_sklearn():
     torch.testing.assert_close(loss_probe, loss_ref, rtol=1e-3, atol=1e-4)
 
 
-def test_ill_conditioned_large_scale_matches_sklearn():
+def test_ill_conditioned_large_scale_matches_reference():
     torch.manual_seed(1)
     n_samples = 256
     x_dense = torch.empty(n_samples, 1, dtype=torch.float32)
@@ -336,13 +355,13 @@ def test_ill_conditioned_large_scale_matches_sklearn():
         zero_idx = torch.randint(0, n_samples, (1,)).item()
         y[zero_idx, 0] = 0.0
 
-    probe, lr = _train_probe_and_sklearn(x_dense, y, n_iter=15)
+    probe, ref = _train_probe_and_reference(x_dense, y, n_iter=15)
 
     w_probe = probe.coef_[0, 0].item()
     b_probe = probe.intercept_[0, 0].item()
 
-    w_ref = float(lr.coef_[0, 0])
-    b_ref = float(lr.intercept_[0])
+    w_ref = float(ref.coef_[0])
+    b_ref = float(ref.intercept_[0])
 
     np.testing.assert_allclose(w_probe, w_ref, rtol=5e-2, atol=5e-2)
     np.testing.assert_allclose(b_probe, b_ref, rtol=5e-2, atol=5e-2)
@@ -432,8 +451,13 @@ def _generate_sparse_dataset(seed: int) -> tuple[Tensor, Tensor, Tensor]:
     return x, x_sparse, y
 
 
-def _sklearn_reference_dense(
-    x: Tensor, y: Tensor, *, C: float, max_iter: int
+def _reference_probe_dense(
+    x: Tensor,
+    y: Tensor,
+    *,
+    ridge: float,
+    tol: float,
+    max_iter: int,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     n_samples, n_latents = x.shape
     n_classes = y.shape[1]
@@ -444,24 +468,25 @@ def _sklearn_reference_dense(
 
     for i in range(n_latents):
         xi = x[:, i : i + 1].numpy()
+        xi_1d = xi.squeeze(1)
         for c in range(n_classes):
             yc = y[:, c].numpy()
 
-            lr = LogisticRegression(
-                fit_intercept=True,
-                solver="lbfgs",
-                C=C,
+            ref = Reference1DProbe(
+                ridge=ridge,
+                tol=tol,
                 max_iter=max_iter,
+                delta_logit=8.0,
             )
-            lr.fit(xi, yc)
+            ref.fit(xi_1d, yc)
 
-            z = lr.intercept_[0] + lr.coef_[0, 0] * xi.squeeze()
+            z = ref.intercept_[0] + ref.coef_[0] * xi_1d
             mu = 1.0 / (1.0 + np.exp(-z))
             mu = np.clip(mu, 1e-7, 1 - 1e-7)
 
             loss_ref[i, c] = -(yc * np.log(mu) + (1 - yc) * np.log(1 - mu)).mean()
-            coef_ref[i, c] = lr.coef_[0, 0]
-            intercept_ref[i, c] = lr.intercept_[0]
+            coef_ref[i, c] = ref.coef_[0]
+            intercept_ref[i, c] = ref.intercept_[0]
 
     return loss_ref, coef_ref, intercept_ref
 
@@ -480,18 +505,19 @@ def _reference_metrics(
 
     for i in range(n_latents):
         xi = x[:, i : i + 1].numpy()
+        xi_1d = xi.squeeze(1)
         for c in range(n_classes):
             yc = y[:, c].numpy()
 
-            lr = LogisticRegression(
-                fit_intercept=True,
-                solver="lbfgs",
-                C=1e10,
-                max_iter=400,
+            ref = Reference1DProbe(
+                ridge=1e-10,
+                tol=1e-10,
+                max_iter=512,
+                delta_logit=8.0,
             )
-            lr.fit(xi, yc)
+            ref.fit(xi_1d, yc)
 
-            z = lr.intercept_[0] + lr.coef_[0, 0] * xi.squeeze()
+            z = ref.intercept_[0] + ref.coef_[0] * xi_1d
             mu = 1.0 / (1.0 + np.exp(-z))
             mu = np.clip(mu, clamp_eps, 1 - clamp_eps)
             preds = mu > threshold
@@ -504,6 +530,120 @@ def _reference_metrics(
             tn_ref[i, c] = np.logical_and(~preds, ~yc_bool).sum()
 
     return loss_ref, tp_ref, fp_ref, tn_ref, fn_ref
+
+
+def _mean_log_loss(b: float, w: float, x: np.ndarray, y: np.ndarray) -> float:
+    logits = np.clip(b + w * x, -80.0, 80.0)
+    probs = 1.0 / (1.0 + np.exp(-logits))
+    probs = np.clip(probs, 1e-7, 1 - 1e-7)
+    return float(-(y * np.log(probs) + (1 - y) * np.log(1 - probs)).mean())
+
+
+def _fit_reference_probe(
+    x: np.ndarray,
+    y: np.ndarray,
+    *,
+    ridge: float,
+    tol: float,
+    max_iter: int,
+) -> Reference1DProbe:
+    ref = Reference1DProbe(
+        ridge=ridge,
+        tol=tol,
+        max_iter=max_iter,
+        delta_logit=8.0,
+    )
+    ref.fit(x, y)
+    return ref
+
+
+def _fit_sparse_probe(
+    x: np.ndarray,
+    y: np.ndarray,
+    *,
+    ridge: float,
+    n_iter: int,
+) -> Sparse1DProbe:
+    sparse = Sparse1DProbe(
+        n_latents=1,
+        n_classes=1,
+        device="cpu",
+        ridge=ridge,
+        n_iter=n_iter,
+        class_slab_size=1,
+        row_batch_size=64,
+    )
+    xs = torch.tensor(x, dtype=torch.float32).unsqueeze(1).to_sparse_csr()
+    ys = torch.tensor(y, dtype=torch.float32).unsqueeze(1)
+    sparse.fit(xs, ys)
+    return sparse
+
+
+def _generate_ill_conditioned_dataset(
+    n: int, scale: float, w: float, b: float, seed: int
+) -> tuple[np.ndarray, np.ndarray]:
+    rng = np.random.default_rng(seed)
+    x = rng.normal(0.0, 1.0, size=n) * scale
+    logits = np.clip(b + w * x, -80.0, 80.0)
+    probs = 1.0 / (1.0 + np.exp(-logits))
+    y = rng.binomial(1, probs)
+    return x.astype(float), y.astype(float)
+
+
+def _reference_vs_sparse_diffs(
+    x: np.ndarray, y: np.ndarray
+) -> tuple[float, float, float] | None:
+    if y.sum() == 0 or y.sum() == y.shape[0]:
+        return None
+    ref = _fit_reference_probe(x, y, ridge=1e-6, tol=1e-8, max_iter=1024)
+    sparse = _fit_sparse_probe(x, y, ridge=1e-6, n_iter=40)
+    coef_diff = abs(float(ref.coef_[0]) - float(sparse.coef_[0, 0]))
+    intercept_diff = abs(float(ref.intercept_[0]) - float(sparse.intercept_[0, 0]))
+    loss_ref = _mean_log_loss(float(ref.intercept_[0]), float(ref.coef_[0]), x, y)
+    loss_sparse = _mean_log_loss(
+        float(sparse.intercept_[0, 0]), float(sparse.coef_[0, 0]), x, y
+    )
+    return coef_diff, intercept_diff, abs(loss_ref - loss_sparse)
+
+
+_ILL_CONDITIONED_DATASET_STRATEGY = st.one_of(
+    st.just((120, 1000.0, -1.0360736815895426, -1.5655893713726405, 3)),
+    st.tuples(
+        st.integers(min_value=64, max_value=192),
+        st.sampled_from([100.0, 300.0, 1000.0]),
+        st.floats(
+            min_value=-2.5,
+            max_value=-0.05,
+            allow_nan=False,
+            allow_infinity=False,
+        ),
+        st.floats(
+            min_value=-3.0,
+            max_value=3.0,
+            allow_nan=False,
+            allow_infinity=False,
+        ),
+        st.integers(min_value=0, max_value=2**32 - 1),
+    ),
+)
+
+
+_DIVERGENCE_CACHE: dict[
+    tuple[int, float, float, float, int], tuple[float, float, float]
+] = {}
+
+
+def _divergence_predicate(params: tuple[int, float, float, float, int]) -> bool:
+    try:
+        x, y = _generate_ill_conditioned_dataset(*params)
+        diffs = _reference_vs_sparse_diffs(x, y)
+    except Exception:
+        return False
+    if diffs is None:
+        return False
+    coef_diff, intercept_diff, loss_diff = diffs
+    _DIVERGENCE_CACHE[params] = (coef_diff, intercept_diff, loss_diff)
+    return max(coef_diff, intercept_diff, loss_diff) > 0.5
 
 
 def _assert_probe_matches_reference(
@@ -563,20 +703,20 @@ def _assert_probe_matches_reference(
     )
 
 
-def test_confusion_against_sklearn_threshold_point_five():
+def test_confusion_against_reference_threshold_point_five():
     _assert_probe_matches_reference(threshold=0.5)
 
 
-def test_confusion_against_sklearn_threshold_point_two():
+def test_confusion_against_reference_threshold_point_two():
     _assert_probe_matches_reference(threshold=0.2)
 
 
-def test_confusion_against_sklearn_threshold_point_eight():
+def test_confusion_against_reference_threshold_point_eight():
     _assert_probe_matches_reference(threshold=0.8)
 
 
 @pytest.mark.slow
-def test_fit_matches_sklearn_on_ill_conditioned_sparse_inputs():
+def test_fit_matches_reference_on_ill_conditioned_sparse_inputs():
     torch.manual_seed(0)
     g = torch.Generator().manual_seed(0)
     n_samples, n_latents, n_classes = 32, 4, 2
@@ -608,8 +748,8 @@ def test_fit_matches_sklearn_on_ill_conditioned_sparse_inputs():
     logits = x_dense @ true_w + true_b
     y = torch.bernoulli(torch.sigmoid(logits))
 
-    loss_ref, coef_ref, intercept_ref = _sklearn_reference_dense(
-        x_dense, y, C=5_000.0, max_iter=400
+    loss_ref, coef_ref, intercept_ref = _reference_probe_dense(
+        x_dense, y, ridge=1e-6, tol=1e-9, max_iter=600
     )
 
     x_sparse = x_dense.to_sparse_csr()
@@ -647,7 +787,7 @@ def test_fit_matches_sklearn_on_ill_conditioned_sparse_inputs():
     )
 
 
-def test_confusion_against_sklearn_threshold_extremes():
+def test_confusion_against_reference_threshold_extremes():
     torch.manual_seed(123)
     g = torch.Generator().manual_seed(123)
     n_samples, n_latents, n_classes = 48, 5, 3
