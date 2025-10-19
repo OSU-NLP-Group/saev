@@ -278,6 +278,7 @@ class SlowProbe(sklearn.base.BaseEstimator):
         prev_loss_before_step = None
         step_max = float("inf")
         grad_max = float("inf")
+        prev_step_clipped = False
 
         def loss(b, w):
             mu = sigmoid(b + w * x)
@@ -293,12 +294,21 @@ class SlowProbe(sklearn.base.BaseEstimator):
             if prev_pred is not None:
                 actual = prev_loss_before_step - loss_curr
                 rho = actual / max(prev_pred, 1e-18)
+                grow = False
+                shrink = False
                 if not np.isfinite(rho):
+                    grow = True
+                else:
+                    if rho >= 0.75 and not prev_step_clipped:
+                        shrink = True
+                    if rho <= 0.25:
+                        grow = True
+                if prev_step_clipped:
+                    grow = True
+                if grow:
                     lam = min(lam * self.lam_grow, self.lam_max)
-                elif rho >= 0.75:
+                elif shrink:
                     lam = max(lam * self.lam_shrink, self.lam_min)
-                elif rho <= 0.25:
-                    lam = min(lam * self.lam_grow, self.lam_max)
 
             z = b + w * x
             mu = sigmoid(z)
@@ -316,7 +326,9 @@ class SlowProbe(sklearn.base.BaseEstimator):
             # LM step with retries
             tried = 0
             db = dw = 0.0
+            step_clipped = False
             while tried < 6:
+                step_clipped_local = False
                 if self.use_elliptical:
                     # scaled LM: H + lam * D^T D with D=diag(1,qx)
                     h0_eff = h0 + lam * 1.0
@@ -340,18 +352,23 @@ class SlowProbe(sklearn.base.BaseEstimator):
                         scale = self.delta_logit / (norm + 1e-18)
                         db *= scale
                         dw *= scale
+                        step_clipped_local = True
                 else:
-                    changed = False
-                    if abs(db) > self.delta_logit:
-                        db = np.sign(db) * self.delta_logit
-                        changed = True
-                    dw_limit = self.delta_logit / qx_value
-                    if abs(dw) > dw_limit:
-                        dw = np.sign(dw) * dw_limit
-                        changed = True
-                    if changed:
-                        # mark as a "clipped" step: encourage larger damping
-                        lam = min(lam * self.lam_grow, self.lam_max)
+                    delta_b = self.delta_logit
+                    delta_w = self.delta_logit / qx_value
+                    ratio_b = abs(db) / delta_b
+                    ratio_w = abs(dw) / delta_w
+                    ratio = max(ratio_b, ratio_w)
+                    if ratio > 1.0:
+                        scale = 1.0 / ratio
+                        db *= scale
+                        dw *= scale
+                        step_clipped_local = True
+
+                if not np.isfinite(db) or not np.isfinite(dw):
+                    lam = min(lam * self.lam_grow, self.lam_max)
+                    tried += 1
+                    continue
 
                 # predicted quadratic-model decrease (correct sign)
                 pred = (
@@ -363,6 +380,7 @@ class SlowProbe(sklearn.base.BaseEstimator):
                     lam = min(lam * self.lam_grow, self.lam_max)
                     tried += 1
                     continue
+                step_clipped = step_clipped_local
                 break
 
             # apply step
@@ -374,6 +392,7 @@ class SlowProbe(sklearn.base.BaseEstimator):
             prev_loss_before_step = loss_curr
             loss_curr = loss_new
             b, w = b_new, w_new
+            prev_step_clipped = step_clipped
 
             step_max = max(abs(db), abs(dw))
             if grad_max < self.tol and step_max < self.tol:

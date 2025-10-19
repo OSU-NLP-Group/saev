@@ -103,6 +103,46 @@ def test_slow_probe_handles_linearly_separable():
     assert probe.converged_ or probe.n_iter_ == probe.max_iter
 
 
+@pytest.mark.parametrize("seed", range(6))
+def test_slow_probe_matches_sklearn_random_seeds(seed: int):
+    rng = np.random.default_rng(seed)
+    n_samples = 256
+    x = rng.normal(size=n_samples)
+    logits_true = rng.normal() + rng.normal() * x
+    probs = 1.0 / (1.0 + np.exp(-logits_true))
+    y = rng.binomial(1, probs)
+
+    slow = SlowProbe(ridge=1e-8, tol=1e-10, max_iter=512, delta_logit=8.0)
+    slow.fit(x, y)
+    lr = LogisticRegression(
+        fit_intercept=True,
+        solver="lbfgs",
+        C=1e10,
+        max_iter=5000,
+    )
+    lr.fit(x.reshape(-1, 1), y)
+
+    np.testing.assert_allclose(slow.intercept_[0], lr.intercept_[0], rtol=5e-2, atol=5e-2)
+    np.testing.assert_allclose(slow.coef_[0], lr.coef_[0, 0], rtol=5e-2, atol=5e-2)
+
+
+def test_slow_probe_mismatch_on_separable_data():
+    x_neg = np.linspace(-4.0, -0.5, num=40)
+    x_pos = np.linspace(0.5, 4.0, num=40)
+    x = np.concatenate([x_neg, x_pos])
+    y = np.concatenate([np.zeros_like(x_neg), np.ones_like(x_pos)]).astype(int)
+
+    slow = SlowProbe(ridge=1e-8, tol=1e-10, max_iter=128, delta_logit=6.0)
+    slow.fit(x, y)
+    lr = LogisticRegression(fit_intercept=True, solver="lbfgs", C=1e8, max_iter=500)
+    lr.fit(x.reshape(-1, 1), y)
+
+    # Expect divergence: ridge keeps SlowProbe bounded, sklearn drives towards large magnitude.
+    diff_coef = abs(slow.coef_[0] - lr.coef_[0, 0])
+    diff_intercept = abs(slow.intercept_[0] - lr.intercept_[0])
+    assert diff_coef > 0.5 or diff_intercept > 0.5
+
+
 def test_fit_smoke():
     """Test that optimizer converges on linearly separable data with L2 regularization."""
     torch.manual_seed(42)
