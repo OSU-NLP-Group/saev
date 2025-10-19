@@ -3,22 +3,25 @@
 import logging
 import warnings
 
+import beartype
 import numpy as np
 import pytest
 import torch
 import torch.nn.functional as F
 from sklearn.exceptions import ConvergenceWarning
 from sklearn.linear_model import LogisticRegression
-from tdiscovery.probe1d import Sparse1DProbe
+from tdiscovery.probe1d import SlowProbe, Sparse1DProbe
+from torch import Tensor
 
 cuda_available = pytest.mark.skipif(
     not torch.cuda.is_available(), reason="requires GPU"
 )
 
 
+@beartype.beartype
 def _train_probe_and_sklearn(
-    x_dense: torch.Tensor,
-    y: torch.Tensor,
+    x_dense: Tensor,
+    y: Tensor,
     *,
     ridge: float = 1e-8,
     n_iter: int = 80,
@@ -50,6 +53,54 @@ def _train_probe_and_sklearn(
             y.squeeze(1).numpy(),
         )
     return probe, lr
+
+
+def test_slow_probe_matches_sklearn():
+    rng = np.random.default_rng(0)
+    n_samples = 512
+    x = rng.normal(0.0, 1.0, size=n_samples)
+    logits_true = -0.75 + 1.35 * x
+    probs = 1.0 / (1.0 + np.exp(-logits_true))
+    y = rng.binomial(1, probs)
+
+    probe = SlowProbe(ridge=1e-6, tol=1e-8, max_iter=512, delta_logit=8.0)
+    probe.fit(x, y)
+    b_probe = float(probe.intercept_[0])
+    w_probe = float(probe.coef_[0])
+
+    lr = LogisticRegression(
+        fit_intercept=True,
+        solver="lbfgs",
+        C=1e8,
+        max_iter=5000,
+    )
+    lr.fit(x.reshape(-1, 1), y)
+    b_ref = float(lr.intercept_[0])
+    w_ref = float(lr.coef_[0, 0])
+
+    np.testing.assert_allclose(b_probe, b_ref, rtol=5e-2, atol=5e-2)
+    np.testing.assert_allclose(w_probe, w_ref, rtol=5e-2, atol=5e-2)
+
+
+def test_slow_probe_handles_linearly_separable():
+    pos = np.linspace(0.5, 5.0, num=64)
+    neg = np.linspace(-5.0, -0.5, num=64)
+    x = np.concatenate([neg, pos])
+    y = np.concatenate([np.zeros_like(neg), np.ones_like(pos)])
+
+    probe = SlowProbe(
+        ridge=1e-4,
+        tol=1e-8,
+        max_iter=512,
+        delta_logit=6.0,
+        use_elliptical=True,
+    )
+    probe.fit(x, y)
+
+    logits = float(probe.intercept_[0]) + float(probe.coef_[0]) * x
+    preds = (logits > 0).astype(int)
+    assert np.array_equal(preds, y.astype(int))
+    assert probe.converged_ or probe.n_iter_ == probe.max_iter
 
 
 def test_fit_smoke():
@@ -322,9 +373,7 @@ def test_chunked_classes_vs_full(seed, class_slab_size):
     torch.testing.assert_close(loss_full, loss_chunked, rtol=1e-3, atol=1e-3)
 
 
-def _generate_sparse_dataset(
-    seed: int,
-) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+def _generate_sparse_dataset(seed: int) -> tuple[Tensor, Tensor, Tensor]:
     torch.manual_seed(seed)
     n_samples, n_latents, n_classes = 40, 6, 5
     x = torch.randn(n_samples, n_latents)
@@ -344,11 +393,7 @@ def _generate_sparse_dataset(
 
 
 def _sklearn_reference_dense(
-    x: torch.Tensor,
-    y: torch.Tensor,
-    *,
-    C: float,
-    max_iter: int,
+    x: Tensor, y: Tensor, *, C: float, max_iter: int
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     n_samples, n_latents = x.shape
     n_classes = y.shape[1]
@@ -382,10 +427,7 @@ def _sklearn_reference_dense(
 
 
 def _reference_metrics(
-    x: torch.Tensor,
-    y: torch.Tensor,
-    threshold: float,
-    clamp_eps: float = 1e-7,
+    x: Tensor, y: Tensor, threshold: float, clamp_eps: float = 1e-7
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     n_samples, n_latents = x.shape
     n_classes = y.shape[1]

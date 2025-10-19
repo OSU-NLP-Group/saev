@@ -53,7 +53,8 @@ class SparseEventsBatch(NamedTuple):
     row_idx: Int[Tensor, " event"]
 
 
-@dataclasses.dataclass
+@beartype.beartype
+@dataclasses.dataclass(frozen=True)
 class SlabStats:
     """Aggregated Newton statistics for a `(latent, class)` slab.
 
@@ -78,7 +79,8 @@ class SlabStats:
     mu_nz: Float[Tensor, "n_latents c_b"]
 
 
-class LMStepResult(NamedTuple):
+@beartype.beartype
+class StepResult(NamedTuple):
     """Holds state returned by `_solve_lm_step`."""
 
     db: Float[Tensor, "n_latents c_b"]
@@ -92,8 +94,9 @@ class LMStepResult(NamedTuple):
     predicted_reduction: Float[Tensor, "n_latents c_b"]
 
 
-@dataclasses.dataclass
-class LMIterationContext:
+@beartype.beartype
+@dataclasses.dataclass(frozen=True)
+class StepContext:
     """Snapshot of state passed to `_log_lm_step` for reporting.
 
     Attributes:
@@ -138,11 +141,12 @@ class LMIterationContext:
     mu_0: Float[Tensor, "n_latents c_b"]
     n_zeros_per_latent: Float[Tensor, "n_latents 1"]
     pi_slab_device: Tensor
-    lambda_step: LMStepResult
+    lambda_step: StepResult
 
 
-@dataclasses.dataclass
-class IterationSummary:
+@beartype.beartype
+@dataclasses.dataclass(frozen=True)
+class StepSummary:
     """Lightweight iteration metrics emitted via `iteration_hook`.
 
     Attributes map one-to-one with the values logged inside `_log_lm_step` so
@@ -160,17 +164,278 @@ class IterationSummary:
     predicted_reduction_mean: float
 
 
+@beartype.beartype
+def sigmoid(z: np.ndarray | float) -> np.ndarray:
+    # stable logistic
+    out = np.empty_like(z, dtype=float)
+    pos = z >= 0
+    neg = ~pos
+    out[pos] = 1.0 / (1.0 + np.exp(-z[pos]))
+    ez = np.exp(z[neg])
+    out[neg] = ez / (1.0 + ez)
+    return np.clip(out, 1e-12, 1 - 1e-12)
+
+
+@beartype.beartype
+class SlowProbe(sklearn.base.BaseEstimator):
+    def __init__(
+        self,
+        ridge: float = 1e-8,
+        tol: float = 1e-6,
+        max_iter: int = 200,
+        lam_init: float = 1e-3,
+        lam_shrink: float = 0.1,
+        lam_grow: float = 10.0,
+        delta_logit: float = 6.0,
+        qx: float | None = None,
+        use_elliptical: bool = False,
+    ):
+        if lam_shrink <= 0 or lam_shrink >= 1:
+            msg = f"lam_shrink must lie in (0,1), got {lam_shrink}."
+            raise ValueError(msg)
+        if lam_grow <= 1:
+            msg = f"lam_grow must be >1, got {lam_grow}."
+            raise ValueError(msg)
+        if delta_logit <= 0:
+            msg = f"delta_logit must be >0, got {delta_logit}."
+            raise ValueError(msg)
+        if qx is not None and qx <= 0:
+            msg = f"qx must be positive when provided, got {qx}."
+            raise ValueError(msg)
+
+        self.ridge = float(ridge)
+        self.tol = float(tol)
+        self.max_iter = int(max_iter)
+        self.lam_init = float(lam_init)
+        self.lam_shrink = float(lam_shrink)
+        self.lam_grow = float(lam_grow)
+        self.delta_logit = float(delta_logit)
+        self.qx_override = float(qx) if qx is not None else None
+        self.use_elliptical = bool(use_elliptical)
+        self.lam_min = 1e-12
+        self.lam_max = 1e12
+
+        self.intercept_: float | None = None
+        self.weight_: float | None = None
+        self.converged_: bool = False
+        self.n_iter_: int = 0
+
+    def fit(self, X, y):
+        """
+        Dense, single (latent,class) solver.
+        Accepts either a 1D array (n,) or a column vector (n,1).
+        Ridge penalty: 0.5*(w^2 + (b - b0)^2)
+        Trust region: either box (|Δb|<=δ, |Δw|<=δ/qx) or elliptical ||DΔ||2<=δ with D=diag(1,qx).
+        """
+        X = np.asarray(X, dtype=float)
+        if X.ndim == 1:
+            x = X.reshape(-1)
+        else:
+            if X.ndim != 2 or X.shape[1] != 1:
+                msg = (
+                    "SlowProbe expects exactly one feature; "
+                    f"received array with shape {X.shape}."
+                )
+                raise ValueError(msg)
+            x = X[:, 0]
+
+        y = np.asarray(y, dtype=float).reshape(-1)
+        if x.shape[0] != y.shape[0]:
+            msg = (
+                "x and y must have matching lengths; "
+                f"received {x.shape[0]} and {y.shape[0]}."
+            )
+            raise ValueError(msg)
+        if x.shape[0] == 0:
+            msg = "x and y must contain at least one sample."
+            raise ValueError(msg)
+        if np.any((y < 0) | (y > 1)):
+            msg = "y must contain only probabilities in [0, 1]."
+            raise ValueError(msg)
+
+        pi = y.mean()
+        pi = np.clip(pi, 1e-12, 1 - 1e-12)
+        b0 = np.log(pi / (1 - pi))
+
+        b = float(b0)
+        w = 0.0
+        lam = float(self.lam_init)
+        qx_value = self.qx_override
+        if qx_value is None:
+            # robust scale; 95th percentile of |x| is fine too
+            nnz = x[x != 0]
+            if nnz.size == 0:
+                qx_value = 1.0
+            else:
+                qx_value = np.quantile(np.abs(nnz), 0.95)
+                if not np.isfinite(qx_value) or qx_value <= 1e-12:
+                    qx_value = float(np.sqrt(np.mean(nnz**2)))
+        qx_value = max(float(qx_value), 1e-12)
+
+        self.qx_ = qx_value
+
+        prev_pred = None
+        prev_loss_before_step = None
+        step_max = float("inf")
+        grad_max = float("inf")
+
+        def loss(b, w):
+            mu = sigmoid(b + w * x)
+            # NLL + ridge
+            return -(
+                y * np.log(mu) + (1 - y) * np.log(1 - mu)
+            ).sum() + 0.5 * self.ridge * (w**2 + (b - b0) ** 2)
+
+        loss_curr = loss(b, w)
+
+        for it in range(self.max_iter):
+            rho = None
+            if prev_pred is not None:
+                actual = prev_loss_before_step - loss_curr
+                rho = actual / max(prev_pred, 1e-18)
+                if not np.isfinite(rho):
+                    lam = min(lam * self.lam_grow, self.lam_max)
+                elif rho >= 0.75:
+                    lam = max(lam * self.lam_shrink, self.lam_min)
+                elif rho <= 0.25:
+                    lam = min(lam * self.lam_grow, self.lam_max)
+
+            z = b + w * x
+            mu = sigmoid(z)
+            s = mu * (1 - mu)
+            r = mu - y
+
+            g0 = r.sum() + self.ridge * (b - b0)
+            g1 = (r * x).sum() + self.ridge * w
+            h0 = s.sum() + self.ridge
+            h1 = (s * x).sum()
+            h2 = (s * x * x).sum() + self.ridge
+
+            grad_max = max(abs(g0), abs(g1))
+
+            # LM step with retries
+            tried = 0
+            db = dw = 0.0
+            while tried < 6:
+                if self.use_elliptical:
+                    # scaled LM: H + lam * D^T D with D=diag(1,qx)
+                    h0_eff = h0 + lam * 1.0
+                    h2_eff = h2 + lam * (qx_value * qx_value)
+                else:
+                    h0_eff = h0 + lam
+                    h2_eff = h2 + lam
+                det = h0_eff * h2_eff - h1 * h1
+                if abs(det) < 1e-18:
+                    lam = min(lam * self.lam_grow, self.lam_max)
+                    tried += 1
+                    continue
+
+                db = (h2_eff * g0 - h1 * g1) / det
+                dw = (-h1 * g0 + h0_eff * g1) / det
+
+                # box or elliptical trust region
+                if self.use_elliptical:
+                    norm = np.sqrt(db * db + (qx_value * dw) * (qx_value * dw))
+                    if norm > self.delta_logit:
+                        scale = self.delta_logit / (norm + 1e-18)
+                        db *= scale
+                        dw *= scale
+                else:
+                    changed = False
+                    if abs(db) > self.delta_logit:
+                        db = np.sign(db) * self.delta_logit
+                        changed = True
+                    dw_limit = self.delta_logit / qx_value
+                    if abs(dw) > dw_limit:
+                        dw = np.sign(dw) * dw_limit
+                        changed = True
+                    if changed:
+                        # mark as a "clipped" step: encourage larger damping
+                        lam = min(lam * self.lam_grow, self.lam_max)
+
+                # predicted quadratic-model decrease (correct sign)
+                pred = (
+                    g0 * db
+                    + g1 * dw
+                    - 0.5 * (h0 * db * db + 2 * h1 * db * dw + h2 * dw * dw)
+                )
+                if not np.isfinite(pred) or pred <= 0:
+                    lam = min(lam * self.lam_grow, self.lam_max)
+                    tried += 1
+                    continue
+                break
+
+            # apply step
+            b_new = b - db
+            w_new = w - dw
+            loss_new = loss(b_new, w_new)
+
+            prev_pred = pred
+            prev_loss_before_step = loss_curr
+            loss_curr = loss_new
+            b, w = b_new, w_new
+
+            step_max = max(abs(db), abs(dw))
+            if grad_max < self.tol and step_max < self.tol:
+                self.intercept_ = b
+                self.weight_ = w
+                self.converged_ = True
+                self.n_iter_ = it + 1
+                self.coef_ = np.array([w], dtype=float)
+                self.intercept_ = np.array([b], dtype=float)
+                return self
+
+        self.intercept_ = b
+        self.weight_ = w
+        self.converged_ = False
+        self.n_iter_ = self.max_iter
+        self.coef_ = np.array([w], dtype=float)
+        self.intercept_ = np.array([b], dtype=float)
+        return self
+
+    def decision_function(self, X):
+        if not hasattr(self, "coef_") or not hasattr(self, "intercept_"):
+            msg = "SlowProbe instance is not fitted yet."
+            raise RuntimeError(msg)
+        X = np.asarray(X, dtype=float)
+        if X.ndim == 1:
+            x = X.reshape(-1)
+        else:
+            if X.ndim != 2 or X.shape[1] != 1:
+                msg = (
+                    "SlowProbe expects exactly one feature; "
+                    f"received array with shape {X.shape}."
+                )
+                raise ValueError(msg)
+            x = X[:, 0]
+        return self.intercept_[0] + self.coef_[0] * x
+
+    def predict_proba(self, X):
+        logits = self.decision_function(X)
+        probs = sigmoid(logits)
+        return np.stack([1 - probs, probs], axis=1)
+
+    def predict(self, X):
+        probs = self.predict_proba(X)[:, 1]
+        return (probs >= 0.5).astype(int)
+
+
 @jaxtyped(typechecker=beartype.beartype)
 class Sparse1DProbe(sklearn.base.BaseEstimator):
-    """Newton-Raphson optimizer for 1D logistic regression.
+    """Streaming Newton optimizer for per-latent logistic probes.
 
-    `fit(x, y)` streams sparse x and optimizes (b, w) for every (latent, class) pair.
-    Results are exposed as attributes and helper methods.
+    For each latent ell and class c we fit a logistic model with parameters (b_{ell,c}, w_{ell,c}) on the sparse SAE activations `x_{j,ell}`. The loss is the negative log-likelihood L(b, w) = sum_j BCE(y_{j,c}, sigma(b + w x_{j,ell})). We initialize b_{ell,c} to the class prevalence logit logit(pi_c) so the model starts at the intercept-only optimum, and keep w_{ell,c}=0.
 
-    To make fit() memory-efficient: tile across classes and stream over rows. Never create anything shaped (nnz, n_classes).
+    One Newton step proceeds as follows.
 
-    Args:
+    1. Clamp probabilities away from 0/1 with eps=1e-7 and reuse mu_0 = sigma(b_{ell,c}) and s_0 = mu_0(1-mu_0) for the implicit zeros. This stabilizes the BCE against saturated logits.
+    2. Stream the non-zero events of the CSR matrix and accumulate the sufficient statistics described in the Probe1D design doc: gradients G_0, G_1 and Hessian entries H_0, H_1, H_2. Zeros contribute in closed form via mu_0 and s_0. We also record sum mu_nonzero to reuse in the gradient.
+    3. Add ridge terms: G_1 <- G_1 + lambda w_{ell,c} and H_2 <- H_2 + lambda. For the intercept we regularize the deviation from the prevalence baseline, G_0 <- G_0 + lambda (b_{ell,c} - logit(pi_c)) and H_0 <- H_0 + lambda. This keeps the maximum-likelihood solution finite even when the pair is (nearly) separable.
+    4. Solve the 2x2 Newton system using a Levenberg-Marquardt damping step (Levenberg 1944, Marquardt 1963). Concretely, we add the current damping lambda_k to the diagonal (H_0 + lambda_k, H_2 + lambda_k) before inverting, compute Delta b, Delta w, and predict the quadratic reduction 0.5 (Delta b G_0 + Delta w G_1).
+    5. Guard the step with a simple trust-region update inspired by More's dogleg methods: if abs(Delta b) or abs(Delta w) exceeds `lm_max_update`, or if the predicted reduction is non-positive/NaN, enlarge lambda_k (by `lm_lambda_grow`) and retry, up to `lm_max_adapt_iters`. Remaining coordinates are clipped to the trust radius. Successful coordinates shrink lambda_k by `lm_lambda_shrink`.
+    6. Apply (b, w) <- (b, w) - (Delta b, Delta w), recompute the zero-loss contributions, and continue until gradients and step sizes fall below `tol` or `n_iter` iterations have been attempted.
 
+    The implementation keeps memory bounded by iterating rows in batches (`row_batch_size`) and classes in slabs (`class_slab_size`), never materializing tensors shaped (nnz, n_classes). All tensor traversals use the same event iterator so the loss and metric routines stay numerically aligned with training.
     """
 
     def __init__(
@@ -192,7 +457,7 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
         lm_lambda_max: float = 1e12,
         lm_max_update: float = 50.0,
         lm_max_adapt_iters: int = 6,
-        iteration_hook: tp.Callable[[IterationSummary], None] | None = None,
+        iteration_hook: tp.Callable[[StepSummary], None] | None = None,
     ):
         if not 0.0 < lm_lambda_shrink < 1.0:
             msg = f"lm_lambda_shrink must be in (0,1), got {lm_lambda_shrink}."
@@ -238,6 +503,36 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
         self._quantile_targets = torch.tensor(
             (0.5, 0.95), dtype=torch.float32, device="cpu"
         )
+        self._base_intercept = None
+
+    def _init_best_latent_buffers(
+        self, n_classes_slab: int, device: torch.device
+    ) -> tuple[Tensor, Tensor, Tensor, Tensor]:
+        """Allocate trackers for the best latent per class within a slab."""
+
+        best_loss = torch.full(
+            (n_classes_slab,), float("inf"), device=device, dtype=torch.float32
+        )
+        best_latent = torch.full(
+            (n_classes_slab,), -1, device=device, dtype=torch.int64
+        )
+        best_coef = torch.zeros((n_classes_slab,), device=device, dtype=torch.float32)
+        best_intercept = torch.zeros(
+            (n_classes_slab,), device=device, dtype=torch.float32
+        )
+        return best_loss, best_latent, best_coef, best_intercept
+
+    def _init_lambda_slab(
+        self, n_classes_slab: int, device: torch.device
+    ) -> Float[Tensor, "n_latents c_b"]:
+        """Create the LM damping tensor for a slab."""
+
+        return torch.full(
+            (self.n_latents, n_classes_slab),
+            self.lm_lambda_init,
+            device=device,
+            dtype=torch.float32,
+        )
 
     @torch.no_grad()
     def fit(
@@ -251,75 +546,55 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
         assert n_latents == self.n_latents
         n_samples_f = float(n_samples)
 
-        device = torch.device(self.device)
+        dd: dict[str, tp.Any] = dict(device=self.device, dtype=torch.float32)
 
-        x = x.to(device)
+        x = x.to(self.device)
         y = y.to(dtype=torch.float32, device="cpu")
 
-        self.coef_ = torch.zeros(
-            (self.n_latents, self.n_classes), device=device, dtype=torch.float32
-        )
-        self.intercept_ = torch.zeros(
-            (self.n_latents, self.n_classes), device=device, dtype=torch.float32
-        )
+        self.coef_ = torch.zeros((self.n_latents, self.n_classes), **dd)
+        self.intercept_ = torch.zeros((self.n_latents, self.n_classes), **dd)
 
         pi = y.sum(dim=0)
         prevalence = torch.clamp(pi / float(n_samples), self.eps, 1 - self.eps)
-        base_intercept = torch.logit(prevalence).to(device)
+        base_intercept = torch.logit(prevalence).to(self.device)
         self.intercept_.copy_(
             einops.repeat(base_intercept, "c -> l c", l=self.n_latents)
         )
+        self._base_intercept = base_intercept
 
         nnz_per_latent = torch.bincount(x.col_indices(), minlength=self.n_latents)
-        n_zeros_per_latent = (
-            (n_samples - nnz_per_latent)
-            .to(device=device, dtype=torch.float32)
-            .view(-1, 1)
-        )
+        n_zeros_per_latent = (n_samples - nnz_per_latent).to(**dd).view(-1, 1)
 
-        pi_device = pi.to(device)
+        pi_device = pi.to(self.device)
         check_convergence = self.tol > 0
 
         for c0, c1 in saev.helpers.batched_idx(self.n_classes, self.class_slab_size):
             self.logger.debug(f"Processing classes {c0}:{c1} ({c1 - c0} classes)")
 
             y_slab = y[:, c0:c1]
-            if device.type != "cpu":
+            if self.device != "cpu":
                 y_slab = y_slab.pin_memory()
-            y_slab_device = y_slab.to(device, non_blocking=device.type != "cpu")
+            y_slab_device = y_slab.to(self.device, non_blocking=self.device != "cpu")
             pi_slab_device = pi_device[c0:c1]
 
             intercept_slab = self.intercept_[:, c0:c1]
             coef_slab = self.coef_[:, c0:c1]
             n_classes_slab = c1 - c0
 
-            best_loss_per_class = torch.full(
-                (n_classes_slab,),
-                float("inf"),
-                device=device,
-                dtype=torch.float32,
-            )
-            best_latent_per_class = torch.full(
-                (n_classes_slab,), -1, device=device, dtype=torch.int64
-            )
-            best_coef_per_class = torch.zeros(
-                (n_classes_slab,), device=device, dtype=torch.float32
-            )
-            best_intercept_per_class = torch.zeros(
-                (n_classes_slab,), device=device, dtype=torch.float32
-            )
-            lambda_slab = torch.full(
-                (self.n_latents, n_classes_slab),
-                self.lm_lambda_init,
-                device=device,
-                dtype=torch.float32,
-            )
+            (
+                best_loss_per_class,
+                best_latent_per_class,
+                best_coef_per_class,
+                best_intercept_per_class,
+            ) = self._init_best_latent_buffers(n_classes_slab, self.device)
+            lambda_slab = self._init_lambda_slab(n_classes_slab, self.device)
 
             for it in range(self.n_iter):
-                # For x_j = 0, we can pre-calculate mu and s.
+                # Step 1: compute intercept-only statistics reused across the slab.
                 mu_0 = torch.sigmoid(intercept_slab).clamp_(self.eps, 1 - self.eps)
                 s_0 = mu_0 * (1 - mu_0)
 
+                # Step 2: stream the sparse activations and accumulate Newton stats.
                 stats = self._accumulate_slab_stats(
                     x=x,
                     y_slab=y_slab_device,
@@ -329,6 +604,7 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
                     s_0=s_0,
                     n_zeros_per_latent=n_zeros_per_latent,
                     pi_slab_device=pi_slab_device,
+                    base_intercept_slab=self._base_intercept[c0:c1],
                 )
                 pos_zero = torch.clamp(
                     pi_slab_device.view(1, n_classes_slab) - stats.pos_nz, min=0.0
@@ -341,6 +617,7 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
                 loss_slab = (stats.loss_nz + zero_loss) / n_samples_f
                 mean_loss_value = loss_slab.mean().item()
 
+                # Step 3: take a Levenberg–Marquardt step with trust-region safety.
                 lambda_prev = lambda_slab.clone()
                 lm_step = self._solve_lm_step(
                     stats.g0, stats.g1, stats.h0, stats.h1, stats.h2, lambda_prev
@@ -354,6 +631,7 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
                     curr_best_latent_idx != best_latent_per_class,
                     curr_best_loss + 1e-6 < best_loss_per_class,
                 )
+                # Step 4: record the best latent per class for downstream reporting.
                 best_update_summary = self._update_best_latents(
                     best_loss_per_class=best_loss_per_class,
                     best_latent_per_class=best_latent_per_class,
@@ -367,10 +645,12 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
                     global_class_start=c0,
                 )
 
+                # Step 5: apply the Newton step in-place.
                 intercept_slab -= db
                 coef_slab -= dw
 
-                context = LMIterationContext(
+                # Step 6: package everything we learned this iteration for logging.
+                context = StepContext(
                     class_range=(c0, c1),
                     iteration=it,
                     mean_loss_value=mean_loss_value,
@@ -444,8 +724,7 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
             del y_slab_device
 
     def _iter_sparse_events(
-        self,
-        x: Float[Tensor, "n_samples n_latents"],
+        self, x: Float[Tensor, "n_samples n_latents"]
     ) -> Iterator[SparseEventsBatch]:
         """Yield CSR non-zero spans for each row batch.
 
@@ -496,6 +775,7 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
         s_0: Float[Tensor, "n_latents c_b"],
         n_zeros_per_latent: Float[Tensor, "n_latents 1"],
         pi_slab_device: Tensor,
+        base_intercept_slab: Float[Tensor, " c_b"],
     ) -> SlabStats:
         """Compute per-latent Newton statistics for a class slab.
 
@@ -508,6 +788,7 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
             s_0: Variance term `mu_0 * (1 - mu_0)` for zeros.
             n_zeros_per_latent: Count of implicit zeros per latent.
             pi_slab_device: Positive label counts per class on device.
+            base_intercept_slab: Baseline intercept (logit prevalence) per class.
 
         Returns:
             SlabStats populated with gradients, Hessians, and auxiliary sums.
@@ -547,6 +828,7 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
 
         g0 = mu_nz + n_zeros_per_latent * mu_0 - pi_slab_device.view(1, -1)
         g1 = g1 + self.ridge * coef_slab
+        g0 = g0 + self.ridge * (intercept_slab - base_intercept_slab.view(1, -1))
         h0 = h0 + n_zeros_per_latent * s_0 + self.ridge
         h2 = h2 + self.ridge
 
@@ -569,7 +851,7 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
         h1: Float[Tensor, "n_latents c_b"],
         h2: Float[Tensor, "n_latents c_b"],
         lambda_prev: Float[Tensor, "n_latents c_b"],
-    ) -> LMStepResult:
+    ) -> StepResult:
         """Solve the LM-damped Newton system and adapt the damping parameter.
 
         Args:
@@ -702,7 +984,7 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
         )
         lambda_next = torch.where(success_mask, lambda_success, lambda_fail)
 
-        return LMStepResult(
+        return StepResult(
             db=db_result,
             dw=dw_result,
             clipped_mask=clipped_mask,
@@ -767,7 +1049,7 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
 
         return summaries
 
-    def _log_lm_step(self, ctx: LMIterationContext) -> tuple[float, float]:
+    def _log_lm_step(self, ctx: StepContext) -> tuple[float, float]:
         """Emit diagnostics for a single LM iteration.
 
         Args:
@@ -841,7 +1123,7 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
                     "improved_best_latents %s", ", ".join(ctx.best_update_summary)
                 )
 
-        summary = IterationSummary(
+        summary = StepSummary(
             class_range=ctx.class_range,
             iteration=ctx.iteration,
             mean_loss=ctx.mean_loss_value,
@@ -849,12 +1131,8 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
             max_update=max_update_val,
             lambda_min=lambda_min_value,
             lambda_max=lambda_max_value,
-            predicted_reduction_max=float(
-                ctx.lambda_step.predicted_reduction.max().item()
-            ),
-            predicted_reduction_mean=float(
-                ctx.lambda_step.predicted_reduction.mean().item()
-            ),
+            predicted_reduction_max=ctx.lambda_step.predicted_reduction.max().item(),
+            predicted_reduction_mean=ctx.lambda_step.predicted_reduction.mean().item(),
         )
         if self.iteration_hook is not None:
             self.iteration_hook(summary)
