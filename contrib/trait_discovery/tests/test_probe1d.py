@@ -929,8 +929,8 @@ def test_lm_step_respects_logit_budget():
         lm_max_adapt_iters=4,
     )
 
-    g0 = torch.tensor([[3.0]], dtype=torch.float32)
-    g1 = torch.tensor([[1.0]], dtype=torch.float32)
+    g0 = torch.tensor([[15.0]], dtype=torch.float32)
+    g1 = torch.tensor([[5.0]], dtype=torch.float32)
     h0 = torch.tensor([[2.0]], dtype=torch.float32)
     h1 = torch.tensor([[0.1]], dtype=torch.float32)
     h2 = torch.tensor([[3.0]], dtype=torch.float32)
@@ -941,7 +941,7 @@ def test_lm_step_respects_logit_budget():
     )
 
     norm = float((db**2 + dw**2).sqrt())
-    assert pytest.approx(norm, abs=1e-6) <= probe.delta_logit
+    assert norm <= probe.delta_logit + 1e-6
     assert (lam_next >= lam_prev).all()
     assert clipped.any()
 
