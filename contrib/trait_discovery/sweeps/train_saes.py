@@ -1,6 +1,6 @@
 def make_cfgs() -> list[dict]:
     cfgs = []
-    for lr in [3e-4, 1e-3, 3e-3, 1e-2]:
+    for lr in [3e-4, 1e-3, 3e-3, 1e-2, 3e-2]:
         for sparsity_coeff in [3e-4, 1e-3, 3e-3]:
             for layer in [13, 15, 17, 19, 21, 23]:
                 cfgs.append({

@@ -4,7 +4,7 @@ import glob
 import logging
 import os
 import pathlib
-import typing
+import typing as tp
 from collections.abc import Callable
 
 import beartype
@@ -106,7 +106,7 @@ class ImgFolder(DatasetConfig):
 class ImgSegFolder(DatasetConfig):
     root: pathlib.Path = pathlib.Path("./data/segdataset")
     """Where the class folders with images are stored."""
-    split: typing.Literal["training", "validation"] = "training"
+    split: tp.Literal["training", "validation"] = "training"
     """Data split."""
     img_label_fname: str = "sceneCategories.txt"
     """Image labels filename."""
@@ -170,7 +170,7 @@ Config = Imagenet | Cifar10 | ImgFolder | ImgSegFolder | FakeImg | FakeImgSeg
 
 @beartype.beartype
 def get_dataset(
-    cfg: DatasetConfig,
+    cfg: Config,
     *,
     img_transform: Callable,
     seg_transform: Callable | None = None,
@@ -208,7 +208,7 @@ def get_dataset(
             ImgFolderDataset(
                 root, transform=img_transform, sample_transform=sample_transform
             )
-            for root in glob.glob(cfg.root, recursive=True)
+            for root in glob.glob(str(cfg.root), recursive=True)
         ]
         if len(ds) == 1:
             return ds[0]
@@ -226,7 +226,7 @@ def get_dataset(
             sample_transform=sample_transform,
         )
     else:
-        typing.assert_never(cfg)
+        tp.assert_never(cfg)
 
 
 @beartype.beartype

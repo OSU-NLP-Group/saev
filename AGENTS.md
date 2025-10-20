@@ -1,6 +1,7 @@
 - Use `uv run SCRIPT.py` or `uv run python ARGS` to run python instead of Just plain `python`.
 - After making edits, run `uvx ruff format --preview .` to format the file, then run `uvx ruff check --fix .` to lint, then run `uvx ty check FILEPATH` to type check (`ty` is prerelease software, and typechecking often will have false positives). Only do this if you think you're finished, or if you can't figure out a bug. Maybe linting will make it obvious. Don't fix linting or typing errors in files you haven't modified.
 - Don't hard-wrap comments. Only use linebreaks for new paragraphs. Let the editor soft wrap content.
+- Don't hard-wrap string literals. Keep each log or user-facing message in a single source line and rely on soft wrapping when reading it.
 - Prefer negative if statements in combination with early returns/continues. Rather than nesting multiple positive if statements, just check if a condition is False, then return/continue in a loop. This reduces indentation.
 - This project uses Python 3.12. You can use `dict`, `list`, `tuple` instead of the imports from `typing`. You can use `| None` instead of `Optional`.
 - Use single-backticks for variables. We use Markdown and [pdoc3](https://pdoc3.github.io/pdoc/) for docs rather than ReST and Sphinx.

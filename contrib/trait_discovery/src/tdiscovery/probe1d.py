@@ -13,7 +13,6 @@ The public surface area is intentionally small and designed to be used by tests 
 
 import dataclasses
 import logging
-import math
 import pathlib
 import typing as tp
 from collections.abc import Iterator
@@ -117,19 +116,13 @@ class Reference1DProbe(sklearn.base.BaseEstimator):
             x = X.reshape(-1)
         else:
             if X.ndim != 2 or X.shape[1] != 1:
-                msg = (
-                    "Reference1DProbe expects exactly one feature; "
-                    f"received array with shape {X.shape}."
-                )
+                msg = f"Reference1DProbe expects exactly one feature; received array with shape {X.shape}."
                 raise ValueError(msg)
             x = X[:, 0]
 
         y = np.asarray(y, dtype=float).reshape(-1)
         if x.shape[0] != y.shape[0]:
-            msg = (
-                "x and y must have matching lengths; "
-                f"received {x.shape[0]} and {y.shape[0]}."
-            )
+            msg = f"x and y must have matching lengths; received {x.shape[0]} and {y.shape[0]}."
             raise ValueError(msg)
         if x.shape[0] == 0:
             msg = "x and y must contain at least one sample."
@@ -290,10 +283,7 @@ class Reference1DProbe(sklearn.base.BaseEstimator):
             x = X.reshape(-1)
         else:
             if X.ndim != 2 or X.shape[1] != 1:
-                msg = (
-                    "Reference1DProbe expects exactly one feature; "
-                    f"received array with shape {X.shape}."
-                )
+                msg = f"Reference1DProbe expects exactly one feature; received array with shape {X.shape}."
                 raise ValueError(msg)
             x = X[:, 0]
         return self.intercept_[0] + self.coef_[0] * x
@@ -394,8 +384,33 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
                 f"y has shape {tuple(y.shape)}, expected ({n_samples}, {self.n_classes})."
             )
 
-        x = x.to(self.device, dtype=torch.float64)
-        y = y.to(self.device, dtype=torch.float64)
+        values = x.values()
+        nnz = int(values.numel())
+        crow_indices = x.crow_indices()
+        col_indices = x.col_indices()
+        values_dtype = values.dtype
+        crow_dtype = crow_indices.dtype
+        col_dtype = col_indices.dtype
+        values_bytes = nnz * values.element_size()
+        crow_bytes = crow_indices.numel() * crow_indices.element_size()
+        col_bytes = col_indices.numel() * col_indices.element_size()
+        total_bytes = values_bytes + crow_bytes + col_bytes
+        target_value_bytes = nnz * torch.tensor([], dtype=torch.float64).element_size()
+        total_bytes_target = target_value_bytes + crow_bytes + col_bytes
+        if self.logger.isEnabledFor(logging.INFO):
+            self.logger.info(
+                "Sparse design stats before device transfer: shape=%s, nnz=%d, values_dtype=%s, crow_dtype=%s, col_dtype=%s, approx_bytes=%.2f GiB, approx_bytes_target=%.2f GiB",
+                tuple(x.shape),
+                nnz,
+                values_dtype,
+                crow_dtype,
+                col_dtype,
+                total_bytes / (1024**3),
+                total_bytes_target / (1024**3),
+            )
+
+        x = x.to(self.device, dtype=self.param_dtype)
+        y = y.to(self.device, dtype=self.param_dtype)
         self.compute_dtype = x.dtype
 
         n_samples_f = float(n_samples)
@@ -417,51 +432,43 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
 
         col_indices = x.col_indices()
         values = x.values()
-        nnz_per_latent = torch.zeros(
+        values_cast = (
+            values
+            if values.dtype == self.compute_dtype
+            else values.to(self.compute_dtype)
+        )
+
+        nnz_counts = torch.zeros(self.n_latents, dtype=torch.int64, device=self.device)
+        sum_sq = torch.zeros(
             self.n_latents, dtype=self.compute_dtype, device=self.device
         )
-        nnz_per_latent.index_add_(
-            0, col_indices, torch.ones_like(values, dtype=self.compute_dtype)
-        )
+        nnz = int(values_cast.numel())
+        if nnz > 0:
+            chunk_size = max(1, min(nnz, 1_000_000))
+            ones_buffer = torch.ones(chunk_size, dtype=torch.int64, device=self.device)
+            for start in range(0, nnz, chunk_size):
+                end = min(start + chunk_size, nnz)
+                cols_chunk = col_indices[start:end]
+                nnz_counts.index_add_(0, cols_chunk, ones_buffer[: end - start])
+                sum_sq.index_add_(0, cols_chunk, torch.square(values_cast[start:end]))
+
+        nnz_per_latent = nnz_counts.to(self.compute_dtype)
         n_zeros_per_latent = (n_samples_f - nnz_per_latent).clamp(min=0.0).view(-1, 1)
 
-        sum_sq = torch.zeros_like(nnz_per_latent)
-        values_cast = values.to(self.compute_dtype)
-        sum_sq.index_add_(0, col_indices, values_cast**2)
-
-        qx = torch.ones_like(nnz_per_latent)
-        nnz_long = nnz_per_latent.to(torch.long)
-        if int(nnz_long.sum().item()) > 0:
-            order = torch.argsort(col_indices)
-            values_abs_sorted = values_cast.abs()[order]
-            offsets = torch.zeros(
-                self.n_latents + 1, dtype=torch.long, device=self.device
+        rms = torch.sqrt(
+            torch.where(
+                nnz_per_latent > 0,
+                sum_sq / torch.clamp(nnz_per_latent, min=1.0),
+                torch.ones_like(sum_sq),
             )
-            offsets[1:] = torch.cumsum(nnz_long, dim=0)
-            for latent_idx in range(self.n_latents):
-                start = int(offsets[latent_idx].item())
-                end = int(offsets[latent_idx + 1].item())
-                if end == start:
-                    continue
-                segment = values_abs_sorted[start:end]
-                count = segment.numel()
-                if count == 1:
-                    q_val = segment[0]
-                else:
-                    k = int(math.ceil(0.95 * (count - 1)))
-                    k = max(min(k, count - 1), 0)
-                    q_val = segment.kthvalue(k + 1).values
-                if not torch.isfinite(q_val) or q_val <= 0:
-                    q_val = torch.sqrt((segment**2).mean())
-                qx[latent_idx] = torch.clamp(q_val, min=1e-6)
-
-        qx = torch.where(nnz_per_latent > 0, qx, torch.ones_like(qx))
-        qx = torch.maximum(
-            qx, torch.tensor(1e-6, dtype=self.compute_dtype, device=self.device)
         )
+        qx = torch.clamp(rms, min=1e-6)
+        qx = torch.where(nnz_per_latent > 0, qx, torch.ones_like(qx))
         qx = qx.view(-1, 1)
         qx_sq = qx * qx
         self._qx_per_latent = qx.view(-1).clone()
+
+        crow_indices_cpu = x.crow_indices().to(torch.long).cpu()
 
         lam = torch.full(
             (self.n_latents, self.n_classes),
@@ -469,15 +476,12 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
             dtype=self.compute_dtype,
             device=self.device,
         )
-        row_indices = self._build_row_indices(x)
         prev_pred = torch.full_like(lam, float("nan"))
         prev_loss = torch.zeros_like(lam)
         prev_step_clipped = torch.zeros_like(lam, dtype=torch.bool)
 
         pi_total = y.sum(dim=0).to(self.compute_dtype)
         base_intercept_matrix = base_intercept.view(1, -1)
-
-        row_indices = self._build_row_indices(x)
 
         for c0 in range(0, self.n_classes, self.class_slab_size):
             c1 = min(c0 + self.class_slab_size, self.n_classes)
@@ -500,7 +504,7 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
                     torch.cuda.reset_peak_memory_stats(self.device)
 
                 stats = self._compute_slab_stats(
-                    x, y_slab, intercept_slab, coef_slab, row_indices
+                    x, y_slab, intercept_slab, coef_slab, crow_indices_cpu
                 )
 
                 mu_0 = torch.sigmoid(intercept_slab).clamp_(self.eps, 1 - self.eps)
@@ -579,8 +583,7 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
                     vram_alloc_mb = float(alloc) / (1024 * 1024)
                     vram_reserved_mb = float(reserved) / (1024 * 1024)
                     self.logger.debug(
-                        "slab=%s iter=%d grad_max=%.3e step_max=%.3e "
-                        "lambda_mean=%.3e peak_alloc_mb=%.2f peak_reserved_mb=%.2f",
+                        "slab=%s iter=%d grad_max=%.3e step_max=%.3e lambda_mean=%.3e peak_alloc_mb=%.2f peak_reserved_mb=%.2f",
                         (c0, c1),
                         iter_idx,
                         grad_norm,
@@ -631,7 +634,7 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
         y_slab: Float[Tensor, "n_samples c_b"],
         intercept_slab: Float[Tensor, "n_latents c_b"],
         coef_slab: Float[Tensor, "n_latents c_b"],
-        row_indices: Tensor,
+        crow_indices_cpu: torch.Tensor,
     ) -> dict[str, Tensor]:
         mu_nz = torch.zeros_like(intercept_slab)
         g1 = torch.zeros_like(intercept_slab)
@@ -645,7 +648,7 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
         cols_all = x.col_indices()
 
         for vals, idx, rows in self._iter_event_chunks(
-            values_all, cols_all, row_indices
+            values_all, cols_all, crow_indices_cpu
         ):
             vals = vals.view(-1, 1)
 
@@ -745,28 +748,75 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
                 )
 
         if (~success).any():
-            raise RuntimeError("LM step failed to converge for some coordinates.")
+            failed = ~success
+            n_fail = int(failed.sum().item())
+            lam_failed = lam_curr[failed]
+            g0_failed = g0[failed].abs().max().item() if n_fail > 0 else 0.0
+            g1_failed = g1[failed].abs().max().item() if n_fail > 0 else 0.0
+            if self.logger.isEnabledFor(logging.WARNING):
+                self.logger.warning(
+                    "LM step fallback: n_fail=%d lam_min=%.3e lam_max=%.3e "
+                    "grad_max=(%.3e, %.3e)",
+                    n_fail,
+                    float(lam_failed.min().item()) if n_fail > 0 else 0.0,
+                    float(lam_failed.max().item()) if n_fail > 0 else 0.0,
+                    g0_failed,
+                    g1_failed,
+                )
+            db = torch.where(failed, torch.zeros_like(db), db)
+            dw = torch.where(failed, torch.zeros_like(dw), dw)
+            pred = torch.where(failed, torch.zeros_like(pred), pred)
+            step_clipped = torch.where(failed, torch.zeros_like(step_clipped), step_clipped)
 
         lam_curr = lam_curr.clamp(self.lam_min, self.lam_max)
         return db, dw, pred, lam_curr, step_clipped
 
-    def _build_row_indices(self, x: Tensor) -> Tensor:
-        crow_indices = x.crow_indices()
-        lengths = crow_indices[1:] - crow_indices[:-1]
-        row_idx = torch.repeat_interleave(
-            torch.arange(x.shape[0], device=x.device, dtype=torch.long),
-            lengths,
-        )
-        return row_idx
-
     def _iter_event_chunks(
-        self, values: Tensor, col_indices: Tensor, row_indices: Tensor
+        self,
+        values: Tensor,
+        col_indices: Tensor,
+        crow_indices_cpu: torch.Tensor,
     ) -> Iterator[tuple[Tensor, Tensor, Tensor]]:
-        chunk_size = max(1, self.row_batch_size * 32)
-        nnz = values.numel()
-        for start in range(0, nnz, chunk_size):
-            end = min(start + chunk_size, nnz)
-            yield values[start:end], col_indices[start:end], row_indices[start:end]
+        chunk_target = max(1, self.row_batch_size * 32)
+        n_rows = crow_indices_cpu.numel() - 1
+        row_start = 0
+        while row_start < n_rows:
+            start_ptr = int(crow_indices_cpu[row_start].item())
+            row_end = row_start + 1
+            while row_end <= n_rows:
+                end_candidate = int(crow_indices_cpu[row_end].item())
+                nnz_chunk = end_candidate - start_ptr
+                if nnz_chunk >= chunk_target or row_end == n_rows:
+                    end_ptr = end_candidate
+                    break
+                row_end += 1
+            else:
+                end_ptr = int(crow_indices_cpu[n_rows].item())
+
+            if row_end <= row_start:
+                row_end = row_start + 1
+                end_ptr = int(crow_indices_cpu[row_end].item())
+
+            lengths_cpu = (
+                crow_indices_cpu[row_start + 1 : row_end + 1]
+                - crow_indices_cpu[row_start:row_end]
+            )
+            if lengths_cpu.numel() == 0:
+                row_start = row_end
+                continue
+
+            rows = torch.arange(
+                row_start, row_end, device=self.device, dtype=torch.long
+            )
+            lengths = lengths_cpu.to(device=self.device, dtype=torch.long)
+            row_idx_chunk = torch.repeat_interleave(rows, lengths)
+
+            yield (
+                values[start_ptr:end_ptr],
+                col_indices[start_ptr:end_ptr],
+                row_idx_chunk,
+            )
+            row_start = row_end
 
     def _compute_loss_slab(
         self,
@@ -777,7 +827,7 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
         n_samples: int,
         pi_slab: Tensor,
         n_zeros_per_latent: Tensor,
-        row_indices: Tensor,
+        crow_indices_cpu: torch.Tensor,
     ) -> Tensor:
         loss = torch.zeros(
             (self.n_latents, c1 - c0), dtype=self.compute_dtype, device=self.device
@@ -790,7 +840,7 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
         values_all = x.values().to(self.compute_dtype)
         cols_all = x.col_indices()
         for vals, cols_chunk, row_idx_chunk in self._iter_event_chunks(
-            values_all, cols_all, row_indices
+            values_all, cols_all, crow_indices_cpu
         ):
             y_nz = y_slab[row_idx_chunk].to(self.compute_dtype)
 
@@ -836,7 +886,7 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
         )
 
         pi = y.sum(dim=0).to(self.compute_dtype)
-        row_indices = self._build_row_indices(x)
+        crow_indices_cpu = x.crow_indices().to(torch.long).cpu()
 
         for c0 in range(0, self.n_classes, self.class_slab_size):
             c1 = min(c0 + self.class_slab_size, self.n_classes)
@@ -850,7 +900,7 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
                 n_samples,
                 pi_slab,
                 n_zeros_per_latent,
-                row_indices,
+                crow_indices_cpu,
             )
             del y_slab, pi_slab
 
@@ -876,7 +926,7 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
         pi_slab: Tensor,
         n_zeros_per_latent: Tensor,
         threshold: float,
-        row_indices: Tensor,
+        crow_indices_cpu: torch.Tensor,
     ) -> tuple[Tensor, Tensor, Tensor, Tensor]:
         tp = torch.zeros(
             (self.n_latents, c1 - c0), dtype=self.compute_dtype, device=self.device
@@ -895,7 +945,7 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
         values_all = x.values().to(self.compute_dtype)
         cols_all = x.col_indices()
         for vals, cols_chunk, row_idx_chunk in self._iter_event_chunks(
-            values_all, cols_all, row_indices
+            values_all, cols_all, crow_indices_cpu
         ):
             y_nz = y_slab[row_idx_chunk].to(self.compute_dtype)
             y_nz_bool = y_nz > 0.5
@@ -978,6 +1028,7 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
         )
 
         pi = y.to(self.compute_dtype).sum(dim=0).to(self.compute_dtype)
+        crow_indices_cpu = x.crow_indices().to(torch.long).cpu()
 
         tp = torch.zeros(
             (self.n_latents, self.n_classes),
@@ -987,8 +1038,6 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
         fp = torch.zeros_like(tp)
         tn = torch.zeros_like(tp)
         fn = torch.zeros_like(tp)
-
-        row_indices = self._build_row_indices(x)
 
         for c0 in range(0, self.n_classes, self.class_slab_size):
             c1 = min(c0 + self.class_slab_size, self.n_classes)
@@ -1004,7 +1053,7 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
                 pi_slab,
                 n_zeros_per_latent,
                 threshold,
-                row_indices,
+                crow_indices_cpu,
             )
 
             tp[:, c0:c1] = tp_chunk
