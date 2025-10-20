@@ -31,6 +31,24 @@ import saev.disk
 import saev.helpers
 
 
+@dataclasses.dataclass
+class SlabStats:
+    mu_nz: Float[Tensor, "n_latents c_b"]
+    g1: Float[Tensor, "n_latents c_b"]
+    h0: Float[Tensor, "n_latents c_b"]
+    h1: Float[Tensor, "n_latents c_b"]
+    h2: Float[Tensor, "n_latents c_b"]
+    loss_nz: Float[Tensor, "n_latents c_b"]
+    pos_nz: Float[Tensor, "n_latents c_b"]
+
+
+class RowChunk(tp.NamedTuple):
+    row_start: int
+    row_end: int
+    start_ptr: int
+    end_ptr: int
+
+
 @jaxtyped(typechecker=beartype.beartype)
 class SparseEventsBatch(tp.NamedTuple):
     """Streaming view over CSR non-zeros for a row-aligned batch.
@@ -626,25 +644,15 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
         self.coef_ = coef.to(torch.float32)
         return self
 
-    @dataclasses.dataclass
-    class SlabStats:
-        mu_nz: Float[Tensor, "n_latents c_b"]
-        g1: Float[Tensor, "n_latents c_b"]
-        h0: Float[Tensor, "n_latents c_b"]
-        h1: Float[Tensor, "n_latents c_b"]
-        h2: Float[Tensor, "n_latents c_b"]
-        loss_nz: Float[Tensor, "n_latents c_b"]
-        pos_nz: Float[Tensor, "n_latents c_b"]
-
     def _compute_slab_stats(
         self,
         x: Float[Tensor, "n_samples n_latents"],
         y_slab: Float[Tensor, "n_samples c_b"],
         intercept_slab: Float[Tensor, "n_latents c_b"],
         coef_slab: Float[Tensor, "n_latents c_b"],
-        row_chunks: list["RowChunk"],
+        row_chunks: list[RowChunk],
         nnz_per_row_cpu: torch.Tensor,
-    ) -> "Sparse1DProbe.SlabStats":
+    ) -> SlabStats:
         mu_nz = torch.zeros_like(intercept_slab)
         g1 = torch.zeros_like(intercept_slab)
         h0 = torch.zeros_like(intercept_slab)
@@ -681,7 +689,7 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
             loss_nz.index_add_(0, idx, loss_chunk)
             pos_nz.index_add_(0, idx, y_chunk)
 
-        return Sparse1DProbe.SlabStats(mu_nz, g1, h0, h1, h2, loss_nz, pos_nz)
+        return SlabStats(mu_nz, g1, h0, h1, h2, loss_nz, pos_nz)
 
     def _compute_lm_step(
         self,
@@ -783,8 +791,8 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
         end_ptr: int
 
     def _plan_row_chunks(
-        crow_indices_cpu: torch.Tensor, chunk_target: int
-    ) -> tuple[list["RowChunk"], torch.Tensor]:
+        self, crow_indices_cpu: torch.Tensor, chunk_target: int
+    ) -> tuple[list[RowChunk], torch.Tensor]:
         n_rows = crow_indices_cpu.numel() - 1
         if n_rows <= 0:
             return [], crow_indices_cpu.new_zeros(0)
