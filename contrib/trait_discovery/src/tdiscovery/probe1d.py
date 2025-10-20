@@ -16,7 +16,6 @@ import logging
 import pathlib
 import typing as tp
 from collections.abc import Iterator
-from typing import NamedTuple
 
 import beartype
 import numpy as np
@@ -33,7 +32,7 @@ import saev.helpers
 
 
 @jaxtyped(typechecker=beartype.beartype)
-class SparseEventsBatch(NamedTuple):
+class SparseEventsBatch(tp.NamedTuple):
     """Streaming view over CSR non-zeros for a row-aligned batch.
 
     Args:
@@ -473,7 +472,13 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
             pi_slab = pi_total[c0:c1].view(1, -1)
             base_slab = base_intercept_matrix[:, c0:c1]
 
-            for _ in range(self.n_iter):
+            for iter_idx in range(self.n_iter):
+                track_vram = self.device.type == "cuda" and self.logger.isEnabledFor(
+                    logging.DEBUG
+                )
+                if track_vram:
+                    torch.cuda.reset_peak_memory_stats(self.device)
+
                 stats = self._compute_slab_stats(
                     x, y_slab, intercept_slab, coef_slab, row_indices
                 )
@@ -544,14 +549,48 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
 
                 grad_norm = torch.maximum(g0.abs(), g1.abs()).max().item()
                 step_norm = torch.maximum(db.abs(), dw.abs()).max().item()
+
+                vram_alloc_mb: float | None = None
+                vram_reserved_mb: float | None = None
+                if track_vram:
+                    torch.cuda.synchronize(self.device)
+                    alloc = torch.cuda.max_memory_allocated(self.device)
+                    reserved = torch.cuda.max_memory_reserved(self.device)
+                    vram_alloc_mb = float(alloc) / (1024 * 1024)
+                    vram_reserved_mb = float(reserved) / (1024 * 1024)
+                    self.logger.debug(
+                        "slab=%s iter=%d grad_max=%.3e step_max=%.3e "
+                        "lambda_mean=%.3e peak_alloc_mb=%.2f peak_reserved_mb=%.2f",
+                        (c0, c1),
+                        iter_idx,
+                        grad_norm,
+                        step_norm,
+                        float(lam_slab.mean().item()),
+                        vram_alloc_mb,
+                        vram_reserved_mb,
+                    )
+                elif self.logger.isEnabledFor(logging.DEBUG):
+                    self.logger.debug(
+                        "slab=%s iter=%d grad_max=%.3e step_max=%.3e lambda_mean=%.3e",
+                        (c0, c1),
+                        iter_idx,
+                        grad_norm,
+                        step_norm,
+                        float(lam_slab.mean().item()),
+                    )
+
                 if self.iteration_hook is not None:
-                    self.iteration_hook({
+                    payload = {
                         "class_range": (c0, c1),
-                        "iteration": _,
+                        "iteration": iter_idx,
                         "max_grad": grad_norm,
                         "max_step": step_norm,
                         "lambda_mean": float(lam_slab.mean().item()),
-                    })
+                    }
+                    if vram_alloc_mb is not None and vram_reserved_mb is not None:
+                        payload["peak_alloc_mb"] = vram_alloc_mb
+                        payload["peak_reserved_mb"] = vram_reserved_mb
+                    self.iteration_hook(payload)
                 if grad_norm < self.tol and step_norm < self.tol:
                     break
 
