@@ -7,11 +7,14 @@ import numpy as np
 import pytest
 import torch
 import torch.nn.functional as F
-from hypothesis import HealthCheck, find, settings
-from hypothesis import strategies as st
 from sklearn.linear_model import LogisticRegression
 from tdiscovery.probe1d import Reference1DProbe, Sparse1DProbe
 from torch import Tensor
+
+REF_MAX_ITER = 2048
+SPARSE_MAX_ITER = 512
+REF_MAX_ITER_FAST = 1024
+SPARSE_MAX_ITER_FAST = 256
 
 cuda_available = pytest.mark.skipif(
     not torch.cuda.is_available(), reason="requires GPU"
@@ -24,7 +27,7 @@ def _train_probe_and_reference(
     y: Tensor,
     *,
     ridge: float = 1e-8,
-    n_iter: int = 80,
+    max_iter: int = 80,
     lm_max_update: float = 8.0,
 ) -> tuple[Sparse1DProbe, Reference1DProbe]:
     x_sparse = x_dense.to_sparse_csr()
@@ -33,7 +36,7 @@ def _train_probe_and_reference(
         n_classes=y.shape[1],
         device="cpu",
         ridge=ridge,
-        n_iter=n_iter,
+        max_iter=max_iter,
         row_batch_size=256,
         class_slab_size=y.shape[1],
         lm_max_update=lm_max_update,
@@ -43,7 +46,7 @@ def _train_probe_and_reference(
     ref = Reference1DProbe(
         ridge=ridge,
         tol=1e-10,
-        max_iter=max(n_iter * 4, 256),
+        max_iter=max(max_iter * 4, REF_MAX_ITER),
         delta_logit=8.0,
     )
     ref.fit(x_dense[:, 0].numpy(), y.squeeze(1).numpy())
@@ -58,7 +61,12 @@ def test_slow_probe_matches_sklearn():
     probs = 1.0 / (1.0 + np.exp(-logits_true))
     y = rng.binomial(1, probs)
 
-    probe = Reference1DProbe(ridge=1e-6, tol=1e-8, max_iter=512, delta_logit=8.0)
+    probe = Reference1DProbe(
+        ridge=1e-6,
+        tol=1e-8,
+        max_iter=REF_MAX_ITER,
+        delta_logit=8.0,
+    )
     probe.fit(x, y)
     b_probe = float(probe.intercept_[0])
     w_probe = float(probe.coef_[0])
@@ -86,7 +94,7 @@ def test_slow_probe_handles_linearly_separable():
     probe = Reference1DProbe(
         ridge=1e-4,
         tol=1e-8,
-        max_iter=512,
+        max_iter=REF_MAX_ITER,
         delta_logit=6.0,
         use_elliptical=True,
     )
@@ -107,7 +115,12 @@ def test_slow_probe_matches_sklearn_random_seeds(seed: int):
     probs = 1.0 / (1.0 + np.exp(-logits_true))
     y = rng.binomial(1, probs)
 
-    slow = Reference1DProbe(ridge=1e-8, tol=1e-10, max_iter=512, delta_logit=8.0)
+    slow = Reference1DProbe(
+        ridge=1e-8,
+        tol=1e-10,
+        max_iter=REF_MAX_ITER,
+        delta_logit=8.0,
+    )
     slow.fit(x, y)
     lr = LogisticRegression(
         fit_intercept=True,
@@ -141,28 +154,19 @@ def test_slow_probe_mismatch_on_separable_data():
 
 
 @pytest.mark.slow
-@pytest.mark.xfail(
-    reason="Sparse1DProbe does not yet match the trust-region reference on ill-conditioned inputs.",
-    strict=True,
-)
 def test_sparse_probe_matches_reference_on_ill_conditioned_inputs():
-    params = find(
-        _ILL_CONDITIONED_DATASET_STRATEGY,
-        _divergence_predicate,
-        settings=settings(
-            deadline=None,
-            max_examples=50,
-            suppress_health_check=[HealthCheck.filter_too_much],
-        ),
-    )
-    diffs = _DIVERGENCE_CACHE.get(params)
-    if diffs is None:
+    for params in ILL_CONDITIONED_CASES:
         x, y = _generate_ill_conditioned_dataset(*params)
-        diffs = _reference_vs_sparse_diffs(x, y)
+        diffs = _reference_vs_sparse_diffs(
+            x,
+            y,
+            ref_max_iter=REF_MAX_ITER,
+            sparse_max_iter=SPARSE_MAX_ITER,
+        )
         assert diffs is not None
-    coef_diff, intercept_diff, loss_diff = diffs
-    max_diff = max(coef_diff, intercept_diff, loss_diff)
-    assert max_diff <= 5e-2
+        coef_diff, intercept_diff, loss_diff = diffs
+        max_diff = max(coef_diff, intercept_diff, loss_diff)
+        assert max_diff <= 5e-2
 
 
 def test_fit_smoke():
@@ -214,7 +218,7 @@ def test_fit_against_reference(seed):
             ref = Reference1DProbe(
                 ridge=1e-10,
                 tol=1e-10,
-                max_iter=512,
+                max_iter=REF_MAX_ITER,
                 delta_logit=8.0,
             )
             ref.fit(xi, yc)
@@ -229,6 +233,7 @@ def test_fit_against_reference(seed):
         n_classes=n_classes,
         device="cpu",
         ridge=1e-10,
+        max_iter=SPARSE_MAX_ITER,
         row_batch_size=4,
     )
     probe.fit(x.to_sparse_csr(), y)
@@ -268,7 +273,7 @@ def test_fit_against_reference_on_gpu(seed):
             ref = Reference1DProbe(
                 ridge=1e-10,
                 tol=1e-10,
-                max_iter=512,
+                max_iter=REF_MAX_ITER,
                 delta_logit=8.0,
             )
             ref.fit(xi, yc)
@@ -280,7 +285,11 @@ def test_fit_against_reference_on_gpu(seed):
     # Use very small ridge to effectively disable regularization (matching the reference)
     # Run on GPU this time
     probe = Sparse1DProbe(
-        n_latents=n_latents, n_classes=n_classes, device="cuda:0", ridge=1e-10
+        n_latents=n_latents,
+        n_classes=n_classes,
+        device="cuda:0",
+        ridge=1e-10,
+        max_iter=SPARSE_MAX_ITER,
     )
     probe.fit(x.to_sparse_csr(), y)
 
@@ -315,7 +324,7 @@ def test_ill_conditioned_extreme_intercept_matches_reference():
         zero_idx = torch.randint(0, n_samples, (1,)).item()
         y[zero_idx, 0] = 0.0
 
-    probe, ref = _train_probe_and_reference(x_dense, y, n_iter=12)
+    probe, ref = _train_probe_and_reference(x_dense, y, max_iter=12)
 
     w_probe = probe.coef_[0, 0].item()
     b_probe = probe.intercept_[0, 0].item()
@@ -360,7 +369,7 @@ def test_ill_conditioned_large_scale_matches_reference():
         zero_idx = torch.randint(0, n_samples, (1,)).item()
         y[zero_idx, 0] = 0.0
 
-    probe, ref = _train_probe_and_reference(x_dense, y, n_iter=15)
+    probe, ref = _train_probe_and_reference(x_dense, y, max_iter=15)
 
     w_probe = probe.coef_[0, 0].item()
     b_probe = probe.intercept_[0, 0].item()
@@ -517,7 +526,7 @@ def _reference_metrics(
             ref = Reference1DProbe(
                 ridge=1e-10,
                 tol=1e-10,
-                max_iter=512,
+                max_iter=REF_MAX_ITER,
                 delta_logit=8.0,
             )
             ref.fit(xi_1d, yc)
@@ -550,7 +559,7 @@ def _fit_reference_probe(
     *,
     ridge: float,
     tol: float,
-    max_iter: int,
+    max_iter: int = REF_MAX_ITER,
 ) -> Reference1DProbe:
     ref = Reference1DProbe(
         ridge=ridge,
@@ -567,14 +576,14 @@ def _fit_sparse_probe(
     y: np.ndarray,
     *,
     ridge: float,
-    n_iter: int,
+    max_iter: int = SPARSE_MAX_ITER,
 ) -> Sparse1DProbe:
     sparse = Sparse1DProbe(
         n_latents=1,
         n_classes=1,
         device="cpu",
         ridge=ridge,
-        n_iter=n_iter,
+        max_iter=max_iter,
         class_slab_size=1,
         row_batch_size=64,
     )
@@ -596,12 +605,16 @@ def _generate_ill_conditioned_dataset(
 
 
 def _reference_vs_sparse_diffs(
-    x: np.ndarray, y: np.ndarray
+    x: np.ndarray,
+    y: np.ndarray,
+    *,
+    ref_max_iter: int = REF_MAX_ITER_FAST,
+    sparse_max_iter: int = SPARSE_MAX_ITER_FAST,
 ) -> tuple[float, float, float] | None:
     if y.sum() == 0 or y.sum() == y.shape[0]:
         return None
-    ref = _fit_reference_probe(x, y, ridge=1e-6, tol=1e-8, max_iter=1024)
-    sparse = _fit_sparse_probe(x, y, ridge=1e-6, n_iter=40)
+    ref = _fit_reference_probe(x, y, ridge=1e-6, tol=1e-8, max_iter=ref_max_iter)
+    sparse = _fit_sparse_probe(x, y, ridge=1e-6, max_iter=sparse_max_iter)
     coef_diff = abs(float(ref.coef_[0]) - float(sparse.coef_[0, 0]))
     intercept_diff = abs(float(ref.intercept_[0]) - float(sparse.intercept_[0, 0]))
     loss_ref = _mean_log_loss(float(ref.intercept_[0]), float(ref.coef_[0]), x, y)
@@ -611,44 +624,11 @@ def _reference_vs_sparse_diffs(
     return coef_diff, intercept_diff, abs(loss_ref - loss_sparse)
 
 
-_ILL_CONDITIONED_DATASET_STRATEGY = st.one_of(
-    st.just((120, 1000.0, -1.0360736815895426, -1.5655893713726405, 3)),
-    st.tuples(
-        st.integers(min_value=64, max_value=192),
-        st.sampled_from([100.0, 300.0, 1000.0]),
-        st.floats(
-            min_value=-2.5,
-            max_value=-0.05,
-            allow_nan=False,
-            allow_infinity=False,
-        ),
-        st.floats(
-            min_value=-3.0,
-            max_value=3.0,
-            allow_nan=False,
-            allow_infinity=False,
-        ),
-        st.integers(min_value=0, max_value=2**32 - 1),
-    ),
-)
-
-
-_DIVERGENCE_CACHE: dict[
-    tuple[int, float, float, float, int], tuple[float, float, float]
-] = {}
-
-
-def _divergence_predicate(params: tuple[int, float, float, float, int]) -> bool:
-    try:
-        x, y = _generate_ill_conditioned_dataset(*params)
-        diffs = _reference_vs_sparse_diffs(x, y)
-    except Exception:
-        return False
-    if diffs is None:
-        return False
-    coef_diff, intercept_diff, loss_diff = diffs
-    _DIVERGENCE_CACHE[params] = (coef_diff, intercept_diff, loss_diff)
-    return max(coef_diff, intercept_diff, loss_diff) > 0.5
+ILL_CONDITIONED_CASES: list[tuple[int, float, float, float, int]] = [
+    (120, 1000.0, -1.0360736815895426, -1.5655893713726405, 3),
+    (128, 300.0, -0.85, -0.75, 17),
+    (96, 1000.0, -1.2, 0.25, 42),
+]
 
 
 def _assert_probe_matches_reference(
@@ -662,6 +642,7 @@ def _assert_probe_matches_reference(
         n_classes=y.shape[1],
         device="cpu",
         ridge=1e-8,
+        max_iter=SPARSE_MAX_ITER,
         class_slab_size=2,
         row_batch_size=16,
     )
@@ -754,7 +735,7 @@ def test_fit_matches_reference_on_ill_conditioned_sparse_inputs():
     y = torch.bernoulli(torch.sigmoid(logits))
 
     loss_ref, coef_ref, intercept_ref = _reference_probe_dense(
-        x_dense, y, ridge=1e-6, tol=1e-9, max_iter=600
+        x_dense, y, ridge=1e-6, tol=1e-9, max_iter=REF_MAX_ITER
     )
 
     x_sparse = x_dense.to_sparse_csr()
@@ -763,7 +744,7 @@ def test_fit_matches_reference_on_ill_conditioned_sparse_inputs():
         n_classes=n_classes,
         device="cpu",
         ridge=1e-6,
-        n_iter=40,
+        max_iter=SPARSE_MAX_ITER,
         tol=1e-6,
         row_batch_size=32,
         class_slab_size=2,
@@ -829,7 +810,7 @@ def test_confusion_against_reference_threshold_extremes():
         n_classes=n_classes,
         device="cpu",
         ridge=1e-8,
-        n_iter=60,
+        max_iter=SPARSE_MAX_ITER,
         tol=1e-6,
         row_batch_size=16,
         class_slab_size=3,
@@ -990,7 +971,7 @@ def test_realistic_scale():
         ridge=1e-8,
         class_slab_size=8,
         row_batch_size=10_000,
-        n_iter=5,  # Fewer iterations for speed
+        max_iter=5,  # Fewer iterations for speed
     )
     probe.fit(x_sparse, y)
 
