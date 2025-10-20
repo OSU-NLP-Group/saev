@@ -141,7 +141,11 @@ def test_slow_probe_mismatch_on_separable_data():
 
 
 @pytest.mark.slow
-def test_sparse_probe_diverges_from_reference_on_ill_conditioned_inputs():
+@pytest.mark.xfail(
+    reason="Sparse1DProbe does not yet match the trust-region reference on ill-conditioned inputs.",
+    strict=True,
+)
+def test_sparse_probe_matches_reference_on_ill_conditioned_inputs():
     params = find(
         _ILL_CONDITIONED_DATASET_STRATEGY,
         _divergence_predicate,
@@ -157,7 +161,8 @@ def test_sparse_probe_diverges_from_reference_on_ill_conditioned_inputs():
         diffs = _reference_vs_sparse_diffs(x, y)
         assert diffs is not None
     coef_diff, intercept_diff, loss_diff = diffs
-    assert max(coef_diff, intercept_diff, loss_diff) > 0.5
+    max_diff = max(coef_diff, intercept_diff, loss_diff)
+    assert max_diff <= 5e-2
 
 
 def test_fit_smoke():
