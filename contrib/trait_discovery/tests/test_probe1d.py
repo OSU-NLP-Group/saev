@@ -53,7 +53,7 @@ def _train_probe_and_reference(
     return probe, ref
 
 
-def test_slow_probe_matches_sklearn():
+def test_reference_probe_matches_sklearn():
     rng = np.random.default_rng(0)
     n_samples = 512
     x = rng.normal(0.0, 1.0, size=n_samples)
@@ -85,7 +85,7 @@ def test_slow_probe_matches_sklearn():
     np.testing.assert_allclose(w_probe, w_ref, rtol=5e-2, atol=5e-2)
 
 
-def test_slow_probe_handles_linearly_separable():
+def test_reference_probe_handles_linearly_separable():
     pos = np.linspace(0.5, 5.0, num=64)
     neg = np.linspace(-5.0, -0.5, num=64)
     x = np.concatenate([neg, pos])
@@ -96,7 +96,6 @@ def test_slow_probe_handles_linearly_separable():
         tol=1e-8,
         max_iter=REF_MAX_ITER,
         delta_logit=6.0,
-        use_elliptical=True,
     )
     probe.fit(x, y)
 
@@ -107,7 +106,7 @@ def test_slow_probe_handles_linearly_separable():
 
 
 @pytest.mark.parametrize("seed", range(6))
-def test_slow_probe_matches_sklearn_random_seeds(seed: int):
+def test_reference_probe_matches_sklearn_random_seeds(seed: int):
     rng = np.random.default_rng(seed)
     n_samples = 256
     x = rng.normal(size=n_samples)
@@ -115,13 +114,13 @@ def test_slow_probe_matches_sklearn_random_seeds(seed: int):
     probs = 1.0 / (1.0 + np.exp(-logits_true))
     y = rng.binomial(1, probs)
 
-    slow = Reference1DProbe(
+    reference = Reference1DProbe(
         ridge=1e-8,
         tol=1e-10,
         max_iter=REF_MAX_ITER,
         delta_logit=8.0,
     )
-    slow.fit(x, y)
+    reference.fit(x, y)
     lr = LogisticRegression(
         fit_intercept=True,
         solver="lbfgs",
@@ -131,25 +130,25 @@ def test_slow_probe_matches_sklearn_random_seeds(seed: int):
     lr.fit(x.reshape(-1, 1), y)
 
     np.testing.assert_allclose(
-        slow.intercept_[0], lr.intercept_[0], rtol=5e-2, atol=5e-2
+        reference.intercept_[0], lr.intercept_[0], rtol=5e-2, atol=5e-2
     )
-    np.testing.assert_allclose(slow.coef_[0], lr.coef_[0, 0], rtol=5e-2, atol=5e-2)
+    np.testing.assert_allclose(reference.coef_[0], lr.coef_[0, 0], rtol=5e-2, atol=5e-2)
 
 
-def test_slow_probe_mismatch_on_separable_data():
+def test_reference_probe_mismatch_on_separable_data():
     x_neg = np.linspace(-4.0, -0.5, num=40)
     x_pos = np.linspace(0.5, 4.0, num=40)
     x = np.concatenate([x_neg, x_pos])
     y = np.concatenate([np.zeros_like(x_neg), np.ones_like(x_pos)]).astype(int)
 
-    slow = Reference1DProbe(ridge=1e-8, tol=1e-10, max_iter=128, delta_logit=6.0)
-    slow.fit(x, y)
+    reference = Reference1DProbe(ridge=1e-8, tol=1e-10, max_iter=128, delta_logit=6.0)
+    reference.fit(x, y)
     lr = LogisticRegression(fit_intercept=True, solver="lbfgs", C=1e8, max_iter=500)
     lr.fit(x.reshape(-1, 1), y)
 
     # Expect divergence: ridge keeps Reference1DProbe bounded, sklearn drives towards large magnitude.
-    diff_coef = abs(slow.coef_[0] - lr.coef_[0, 0])
-    diff_intercept = abs(slow.intercept_[0] - lr.intercept_[0])
+    diff_coef = abs(reference.coef_[0] - lr.coef_[0, 0])
+    diff_intercept = abs(reference.intercept_[0] - lr.intercept_[0])
     assert diff_coef > 0.5 or diff_intercept > 0.5
 
 

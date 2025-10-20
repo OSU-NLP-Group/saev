@@ -75,7 +75,6 @@ class Reference1DProbe(sklearn.base.BaseEstimator):
         lam_grow: float = 10.0,
         delta_logit: float = 6.0,
         qx: float | None = None,
-        use_elliptical: bool = True,
     ):
         if lam_shrink <= 0 or lam_shrink >= 1:
             msg = f"lam_shrink must lie in (0,1), got {lam_shrink}."
@@ -98,7 +97,6 @@ class Reference1DProbe(sklearn.base.BaseEstimator):
         self.lam_grow = float(lam_grow)
         self.delta_logit = float(delta_logit)
         self.qx_override = float(qx) if qx is not None else None
-        self.use_elliptical = bool(use_elliptical)
         self.lam_min = 1e-12
         self.lam_max = 1e12
 
@@ -112,7 +110,7 @@ class Reference1DProbe(sklearn.base.BaseEstimator):
         Dense, single (latent,class) solver.
         Accepts either a 1D array (n,) or a column vector (n,1).
         Ridge penalty: 0.5*(w^2 + (b - b0)^2)
-        Trust region: either box (|Δb|<=δ, |Δw|<=δ/qx) or elliptical ||DΔ||2<=δ with D=diag(1,qx).
+        Trust region: elliptical ||DΔ||2<=δ with D=diag(1,qx).
         """
         X = np.asarray(X, dtype=float)
         if X.ndim == 1:
@@ -216,13 +214,9 @@ class Reference1DProbe(sklearn.base.BaseEstimator):
             step_clipped = False
             while tried < 6:
                 step_clipped_local = False
-                if self.use_elliptical:
-                    # scaled LM: H + lam * D^T D with D=diag(1,qx)
-                    h0_eff = h0 + lam * 1.0
-                    h2_eff = h2 + lam * (qx_value * qx_value)
-                else:
-                    h0_eff = h0 + lam
-                    h2_eff = h2 + lam
+                # scaled LM: H + lam * D^T D with D=diag(1,qx)
+                h0_eff = h0 + lam * 1.0
+                h2_eff = h2 + lam * (qx_value * qx_value)
                 det = h0_eff * h2_eff - h1 * h1
                 if abs(det) < 1e-18:
                     lam = min(lam * self.lam_grow, self.lam_max)
@@ -232,25 +226,13 @@ class Reference1DProbe(sklearn.base.BaseEstimator):
                 db = (h2_eff * g0 - h1 * g1) / det
                 dw = (-h1 * g0 + h0_eff * g1) / det
 
-                # box or elliptical trust region
-                if self.use_elliptical:
-                    norm = np.sqrt(db * db + (qx_value * dw) * (qx_value * dw))
-                    if norm > self.delta_logit:
-                        scale = self.delta_logit / (norm + 1e-18)
-                        db *= scale
-                        dw *= scale
-                        step_clipped_local = True
-                else:
-                    delta_b = self.delta_logit
-                    delta_w = self.delta_logit / qx_value
-                    ratio_b = abs(db) / delta_b
-                    ratio_w = abs(dw) / delta_w
-                    ratio = max(ratio_b, ratio_w)
-                    if ratio > 1.0:
-                        scale = 1.0 / ratio
-                        db *= scale
-                        dw *= scale
-                        step_clipped_local = True
+                # elliptical trust region
+                norm = np.sqrt(db * db + (qx_value * dw) * (qx_value * dw))
+                if norm > self.delta_logit:
+                    scale = self.delta_logit / (norm + 1e-18)
+                    db *= scale
+                    dw *= scale
+                    step_clipped_local = True
 
                 if not np.isfinite(db) or not np.isfinite(dw):
                     lam = min(lam * self.lam_grow, self.lam_max)
