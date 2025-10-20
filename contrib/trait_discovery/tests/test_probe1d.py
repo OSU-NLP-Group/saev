@@ -945,6 +945,7 @@ def test_lm_step_respects_logit_budget():
     assert (lam_next >= lam_prev).all()
     assert clipped.any()
 
+
 @pytest.mark.slow
 def test_realistic_scale():
     """Test that chunked implementation can handle realistic dimensions without OOM."""

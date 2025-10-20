@@ -354,6 +354,7 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
         lm_lambda_max: float = 1e12,
         lm_max_update: float = 8.0,
         lm_max_adapt_iters: int = 6,
+        lm_qx_min_scale: float = 1e-3,
         iteration_hook: tp.Callable[[dict[str, tp.Any]], None] | None = None,
     ) -> None:
         if n_latents <= 0 or n_classes <= 0:
@@ -364,6 +365,8 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
             raise ValueError("lm_lambda_grow must be larger than 1.")
         if lm_max_adapt_iters <= 0:
             raise ValueError("lm_max_adapt_iters must be positive.")
+        if not 0.0 < lm_qx_min_scale <= 1.0:
+            raise ValueError("lm_qx_min_scale must lie in (0, 1].")
 
         self.n_latents = int(n_latents)
         self.n_classes = int(n_classes)
@@ -382,6 +385,7 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
         self.delta_logit = float(lm_max_update)
         self.logger = logging.getLogger("sparse1d")
         self.iteration_hook = iteration_hook
+        self.lm_qx_min_scale = float(lm_qx_min_scale)
         self.eps = 1e-7
         self.hessian_floor = float(hessian_floor)
 
@@ -485,6 +489,11 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
                 h1 = stats["h1"]
                 h2 = stats["h2"] + self.ridge
 
+                qx_sq_slab = qx_sq.expand(-1, c1 - c0)
+                curv_sq = h2 / torch.clamp(h0, min=1e-12)
+                qx_sq_floor = torch.clamp(qx_sq_slab * self.lm_qx_min_scale, min=1e-6)
+                qx_sq_step = torch.clamp(curv_sq, min=qx_sq_floor, max=qx_sq_slab)
+
                 pos_zero = torch.clamp(pi_slab - stats["pos_nz"], min=0.0)
                 pos_zero = torch.minimum(pos_zero, n_zeros_per_latent)
                 neg_zero = n_zeros_per_latent - pos_zero
@@ -522,7 +531,7 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
                     h1=h1,
                     h2=h2,
                     lam=lam_slab,
-                    qx_sq=qx_sq,
+                    qx_sq=qx_sq_step,
                 )
 
                 intercept_slab = intercept_slab - db
