@@ -9,23 +9,20 @@ def _():
     import pathlib
 
     import beartype
-    import marimo as mo
     import matplotlib.pyplot as plt
     import numpy as np
 
     import saev.data
     import saev.disk
 
-    return beartype, mo, np, pathlib, plt, saev
+    return beartype, np, pathlib, plt, saev
 
 
 @app.cell
-def _(pathlib, saev):
-    run = saev.disk.Run(
-        pathlib.Path("/fs/ess/PAS2136/samuelstevens/saev/runs/8atno5xa/")
-    )
+def _(pathlib):
+    runs_root = pathlib.Path("/fs/ess/PAS2136/samuelstevens/saev/runs")
     shards_root = pathlib.Path("/fs/scratch/PAS2136/samuelstevens/saev/shards")
-    return run, shards_root
+    return runs_root, shards_root
 
 
 @app.cell
@@ -56,68 +53,76 @@ def _(beartype, np, pathlib, saev, shards_root):
 
 
 @app.cell
-def _(np, run):
-    with np.load(run.inference / "e967c008" / "probe1d/probe1d_metrics.npz") as fd:
-        loss = fd["loss"]
-        biases = fd["biases"]
-        weights = fd["weights"]
-        tp = fd["tp"]
-        tn = fd["tn"]
-        fp = fd["fp"]
-        fn = fd["fn"]
-    return biases, fn, fp, loss, tn, tp, weights
-
-
-@app.cell
-def _():
-    return
-
-
-@app.cell
-def _(fn, fp, mo, tn, tp):
-    acc = (tp + tn) / (tp + tn + fp + fn)
-
-    mo.md(f"Accuracy: {acc.max(axis=0).mean().item() * 100:.3f}%")
-    return
-
-
-@app.cell
-def _(baseline_ce, loss, np, plt):
+def _(baseline_ce, np, plt, runs_root, saev):
     def _():
-        fig, ax = plt.subplots(dpi=200, layout="constrained")
-        ax.hist(
-            1 - loss.min(axis=0) / baseline_ce,
-            bins=np.linspace(0, 1, 51),
-            label=f"8atno5xa ({(1 - loss.min(axis=0) / baseline_ce).mean().item():.3f})",
+        runs = [
+            "8atno5xa",
+            "3kfmgk35",
+            "pwnr5ewh",
+            "po7lsp9a",
+        ]
+
+        fig, (ax1, ax2, ax3) = plt.subplots(
+            dpi=200, layout="constrained", nrows=3, figsize=(12, 12)
         )
-        ax.set_xlim(0, 1)
-        ax.set_xlabel("Variance Explained")
-        ax.set_ylabel("Count of 151 Classes")
-        ax.legend()
-        ax.spines[["top", "right"]].set_visible(False)
+
+        for run in runs:
+            run = saev.disk.Run(runs_root / run)
+
+            probe_metrics = run.inference / "e967c008" / "probe1d_metrics.npz"
+            if not probe_metrics.exists():
+                continue
+
+            with np.load(run.inference / "e967c008" / "probe1d_metrics.npz") as fd:
+                loss = fd["loss"]
+                biases = fd["biases"]
+                weights = fd["weights"]
+                tp = fd["tp"]
+                tn = fd["tn"]
+                fp = fd["fp"]
+                fn = fd["fn"]
+
+            ax1.hist(
+                1 - loss.min(axis=0) / baseline_ce,
+                bins=np.linspace(0, 1, 101),
+                label=f"{run.run_id} ({(1 - loss.min(axis=0) / baseline_ce).mean().item():.3f})",
+                alpha=0.3,
+            )
+
+            ax2.hist(
+                biases.ravel(),
+                alpha=0.3,
+                label=run.run_id,
+                # bins=30,
+                bins=np.linspace(-100, 100, 101),
+            )
+            ax3.hist(
+                weights.ravel(),
+                alpha=0.3,
+                label=run.run_id,
+                # bins=30,
+                bins=np.linspace(-1500, 1500, 101),
+            )
+
+        ax1.set_xlim(0, 1)
+        ax1.set_xlabel("Variance Explained")
+        ax1.set_ylabel("Count of 151 Classes")
+        ax1.legend()
+        ax1.spines[["top", "right"]].set_visible(False)
+
+        ax2.set_title("Bias Term Distribution")
+        ax2.set_yscale("log")
+        ax2.legend()
+        ax2.spines[["top", "right"]].set_visible(False)
+
+        ax3.set_title("Weight Term Distribution")
+        ax3.set_yscale("log")
+        ax3.legend()
+        ax3.spines[["top", "right"]].set_visible(False)
+
         return fig
 
     _()
-    return
-
-
-@app.cell
-def _(plt, weights):
-    def _():
-        fig, ax = plt.subplots(dpi=200, layout="constrained")
-        ax.hist(weights.ravel(), bins=100)
-        ax.set_yscale("log")
-
-        ax.spines[["top", "right"]].set_visible(False)
-        return fig
-
-    _()
-    return
-
-
-@app.cell
-def _(biases, np):
-    np.histogram(biases.ravel(), bins=20)
     return
 
 

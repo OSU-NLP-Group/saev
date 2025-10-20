@@ -37,3 +37,27 @@ We work in class slabs and stream CSR nonzeros; zeros are handled in closed form
 
 6. **Update and stop.**
    Apply (\theta \leftarrow \theta - \Delta). Stop when max(|grad|,|\Detla|) < tol or max iters. (TR Newton for logistic is a strong default.) [Journal of Machine Learning Research](https://www.jmlr.org/papers/v9/lin08b.html)
+
+
+## Implementation status (October 2025)
+
+* `Reference1DProbe` implements the canonical 1D trust-region algorithm described
+  above and serves as the correctness baseline.
+* `Sparse1DProbe` now matches the same update step while streaming CSR batches;
+  regression tests compare the solvers, and a documented xfail captures the
+  remaining ill-conditioned gap we plan to close.
+* Logging has been reduced to a simple per-iteration hook returning the class
+  range, gradient/step norms, and mean damping. We no longer emit the large
+  dataclass summaries mentioned in older runs.
+* The GPU backend is temporarily disabled; dense reference tests still run on
+  CPU. Bringing back CUDA support is tracked separately.
+
+Next steps before enabling production probes again:
+
+1. Close the loss mismatch surfaced by
+   `test_confusion_against_reference_threshold_extremes` (difference ~2e-2).
+2. Investigate numerical safeguards for the documented xfail
+   (`test_sparse_probe_matches_reference_on_ill_conditioned_inputs`).
+3. Reintroduce GPU kernels once the trust-region solver is stable and profiled.
+4. Refresh the training logs/CLI tooling to consume the new hook output.
+

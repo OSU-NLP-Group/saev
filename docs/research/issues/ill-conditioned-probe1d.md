@@ -25,3 +25,4 @@
 
 ## Update (2025-10-17)
 - Implemented a per-coordinate trust region inside `_solve_lm_step` that enlarges LM damping until the Newton step falls below `lm_max_update`, and records when steps are clipped. This keeps intercept updates bounded (~O(10)) while still allowing aggressive progress where curvature is reliable. Logging now surfaces how many coordinates were clipped each iteration so we can inspect slabs that repeatedly hit the trust radius.
+- Added an L2 prior on the intercept relative to the class prevalence logit so the optimizer has a finite optimum even when slices are linearly separable. This makes the Hessian better-conditioned and stops the bias term from racing to ±∞ when positives are vanishingly rare.

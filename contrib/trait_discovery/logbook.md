@@ -1204,3 +1204,5 @@ Now I just need to:
 
 - Do the probe on train/test, instead of fitting it on train and then evaluating on train as well
 - Compare against a bunch of other different SAEs (more/fewer latents, matryoshka vs vanilla, layer 13 vs layer 21, etc)
+
+It turns out my parameters are still pretty bad.

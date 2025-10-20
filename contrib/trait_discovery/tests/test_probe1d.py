@@ -920,29 +920,30 @@ def test_chunked_events_vs_full(seed):
     )
 
 
-def test_lm_step_caps_huge_updates():
+def test_lm_step_respects_logit_budget():
     probe = Sparse1DProbe(
         n_latents=1,
         n_classes=1,
         device="cpu",
-        lm_max_update=10.0,
-        lm_max_adapt_iters=3,
+        lm_max_update=6.0,
+        lm_max_adapt_iters=4,
     )
 
-    g0 = torch.tensor([[5.0e6]], dtype=torch.float32)
-    g1 = torch.zeros_like(g0)
-    h0 = torch.tensor([[0.5]], dtype=torch.float32)
-    h1 = torch.zeros_like(g0)
-    h2 = torch.tensor([[1.0]], dtype=torch.float32)
-    lambda_prev = torch.full_like(g0, probe.lm_lambda_init)
+    g0 = torch.tensor([[3.0]], dtype=torch.float32)
+    g1 = torch.tensor([[1.0]], dtype=torch.float32)
+    h0 = torch.tensor([[2.0]], dtype=torch.float32)
+    h1 = torch.tensor([[0.1]], dtype=torch.float32)
+    h2 = torch.tensor([[3.0]], dtype=torch.float32)
+    lam_prev = torch.full_like(g0, probe.lam_init)
 
-    step = probe._solve_lm_step(g0, g1, h0, h1, h2, lambda_prev)
+    db, dw, _, lam_next, clipped = probe._compute_lm_step(
+        g0=g0, g1=g1, h0=h0, h1=h1, h2=h2, lam=lam_prev, qx_sq=torch.tensor([[1.0]])
+    )
 
-    assert torch.all(step.db.abs() <= 10.0001)
-    assert torch.all(step.dw.abs() <= 10.0001)
-    assert torch.all(step.clipped_mask)
-    assert torch.all(step.lambda_next >= lambda_prev)
-
+    norm = float((db**2 + dw**2).sqrt())
+    assert pytest.approx(norm, abs=1e-6) <= probe.delta_logit
+    assert (lam_next >= lam_prev).all()
+    assert clipped.any()
 
 @pytest.mark.slow
 def test_realistic_scale():
