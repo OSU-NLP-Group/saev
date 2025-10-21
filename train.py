@@ -37,6 +37,7 @@ import saev.data
 import saev.utils.scheduling
 import saev.utils.wandb
 from saev import configs, disk, helpers, nn
+from saev.utils import statistics
 
 logger = logging.getLogger("train.py")
 
@@ -286,6 +287,15 @@ def train(
                         "loader/cpu_util": cpu_util,
                         "loader/buffer_fill": dataloader.reservoir.fill(),
                     }
+
+                metadata = dataloader.metadata
+                entropy_metrics = statistics.calc_batch_entropy(
+                    batch["example_idx"].to("cpu"),
+                    batch["token_idx"].to("cpu"),
+                    metadata.n_examples,
+                    metadata.content_tokens_per_example,
+                )
+                loader_metrics.update(entropy_metrics)
 
                 metrics = []
                 for i, (loss, sae, objective, group) in enumerate(

@@ -92,6 +92,16 @@ uv run train.py \
 This will train one (1) sparse autoencoder on the data.
 See the section on sweeps to learn how to train multiple SAEs in parallel using one or more GPUs.
 
+### Loader Entropy Metrics
+
+The training loop logs additional loader diagnostics derived from `calc_batch_entropy` in `train.py`. Every batch contributes two entropy measurements in natural log units:
+
+- `loader/example_entropy` and `loader/example_entropy_normalized` summarize how evenly the shuffled loader samples example indices. Normalization divides the raw entropy by `ln(metadata.n_examples)` so perfectly uniform sampling is 1.0.
+- `loader/token_entropy` and `loader/token_entropy_normalized` do the same for patch indices using `ln(metadata.content_tokens_per_example)` as the normalizer.
+- `loader/example_coverage` and `loader/token_coverage` report the fraction of distinct example or patch indices seen in the current batch relative to their theoretical support.
+
+All eight metrics appear alongside the existing `loader/read_mb` counters, helping spot skewed sampling or under-covered patches mid-run.
+
 ## Inference
 
 After training an SAE, you probably want to *use* the SAE.
@@ -233,4 +243,3 @@ However, there are some pieces of code that need to be changed for you to use it
 How to run visuals faster?
 
 explain how these features are visualized
-
