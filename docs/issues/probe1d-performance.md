@@ -29,6 +29,7 @@
 - Hoist Tensor.to out of the per chunk loop by caching values and offsets in compute_dtype once.
 - Skip zero-gradient coordinates before the Levenberg–Marquardt step so empty rows do not retry indefinitely.
 - Consider fusing consecutive index_add calls or batching updates to reduce kernel launch overhead.
+- Inspect real token activation scales to rule out extreme latent magnitudes: the shard at /fs/ess/PAS2136/samuelstevens/saev/runs/8atno5xa/inference/e967c008/token_acts.npz has max≈84, 99.9th≈45, and median≈0.82, so feature values alone are unlikely to explain the runaway damping (single data point but useful sanity check).
 
 ## Open questions
 

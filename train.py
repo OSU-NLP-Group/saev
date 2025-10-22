@@ -151,16 +151,10 @@ def worker_fn(cfgs: list[Config]) -> list[str]:
             metric.n_almost_dead / sae.cfg.d_sae * 100,
         )
 
-        # Load metadata to get dataset paths
-        train_md = saev.data.Metadata.load(cfg.train_data.shards)
-        val_md = saev.data.Metadata.load(cfg.val_data.shards)
-
         run = disk.Run.new(
             id,
             train_shards_dir=cfg.train_data.shards,
-            train_dataset=train_md.dataset,
             val_shards_dir=cfg.val_data.shards,
-            val_dataset=val_md.dataset,
             runs_root=cfg.runs_root,
         )
         nn.dump(run.ckpt, sae)

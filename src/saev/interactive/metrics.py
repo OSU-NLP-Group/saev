@@ -664,18 +664,33 @@ def _(Float, json, np, os):
 
 
 @app.cell
-def _(df):
-    df.drop(
-        "config/log_every",
-        "config/slurm_acct",
-        "config/device",
-        "config/wandb_project",
-        "config/track",
-        "config/slurm_acct",
-        "config/log_to",
-        "config/ckpt_path",
-        "summary/eval/freqs",
-        "summary/eval/mean_values",
+def _(alt, df, layers, mo, pl):
+    mo.ui.altair_chart(
+        alt.Chart(
+            df.filter(
+                pl.col("config/val_data/layer").is_in([int(layer) for layer in layers])
+            ).select(
+                "summary/eval/l0",
+                "summary/eval/mse",
+                "id",
+                "config/objective/sparsity_coeff",
+                "config/lr",
+                "config/sae/d_sae",
+                "config/val_data/layer",
+                "model_key",
+            )
+        )
+        .mark_point()
+        .encode(
+            x=alt.X("summary/eval/l0"),
+            y=alt.Y("summary/eval/mse"),
+            tooltip=["id", "config/lr"],
+            color="config/lr:Q",
+            # shape="config/val_data/layer:N",
+            shape="config/objective/sparsity_coeff:N",
+            # shape="config/sae/d_sae:N",
+            # shape="model_key",
+        )
     )
     return
 

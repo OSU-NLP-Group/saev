@@ -1206,3 +1206,10 @@ Now I just need to:
 - Compare against a bunch of other different SAEs (more/fewer latents, matryoshka vs vanilla, layer 13 vs layer 21, etc)
 
 It turns out my parameters are still pretty bad.
+
+# 10/21/2025
+
+Issues:
+
+1. Sweep 2669919 had a number of failing runs. I suspect this is due to the use of psutil with the dataloader processes. For instance, logs/2669919_86_0_log.out throws an exception on `rb = p_dataloader.io_counters().read_bytes`. We need to fix that in order to run the full sweeps. This is a good conceptual issue for Codex to draw up a design for. It's hard to write unit tests, however (*unless maybe Codex can write a good unit test?*).
+2. We still need to speed up the 1D probing. contrib/trait_discovery/logs/2671676_0_log.out has a complete run. None of the runs converge. We also need to deal with less sparse matrices being an issue--what if our matrix is nearly dense? How do we deal with that?

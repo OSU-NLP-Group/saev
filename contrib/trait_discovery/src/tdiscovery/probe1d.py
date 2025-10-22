@@ -612,8 +612,8 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
                     )
 
                 mask_prev = torch.isfinite(prev_pred_slab)
+                rho = torch.zeros_like(loss_curr)
                 if mask_prev.any():
-                    rho = torch.zeros_like(loss_curr)
                     rho[mask_prev] = (
                         prev_loss_slab[mask_prev] - loss_curr[mask_prev]
                     ) / torch.clamp(prev_pred_slab[mask_prev], min=1e-18)
