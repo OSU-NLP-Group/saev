@@ -168,6 +168,52 @@ def test_sparse_probe_matches_reference_on_ill_conditioned_inputs():
         assert max_diff <= 5e-2
 
 
+@pytest.mark.parametrize("max_iter", [1, 2, 3, 4, 5])
+def test_sparse_matches_reference_iteration_prefix(max_iter: int):
+    x, y = _generate_ill_conditioned_dataset(
+        n=80,
+        scale=5.0,
+        w=-0.6,
+        b=-0.25,
+        seed=11,
+    )
+    ref = Reference1DProbe(
+        ridge=1e-6,
+        tol=1e-8,
+        max_iter=max_iter,
+        lam_init=1e-3,
+        lam_shrink=0.1,
+        lam_grow=10.0,
+        delta_logit=6.0,
+    )
+    ref.fit(x, y.astype(int))
+
+    xs = torch.tensor(x, dtype=torch.float32).unsqueeze(1).to_sparse_csr()
+    ys = torch.tensor(y, dtype=torch.float32).unsqueeze(1)
+    sparse = Sparse1DProbe(
+        n_latents=1,
+        n_classes=1,
+        device="cpu",
+        ridge=1e-6,
+        tol=1e-8,
+        max_iter=max_iter,
+        class_slab_size=1,
+        row_batch_size=32,
+        lm_lambda_init=1e-3,
+        lm_lambda_shrink=0.1,
+        lm_lambda_grow=10.0,
+        lm_max_update=6.0,
+    )
+    sparse.fit(xs, ys)
+
+    assert pytest.approx(float(ref.coef_[0]), rel=1e-4, abs=1e-4) == float(
+        sparse.coef_[0, 0]
+    )
+    assert pytest.approx(float(ref.intercept_[0]), rel=1e-4, abs=1e-4) == float(
+        sparse.intercept_[0, 0]
+    )
+
+
 def test_fit_smoke():
     """Test that optimizer converges on linearly separable data with L2 regularization."""
     torch.manual_seed(42)
