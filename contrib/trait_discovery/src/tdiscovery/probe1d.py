@@ -13,6 +13,7 @@ The public surface area is intentionally small and designed to be used by tests 
 
 import dataclasses
 import logging
+import math
 import pathlib
 import typing as tp
 from collections.abc import Iterator
@@ -626,7 +627,7 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
                     )
                     lam_slab = lam_slab.clamp(self.lam_min, self.lam_max)
 
-                db, dw, pred, lam_next, step_clipped = self._compute_lm_step(
+                db, dw, pred, lam_next, step_clipped, success = self._compute_lm_step(
                     g0=g0, g1=g1, h0=h0, h1=h1, h2=h2, lam=lam_slab, qx_sq=qx_sq_step
                 )
 
@@ -663,9 +664,45 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
                         zero_step_reset,
                         prev_step_clipped_slab,
                     )
+                    step_clipped = torch.where(
+                        empty_mask_slab, torch.zeros_like(step_clipped), step_clipped
+                    )
+                    success = torch.where(
+                        empty_mask_slab, torch.zeros_like(success), success
+                    )
 
                 grad_norm = torch.maximum(g0.abs(), g1.abs()).max().item()
                 step_norm = torch.maximum(db.abs(), dw.abs()).max().item()
+                lambda_mean = float(lam_slab.mean().item())
+
+                debug_enabled = self.logger.isEnabledFor(logging.DEBUG)
+                if debug_enabled:
+                    loss_mean = float(loss_curr.mean().item())
+                    loss_max = float(loss_curr.max().item())
+                    rho_vals = rho[mask_prev]
+                    rho_mean = (
+                        float(rho_vals.mean().item())
+                        if rho_vals.numel() > 0
+                        else math.nan
+                    )
+                    rho_min = (
+                        float(rho_vals.min().item())
+                        if rho_vals.numel() > 0
+                        else math.nan
+                    )
+                    total_coords = success.numel()
+                    success_count = int(success.sum().item())
+                    fallback_count = total_coords - success_count
+                    success_frac = (
+                        success_count / total_coords if total_coords > 0 else math.nan
+                    )
+                    step_clipped_count = int(step_clipped.sum().item())
+                    pred_success = pred[success]
+                    pred_success_mean = (
+                        float(pred_success.mean().item())
+                        if pred_success.numel() > 0
+                        else math.nan
+                    )
 
                 vram_alloc_mb: float | None = None
                 vram_reserved_mb: float | None = None
@@ -676,23 +713,39 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
                     vram_alloc_mb = float(alloc) / (1024 * 1024)
                     vram_reserved_mb = float(reserved) / (1024 * 1024)
                     self.logger.debug(
-                        "slab=%s iter=%d grad_max=%.3e step_max=%.3e lambda_mean=%.3e peak_alloc_mb=%.2f peak_reserved_mb=%.2f",
+                        "slab=%s iter=%d grad_max=%.3e step_max=%.3e lambda_mean=%.3e loss_mean=%.3e loss_max=%.3e rho_mean=%.3e rho_min=%.3e success_frac=%.3f fallback=%d step_clipped=%d pred_mean=%.3e peak_alloc_mb=%.2f peak_reserved_mb=%.2f",
                         (c0, c1),
                         iter_idx,
                         grad_norm,
                         step_norm,
-                        float(lam_slab.mean().item()),
+                        lambda_mean,
+                        loss_mean,
+                        loss_max,
+                        rho_mean,
+                        rho_min,
+                        success_frac,
+                        fallback_count,
+                        step_clipped_count,
+                        pred_success_mean,
                         vram_alloc_mb,
                         vram_reserved_mb,
                     )
-                elif self.logger.isEnabledFor(logging.DEBUG):
+                elif debug_enabled:
                     self.logger.debug(
-                        "slab=%s iter=%d grad_max=%.3e step_max=%.3e lambda_mean=%.3e",
+                        "slab=%s iter=%d grad_max=%.3e step_max=%.3e lambda_mean=%.3e loss_mean=%.3e loss_max=%.3e rho_mean=%.3e rho_min=%.3e success_frac=%.3f fallback=%d step_clipped=%d pred_mean=%.3e",
                         (c0, c1),
                         iter_idx,
                         grad_norm,
                         step_norm,
-                        float(lam_slab.mean().item()),
+                        lambda_mean,
+                        loss_mean,
+                        loss_max,
+                        rho_mean,
+                        rho_min,
+                        success_frac,
+                        fallback_count,
+                        step_clipped_count,
+                        pred_success_mean,
                     )
 
                 if self.iteration_hook is not None:
@@ -701,7 +754,7 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
                         "iteration": iter_idx,
                         "max_grad": grad_norm,
                         "max_step": step_norm,
-                        "lambda_mean": float(lam_slab.mean().item()),
+                        "lambda_mean": lambda_mean,
                     }
                     if vram_alloc_mb is not None and vram_reserved_mb is not None:
                         payload["peak_alloc_mb"] = vram_alloc_mb
@@ -777,7 +830,7 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
         h2: Tensor,
         lam: Tensor,
         qx_sq: Tensor,
-    ) -> tuple[Tensor, Tensor, Tensor, Tensor, Tensor]:
+    ) -> tuple[Tensor, Tensor, Tensor, Tensor, Tensor, Tensor]:
         lam_curr = lam.clone()
         grad_norm_init = torch.maximum(g0.abs(), g1.abs())
         inactive = grad_norm_init <= self.tol
@@ -858,7 +911,7 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
             )
 
         lam_curr = lam_curr.clamp(self.lam_min, self.lam_max)
-        return db, dw, pred, lam_curr, step_clipped
+        return db, dw, pred, lam_curr, step_clipped, success
 
     def _plan_row_chunks(
         self, crow_indices_cpu: torch.Tensor, chunk_target: int
