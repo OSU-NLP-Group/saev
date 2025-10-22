@@ -7,10 +7,13 @@ We work in class slabs and stream CSR nonzeros; zeros are handled in closed form
 
 1. **Intercept baseline and ridge.** Start from (b=logit(\pi_c)), (w=0). Ridge keeps solutions finite and conditions the 2×2 system. (Standard TR/LM for logistic is well-studied.) [Journal of Machine Learning Research](https://www.jmlr.org/papers/v9/lin08b.html)
 
-2. **Accumulate Newton stats with sparsity.**
-   From nonzeros:
-   (g_1=\sum (\mu-y)x,; h_0=\sum s,; h_1=\sum s x,; h_2=\sum s x^2) with (s=\mu(1-\mu)).
-   Fold zeros via (n_0\mu_0) and (n_0 s_0). Add ridge: (g_0 += \lambda(b-b_{base}),; g_1 += \lambda w,; h_0 += \lambda,; h_2 += \lambda).
+2. **Accumulate Newton stats with sparsity (mean loss).**
+   Form the per-sample averages rather than raw sums so the quadratic model lives
+   on the same scale as the mean logistic loss we optimize. From nonzeros:
+   (g_1=\frac1n\sum (\mu-y)x,; h_0=\frac1n\sum s,; h_1=\frac1n\sum s x,; h_2=\frac1n\sum s x^2) with (s=\mu(1-\mu)).
+   Fold zeros via (n_0\mu_0/n) and (n_0 s_0/n). Add ridge: (g_0 += \lambda(b-b_{base}),; g_1 += \lambda w,; h_0 += \lambda,; h_2 += \lambda)
+   using the same mean scaling. This keeps gradients/predicted reductions
+   comparable to the actual drop in the averaged loss.
 
 3. **Levenberg–Marquardt step (damped Newton).**
    Solve ((H+\lambda_k I)\Delta=g) (closed-form 2x2), then compute the **predicted reduction** (pred=g^\top \Detla - \frac12,\Delta^\top H \Delta). This is the classic TR/LM quadratic-model decrease. [UCI Mathematics](https://www.math.uci.edu/~qnie/Publications/NumericalOptimization.pdf)
@@ -27,9 +30,10 @@ We work in class slabs and stream CSR nonzeros; zeros are handled in closed form
    Within the iteration, require (pred>0), finite step, and inside the logit budget; otherwise increase (\lambda_k) and retry (a few attempts).
    Also track a **lagged ratio**
    [
-   \rho^{(t)}=\frac{L_t - L_{t+1}}{pred_t}
+   \rho^{(t)}=\frac{\bar{L}_t - \bar{L}_{t+1}}{pred_t}
    ]
-   using the loss you already compute next iteration. Use rho to adapt (\lambda_k) for the following step:
+   where (\bar{L}) denotes the mean loss. Because the quadratic model is built
+   from the same averages, the ratio stays numerically stable. Use rho to adapt (\lambda_k) for the following step:
 
 * if rho >= 0.75 and the previous step wasn’t clipped → (\lambda_k \leftarrow \lambda_k \cdot \text{shrink}) (more Newton-like);
 * if rho <= 0.25 or the step was clipped/unstable → (\lambda_k \leftarrow \lambda_k \cdot \text{grow}) (more GD-like).
@@ -60,4 +64,3 @@ Next steps before enabling production probes again:
    (`test_sparse_probe_matches_reference_on_ill_conditioned_inputs`).
 3. Reintroduce GPU kernels once the trust-region solver is stable and profiled.
 4. Refresh the training logs/CLI tooling to consume the new hook output.
-

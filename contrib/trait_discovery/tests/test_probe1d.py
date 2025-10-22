@@ -11,6 +11,8 @@ from sklearn.linear_model import LogisticRegression
 from tdiscovery.probe1d import Reference1DProbe, Sparse1DProbe
 from torch import Tensor
 
+logging.basicConfig(level=logging.DEBUG, force=True)
+
 REF_MAX_ITER = 2048
 SPARSE_MAX_ITER = 512
 REF_MAX_ITER_FAST = 1024
@@ -975,8 +977,6 @@ def test_lm_step_respects_logit_budget():
 @pytest.mark.slow
 def test_realistic_scale():
     """Test that chunked implementation can handle realistic dimensions without OOM."""
-    log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
-    logging.basicConfig(level=logging.DEBUG, format=log_format, force=True)
 
     torch.manual_seed(42)
     n_samples, n_latents, n_classes = 64_000, 1024, 20

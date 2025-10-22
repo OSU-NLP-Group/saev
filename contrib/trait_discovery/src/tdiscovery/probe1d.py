@@ -184,10 +184,10 @@ class Reference1DProbe(sklearn.base.BaseEstimator):
 
         def loss(b, w):
             mu = sigmoid(b + w * x)
-            # NLL + ridge
-            return -(
+            # Mean NLL + ridge
+            return -np.mean(
                 y * np.log(mu) + (1 - y) * np.log(1 - mu)
-            ).sum() + 0.5 * self.ridge * (w**2 + (b - b0) ** 2)
+            ) + 0.5 * self.ridge * (w**2 + (b - b0) ** 2)
 
         loss_curr = loss(b, w)
 
@@ -217,11 +217,11 @@ class Reference1DProbe(sklearn.base.BaseEstimator):
             s = mu * (1 - mu)
             r = mu - y
 
-            g0 = r.sum() + self.ridge * (b - b0)
-            g1 = (r * x).sum() + self.ridge * w
-            h0 = s.sum() + self.ridge
-            h1 = (s * x).sum()
-            h2 = (s * x * x).sum() + self.ridge
+            g0 = r.mean() + self.ridge * (b - b0)
+            g1 = np.mean(r * x) + self.ridge * w
+            h0 = s.mean() + self.ridge
+            h1 = np.mean(s * x)
+            h2 = np.mean(s * x * x) + self.ridge
 
             grad_max = max(abs(g0), abs(g1))
 
@@ -391,6 +391,7 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
         self.coef_: Float[Tensor, "n_latents n_classes"] | None = None
         self._qx_per_latent: Float[Tensor, "n_latents"] | None = None
         self._empty_latent_mask: torch.Tensor | None = None
+        self._debug_last: dict[str, Tensor] = {}
 
     @torch.no_grad()
     def fit(
@@ -434,9 +435,13 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
                 total_bytes_target / (1024**3),
             )
 
-        x = x.to(self.device, dtype=self.param_dtype)
-        y = y.to(self.device, dtype=self.param_dtype)
-        self.compute_dtype = x.dtype
+        if self.device.type == "cpu":
+            self.compute_dtype = torch.float64
+        else:
+            self.compute_dtype = self.param_dtype
+
+        x = x.to(self.device, dtype=self.compute_dtype)
+        y = y.to(self.device, dtype=self.compute_dtype)
 
         n_samples_f = float(n_samples)
         pi = torch.clamp(y.mean(dim=0), self.eps, 1 - self.eps)
@@ -483,15 +488,33 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
         nnz_per_latent = nnz_counts.to(self.compute_dtype)
         n_zeros_per_latent = (n_samples_f - nnz_per_latent).clamp(min=0.0).view(-1, 1)
 
-        rms = torch.sqrt(
-            torch.where(
-                nnz_per_latent > 0,
-                sum_sq / torch.clamp(nnz_per_latent, min=1.0),
-                torch.ones_like(sum_sq),
+        if nnz <= 100_000:
+            abs_vals = values_cast.abs().cpu()
+            cols_cpu = col_indices.cpu()
+            qx_list = torch.ones(self.n_latents, dtype=torch.float64)
+            for latent in range(self.n_latents):
+                mask = cols_cpu == latent
+                if not mask.any():
+                    continue
+                vals = abs_vals[mask].double().numpy()
+                q = float(np.quantile(vals, 0.95))
+                if not np.isfinite(q) or q <= 1e-12:
+                    q = float(np.sqrt(np.mean(vals * vals)))
+                if not np.isfinite(q) or q <= 1e-12:
+                    q = 1.0
+                qx_list[latent] = q
+            qx = qx_list.to(device=self.device, dtype=self.compute_dtype)
+        else:
+            rms = torch.sqrt(
+                torch.where(
+                    nnz_per_latent > 0,
+                    sum_sq / torch.clamp(nnz_per_latent, min=1.0),
+                    torch.ones_like(sum_sq),
+                )
             )
-        )
-        qx = torch.clamp(rms, min=1e-6)
-        qx = torch.where(nnz_per_latent > 0, qx, torch.ones_like(qx))
+            qx = torch.where(nnz_per_latent > 0, rms, torch.ones_like(rms))
+
+        qx = torch.clamp(qx, min=1e-6)
         qx = qx.view(-1, 1)
         qx_sq = qx * qx
         self._qx_per_latent = qx.view(-1).clone()
@@ -510,7 +533,7 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
         prev_loss = torch.zeros_like(lam)
         prev_step_clipped = torch.zeros_like(lam, dtype=torch.bool)
 
-        pi_total = y.sum(dim=0).to(self.compute_dtype)
+        pi_mean_total = y.mean(dim=0).to(self.compute_dtype)
         base_intercept_matrix = base_intercept.view(1, -1)
 
         for c0 in range(0, self.n_classes, self.class_slab_size):
@@ -523,7 +546,7 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
             prev_loss_slab = prev_loss[:, c0:c1]
             prev_step_clipped_slab = prev_step_clipped[:, c0:c1]
 
-            pi_slab = pi_total[c0:c1].view(1, -1)
+            pi_slab_mean = pi_mean_total[c0:c1].view(1, -1)
             base_slab = base_intercept_matrix[:, c0:c1]
             empty_mask_slab = empty_latent_mask[:, c0:c1]
             base_broadcast = base_slab.expand_as(intercept_slab)
@@ -575,32 +598,32 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
                 mu_0 = torch.sigmoid(intercept_slab).clamp_(self.eps, 1 - self.eps)
                 s_0 = mu_0 * (1 - mu_0)
 
-                g0 = stats.mu_nz + n_zeros_per_latent * mu_0 - pi_slab
-                g1 = stats.g1 + self.ridge * coef_slab
+                mu_nz_mean = stats.mu_nz / n_samples_f
+                pos_nz_mean = stats.pos_nz / n_samples_f
+                zeros_frac = n_zeros_per_latent / n_samples_f
+                g0 = mu_nz_mean + zeros_frac * mu_0 - pi_slab_mean
                 g0 = g0 + self.ridge * (intercept_slab - base_slab)
+                g1 = stats.g1 / n_samples_f + self.ridge * coef_slab
 
-                h0 = stats.h0 + n_zeros_per_latent * s_0 + self.ridge
-                h1 = stats.h1
-                h2 = stats.h2 + self.ridge
+                h0 = stats.h0 / n_samples_f + zeros_frac * s_0 + self.ridge
+                h1 = stats.h1 / n_samples_f
+                h2 = stats.h2 / n_samples_f + self.ridge
 
-                qx_sq_slab = qx_sq.expand(-1, c1 - c0)
-                curv_sq = h2 / torch.clamp(h0, min=1e-12)
-                qx_sq_floor = torch.clamp(qx_sq_slab * self.lm_qx_min_scale, min=1e-6)
-                qx_sq_step = torch.clamp(curv_sq, min=qx_sq_floor, max=qx_sq_slab)
+                qx_sq_step = qx_sq.expand(-1, c1 - c0)
 
-                pos_zero = torch.clamp(pi_slab - stats.pos_nz, min=0.0)
-                pos_zero = torch.minimum(pos_zero, n_zeros_per_latent)
-                neg_zero = n_zeros_per_latent - pos_zero
+                pos_zero_mean = torch.clamp(pi_slab_mean - pos_nz_mean, min=0.0)
+                pos_zero_mean = torch.minimum(pos_zero_mean, zeros_frac)
+                neg_zero_mean = zeros_frac - pos_zero_mean
                 zero_loss = -(
-                    pos_zero * torch.log(mu_0)
-                    + neg_zero * torch.log1p(-mu_0.clamp(max=1 - self.eps))
+                    pos_zero_mean * torch.log(mu_0)
+                    + neg_zero_mean * torch.log1p(-mu_0.clamp(max=1 - self.eps))
                 )
                 ridge_penalty = (
                     0.5
                     * self.ridge
                     * (coef_slab**2 + (intercept_slab - base_slab) ** 2)
                 )
-                loss_curr = stats.loss_nz + zero_loss + ridge_penalty
+                loss_curr = stats.loss_nz / n_samples_f + zero_loss + ridge_penalty
 
                 if empty_mask_slab.any():
                     g0 = torch.where(empty_mask_slab, torch.zeros_like(g0), g0)
@@ -677,6 +700,21 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
 
                 debug_enabled = self.logger.isEnabledFor(logging.DEBUG)
                 if debug_enabled:
+                    self._debug_last = {
+                        "g0": g0,
+                        "g1": g1,
+                        "h0": h0,
+                        "h1": h1,
+                        "h2": h2,
+                        "mu_nz_mean": mu_nz_mean,
+                        "pos_nz_mean": pos_nz_mean,
+                        "zeros_frac": zeros_frac,
+                        "loss_curr": loss_curr,
+                        "pred": pred,
+                        "db": db,
+                        "dw": dw,
+                        "lam": lam_slab,
+                    }
                     loss_mean = float(loss_curr.mean().item())
                     loss_max = float(loss_curr.max().item())
                     rho_vals = rho[mask_prev]
