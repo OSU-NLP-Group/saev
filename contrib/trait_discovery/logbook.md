@@ -1213,3 +1213,14 @@ Issues:
 
 1. Sweep 2669919 had a number of failing runs. I suspect this is due to the use of psutil with the dataloader processes. For instance, logs/2669919_86_0_log.out throws an exception on `rb = p_dataloader.io_counters().read_bytes`. We need to fix that in order to run the full sweeps. This is a good conceptual issue for Codex to draw up a design for. It's hard to write unit tests, however (*unless maybe Codex can write a good unit test?*).
 2. We still need to speed up the 1D probing. contrib/trait_discovery/logs/2671676_0_log.out has a complete run. None of the runs converge. We also need to deal with less sparse matrices being an issue--what if our matrix is nearly dense? How do we deal with that?
+
+I thought that codex had fixed #1 but it seems not, because the Monitor is not in the train.py file. You can see it in logs/2675297_5_0_log.out.
+
+
+# 10/23/2025
+
+I think my sparse solver is pretty much done.
+There are some code quality issues, where there's a lot of moving things from device and CPU, and a lot of `.to(self.dtype)`.
+I am also not sure how it will handle larger arrays that can't go straight o the GPU.
+Fially, I don't think it ever breaks early.
+One of the goals was to actually stop early if all the gradients are good enough, even on ill-conditioned data.

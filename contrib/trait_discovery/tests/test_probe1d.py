@@ -201,18 +201,25 @@ def test_sparse_matches_reference_iteration_prefix(max_iter: int):
         max_iter=max_iter,
         class_slab_size=1,
         row_batch_size=32,
-        lm_lambda_init=1e-3,
-        lm_lambda_shrink=0.1,
-        lm_lambda_grow=10.0,
-        lm_max_update=6.0,
+        lam_init=1e-3,
+        lam_shrink=0.1,
+        lam_grow=10.0,
+        delta_logit=6.0,
     )
     sparse.fit(xs, ys)
 
-    assert pytest.approx(float(ref.coef_[0]), rel=1e-4, abs=1e-4) == float(
-        sparse.coef_[0, 0]
+    torch.testing.assert_close(
+        torch.tensor(ref.coef_, dtype=sparse.coef_.dtype).squeeze(),
+        sparse.coef_.squeeze(),
+        rtol=1e-4,
+        atol=1e-4,
     )
-    assert pytest.approx(float(ref.intercept_[0]), rel=1e-4, abs=1e-4) == float(
-        sparse.intercept_[0, 0]
+
+    torch.testing.assert_close(
+        torch.tensor(ref.intercept_, dtype=sparse.intercept_.dtype).squeeze(),
+        sparse.intercept_.squeeze(),
+        rtol=1e-4,
+        atol=1e-4,
     )
 
 
