@@ -26,7 +26,6 @@ import typing as tp
 import beartype
 import einops
 import orjson
-import psutil
 import torch
 import tyro
 import wandb
@@ -38,6 +37,7 @@ import saev.utils.scheduling
 import saev.utils.wandb
 from saev import configs, disk, helpers, nn
 from saev.utils import statistics
+from saev.utils.monitoring import DataloaderMonitor
 
 logger = logging.getLogger("train.py")
 
@@ -232,12 +232,9 @@ def train(
     objectives = objectives.to(cfg.device)
 
     global_step, n_patches_seen = 0, 0
-
-    p_dataloader, p_children, last_rb, last_t = None, [], 0, time.time()
+    dl_monitor = DataloaderMonitor(dataloader)
 
     for batch in helpers.progress(dataloader, every=cfg.log_every):
-        p_dataloader, p_children = get_p_dl(p_dataloader, dataloader.manager_pid)
-
         acts_BD = batch["act"].to(cfg.device, non_blocking=True)
         for sae in saes:
             sae.normalize_w_dec()
@@ -271,22 +268,7 @@ def train(
         if (global_step + 1) % cfg.log_every == 0:
             with torch.no_grad():
                 now = time.time()
-                # Dataloader stuff
-                loader_metrics = {}
-                if p_dataloader is not None:
-                    rb = p_dataloader.io_counters().read_bytes
-                    read_mb = (rb - last_rb) / (1024 * 1024)
-                    read_mb_s = read_mb / (now - last_t)
-                    cpu_util = sum(
-                        t.cpu_percent(None) for t in p_children
-                    ) + p_dataloader.cpu_percent(None)
-                    last_rb, last_t = rb, now
-                    loader_metrics = {
-                        "loader/read_mb": read_mb,
-                        "loader/read_mb_s": read_mb_s,
-                        "loader/cpu_util": cpu_util,
-                        "loader/buffer_fill": dataloader.reservoir.fill(),
-                    }
+                dl_metrics = dl_monitor.compute(now=now)
 
                 metadata = dataloader.metadata
                 entropy_metrics = statistics.calc_batch_entropy(
@@ -295,7 +277,7 @@ def train(
                     metadata.n_examples,
                     metadata.content_tokens_per_example,
                 )
-                loader_metrics.update(entropy_metrics)
+                dl_metrics.update(entropy_metrics)
 
                 metrics = []
                 for i, (loss, sae, objective, group) in enumerate(
@@ -332,7 +314,7 @@ def train(
                         "metrics/dictionary_coherence": coherence.item(),
                         "metrics/avg_decoder_row_norm": avg_w_row_norm.item(),
                         "metrics/grad_norm": grad_norms[i].item(),
-                        **loader_metrics,
+                        **dl_metrics,
                     }
 
                     metrics.append(metric)
@@ -360,23 +342,6 @@ def train(
         global_step += 1
 
     return saes, objectives, run, global_step
-
-
-@beartype.beartype
-def get_p_dl(
-    p_dataloader: psutil.Process | None, manager_pid: int
-) -> tuple[psutil.Process | None, list[psutil.Process]]:
-    needs_updating = (
-        p_dataloader is None
-        or not p_dataloader.is_running()
-        or p_dataloader.pid != manager_pid
-    )
-    if psutil.pid_exists(manager_pid) and needs_updating:
-        p_dataloader = psutil.Process(manager_pid)
-        p_children = p_dataloader.children(recursive=True)
-        return p_dataloader, p_children
-    else:
-        return None, []
 
 
 # TODO: I think this needs to be jaxtyped, but jaxtyped in a submitit context can cause real issues.
