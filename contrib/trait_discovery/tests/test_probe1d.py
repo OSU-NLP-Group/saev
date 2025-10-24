@@ -30,7 +30,7 @@ def _train_probe_and_reference(
     *,
     ridge: float = 1e-8,
     max_iter: int = 80,
-    lm_max_update: float = 8.0,
+    delta_logit: float = 8.0,
 ) -> tuple[Sparse1DProbe, Reference1DProbe]:
     x_sparse = x_dense.to_sparse_csr()
     probe = Sparse1DProbe(
@@ -41,7 +41,7 @@ def _train_probe_and_reference(
         max_iter=max_iter,
         row_batch_size=256,
         class_slab_size=y.shape[1],
-        lm_max_update=lm_max_update,
+        delta_logit=delta_logit,
     )
     probe.logger.setLevel(logging.ERROR)
     probe.fit(x_sparse, y.to(torch.float32))
@@ -295,6 +295,57 @@ def test_fit_against_reference(seed):
     torch.testing.assert_close(
         loss_sparse, torch.tensor(loss_ref, dtype=torch.float32), rtol=1e-4, atol=1e-4
     )
+
+
+def test_sparse_probe_stops_early():
+    torch.manual_seed(0)
+    n_samples = 32
+    x_dense = torch.randn(n_samples, 1)
+    logits = -0.25 + 0.75 * x_dense[:, 0]
+    y = torch.bernoulli(torch.sigmoid(logits)).unsqueeze(1)
+
+    max_iter = 40
+    probe = Sparse1DProbe(
+        n_latents=1,
+        n_classes=1,
+        device="cpu",
+        max_iter=max_iter,
+        tol=1e-4,
+        class_slab_size=1,
+        row_batch_size=8,
+    )
+    probe.logger.setLevel(logging.ERROR)
+
+    probe.fit(x_dense.to_sparse_csr(), y)
+
+    iter_max = int(probe.n_iter_.max().item())
+    iter_min = int(probe.n_iter_.min().item())
+    assert iter_max < max_iter
+    assert iter_min > 0
+
+
+def test_sparse_probe_stops_early_ill_conditioned():
+    params = ILL_CONDITIONED_CASES[1]
+    n, scale, w, b, seed = params
+    x_np, y_np = _generate_ill_conditioned_dataset(n, scale, w, b, seed)
+
+    x_dense = torch.tensor(x_np, dtype=torch.float32).unsqueeze(1)
+    y = torch.tensor(y_np, dtype=torch.float32).unsqueeze(1)
+
+    max_iter = 100
+    probe = Sparse1DProbe(
+        n_latents=1,
+        n_classes=1,
+        device="cpu",
+        max_iter=max_iter,
+        tol=1e-4,
+        class_slab_size=1,
+        row_batch_size=64,
+    )
+    probe.logger.setLevel(logging.ERROR)
+    probe.fit(x_dense.to_sparse_csr(), y)
+    iter_max = int(probe.n_iter_.max().item())
+    assert iter_max < max_iter
 
 
 @cuda_available
@@ -956,13 +1007,7 @@ def test_chunked_events_vs_full(seed):
 
 
 def test_lm_step_respects_logit_budget():
-    probe = Sparse1DProbe(
-        n_latents=1,
-        n_classes=1,
-        device="cpu",
-        lm_max_update=6.0,
-        lm_max_adapt_iters=4,
-    )
+    probe = Sparse1DProbe(n_latents=1, n_classes=1, device="cpu", delta_logit=6.0)
 
     g0 = torch.tensor([[15.0]], dtype=torch.float32)
     g1 = torch.tensor([[5.0]], dtype=torch.float32)
@@ -971,7 +1016,7 @@ def test_lm_step_respects_logit_budget():
     h2 = torch.tensor([[3.0]], dtype=torch.float32)
     lam_prev = torch.full_like(g0, probe.lam_init)
 
-    db, dw, _, lam_next, clipped = probe._compute_lm_step(
+    db, dw, _, lam_next, clipped, success = probe.compute_lm_step(
         g0=g0, g1=g1, h0=h0, h1=h1, h2=h2, lam=lam_prev, qx_sq=torch.tensor([[1.0]])
     )
 

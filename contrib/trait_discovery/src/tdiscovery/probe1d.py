@@ -391,6 +391,9 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
             (self.n_latents,), **self._dd
         )
         self._debug_last: dict[str, Tensor] = {}
+        self.n_iter_: Tensor = torch.zeros(
+            (self.n_classes,), dtype=torch.int32, device=self.device
+        )
 
     @torch.no_grad()
     def fit(
@@ -436,6 +439,7 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
 
         x = x.to(**self._dd)
         y = y.to(**self._dd)
+        self.n_iter_.zero_()
 
         n_samples_f = float(n_samples)
         pi = torch.clamp(y.mean(dim=0), self.eps, 1 - self.eps)
@@ -525,6 +529,7 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
                 )
 
             for iter_idx in range(self.max_iter):
+                iter_count = iter_idx + 1
                 track_vram = self.device.type == "cuda" and self.logger.isEnabledFor(
                     logging.DEBUG
                 )
@@ -583,7 +588,7 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
                     lam = torch.where(grow_mask, lam * self.lam_grow, lam)
                     lam = lam.clamp(self.lam_min, self.lam_max)
 
-                db, dw, pred, lam_next, step_clipped, success = self._compute_lm_step(
+                db, dw, pred, lam_next, step_clipped, success = self.compute_lm_step(
                     g0=g0, g1=g1, h0=h0, h1=h1, h2=h2, lam=lam, qx_sq=qx_sq_step
                 )
 
@@ -617,8 +622,12 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
                         empty_mask_slab, torch.zeros_like(success), success
                     )
 
-                grad_norm = torch.maximum(g0.abs(), g1.abs()).max().item()
-                step_norm = torch.maximum(db.abs(), dw.abs()).max().item()
+                qx = torch.sqrt(qx_sq_step)
+                qx_safe = torch.clamp(qx, min=1e-12)
+                grad_abs = torch.maximum(g0.abs(), (g1 / qx_safe).abs())
+                grad_norm = grad_abs.max().item()
+                scaled_step = torch.maximum(db.abs(), (qx * dw).abs())
+                step_norm = scaled_step.max().item()
                 lambda_mean = float(lam.mean().item())
 
                 debug_enabled = self.logger.isEnabledFor(logging.DEBUG)
@@ -705,11 +714,16 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
                         pred_success_mean,
                     )
 
-                if grad_norm < self.tol and step_norm < self.tol:
+                if torch.all(grad_abs <= self.tol) or (
+                    grad_norm < self.tol and step_norm < self.tol
+                ):
                     break
+            else:
+                iter_count = self.max_iter
 
             intercept[:, c0:c1] = intercept_slab
             coef[:, c0:c1] = coef_slab
+            self.n_iter_.narrow(0, c0, c1 - c0).fill_(iter_count)
 
         self.intercept_ = intercept.to(self.dtype)
         self.coef_ = coef.to(self.dtype)
@@ -761,7 +775,7 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
 
         return SlabStats(mu_nz, g1, h0, h1, h2, loss_nz, pos_nz)
 
-    def _compute_lm_step(
+    def compute_lm_step(
         self,
         *,
         g0: Tensor,
