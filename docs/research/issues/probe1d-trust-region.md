@@ -48,6 +48,15 @@ We work in class slabs and stream CSR nonzeros; zeros are handled in closed form
    - Gradient norm: stop when (\max(|g_0|,|g_1|) \le \text{tol}_{\text{grad}}) (e.g. 1e-3 in float32).
    - Predicted reduction: if the quadratic model predicts less than (\text{tol}_{\text{pred}}) mean-loss drop (e.g. 1e-6), accept the current parameters.
    - Curvature guard: when the average sigmoid curvature (\bar{s}=\mathbb{E}[\mu(1-\mu)]) falls below (\text{tol}_{\text{curv}}) (e.g. 1e-6), the coordinate is in the logistic tail and further Newton steps are fruitless.
-   - Relative decrease: if (pred \le \text{tol}_{\text{pred,rel}}(|\bar{L}| + 1e-8)), stop to avoid absolute-scale sensitivity.
-   - Monotonicity: accepted steps must not increase (\bar{L}); if they do, automatically grow (\text{damp}_k) and retry.
-   These criteria are standard in trust-region/IRLS treatments and avoid relying solely on the noisy lagged (\rho).
+- Relative decrease: if (pred \le \text{tol}_{\text{pred,rel}}(|\bar{L}| + 1e-8)), stop to avoid absolute-scale sensitivity.
+- Monotonicity: accepted steps must not increase (\bar{L}); if they do, automatically grow (\text{damp}_k) and retry.
+  These criteria are standard in trust-region/IRLS treatments and avoid relying solely on the noisy lagged (\rho).
+
+## Appendix: Frozen Coordinates vs. Tiny Gradient Steps
+
+- Previous implementation: when `compute_lm_step()` failed to find a positive predicted reduction after the retry loop, it zeroed `db`, `dw`, and `pred` for those coordinates and marked them as unsuccessful before returning. The outer loop kept recomputing gradients for those frozen coordinates, so without extra logic they survived until `max_iter`.
+- Spec here: after exhausting LM retries we envisioned “a tiny gradient step projected into the logit budget so progress continues.” The updated implementation now follows this design and applies a damped negative-gradient step within the logit budget whenever LM retries fail.
+- Tradeoffs:
+  - Freezing (zeroing) keeps logits stable and mirrors the runtime signal that the trust-region model cannot propose a safe move, but those coordinates never satisfy the gradient tolerance, so slabs chew through the full iteration budget unless we add custom early-exit logic.
+  - Tiny gradient steps preserve the trust-region narrative, let gradients decay, and keep iteration counts aligned with the spec, but they reintroduce small parameter updates even when the Hessian-based step fails.
+- Recommendation (implemented): prefer the tiny gradient fallback so the solver behavior matches the design document, and monitor the step statistics to ensure the additional updates remain numerically stable.

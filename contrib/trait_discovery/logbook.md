@@ -1224,3 +1224,24 @@ There are some code quality issues, where there's a lot of moving things from de
 I am also not sure how it will handle larger arrays that can't go straight o the GPU.
 Fially, I don't think it ever breaks early.
 One of the goals was to actually stop early if all the gradients are good enough, even on ill-conditioned data.
+
+# 10/24/2025
+
+I actually don't think we need to fix a specific layer. We can train multiple SAEs in parallel. We just need to write the specific sets of model/data/layer combinations to save activations for.
+
+20K images with DINOv3 ViT-L/16, 256 patches/image, 1024 dim/patch, 6 layers is 119GB. So ImageNet-1K has 1.2M images, and would be 60x larger. That's 7.1TB. Luckily I have 30TB, so it is fine. 
+
+I think it's:
+
+1. DINOv3 ViT-L/16, ImageNet-1K training split, 256 patches/image, 6 layers (7.1TB
+2. DINOv3 ViT-B/16, ImageNet-1K training split, 256 patches/image, 6 layers (5.3TB)
+3. DINOv3 ViT-S/16, ImageNet-1K training split, 256 patches/image, 6 layers (2.6TB)
+
+Then we also need all of these settings for the ADE20K train/val splits. The biggest of these 119GB, so say that all of ADE20K for all the models is AT MOST ~500GB (0.5TB).
+
+So I would train SAEs on every combination of DINOv3 model, layer, with different sparsity lambdas for 100M tokens. This is super cheap. Then I can evaluate probe loss on ADE20K by fitting probes train, measuring loss on val, and only doing this for the probes that are pareto optimal on MSE/L0. I'll only do this for Matryoshka because I'm basically sure that it's best.
+
+
+# 10/25/2025
+
+Still dealing with probe issues. However, since I am waiting on the SAE training with the dataloader monitor, I think it's fine to keep iterating on the probe. Once I get some imagenet activations finished, then I can train some SAEs.

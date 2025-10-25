@@ -88,6 +88,18 @@ def sigmoid(z: np.ndarray | float) -> np.ndarray:
 
 @beartype.beartype
 class Reference1DProbe(sklearn.base.BaseEstimator):
+    """Dense baseline that mirrors the probe1d trust-region spec step-for-step.
+
+    The implementation favors clarity over speed so it is easy to audit against
+    docs/research/issues/probe1d-trust-region.md. It uses the two-parameter
+    Levenberg-Marquardt update with mean-scaled statistics, clamps steps to the
+    logit budget, enforces monotonic loss reduction, and falls back to a tiny
+    projected gradient step whenever the LM loop fails. Additional termination
+    guards (predicted reduction, curvature, relative decrease) match the spec so
+    that future readers can validate correctness without cross-referencing the
+    sparse implementation.
+    """
+
     def __init__(
         self,
         ridge: float = 1e-8,
@@ -118,11 +130,17 @@ class Reference1DProbe(sklearn.base.BaseEstimator):
         self.lam_min = 1e-12
         self.lam_max = 1e12
         self.eps = 1e-8
+        self.tol_pred = 1e-12
+        self.tol_pred_rel = 1e-6
+        self.tol_curv = 1e-12
+        self.fallback_step_scale = 1e-3
 
-        self.intercept_: float | None = None
+        self.intercept_: np.ndarray = np.zeros(1, dtype=float)
+        self.coef_: np.ndarray = np.zeros(1, dtype=float)
         self.weight_: float | None = None
         self.converged_: bool = False
         self.n_iter_: int = 0
+        self._fitted: bool = False
 
         self.logger = logging.getLogger("reference")
 
@@ -187,6 +205,8 @@ class Reference1DProbe(sklearn.base.BaseEstimator):
 
         loss_curr = loss(b, w)
 
+        termination_reason: str | None = None
+
         for it in range(self.max_iter):
             rho = None
             if prev_pred is not None:
@@ -220,11 +240,18 @@ class Reference1DProbe(sklearn.base.BaseEstimator):
             h2 = np.mean(s * x * x) + self.ridge
 
             grad_max = max(abs(g0), abs(g1))
+            curv_mean = float(s.mean())
+            if curv_mean < self.tol_curv:
+                termination_reason = "curvature"
+                break
 
             # LM step with retries
             tried = 0
             db = dw = 0.0
             step_clipped = False
+            pred = 0.0
+            loss_candidate = loss_curr
+            step_found = False
             while tried < 6:
                 step_clipped_local = False
                 # scaled LM: H + lam * D^T D with D=diag(1,qx)
@@ -253,29 +280,84 @@ class Reference1DProbe(sklearn.base.BaseEstimator):
                     continue
 
                 # predicted quadratic-model decrease (correct sign)
-                pred = (
+                pred_candidate = (
                     g0 * db
                     + g1 * dw
                     - 0.5 * (h0 * db * db + 2 * h1 * db * dw + h2 * dw * dw)
                 )
-                if not np.isfinite(pred) or pred <= 0:
+                if not np.isfinite(pred_candidate) or pred_candidate <= 0:
                     lam = min(lam * self.lam_grow, self.lam_max)
                     tried += 1
                     continue
+                b_try = b - db
+                w_try = w - dw
+                loss_try = loss(b_try, w_try)
+                if loss_try > loss_curr + self.eps:
+                    lam = min(lam * self.lam_grow, self.lam_max)
+                    tried += 1
+                    continue
+                pred = pred_candidate
+                loss_candidate = loss_try
                 step_clipped = step_clipped_local
+                step_found = True
                 break
 
+            if not step_found:
+                grad_sq = g0 * g0 + g1 * g1
+                if grad_sq <= self.eps:
+                    db = 0.0
+                    dw = 0.0
+                    pred = 0.0
+                    loss_candidate = loss_curr
+                else:
+                    step_scale = self.fallback_step_scale
+                    for _ in range(10):
+                        db = -g0 * step_scale
+                        dw = -g1 * step_scale
+                        norm = math.sqrt(db * db + (qx_value * dw) * (qx_value * dw))
+                        if norm > self.delta_logit:
+                            scale = self.delta_logit / (norm + 1e-18)
+                            db *= scale
+                            dw *= scale
+                            step_clipped = True
+                        pred = (
+                            g0 * db
+                            + g1 * dw
+                            - 0.5 * (h0 * db * db + 2 * h1 * db * dw + h2 * dw * dw)
+                        )
+                        if not np.isfinite(pred) or pred < 0:
+                            pred = 0.0
+                        b_try = b - db
+                        w_try = w - dw
+                        loss_try = loss(b_try, w_try)
+                        if loss_try <= loss_curr + self.eps:
+                            loss_candidate = loss_try
+                            break
+                        step_scale *= 0.5
+                    else:
+                        db = 0.0
+                        dw = 0.0
+                        pred = 0.0
+                        loss_candidate = loss_curr
+
+            step_max_candidate = max(abs(db), abs(dw))
             self.logger.info(
                 "iter=%d grad_max=%.3e, step_max=%.3e lambda_mean=%.3e",
                 it,
                 grad_max,
-                step_max,
+                step_max_candidate,
                 lam,
             )
+            if pred <= self.tol_pred or pred <= self.tol_pred_rel * (
+                abs(loss_curr) + 1e-12
+            ):
+                termination_reason = "predicted_reduction"
+                break
+
             # apply step
             b_new = b - db
             w_new = w - dw
-            loss_new = loss(b_new, w_new)
+            loss_new = loss_candidate
 
             prev_pred = pred
             prev_loss_before_step = loss_curr
@@ -283,26 +365,36 @@ class Reference1DProbe(sklearn.base.BaseEstimator):
             b, w = b_new, w_new
             prev_step_clipped = step_clipped
 
-            step_max = max(abs(db), abs(dw))
+            step_max = step_max_candidate
             if grad_max < self.tol and step_max < self.tol:
-                self.intercept_ = b
-                self.weight_ = w
+                self.weight_ = float(w)
                 self.converged_ = True
                 self.n_iter_ = it + 1
-                self.coef_ = np.array([w], dtype=float)
-                self.intercept_ = np.array([b], dtype=float)
+                self.coef_[0] = float(w)
+                self.intercept_[0] = float(b)
+                self._fitted = True
                 return self
 
-        self.intercept_ = b
-        self.weight_ = w
+        if termination_reason is not None:
+            self.weight_ = float(w)
+            self.converged_ = True
+            self.n_iter_ = it + 1
+            self.coef_[0] = float(w)
+            self.intercept_[0] = float(b)
+            self._fitted = True
+            self.logger.info("termination: %s", termination_reason)
+            return self
+
+        self.weight_ = float(w)
         self.converged_ = False
         self.n_iter_ = self.max_iter
-        self.coef_ = np.array([w], dtype=float)
-        self.intercept_ = np.array([b], dtype=float)
+        self.coef_[0] = float(w)
+        self.intercept_[0] = float(b)
+        self._fitted = True
         return self
 
     def decision_function(self, X):
-        if not hasattr(self, "coef_") or not hasattr(self, "intercept_"):
+        if not self._fitted:
             msg = "Reference1DProbe instance is not fitted yet."
             raise RuntimeError(msg)
         X = np.asarray(X, dtype=float)
@@ -374,6 +466,7 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
         self.lam_min = 1e-12
         self.lam_max = 1e12
         self.eps = 1e-8
+        self.fallback_step_scale = 1e-3
 
         self.logger = logging.getLogger("sparse1d")
         self.device = torch.device(device)
@@ -488,7 +581,8 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
         self.latent_qx_ = qx.view(-1).clone()
 
         chunk_target = max(1, self.row_batch_size * 32)
-        row_chunks = self._plan_row_chunks(crow_indices, chunk_target)
+        crow_indices_cpu = crow_indices.to(torch.long).cpu()
+        row_chunks = self._plan_row_chunks(crow_indices_cpu, chunk_target)
 
         base_intercept_matrix = base_intercept.view(1, -1)
 
@@ -858,12 +952,25 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
                     g0_failed,
                     g1_failed,
                 )
-            db = torch.where(failed, torch.zeros_like(db), db)
-            dw = torch.where(failed, torch.zeros_like(dw), dw)
-            pred = torch.where(failed, torch.zeros_like(pred), pred)
-            step_clipped = torch.where(
-                failed, torch.zeros_like(step_clipped), step_clipped
+            qx = torch.sqrt(qx_sq)
+            qx_safe = torch.clamp(qx, min=1e-12)
+            grad_scaled = torch.sqrt(g0**2 + (qx_safe * g1) ** 2)
+            target_norm = self.fallback_step_scale * self.delta_logit
+            alpha = torch.zeros_like(grad_scaled)
+            positive_grad = grad_scaled > 0
+            alpha = torch.where(
+                positive_grad,
+                target_norm / (grad_scaled + 1e-18),
+                alpha,
             )
+            db_fallback = -alpha * g0
+            dw_fallback = -alpha * g1
+            db = torch.where(failed, db_fallback, db)
+            dw = torch.where(failed, dw_fallback, dw)
+            pred_nan = torch.full_like(pred, float("nan"))
+            pred = torch.where(failed, pred_nan, pred)
+            step_clipped = step_clipped | failed
+            success = success | failed
 
         lam_curr = lam_curr.clamp(self.lam_min, self.lam_max)
         return db, dw, pred, lam_curr, step_clipped, success

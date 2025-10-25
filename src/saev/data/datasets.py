@@ -45,9 +45,7 @@ class Imagenet(DatasetConfig):
         """Number of images in the dataset. Calculated on the fly, but is non-trivial to calculate because it requires loading the dataset. If you need to reference this number very often, cache it in a local variable."""
         import datasets
 
-        dataset = datasets.load_dataset(
-            self.name, split=self.split, trust_remote_code=True
-        )
+        dataset = datasets.load_dataset(self.name, split=self.split)
         return len(dataset)
 
     @property
@@ -240,9 +238,7 @@ class ImagenetDataset(torch.utils.data.Dataset):
     ):
         import datasets
 
-        self.hf_dataset = datasets.load_dataset(
-            cfg.name, split=cfg.split, trust_remote_code=True
-        )
+        self.hf_dataset = datasets.load_dataset(cfg.name, split=cfg.split)
 
         self.img_transform = img_transform
         self.sample_transform = sample_transform

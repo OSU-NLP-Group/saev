@@ -85,7 +85,7 @@ class Metadata:
             raise TypeError("self.data has an unhashable object") from err
 
     @classmethod
-    def load(cls, shards_dir: pathlib.Path) -> "Metadata":
+    def load(cls, shards_dir: pathlib.Path) -> tp.Self:
         """
         Loads a Metadata object from a metadata.json file in shards_dir.
 
