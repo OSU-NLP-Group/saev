@@ -14,6 +14,7 @@ def _():
 
     import saev.data
     import saev.disk
+
     return beartype, np, pathlib, plt, saev
 
 
@@ -45,7 +46,6 @@ def _(beartype, np, pathlib, saev, shards_root):
 
         prob = y.mean(axis=0)
         return -(prob * np.log(prob) + (1 - prob) * np.log(1 - prob))
-
 
     baseline_ce = get_baseline_ce(shards_root / "e967c008")
     baseline_ce.mean().item()
@@ -84,7 +84,6 @@ def _(baseline_ce, np, plt, runs_root, saev):
 
             best_i = np.argmin(loss, axis=0)
             print(loss.min(axis=0))
-        
 
             ax1.hist(
                 1 - loss[best_i, np.arange(151)] / baseline_ce,
@@ -127,7 +126,6 @@ def _(baseline_ce, np, plt, runs_root, saev):
 
         return fig
 
-
     _()
     return
 
@@ -141,7 +139,6 @@ def _(biases, plt):
 
         ax.spines[["top", "right"]].set_visible(False)
         return fig
-
 
     _()
     return

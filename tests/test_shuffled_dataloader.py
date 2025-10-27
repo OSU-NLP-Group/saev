@@ -8,6 +8,7 @@ import time
 import beartype
 import psutil
 import pytest
+import torch
 import torch.multiprocessing as mp
 
 import saev.data
@@ -163,3 +164,37 @@ def test_missing_shard_file_not_detected_at_init(tmp_path):
                 shard_root=shard_root, tokens="content", layer=layers[0]
             )
             ShuffledDataLoader(cfg)
+
+
+def _token_coverage(batch, content_tokens_per_example: int) -> float:
+    unique_tokens = torch.unique(batch["token_idx"]).numel()
+    return unique_tokens / content_tokens_per_example
+
+
+@pytest.mark.slow
+def test_min_buffer_fill_default_allows_low_coverage(cfg):
+    dl = ShuffledDataLoader(cfg)
+    try:
+        batch = next(iter(dl))
+        coverage = _token_coverage(batch, dl.metadata.content_tokens_per_example)
+        last_fill = dl._last_reservoir_fill
+    finally:
+        dl.shutdown()
+
+    assert coverage < 0.15
+    assert last_fill is None
+
+
+@pytest.mark.slow
+def test_min_buffer_fill_warmup_improves_coverage(cfg):
+    cfg = dataclasses.replace(cfg, min_buffer_fill=0.2)
+    dl = ShuffledDataLoader(cfg)
+    try:
+        batch = next(iter(dl))
+        coverage = _token_coverage(batch, dl.metadata.content_tokens_per_example)
+        last_fill = dl._last_reservoir_fill
+    finally:
+        dl.shutdown()
+
+    assert coverage >= 0.8
+    assert last_fill is not None and last_fill >= 0.2

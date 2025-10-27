@@ -53,6 +53,8 @@ class Config:
     """Number of dataloading threads."""
     buffer_size: int = 64
     """Number of batches to queue in the shared-memory ring buffer. Higher values add latency but improve resilience to brief stalls."""
+    min_buffer_fill: float = 0.0
+    """Fraction of the reservoir that must be populated before yielding batches."""
     batch_timeout_s: float = 30.0
     """How long to wait for at least one batch."""
     # Diagnostics
@@ -327,6 +329,7 @@ class DataLoader:
         self.manager_proc = None
         self.reservoir = None
         self.stop_event = None
+        self._last_reservoir_fill: float | None = None
 
         self.logger = logging.getLogger("shuffled.DataLoader")
         self.ctx = mp.get_context()
@@ -436,6 +439,7 @@ class DataLoader:
         try:
             while n < self.n_samples:
                 need = min(self.cfg.batch_size, self.n_samples - n)
+                self._wait_for_min_buffer_fill()
                 if not self.err_queue.empty():
                     who, tb = self.err_queue.get_nowait()
                     raise RuntimeError(f"{who} crashed:\n{tb}")
@@ -500,9 +504,43 @@ class DataLoader:
         self.manager_proc = None
         self.reservoir = None
         self.stop_event = None
+        self._last_reservoir_fill = None
 
     def __del__(self):
         self.shutdown()
+
+    def _wait_for_min_buffer_fill(
+        self,
+        *,
+        poll_interval_s: float = 0.01,
+        sleep_fn: collections.abc.Callable[[float], None] = time.sleep,
+    ) -> None:
+        min_fill = getattr(self.cfg, "min_buffer_fill", 0.0)
+        if min_fill <= 0.0:
+            self._last_reservoir_fill = None
+            return
+        if not self.reservoir:
+            self._last_reservoir_fill = None
+            return
+
+        err_queue = getattr(self, "err_queue", None)
+
+        while True:
+            if err_queue and not err_queue.empty():
+                who, tb = err_queue.get_nowait()
+                raise RuntimeError(f"{who} crashed:\n{tb}")
+
+            if not self.manager_proc or not self.manager_proc.is_alive():
+                raise RuntimeError(
+                    "Manager process died while waiting for reservoir fill."
+                )
+
+            fill = self.reservoir.fill()
+            if fill >= min_fill:
+                self._last_reservoir_fill = float(fill)
+                return
+
+            sleep_fn(poll_interval_s)
 
     def _calculate_n_samples(self) -> int:
         """Helper to calculate total number of examples based on config.
