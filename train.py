@@ -24,6 +24,7 @@ import time
 import typing as tp
 
 import beartype
+import cloudpickle
 import einops
 import orjson
 import torch
@@ -555,6 +556,13 @@ def main(
         )
     else:
         executor = submitit.DebugExecutor(folder=cfg.log_to)
+
+    try:
+        cloudpickle.dumps(worker_fn)
+        for group in cfgs:
+            cloudpickle.dumps(group)
+    except TypeError as err:
+        raise AssertionError(f"Failed to pickle: {err}")
 
     with executor.batch():
         jobs = [executor.submit(worker_fn, group) for group in cfgs]

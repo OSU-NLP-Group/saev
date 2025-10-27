@@ -111,9 +111,9 @@ def _entropy_metrics(indices: Int[Tensor, " batch"], support: int) -> dict[str, 
         }
 
     probs = counts / counts.sum()
-    entropy = float(-(probs * probs.log()).sum().item())
-    coverage = float(counts.numel() / support)
-    normalized = 0.0 if support <= 1 else float(entropy / math.log(support))
+    entropy = -(probs * probs.log()).sum().item()
+    coverage = counts.numel() / support
+    normalized = 0.0 if support <= 1 else entropy / math.log(support)
 
     return {
         "entropy": entropy,

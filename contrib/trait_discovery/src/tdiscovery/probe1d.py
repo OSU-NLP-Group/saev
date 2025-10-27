@@ -11,12 +11,13 @@ The key invariants across implementations are:
 The public surface area is intentionally small and designed to be used by tests and training sweeps. The heavy lifting occurs in `Sparse1DProbe`, which exposes the learned coefficients, loss computation helpers, and confusion-matrix diagnostics.
 """
 
+import abc
 import dataclasses
 import logging
 import math
 import pathlib
 import typing as tp
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 
 import beartype
 import numpy as np
@@ -415,6 +416,49 @@ class Reference1DProbe(sklearn.base.BaseEstimator):
     def predict(self, X):
         probs = self.predict_proba(X)[:, 1]
         return (probs >= 0.5).astype(int)
+
+
+@jaxtyped(typechecker=beartype.beartype)
+class FeatureBatch(tp.NamedTuple):
+    row_start: int
+    row_end: int
+    cpu_view: Float[Tensor, "..."]  # must be pinned
+
+
+@jaxtyped(typechecker=beartype.beartype)
+class FeatureBackend(abc.ABC):
+    @property
+    def n_samples(self) -> int: ...
+
+    @property
+    def n_latents(self) -> int: ...
+
+    @property
+    def dtype(self) -> torch.dtype: ...
+
+    def latent_stats(self) -> tuple[torch.Tensor, torch.Tensor]:
+        """(nnz_per_latent, sum_sq) on CPU, no VRAM blowups."""
+
+    def iter_row_batches(self, row_batch_size: int) -> Iterable[FeatureBatch]:
+        """Deterministic batches; returns pinned CPU views."""
+
+    def accumulate_slab_stats(
+        self,
+        *,
+        batch: FeatureBatch,
+        y_slab: Bool[Tensor, "..."],  # (R, Cb)
+        intercept_slab: Float[Tensor, "..."],  # (L_block, Cb)
+        coef_slab: Float[Tensor, "..."],  # (L_block, Cb)
+        out_mu_nz: torch.Tensor,
+        out_g1: torch.Tensor,
+        out_h0: torch.Tensor,
+        out_h1: torch.Tensor,
+        out_h2: torch.Tensor,
+        out_loss_nz: torch.Tensor,
+        out_pos_nz: torch.Tensor,
+        staging: tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor],
+    ) -> None:
+        """No allocations; writes into provided outputs."""
 
 
 @jaxtyped(typechecker=beartype.beartype)

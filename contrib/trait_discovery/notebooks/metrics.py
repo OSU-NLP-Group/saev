@@ -77,13 +77,12 @@ def _(baseline_ce, np, plt, runs_root, saev):
                 loss = fd["loss"]
                 biases = fd["biases"]
                 weights = fd["weights"]
-                tp = fd["tp"]
-                tn = fd["tn"]
-                fp = fd["fp"]
-                fn = fd["fn"]
+                # tp = fd["tp"]
+                # tn = fd["tn"]
+                # fp = fd["fp"]
+                # fn = fd["fn"]
 
             best_i = np.argmin(loss, axis=0)
-            print(loss.min(axis=0))
 
             ax1.hist(
                 1 - loss[best_i, np.arange(151)] / baseline_ce,
@@ -97,7 +96,7 @@ def _(baseline_ce, np, plt, runs_root, saev):
                 label=run.run_id,
                 # bins=30,
                 # bins=np.linspace(-100, 100, 101),
-                bins=np.linspace(-20, 0, 101),
+                bins=np.linspace(-20, 0, 51),
             )
             ax3.hist(
                 weights[best_i, np.arange(151)],
@@ -105,7 +104,7 @@ def _(baseline_ce, np, plt, runs_root, saev):
                 label=run.run_id,
                 # bins=30,
                 # bins=np.linspace(-3000, 3000, 101),
-                bins=np.linspace(-1, 3, 101),
+                bins=np.linspace(-0.5, 2.5, 51),
             )
 
         ax1.set_xlim(0, 1)
@@ -124,20 +123,6 @@ def _(baseline_ce, np, plt, runs_root, saev):
         ax3.legend()
         ax3.spines[["top", "right"]].set_visible(False)
 
-        return fig
-
-    _()
-    return
-
-
-@app.cell
-def _(biases, plt):
-    def _():
-        fig, ax = plt.subplots(dpi=200, layout="constrained")
-        ax.hist(biases.ravel(), bins=100)
-        ax.set_yscale("log")
-
-        ax.spines[["top", "right"]].set_visible(False)
         return fig
 
     _()

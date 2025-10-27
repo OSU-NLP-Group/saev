@@ -1245,3 +1245,13 @@ So I would train SAEs on every combination of DINOv3 model, layer, with differen
 # 10/25/2025
 
 Still dealing with probe issues. However, since I am waiting on the SAE training with the dataloader monitor, I think it's fine to keep iterating on the probe. Once I get some imagenet activations finished, then I can train some SAEs.
+
+For my sweeps, I need to have a script to parse and summarize the results. Then I can decide on the final format of the results in the paper.
+This should be a notebook that's specific to this paper.
+
+What do I want to know? It probably is going to be a big dataframe that I can make many different charts with quickly to express lots of different relationships.
+
+# 10/26/2025
+
+Now I need to describe my ablation experiments precisely.
+This is the core experiment, so it should be straightforward to described.
