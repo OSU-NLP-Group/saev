@@ -134,11 +134,38 @@ def _filter_overridden_fields(
     for key, value in dct.items():
         if key not in overridden:
             result[key] = value
-        elif isinstance(value, dict) and isinstance(overridden.get(key), dict):
-            # Recursively filter nested dicts
-            filtered = _filter_overridden_fields(value, overridden[key])
-            if filtered:
-                result[key] = filtered
+            continue
+
+        if isinstance(value, dict):
+            overridden_value = overridden.get(key)
+
+            if isinstance(overridden_value, dict):
+                filtered = _filter_overridden_fields(value, overridden_value)
+                if filtered:
+                    result[key] = filtered
+                continue
+
+            if dataclasses.is_dataclass(overridden_value) and not isinstance(
+                overridden_value, type
+            ):
+                try:
+                    default_value = type(overridden_value)()
+                except TypeError:
+                    # Cannot construct default to compare overrides; treat field as fully overridden.
+                    continue
+
+                nested_overrides = get_non_default_values(
+                    overridden_value, default_value
+                )
+                filtered = _filter_overridden_fields(value, nested_overrides)
+                if filtered:
+                    result[key] = filtered
+                continue
+
+            # If override is not dict or dataclass, treat as fully overridden.
+            continue
+
+        # Value is not a dict; only include if field was not overridden (handled earlier).
     return result
 
 
