@@ -582,7 +582,3 @@ def main(
             logger.warning("Job %s (%d) did not finish.", job.job_id, j)
 
     logger.info("Jobs done.")
-
-
-if __name__ == "__main__":
-    tyro.cli(main)
