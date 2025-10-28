@@ -4,6 +4,8 @@ import typing as tp
 
 import beartype
 
+from saev.framework import train
+from saev.nn import objectives
 from saev.configs import dict_to_dataclass, load_cfgs, load_sweep
 
 
@@ -528,6 +530,19 @@ def test_load_cfgs_from_python_sweep():
     assert cfgs[0].lr == 1e-4
     assert cfgs[0].objective.sparsity_coeff == 4e-4
     assert len(errs) == 0
+
+
+def test_load_cfgs_sweep_overrides_objective_fields():
+    override = dataclasses.replace(train.Config(), objective=objectives.Matryoshka())
+    default = train.Config()
+    sweep_dcts = [{"objective": {"sparsity_coeff": 0.001}}]
+
+    cfgs, errs = load_cfgs(override, default=default, sweep_dcts=sweep_dcts)
+
+    assert not errs
+    assert len(cfgs) == 1
+    assert isinstance(cfgs[0].objective, objectives.Matryoshka)
+    assert cfgs[0].objective.sparsity_coeff == 0.001
 
 
 def test_load_sweep_missing_function():
