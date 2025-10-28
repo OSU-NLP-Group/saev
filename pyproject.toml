@@ -29,7 +29,7 @@ dependencies = [
     "tqdm>=4.66.5",
     "tyro>=0.8.12",
     "viztracer>=1.0.4",
-    "wandb>=0.19.6",
+    "wandb==0.22.0",
 ]
 
 [build-system]
