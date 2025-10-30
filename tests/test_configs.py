@@ -4,9 +4,9 @@ import typing as tp
 
 import beartype
 
+from saev.configs import dict_to_dataclass, load_cfgs, load_sweep
 from saev.framework import train
 from saev.nn import objectives
-from saev.configs import dict_to_dataclass, load_cfgs, load_sweep
 
 
 @beartype.beartype
