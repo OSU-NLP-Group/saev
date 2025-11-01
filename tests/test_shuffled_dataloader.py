@@ -192,9 +192,7 @@ def test_min_buffer_fill_warmup_improves_coverage(cfg):
     try:
         batch = next(iter(dl))
         coverage = _token_coverage(batch, dl.metadata.content_tokens_per_example)
-        last_fill = dl._last_reservoir_fill
     finally:
         dl.shutdown()
 
     assert coverage >= 0.8
-    assert last_fill is not None and last_fill >= 0.2

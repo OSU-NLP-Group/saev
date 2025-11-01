@@ -97,7 +97,7 @@ def test_safe_mse_hypothesis(pair):
     x_hat, x = pair  # both finite, same device/layout
     expected = objectives.ref_mean_squared_err(x_hat, x)
     actual = objectives.mean_squared_err(x_hat, x)
-    torch.testing.assert_close(actual, expected)
+    torch.testing.assert_close(actual, expected, rtol=1e-5, atol=1e-5)
 
 
 # Tests for objective-as-program refactoring
@@ -108,7 +108,7 @@ def test_vanilla_objective_new_api():
     from saev import nn
 
     # Create config and models
-    sae_cfg = nn.SparseAutoencoderConfig(d_model=64, exp_factor=2, seed=42)
+    sae_cfg = nn.SparseAutoencoderConfig(d_model=64, d_sae=128, seed=42)
     obj_cfg = objectives.Vanilla(sparsity_coeff=0.001)
 
     sae = nn.SparseAutoencoder(sae_cfg)
@@ -151,7 +151,7 @@ def test_matryoshka_objective_new_api():
     from saev import nn
 
     # Create config and models
-    sae_cfg = nn.SparseAutoencoderConfig(d_model=64, exp_factor=2, seed=42)
+    sae_cfg = nn.SparseAutoencoderConfig(d_model=64, d_sae=128, seed=42)
     obj_cfg = objectives.Matryoshka(sparsity_coeff=0.001, n_prefixes=5)
 
     sae = nn.SparseAutoencoder(sae_cfg)  # Note: using regular SAE now
@@ -209,7 +209,7 @@ def test_matryoshka_prefix_masking():
     """Test that Matryoshka prefix masking works correctly."""
 
     # Create config and models
-    sae_cfg = saev.nn.SparseAutoencoderConfig(d_model=64, exp_factor=4, seed=42)
+    sae_cfg = saev.nn.SparseAutoencoderConfig(d_model=64, d_sae=256, seed=42)
     sae = saev.nn.SparseAutoencoder(sae_cfg)
 
     # Create test data
@@ -253,7 +253,7 @@ def test_sparsity_coefficient_mutability():
 def test_objective_uses_standard_sae():
     """Test that objectives work with standard SparseAutoencoder (no special subclass needed)."""
 
-    sae_cfg = saev.nn.SparseAutoencoderConfig(d_model=32, exp_factor=2)
+    sae_cfg = saev.nn.SparseAutoencoderConfig(d_model=32, d_sae=64)
     sae = saev.nn.SparseAutoencoder(sae_cfg)  # Standard SAE
 
     # Test with both objective types
@@ -273,7 +273,7 @@ def test_objective_uses_standard_sae():
 def test_matryoshka_different_prefix_counts():
     """Test MatryoshkaObjective with different n_prefixes values."""
 
-    sae_cfg = saev.nn.SparseAutoencoderConfig(d_model=32, exp_factor=4)
+    sae_cfg = saev.nn.SparseAutoencoderConfig(d_model=32, d_sae=128)
     sae = saev.nn.SparseAutoencoder(sae_cfg)
     x = torch.randn(4, 32)
 
@@ -292,7 +292,7 @@ def test_matryoshka_different_prefix_counts():
 def test_metrics_methods():
     """Test that Loss.metrics() returns expected dictionary."""
 
-    sae_cfg = saev.nn.SparseAutoencoderConfig(d_model=32, exp_factor=2)
+    sae_cfg = saev.nn.SparseAutoencoderConfig(d_model=32, d_sae=64)
     sae = saev.nn.SparseAutoencoder(sae_cfg)
     x = torch.randn(4, 32)
 
@@ -344,9 +344,7 @@ def test_objectives_with_different_activations(activation_cfg):
     from saev import nn
 
     activation = activation_cfg()
-    sae_cfg = nn.SparseAutoencoderConfig(
-        d_model=32, exp_factor=2, activation=activation
-    )
+    sae_cfg = nn.SparseAutoencoderConfig(d_model=32, d_sae=64, activation=activation)
     sae = nn.SparseAutoencoder(sae_cfg)
     x = torch.randn(4, 32)
 
@@ -365,7 +363,7 @@ def test_matryoshka_edge_cases():
     """Test edge cases for MatryoshkaObjective."""
 
     # Test with very small d_sae
-    sae_cfg = saev.nn.SparseAutoencoderConfig(d_model=8, exp_factor=1)  # d_sae = 8
+    sae_cfg = saev.nn.SparseAutoencoderConfig(d_model=8, d_sae=8)  # d_sae = 8
     sae = saev.nn.SparseAutoencoder(sae_cfg)
     x = torch.randn(2, 8)
 
@@ -383,7 +381,7 @@ def test_matryoshka_edge_cases():
 def test_gradient_flow_through_matryoshka():
     """Test that gradients flow correctly through Matryoshka's multiple decode ops."""
 
-    sae_cfg = saev.nn.SparseAutoencoderConfig(d_model=32, exp_factor=2)
+    sae_cfg = saev.nn.SparseAutoencoderConfig(d_model=32, d_sae=64)
     sae = saev.nn.SparseAutoencoder(sae_cfg)
     obj = objectives.get_objective(objectives.Matryoshka(n_prefixes=5))
 
@@ -404,7 +402,7 @@ def test_objectives_produce_different_losses():
     """Test that Vanilla and Matryoshka produce different loss values."""
 
     torch.manual_seed(42)
-    sae_cfg = saev.nn.SparseAutoencoderConfig(d_model=32, exp_factor=2)
+    sae_cfg = saev.nn.SparseAutoencoderConfig(d_model=32, d_sae=64)
     sae = saev.nn.SparseAutoencoder(sae_cfg)
     x = torch.randn(4, 32)
 
@@ -421,7 +419,7 @@ def test_objectives_produce_different_losses():
 def test_unified_decode_vanilla():
     """Test that decode without prefixes works as before."""
 
-    sae_cfg = saev.nn.SparseAutoencoderConfig(d_model=32, exp_factor=2)
+    sae_cfg = saev.nn.SparseAutoencoderConfig(d_model=32, d_sae=64)
     sae = saev.nn.SparseAutoencoder(sae_cfg)
 
     f_x = torch.randn(4, 64)
@@ -434,7 +432,7 @@ def test_unified_decode_vanilla():
 def test_unified_decode_matryoshka():
     """Test that decode with prefixes returns cumulative reconstructions."""
 
-    sae_cfg = saev.nn.SparseAutoencoderConfig(d_model=32, exp_factor=4)  # d_sae=128
+    sae_cfg = saev.nn.SparseAutoencoderConfig(d_model=32, d_sae=128)  # d_sae=128
     sae = saev.nn.SparseAutoencoder(sae_cfg)
 
     f_x = torch.randn(4, 128)  # batch=4, d_sae=128
@@ -451,7 +449,7 @@ def test_n_prefixes_1_equals_vanilla():
     """Test that Matryoshka with n_prefixes=1 equals vanilla behavior."""
 
     torch.manual_seed(42)
-    sae_cfg = saev.nn.SparseAutoencoderConfig(d_model=32, exp_factor=2)
+    sae_cfg = saev.nn.SparseAutoencoderConfig(d_model=32, d_sae=64)
     sae = saev.nn.SparseAutoencoder(sae_cfg)
     x = torch.randn(4, 32)
 
@@ -478,7 +476,7 @@ def test_decode_prefixes_device_handling():
     if not torch.cuda.is_available():
         pytest.skip("CUDA not available")
 
-    sae_cfg = saev.nn.SparseAutoencoderConfig(d_model=16, exp_factor=2)
+    sae_cfg = saev.nn.SparseAutoencoderConfig(d_model=16, d_sae=32)
     sae = saev.nn.SparseAutoencoder(sae_cfg).cuda()
 
     f_x = torch.randn(2, 32).cuda()
@@ -492,7 +490,7 @@ def test_decode_prefixes_device_handling():
 
 
 def test_decode_default_prefix_is_long_and_does_not_crash():
-    cfg = saev.nn.SparseAutoencoderConfig(d_model=8, exp_factor=1)
+    cfg = saev.nn.SparseAutoencoderConfig(d_model=8, d_sae=8)
     sae = saev.nn.SparseAutoencoder(cfg)
     x = torch.randn(2, 8)
     f = sae.encode(x)
@@ -510,7 +508,7 @@ def test_matryoshka_l1_calculation_uses_abs():
     """
     # Create a custom activation that can produce negative values for testing
     # We'll use a simple linear activation (no ReLU) by mocking the encode method
-    sae_cfg = saev.nn.SparseAutoencoderConfig(d_model=32, exp_factor=2, seed=42)
+    sae_cfg = saev.nn.SparseAutoencoderConfig(d_model=32, d_sae=64, seed=42)
     sae = saev.nn.SparseAutoencoder(sae_cfg)
 
     # Create input

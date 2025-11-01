@@ -14,7 +14,7 @@ def make_cfgs() -> list[dict]:
                     "sae": {
                         "normalize_w_dec": True,
                         "remove_parallel_grads": True,
-                        "exp_factor": 16,
+                        "d_sae": 1024 * 16,
                     },
                     "objective": {"sparsity_coeff": sparsity_coeff},
                     "train_data": {"layer": layer},

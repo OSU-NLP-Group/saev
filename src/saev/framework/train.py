@@ -5,8 +5,8 @@ Trains many SAEs in parallel to amortize the cost of loading a single batch of d
 Checklist for making sure your training doesn't suck:
 
 * [ ] Data scaling: scale vectors so their average L2 norm is sqrt(n).
-* [ ] Initialize W_e to 1/exp_factor * W_d.T
-* [ ] Initialize b_e such that each feature activates 10K/(n * exp_factor) of the time, which means that on average, each example activates 10K features.
+* [ ] Initialize W_e to (d_model / d_sae) * W_d.T
+* [ ] Initialize b_e such that each feature activates 10K * d_model / (n * d_sae) of the time, which means that on average, each example activates 10K features.
 * [ ] Initialize W_d to ~uniform(-1/sqrt(n), 1/sqrt(n))
 * [x] Initialize b_d to 0.
 * [x] Sweep learning rate and sparsity coefficients.
@@ -463,7 +463,7 @@ CANNOT_PARALLELIZE = set([
     "slurm_partition",
     "n_hours",
     "log_to",
-    "sae.exp_factor",
+    "sae.d_sae",
     "sae.d_model",
 ])
 

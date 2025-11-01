@@ -89,11 +89,7 @@ def __(get_data_key, get_model_key, json, os, pl, tag, wandb):
             row["config/d_vit"] = metadata["d_vit"]
             rows.append(row)
 
-        df = pl.DataFrame(rows).with_columns(
-            (pl.col("config/sae/d_vit") * pl.col("config/sae/exp_factor")).alias(
-                "config/sae/d_sae"
-            )
-        )
+        df = pl.DataFrame(rows)
         return df
 
     df = make_df(

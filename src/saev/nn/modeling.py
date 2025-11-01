@@ -5,7 +5,7 @@ import io
 import json
 import logging
 import pathlib
-import typing
+import typing as tp
 
 import beartype
 import einops
@@ -46,8 +46,8 @@ ActivationConfig = Relu | TopK | BatchTopK
 @dataclasses.dataclass(frozen=True)
 class SparseAutoencoderConfig:
     d_model: int = 1024
-    exp_factor: int = 16
-    """Expansion factor for SAE."""
+    d_sae: int = 1024 * 16
+    """Number of features in SAE latent space."""
     n_reinit_samples: int = 1024 * 16 * 32
     """Number of samples to use for SAE re-init. Anthropic proposes initializing b_dec to the geometric median of the dataset here: https://transformer-circuits.pub/2023/monosemantic-features/index.html#appendix-autoencoder-bias. We use the regular mean."""
     remove_parallel_grads: bool = True
@@ -57,10 +57,6 @@ class SparseAutoencoderConfig:
     seed: int = 0
     """Random seed."""
     activation: ActivationConfig = Relu()
-
-    @property
-    def d_sae(self) -> int:
-        return self.d_model * self.exp_factor
 
 
 @jaxtyped(typechecker=beartype.beartype)
@@ -187,14 +183,22 @@ class SparseAutoencoder(torch.nn.Module):
         if not self.cfg.remove_parallel_grads:
             return
 
+        if self.W_dec.grad is None:
+            return
+
         parallel_component = einops.einsum(
             self.W_dec.grad,
             self.W_dec.data,
             "d_sae d_model, d_sae d_model -> d_sae",
         )
 
+        norm_sq = torch.sum(self.W_dec.data * self.W_dec.data, dim=1)
+        scales = torch.zeros_like(parallel_component)
+        nonzero = norm_sq > 0
+        scales[nonzero] = parallel_component[nonzero] / norm_sq[nonzero]
+
         self.W_dec.grad -= einops.einsum(
-            parallel_component,
+            scales,
             self.W_dec.data,
             "d_sae, d_sae d_model -> d_sae d_model",
         )
@@ -266,7 +270,21 @@ def get_activation(cfg: ActivationConfig) -> torch.nn.Module:
     elif isinstance(cfg, BatchTopK):
         return BatchTopKActivation(cfg)
     else:
-        typing.assert_never(cfg)
+        tp.assert_never(cfg)
+
+
+@beartype.beartype
+def _normalize_cfg_kwargs(cfg_dict: dict[str, tp.Any]) -> dict[str, tp.Any]:
+    cfg = dict(cfg_dict)
+    if "exp_factor" in cfg and "d_sae" not in cfg:
+        exp_factor = cfg.pop("exp_factor")
+        d_model = cfg.get("d_model")
+        if d_model is None:
+            raise ValueError(
+                "Cannot infer d_sae from exp_factor without d_model in checkpoint."
+            )
+        cfg["d_sae"] = d_model * exp_factor
+    return cfg
 
 
 @beartype.beartype
@@ -288,7 +306,7 @@ def dump(fpath: pathlib.Path | str, sae: SparseAutoencoder):
     }
 
     header = {
-        "schema": 3,
+        "schema": 4,
         "cfg": cfg_dict,
         "commit": helpers.current_git_commit() or "unknown",
         "lib": __version__,
@@ -317,7 +335,8 @@ def load(fpath: pathlib.Path | str, *, device="cpu") -> SparseAutoencoder:
             header.pop(keyword, None)
         # Legacy format - create SparseAutoencoderConfig with Relu activation
         header["d_model"] = header.pop("d_vit")
-        cfg = SparseAutoencoderConfig(**header, activation=Relu())
+        cfg_kwargs = _normalize_cfg_kwargs(header)
+        cfg = SparseAutoencoderConfig(**cfg_kwargs, activation=Relu())
     elif header["schema"] == 1:
         # Schema version 1: A cautionary tale of poor version management
         #
@@ -331,7 +350,7 @@ def load(fpath: pathlib.Path | str, *, device="cpu") -> SparseAutoencoder:
         # Apologies from Sam for this mess - proper schema versioning discipline would have prevented this confusing situation. Every breaking change should increment the version number!
 
         cls_name = header.get("cls", "SparseAutoencoderConfig")
-        cfg_dict = header["cfg"]
+        cfg_dict = dict(header["cfg"])
 
         if cls_name in ["Relu", "TopK", "BatchTopK"]:
             # Format 1A: Old format where cls indicates the activation type
@@ -340,7 +359,8 @@ def load(fpath: pathlib.Path | str, *, device="cpu") -> SparseAutoencoder:
                 activation = activation_cls(top_k=cfg_dict.get("top_k", 32))
             else:
                 activation = activation_cls()
-            cfg = SparseAutoencoderConfig(**cfg_dict, activation=activation)
+            cfg_kwargs = _normalize_cfg_kwargs(cfg_dict)
+            cfg = SparseAutoencoderConfig(**cfg_kwargs, activation=activation)
         else:
             # Format 1B: Newer format with activation as dict
             if "activation" in cfg_dict:
@@ -348,23 +368,17 @@ def load(fpath: pathlib.Path | str, *, device="cpu") -> SparseAutoencoder:
                 activation_cls = globals()[activation_info["cls"]]
                 activation = activation_cls(**activation_info["params"])
                 cfg_dict["activation"] = activation
-            cfg = SparseAutoencoderConfig(**cfg_dict)
-    elif header["schema"] == 2:
+            cfg_kwargs = _normalize_cfg_kwargs(cfg_dict)
+            cfg = SparseAutoencoderConfig(**cfg_kwargs)
+    elif header["schema"] in (2, 3, 4):
         # Schema version 2: cleaner format with activation serialization
-        cfg_dict = header["cfg"]
+        cfg_dict = dict(header["cfg"])
         activation_info = cfg_dict["activation"]
         activation_cls = globals()[activation_info["cls"]]
         activation = activation_cls(**activation_info["params"])
         cfg_dict["activation"] = activation
-        cfg = SparseAutoencoderConfig(**cfg_dict)
-    elif header["schema"] == 3:
-        # Schema version 3: Uses d_model
-        cfg_dict = header["cfg"]
-        activation_info = cfg_dict["activation"]
-        activation_cls = globals()[activation_info["cls"]]
-        activation = activation_cls(**activation_info["params"])
-        cfg_dict["activation"] = activation
-        cfg = SparseAutoencoderConfig(**cfg_dict)
+        cfg_kwargs = _normalize_cfg_kwargs(cfg_dict)
+        cfg = SparseAutoencoderConfig(**cfg_kwargs)
     else:
         raise ValueError(f"Unknown schema version: {header['schema']}")
 

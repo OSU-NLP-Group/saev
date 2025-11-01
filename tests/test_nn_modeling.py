@@ -19,9 +19,12 @@ def test_factories():
 
 def sae_cfgs():
     return st.builds(
-        modeling.SparseAutoencoderConfig,
+        lambda d_model, expansion: modeling.SparseAutoencoderConfig(
+            d_model=d_model,
+            d_sae=d_model * expansion,
+        ),
         d_model=st.sampled_from([32, 64, 128]),
-        exp_factor=st.sampled_from([2, 4]),
+        expansion=st.sampled_from([2, 4]),
     )
 
 
@@ -39,9 +42,23 @@ def sae_cfgs_comprehensive():
     activation_strategy = st.one_of(relu_strategy, topk_strategy, batch_topk_strategy)
 
     return st.builds(
-        modeling.SparseAutoencoderConfig,
+        lambda d_model,
+        expansion,
+        seed,
+        normalize_w_dec,
+        remove_parallel_grads,
+        n_reinit_samples,
+        activation: modeling.SparseAutoencoderConfig(
+            d_model=d_model,
+            d_sae=d_model * expansion,
+            seed=seed,
+            normalize_w_dec=normalize_w_dec,
+            remove_parallel_grads=remove_parallel_grads,
+            n_reinit_samples=n_reinit_samples,
+            activation=activation,
+        ),
         d_model=st.sampled_from([256, 384, 512, 768, 1024]),
-        exp_factor=st.sampled_from([2, 4, 8, 16, 32]),
+        expansion=st.sampled_from([2, 4, 8, 16, 32]),
         seed=st.integers(min_value=0, max_value=100),
         normalize_w_dec=st.booleans(),
         remove_parallel_grads=st.booleans(),
@@ -584,9 +601,9 @@ def test_dump_load_roundtrip_exhaustive(tmp_path):
 
     # Various SAE configurations - reduced set for faster testing
     sae_cfgs = [
-        {"d_model": 256, "exp_factor": 4, "seed": 0},
-        {"d_model": 512, "exp_factor": 8, "seed": 1, "normalize_w_dec": False},
-        {"d_model": 384, "exp_factor": 12, "seed": 2, "remove_parallel_grads": False},
+        {"d_model": 256, "d_sae": 1024, "seed": 0},
+        {"d_model": 512, "d_sae": 4096, "seed": 1, "normalize_w_dec": False},
+        {"d_model": 384, "d_sae": 4608, "seed": 2, "remove_parallel_grads": False},
     ]
 
     for i, (act_cfg, cfg_args) in enumerate(
@@ -611,9 +628,9 @@ def test_dump_load_roundtrip_exhaustive(tmp_path):
 @pytest.mark.parametrize(
     "sae_cfg",
     [
-        modeling.SparseAutoencoderConfig(d_model=512, exp_factor=8, seed=0),
-        modeling.SparseAutoencoderConfig(d_model=768, exp_factor=16, seed=1),
-        modeling.SparseAutoencoderConfig(d_model=1024, exp_factor=32, seed=2),
+        modeling.SparseAutoencoderConfig(d_model=512, d_sae=4096, seed=0),
+        modeling.SparseAutoencoderConfig(d_model=768, d_sae=12288, seed=1),
+        modeling.SparseAutoencoderConfig(d_model=1024, d_sae=32768, seed=2),
     ],
 )
 def test_dump_load_roundtrip_simple(tmp_path, sae_cfg):
@@ -692,7 +709,7 @@ def test_load_local_checkpoint(request):
 
 def test_remove_parallel_grads_handles_non_normalized_rows():
     cfg = modeling.SparseAutoencoderConfig(
-        d_model=4, exp_factor=1, normalize_w_dec=False, remove_parallel_grads=True
+        d_model=4, d_sae=4, normalize_w_dec=False, remove_parallel_grads=True
     )
     # Disable automatic normalization but keep removal on
     sae = modeling.SparseAutoencoder(cfg)

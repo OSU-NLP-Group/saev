@@ -140,7 +140,7 @@ Unit tests:
 
 - Matryoshka masks produce non-increasing L0 with increasing prefix: for a fixed `f_x`, apply two cuts `c1 < c2`, assert `L0(f_x * mask(c1)) <= L0(f_x * mask(c2))`.
 - Matryoshka reconstruction equals decode-of-mask: for random `f_x` and random `W_dec`, check `decode(f_x * mask)` equals the specialized path (there is no specialized path after refactor; this guards against accidental bias addition or indexing mistakes if you later optimize).
-- Objective API: create a tiny SAE (e.g., `d_vit=4`, `exp_factor=2`), a tiny batch, run both VanillaObjective and MatryoshkaObjective; assert `loss.loss` is finite and gradients exist for `W_enc`, `W_dec`, `b_enc`, `b_dec` after backward.
+- Objective API: create a tiny SAE (e.g., `d_model=4`, `d_sae=8`), a tiny batch, run both VanillaObjective and MatryoshkaObjective; assert `loss.loss` is finite and gradients exist for `W_enc`, `W_dec`, `b_enc`, `b_dec` after backward.
 - Prefix sampler: for large `S`, generate many cuts; assert they are sorted and within `[1, S]`, and that smaller cuts occur more often when using Pareto.
 
 End-to-end tests:
@@ -173,4 +173,3 @@ Manual tests:
 ## Rollback Plan
 
 - If any regressions appear, re-enable the old code path guarded by a feature flag in the training loop and objective, then iterate on the new path behind the flag until parity is restored. Once stable, remove the flag.
-

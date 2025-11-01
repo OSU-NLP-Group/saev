@@ -205,14 +205,14 @@ Here's an example sweep configuration file:
 ```toml
 [sae]
 sparsity_coeff = [1e-4, 2e-4, 3e-4]
-d_vit = 768
-exp_factor = [8, 16]
+d_model = 768
+d_sae = [6144, 12288]
 
 [data]
 scale_mean = true
 ```
 
-This would train 6 models (3 sparsity coefficients × 2 expansion factors), each sharing the same data loading operation.
+This would train 6 models (3 sparsity coefficients × 2 SAE widths), each sharing the same data loading operation.
 
 ### Limitations
 

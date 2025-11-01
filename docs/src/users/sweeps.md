@@ -67,10 +67,10 @@ def make_cfgs():
     cfgs = []
 
     for lr in [1e-4, 3e-4, 1e-3]:
-        for exp_factor in [8, 16, 32]:
+        for d_sae in [8192, 16384, 32768]:
             cfg = {
                 "lr": lr,
-                "sae": {"exp_factor": exp_factor},
+                "sae": {"d_sae": d_sae},
             }
             cfgs.append(cfg)
 
@@ -107,14 +107,14 @@ This generates 54 configs (3 x 3 x 6) where each train/val pair uses the same la
 def make_cfgs():
     cfgs = []
 
-    for exp_factor in [8, 16, 32]:
-        # Use different LR for different expansion factors
-        lrs = [1e-3, 3e-3] if exp_factor <= 16 else [3e-4, 1e-3]
+    for d_sae in [8192, 16384, 32768]:
+        # Use different LR for different SAE widths
+        lrs = [1e-3, 3e-3] if d_sae <= 16384 else [3e-4, 1e-3]
 
         for lr in lrs:
             cfg = {
                 "lr": lr,
-                "sae": {"exp_factor": exp_factor},
+                "sae": {"d_sae": d_sae},
             }
             cfgs.append(cfg)
 
@@ -136,7 +136,7 @@ Override nested config fields with dotted notation:
 uv run train.py --sweep sweeps/my_sweep.py \
   --train-data.layer 23 \
   --val-data.layer 23 \
-  --sae.exp-factor 16
+  --sae.d-sae 16384
 ```
 
 Deep merging means that when you override a nested field, only that specific field is replaced—other fields in the nested config are preserved from the sweep or default values.
@@ -187,7 +187,7 @@ def make_cfgs():
                 "lr": lr,
                 "train_data": {"layer": layer, "n_threads": 8},
                 "val_data": {"layer": layer, "n_threads": 8},
-                "sae": {"exp_factor": 16, "d_vit": 1024},
+                "sae": {"d_model": 1024, "d_sae": 16384},
             }
             cfgs.append(cfg)
 
@@ -270,15 +270,15 @@ def make_cfgs():
     cfgs = []
 
     architectures = [
-        ("small", 8, 1e-3),
-        ("medium", 16, 5e-4),
-        ("large", 32, 3e-4),
+        ("small", 8192, 1e-3),
+        ("medium", 16384, 5e-4),
+        ("large", 32768, 3e-4),
     ]
 
-    for name, exp_factor, lr in architectures:
+    for name, d_sae, lr in architectures:
         cfg = {
             "lr": lr,
-            "sae": {"exp_factor": exp_factor},
+            "sae": {"d_sae": d_sae},
             "tag": name,
         }
         cfgs.append(cfg)
