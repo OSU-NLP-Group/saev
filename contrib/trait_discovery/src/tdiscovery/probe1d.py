@@ -1328,8 +1328,10 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
 class Config:
     run: pathlib.Path = pathlib.Path("./runs/abcdefg")
     """Run directory."""
-    shards_dir: pathlib.Path = pathlib.Path("./shards/e967c008")
-    """Shards directory."""
+    train_shards: pathlib.Path = pathlib.Path("./shards/01234567")
+    """Training shards directory."""
+    test_shards: pathlib.Path = pathlib.Path("./shards/abcdef01")
+    """Test shards directory."""
     # Optimization
     ridge: float = 1e-8
     """Ridge value."""
@@ -1381,69 +1383,209 @@ def worker_fn(cfg: Config) -> int:
         logger.warning("No CUDA device available, using CPU.")
         cfg = dataclasses.replace(cfg, device="cpu")
 
-    if not (cfg.shards_dir / "labels.bin").exists():
-        logger.error("--shards-dir %s doesn't have a labels.bin.", cfg.shards_dir)
-        return 1
-
     run = saev.disk.Run(cfg.run)
 
-    if not (run.inference / cfg.shards_dir.name).exists():
+    train_shards_dpath = cfg.train_shards
+    if not train_shards_dpath.exists():
+        logger.error("Train shards directory %s does not exist.", train_shards_dpath)
+        return 1
+
+    test_shards_dpath = cfg.test_shards
+    if not test_shards_dpath.exists():
+        logger.error("Test shards directory %s does not exist.", test_shards_dpath)
+        return 1
+
+    train_labels_fpath = train_shards_dpath / "labels.bin"
+    if not train_labels_fpath.exists():
         logger.error(
-            "Directory %s doesn't exist. Use inference.py to run inference.",
-            run.inference / cfg.shards_dir.name,
+            "Train shards directory %s is missing labels.bin.",
+            train_shards_dpath,
         )
         return 1
 
-    # Load metadata
-    md = saev.data.Metadata.load(cfg.shards_dir)
-    logger.info("Loaded metadata from %s.", cfg.shards_dir)
+    test_labels_fpath = test_shards_dpath / "labels.bin"
+    if not test_labels_fpath.exists():
+        logger.error(
+            "Test shards directory %s is missing labels.bin.",
+            test_shards_dpath,
+        )
+        return 1
 
-    # Load SAE activations (sparse matrix)
-    token_acts = scipy.sparse.load_npz(
-        run.inference / cfg.shards_dir.name / "token_acts.npz"
-    )
+    train_inference_dpath = run.inference / train_shards_dpath.name
+    if not train_inference_dpath.exists():
+        logger.error(
+            "Train inference directory %s doesn't exist. Use inference.py to run inference.",
+            train_inference_dpath,
+        )
+        return 1
+
+    test_inference_dpath = run.inference / test_shards_dpath.name
+    if not test_inference_dpath.exists():
+        logger.error(
+            "Test inference directory %s doesn't exist. Use inference.py to run inference.",
+            test_inference_dpath,
+        )
+        return 1
+
+    train_token_acts_fpath = train_inference_dpath / "token_acts.npz"
+    if not train_token_acts_fpath.exists():
+        logger.error(
+            "Train inference directory %s is missing token_acts.npz.",
+            train_inference_dpath,
+        )
+        return 1
+
+    test_token_acts_fpath = test_inference_dpath / "token_acts.npz"
+    if not test_token_acts_fpath.exists():
+        logger.error(
+            "Test inference directory %s is missing token_acts.npz.",
+            test_inference_dpath,
+        )
+        return 1
+
+    train_md = saev.data.Metadata.load(train_shards_dpath)
+    logger.info("Loaded train metadata from %s.", train_shards_dpath)
+
+    test_md = saev.data.Metadata.load(test_shards_dpath)
+    logger.info("Loaded test metadata from %s.", test_shards_dpath)
+
+    train_token_acts_csr = scipy.sparse.load_npz(train_token_acts_fpath)
     logger.info(
-        "Loaded activations: shape=%s, nnz=%d.", token_acts.shape, token_acts.nnz
+        "Loaded train activations: shape=%s, nnz=%d.",
+        train_token_acts_csr.shape,
+        train_token_acts_csr.nnz,
     )
-    n_samples, n_latents = token_acts.shape
-    token_acts = sp_csr_to_pt(token_acts, device=cfg.device)
-    logger.info("Converted activations to Tensor on %s.", cfg.device)
+    test_token_acts_csr = scipy.sparse.load_npz(test_token_acts_fpath)
+    logger.info(
+        "Loaded test activations: shape=%s, nnz=%d.",
+        test_token_acts_csr.shape,
+        test_token_acts_csr.nnz,
+    )
 
-    # Load patch labels from labels.bin
-    labels = np.memmap(
-        cfg.shards_dir / "labels.bin",
+    train_n_samples, train_n_latents = train_token_acts_csr.shape
+    test_n_samples, test_n_latents = test_token_acts_csr.shape
+
+    train_token_acts = sp_csr_to_pt(train_token_acts_csr, device=cfg.device)
+    logger.info("Converted train activations to Tensor on %s.", cfg.device)
+
+    test_token_acts = sp_csr_to_pt(test_token_acts_csr, device=cfg.device)
+    logger.info("Converted test activations to Tensor on %s.", cfg.device)
+
+    train_n_expected = train_md.n_examples * train_md.content_tokens_per_example
+    if train_n_expected != train_n_samples:
+        logger.error(
+            "Train labels expect %d samples but activations have %d.",
+            train_n_expected,
+            train_n_samples,
+        )
+        return 1
+    test_n_expected = test_md.n_examples * test_md.content_tokens_per_example
+    if test_n_expected != test_n_samples:
+        logger.error(
+            "Test labels expect %d samples but activations have %d.",
+            test_n_expected,
+            test_n_samples,
+        )
+        return 1
+
+    train_labels_mem = np.memmap(
+        train_labels_fpath,
         mode="r",
         dtype=np.uint8,
-        shape=(md.n_examples, md.content_tokens_per_example),
+        shape=(train_md.n_examples, train_md.content_tokens_per_example),
     )
-    logger.info("Loaded labels: shape=%s.", labels.shape)
+    logger.info("Loaded train labels: shape=%s.", train_labels_mem.shape)
+    test_labels_mem = np.memmap(
+        test_labels_fpath,
+        mode="r",
+        dtype=np.uint8,
+        shape=(test_md.n_examples, test_md.content_tokens_per_example),
+    )
+    logger.info("Loaded test labels: shape=%s.", test_labels_mem.shape)
 
-    # Flatten labels to (n_samples,) and convert to one-hot
-    n_classes = int(labels.max()) + 1
-    logger.info("Found %d classes in labels.", n_classes)
+    train_max_label = int(train_labels_mem.max())
+    test_max_label = int(test_labels_mem.max())
+    n_classes = max(train_max_label, test_max_label) + 1
+    logger.info(
+        "Found %d classes across train/test labels (train max=%d, test max=%d).",
+        n_classes,
+        train_max_label,
+        test_max_label,
+    )
 
-    # Convert to one-hot encoding
-    y = np.zeros((n_samples, n_classes), dtype=float)
-    y[np.arange(n_samples), labels.reshape(n_samples)] = 1.0
-    y = torch.from_numpy(y)
-    logger.info("Created one-hot labels: shape=%s.", y.shape)
+    train_labels_flat = train_labels_mem.reshape(train_n_samples)
+    train_labels_arr = np.zeros((train_n_samples, n_classes), dtype=np.float32)
+    train_labels_arr[np.arange(train_n_samples), train_labels_flat] = 1.0
+    train_labels = torch.from_numpy(train_labels_arr)
+    logger.info("Created train one-hot labels: shape=%s.", train_labels.shape)
 
-    # Fit probe
+    test_labels_flat = test_labels_mem.reshape(test_n_samples)
+    test_labels_arr = np.zeros((test_n_samples, n_classes), dtype=np.float32)
+    if np.any(test_labels_flat >= n_classes):
+        logger.error(
+            "Test labels contain class ids >= %d, which is unexpected.", n_classes
+        )
+        return 1
+    test_labels_arr[np.arange(test_n_samples), test_labels_flat] = 1.0
+    test_labels = torch.from_numpy(test_labels_arr)
+    logger.info("Created test one-hot labels: shape=%s.", test_labels.shape)
+
+    if train_n_latents != test_n_latents:
+        logger.error(
+            "Train latents %d differ from test latents %d.",
+            train_n_latents,
+            test_n_latents,
+        )
+        return 1
+
+    logger.info(
+        "Train samples=%d, Test samples=%d, n_latents=%d, n_classes=%d.",
+        train_n_samples,
+        test_n_samples,
+        train_n_latents,
+        n_classes,
+    )
+
     probe = Sparse1DProbe(
-        n_latents=n_latents,
+        n_latents=train_n_latents,
         n_classes=n_classes,
         device=cfg.device,
         ridge=cfg.ridge,
         max_iter=cfg.max_iter,
     )
-    logger.info("Fitting probe with %d latents and %d classes.", n_latents, n_classes)
-    probe.fit(token_acts, y)
+    logger.info("Fitting probe on train split with %d samples.", train_n_samples)
+    probe.fit(train_token_acts, train_labels)
     logger.info("Fit probe.")
 
-    # TODO: do this with a validation split
-    loss, tp, fp, tn, fn = probe.loss_matrix_with_aux(token_acts, y.bool())
+    train_loss, train_tp, train_fp, train_tn, train_fn = probe.loss_matrix_with_aux(
+        train_token_acts,
+        train_labels.bool(),
+    )
+    logger.info("Computed train metrics on %d samples.", train_n_samples)
 
-    out_fpath = run.inference / cfg.shards_dir.name / "probe1d_metrics.npz"
+    train_out_fpath = train_inference_dpath / "probe1d_metrics.npz"
+    train_out_fpath.parent.mkdir(parents=True, exist_ok=True)
+
+    np.savez(
+        train_out_fpath,
+        loss=train_loss.cpu().numpy(),
+        weights=probe.coef_.cpu().numpy(),
+        biases=probe.intercept_.cpu().numpy(),
+        tp=train_tp.cpu().numpy(),
+        fp=train_fp.cpu().numpy(),
+        tn=train_tn.cpu().numpy(),
+        fn=train_fn.cpu().numpy(),
+    )
+
+    logger.info("Saved train probe outputs to %s.", train_out_fpath)
+
+    loss, tp, fp, tn, fn = probe.loss_matrix_with_aux(
+        test_token_acts,
+        test_labels.bool(),
+    )
+    logger.info("Computed test metrics on %d samples.", test_n_samples)
+
+    out_fpath = test_inference_dpath / "probe1d_metrics.npz"
     out_fpath.parent.mkdir(parents=True, exist_ok=True)
 
     np.savez(
