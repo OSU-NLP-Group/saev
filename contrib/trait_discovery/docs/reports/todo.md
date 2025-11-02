@@ -80,13 +80,13 @@
 
 - [x] Record DINOv3 ViT-S/16 activations with 256 tokens on ImageNet-1K/train. (7b898c93)
 - [x] Record DINOv3 ViT-S/16 activations with 256 tokens on ImageNet-1K/val. (52ec5790)
-- [ ] Record DINOv3 ViT-S/16 activations with 256 tokens on ADE20K/train.
-- [ ] Record DINOv3 ViT-S/16 activations with 256 tokens on ADE20K/val.
+- [x] Record DINOv3 ViT-S/16 activations with 256 tokens on ADE20K/train. (781f8739)
+- [x] Record DINOv3 ViT-S/16 activations with 256 tokens on ADE20K/val. (5e195bbf)
 
 - [x] Record DINOv3 ViT-B/16 activations with 256 tokens on ImageNet-1K/train. (a3bc6f4d)
 - [x] Record DINOv3 ViT-B/16 activations with 256 tokens on ImageNet-1K/val. (8762551e)
-- [ ] Record DINOv3 ViT-B/16 activations with 256 tokens on ADE20K/train.
-- [ ] Record DINOv3 ViT-B/16 activations with 256 tokens on ADE20K/val.
+- [x] Record DINOv3 ViT-B/16 activations with 256 tokens on ADE20K/train. (fd5781e8)
+- [x] Record DINOv3 ViT-B/16 activations with 256 tokens on ADE20K/val. (66a5d2c1)
 
 - [ ] Train Matryoshka SAEs on DINOv3 ViT-S with 256 tokens on ImageNet-1K (train/val).
 - [ ] Train Matryoshka SAEs on DINOv3 ViT-B with 256 tokens on ImageNet-1K (train/val).

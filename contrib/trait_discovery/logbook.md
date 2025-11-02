@@ -1255,3 +1255,10 @@ What do I want to know? It probably is going to be a big dataframe that I can ma
 
 Now I need to describe my ablation experiments precisely.
 This is the core experiment, so it should be straightforward to described.
+
+# 11/01/2025
+
+- Scaling and Evaluating Sparse Autoencoders uses layer 8/12 for GPT-2.
+- Matching Pursuit uses the final layer for many experiments, including many ViTs.
+- Matryoshka used layer 12/26 of Gemma 2 2B and layer 8/12 for Pythia 160M.
+- "Probing the Representational Power of Sparse Autoencoders in Vision Models" trained on every layer of DINOv2's [CLS] token.
