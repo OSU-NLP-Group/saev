@@ -11,11 +11,11 @@ def _():
     import pickle
 
     import beartype
+    import marimo as mo
     import matplotlib.pyplot as plt
     import numpy as np
     import pandera.polars as pa
     import polars as pl
-    import marimo as mo
     import wandb
 
     import saev.data
@@ -34,9 +34,38 @@ def _(pathlib):
 
 
 @app.cell
+def _(beartype, pathlib):
+    @beartype.beartype
+    def get_inference_probe_metric_fpaths(
+        run_dpath: pathlib.Path,
+    ) -> list[pathlib.Path]:
+        if not run_dpath.is_dir():
+            return []
+
+        inference_dpath = run_dpath / "inference"
+        if not inference_dpath.is_dir():
+            return []
+
+        probe_metric_fpaths: list[pathlib.Path] = []
+        for shard_dpath in inference_dpath.iterdir():
+            if not shard_dpath.is_dir():
+                continue
+
+            probe_metrics_fpath = shard_dpath / "probe1d_metrics.npz"
+            if not probe_metrics_fpath.is_file():
+                continue
+
+            probe_metric_fpaths.append(probe_metrics_fpath)
+
+        return probe_metric_fpaths
+    return (get_inference_probe_metric_fpaths,)
+
+
+@app.cell
 def _(
     beartype,
     get_baseline_ce,
+    get_inference_probe_metric_fpaths,
     get_wandb_run,
     mo,
     np,
@@ -49,12 +78,19 @@ def _(
 ):
     class ProbeResultsSchema(pa.DataFrameModel):
         run_id: str
+
+        model: str = pa.Field()
+        layer: int = pa.Field(ge=0)
+
         # From SAE training
+        sae_data: str = pa.Field()
         sae_val_mse: float = pa.Field(ge=0)
         sae_val_l0: float = pa.Field(ge=0)
         sae_val_l1: float = pa.Field(ge=0)
 
-        probe_train_ce: float = pa.Field(ge=0)
+        # From probe1d
+        probe_shards: str = pa.Field()
+        probe_ce: float = pa.Field(ge=0)
         baseline_ce: float = pa.Field(ge=0)
         probe_r: float = pa.Field()
 
@@ -64,20 +100,31 @@ def _(
     def load_probe_results_df() -> pa.typing.DataFrame[ProbeResultsSchema]:
         rows = []
 
-        for probe_npz in mo.status.progress_bar(
-            list(runs_root.glob("**/probe1d_metrics.npz"))
-        ):
-            *run_parts, _, shards_id, _ = probe_npz.parts
+        run_and_probe_pairs: list[tuple[saev.disk.Run, pathlib.Path]] = []
+        for run_dpath in runs_root.iterdir():
+            if not run_dpath.is_dir():
+                continue
+
+            probe_metric_fpaths = get_inference_probe_metric_fpaths(run_dpath)
+            if not probe_metric_fpaths:
+                continue
+
+            run = saev.disk.Run(run_dpath)
+            for probe_metrics_fpath in probe_metric_fpaths:
+                run_and_probe_pairs.append((run, probe_metrics_fpath))
+
+        n_probe_metrics = len(run_and_probe_pairs)
+        print(f"Found {n_probe_metrics} probe1d_metrics.npz files.")
+        for run, probe_metrics_fpath in mo.status.progress_bar(run_and_probe_pairs):
+            shards_id = probe_metrics_fpath.parent.name
 
             if not (shards_root / shards_id).exists():
                 continue
 
-            run = saev.disk.Run(pathlib.Path(*run_parts))
-
-            with np.load(probe_npz) as fd:
+            with np.load(probe_metrics_fpath) as fd:
                 loss = fd["loss"]
 
-            probe_train_ce = loss.min(axis=0).mean().item()
+            probe_ce = loss.min(axis=0).mean().item()
             baseline_ce = get_baseline_ce(shards_root / shards_id).mean().item()
 
             wandb_run = get_wandb_run(run.run_id)
@@ -85,12 +132,16 @@ def _(
             rows.append(
                 {
                     "run_id": run.run_id,
+                    "model": wandb_run["model_key"],
+                    "layer": wandb_run["config/val_data/layer"],
+                    "sae_data": wandb_run["data_key"],
                     "sae_val_mse": wandb_run["summary/eval/mse"],
                     "sae_val_l0": wandb_run["summary/eval/l0"],
                     "sae_val_l1": wandb_run["summary/eval/l1"],
-                    "probe_train_ce": probe_train_ce,
+                    "probe_shards": shards_id,
+                    "probe_ce": probe_ce,
                     "baseline_ce": baseline_ce,
-                    "probe_r": 1 - probe_train_ce / baseline_ce,
+                    "probe_r": 1 - probe_ce / baseline_ce,
                 }
             )
 
@@ -99,6 +150,193 @@ def _(
 
     df = load_probe_results_df()
     df
+    return (df,)
+
+
+@app.cell
+def _(df, pl, plt):
+    def _():
+        filtered = df.filter(
+            (pl.col("model") == "DINOv3 ViT-S/16") & (pl.col("probe_shards") == "781f8739")
+        )
+
+        fig, axes = plt.subplots(nrows=4, dpi=200, figsize=(6, 8), layout="constrained")
+        for field, ax in zip(["sae_val_mse", "sae_val_l0", "sae_val_l1", "layer"], axes):
+            xs = filtered.get_column(field).to_numpy()
+            ys = filtered.get_column("probe_r").to_numpy()
+            ax.scatter(xs, ys)
+
+            ax.grid(True, linewidth=0.3, alpha=0.7)
+            ax.spines[["right", "top"]].set_visible(False)
+            # ax.set_xscale("log")
+            ax.set_xlabel(field)
+            ax.set_ylabel("Probe R ($\\uparrow$)")
+
+        return fig
+
+
+    _()
+    return
+
+
+@app.cell
+def _(df, pl, plt):
+    def _():
+        train = df.filter(
+            (pl.col("model") == "DINOv3 ViT-S/16") & (pl.col("probe_shards") == "781f8739")
+        )
+        val = df.filter(
+            (pl.col("model") == "DINOv3 ViT-S/16") & (pl.col("probe_shards") == "5e195bbf")
+        )
+
+        fig, (ax_ce, ax_r) = plt.subplots(
+            nrows=2, dpi=200, figsize=(6, 8), layout="constrained"
+        )
+
+        # Plot cross entropy
+        xs = train.get_column("probe_ce")
+        ys = val.get_column("probe_ce")
+        min_ce = min(xs.min(), ys.min())
+        max_ce = max(xs.max(), ys.max())
+
+        ax_ce.plot([min_ce, max_ce], [min_ce, max_ce], color="tab:red", alpha=0.3)
+        ax_ce.fill_between(
+            [min_ce, max_ce],
+            [max_ce, max_ce],
+            [min_ce, max_ce],
+            alpha=0.3,
+            color="tab:red",
+            linewidth=0,
+            label="Overfitting",
+        )
+        ax_ce.scatter(xs, ys, label="Probe CE")
+
+        ax_ce.grid(True, linewidth=0.3, alpha=0.7)
+        ax_ce.spines[["right", "top"]].set_visible(False)
+        # ax.set_xscale("log")
+        ax_ce.set_xlabel("Train CE ($\\downarrow$)")
+        ax_ce.set_ylabel("Test CE ($\\downarrow$)")
+
+        ax_ce.legend()
+
+        xs = train.get_column("probe_r")
+        ys = val.get_column("probe_r")
+        min_r = min(xs.min(), ys.min())
+        max_r = max(xs.max(), ys.max())
+
+        ax_r.plot([min_r, max_r], [min_r, max_r], color="tab:red", alpha=0.2)
+        ax_r.fill_between(
+            [min_r, max_r],
+            [min_r, min_r],
+            [min_r, max_r],
+            alpha=0.3,
+            color="tab:red",
+            linewidth=0,
+            label="Overfitting",
+        )
+        ax_r.scatter(xs, ys, label="Probe R")
+
+        ax_r.grid(True, linewidth=0.3, alpha=0.7)
+        ax_r.spines[["right", "top"]].set_visible(False)
+        # ax.set_xscale("log")
+        ax_r.set_xlabel("Train R ($\\uparrow$)")
+        ax_r.set_ylabel("Test R ($\\uparrow$)")
+
+        ax_r.legend()
+
+        fig.suptitle("Measuring Overfitting")
+
+        return fig
+
+
+    _()
+    return
+
+
+@app.cell
+def _(df, np, pl, plt):
+    def _():
+        filtered = df.filter(
+            (pl.col("model") == "DINOv3 ViT-S/16") & (pl.col("probe_shards") == "5e195bbf")
+        ).sort(by="layer")
+
+        fig, ax = plt.subplots(dpi=200, figsize=(6, 3), layout="constrained")
+
+        xs = filtered.get_column("layer").to_numpy()
+        ys = filtered.get_column("probe_r").to_numpy()
+        line = np.polynomial.Polynomial.fit(xs, ys, deg=1)
+
+        ax.scatter(xs, ys, label="Observed")
+        m, b = line.coef
+
+        ax.plot(
+            *line.linspace(),
+            color="tab:red",
+            alpha=0.3,
+            label=f"Best Fit (${m:.2f} x + {b:.2f}$)",
+        )
+
+        ax.grid(True, linewidth=0.3, alpha=0.7)
+        ax.spines[["right", "top"]].set_visible(False)
+        # ax.set_xscale("log")
+        ax.set_xlabel("ViT-S/16 Layer")
+        ax.set_ylabel("Probe R ($\\uparrow$)")
+        ax.legend()
+
+        return fig
+
+
+    _()
+    return
+
+
+@app.cell
+def _(mo):
+    mo.md("""For a given layer, how does the MSE/L0 tradeoff correlate with probe $R$?""")
+    return
+
+
+@app.cell
+def _(df, np, pl, plt):
+    def _():
+        fig, axes = plt.subplots(
+            nrows=2, ncols=3, dpi=200, figsize=(8, 5), layout="constrained"
+        )
+        axes = axes.reshape(-1)
+
+        layers = [6, 7, 8, 9, 10, 11]
+
+        for i, (layer, ax) in enumerate(zip(layers, axes)):
+            filtered = df.filter(
+                (pl.col("model") == "DINOv3 ViT-S/16")
+                & (pl.col("probe_shards") == "5e195bbf")
+                & (pl.col("layer") == layer)
+            ).sort(by="layer")
+
+            xs = filtered.get_column("sae_val_l0").to_numpy()
+            ys = filtered.get_column("probe_r").to_numpy()
+
+            ax.set_title(f"Layer {layer + 1}/12")
+            ax.scatter(xs, ys)
+
+            line = np.polynomial.Polynomial.fit(xs, ys, deg=2)
+            ax.plot(*line.linspace(), color="tab:orange", alpha=0.3, label="$y=mx+b$")
+
+            ax.grid(True, linewidth=0.3, alpha=0.7)
+            ax.spines[["right", "top"]].set_visible(False)
+            # ax.set_xscale("log")
+
+            if i in (3, 4, 5):
+                ax.set_xlabel("L0")
+            if i in (0, 3):
+                ax.set_ylabel("Probe R ($\\uparrow$)")
+            if i in (0,):
+                ax.legend()
+
+        return fig
+
+
+    _()
     return
 
 
