@@ -20,6 +20,7 @@ def _():
 
     import saev.data
     import saev.disk
+
     return base64, beartype, mo, np, pa, pathlib, pickle, pl, plt, saev, wandb
 
 
@@ -58,6 +59,7 @@ def _(beartype, pathlib):
             probe_metric_fpaths.append(probe_metrics_fpath)
 
         return probe_metric_fpaths
+
     return (get_inference_probe_metric_fpaths,)
 
 
@@ -89,18 +91,42 @@ def _(
         sae_val_l1: float = pa.Field(ge=0)
 
         # From probe1d
-        probe_shards: str = pa.Field()
-        probe_ce: float = pa.Field(ge=0)
-        baseline_ce: float = pa.Field(ge=0)
-        probe_r: float = pa.Field()
+        train_probe_shards: str = pa.Field()
+        val_probe_shards: str = pa.Field()
+        train_probe_ce: float = pa.Field(ge=0)
+        val_probe_ce: float = pa.Field(ge=0)
+        train_baseline_ce: float = pa.Field(ge=0)
+        val_baseline_ce: float = pa.Field(ge=0)
+        train_probe_r: float = pa.Field()
+        val_probe_r: float = pa.Field()
 
+    @beartype.beartype
+    def get_probe_split_label(shards_dpath: pathlib.Path) -> str | None:
+        try:
+            metadata = saev.data.Metadata.load(shards_dpath)
+        except Exception as err:
+            print(f"Failed to load metadata for {shards_dpath}: {err}")
+            return None
+
+        data_cfg = metadata.make_data_cfg()
+        split = getattr(data_cfg, "split", None)
+        if split is None:
+            return None
+
+        split_name = str(split).lower()
+        if split_name in {"train", "training"}:
+            return "train"
+        if split_name in {"val", "validation"}:
+            return "val"
+        return None
 
     @beartype.beartype
     @pa.check_types
     def load_probe_results_df() -> pa.typing.DataFrame[ProbeResultsSchema]:
         rows = []
 
-        run_and_probe_pairs: list[tuple[saev.disk.Run, pathlib.Path]] = []
+        run_and_probe_fpaths: list[tuple[saev.disk.Run, list[pathlib.Path]]] = []
+        n_probe_metrics = 0
         for run_dpath in runs_root.iterdir():
             if not run_dpath.is_dir():
                 continue
@@ -110,43 +136,119 @@ def _(
                 continue
 
             run = saev.disk.Run(run_dpath)
-            for probe_metrics_fpath in probe_metric_fpaths:
-                run_and_probe_pairs.append((run, probe_metrics_fpath))
+            run_and_probe_fpaths.append((run, probe_metric_fpaths))
+            n_probe_metrics += len(probe_metric_fpaths)
 
-        n_probe_metrics = len(run_and_probe_pairs)
         print(f"Found {n_probe_metrics} probe1d_metrics.npz files.")
-        for run, probe_metrics_fpath in mo.status.progress_bar(run_and_probe_pairs):
-            shards_id = probe_metrics_fpath.parent.name
-
-            if not (shards_root / shards_id).exists():
+        for run, probe_metric_fpaths in mo.status.progress_bar(run_and_probe_fpaths):
+            wandb_run = get_wandb_run(run.run_id)
+            if not wandb_run:
                 continue
 
-            with np.load(probe_metrics_fpath) as fd:
-                loss = fd["loss"]
+            split_records: dict[str, tuple[pathlib.Path, str, pathlib.Path]] = {}
+            for probe_metrics_fpath in probe_metric_fpaths:
+                shards_id = probe_metrics_fpath.parent.name
+                shards_dpath = shards_root / shards_id
 
-            probe_ce = loss.min(axis=0).mean().item()
-            baseline_ce = get_baseline_ce(shards_root / shards_id).mean().item()
+                if not shards_dpath.exists():
+                    print(
+                        f"Skipping shards {shards_id}: directory {shards_dpath} missing."
+                    )
+                    continue
 
-            wandb_run = get_wandb_run(run.run_id)
+                split_label = get_probe_split_label(shards_dpath)
+                if split_label is None:
+                    print(
+                        f"Skipping shards {shards_id}: unknown split "
+                        f"(run {run.run_id})."
+                    )
+                    continue
 
-            rows.append(
-                {
-                    "run_id": run.run_id,
-                    "model": wandb_run["model_key"],
-                    "layer": wandb_run["config/val_data/layer"],
-                    "sae_data": wandb_run["data_key"],
-                    "sae_val_mse": wandb_run["summary/eval/mse"],
-                    "sae_val_l0": wandb_run["summary/eval/l0"],
-                    "sae_val_l1": wandb_run["summary/eval/l1"],
-                    "probe_shards": shards_id,
-                    "probe_ce": probe_ce,
-                    "baseline_ce": baseline_ce,
-                    "probe_r": 1 - probe_ce / baseline_ce,
-                }
-            )
+                if split_label in split_records:
+                    print(
+                        f"Skipping run {run.run_id}: duplicate {split_label} "
+                        "probe metrics discovered."
+                    )
+                    split_records = {}
+                    break
+
+                split_records[split_label] = (
+                    probe_metrics_fpath,
+                    shards_id,
+                    shards_dpath,
+                )
+
+            if not split_records:
+                continue
+
+            if "train" not in split_records or "val" not in split_records:
+                print(
+                    f"Skipping run {run.run_id}: expected train and val probe metrics, "
+                    f"got {sorted(split_records.keys())}."
+                )
+                continue
+
+            train_record = split_records["train"]
+            val_record = split_records["val"]
+
+            (
+                train_metrics_fpath,
+                train_shards_id,
+                train_shards_dpath,
+            ) = train_record
+            (
+                val_metrics_fpath,
+                val_shards_id,
+                val_shards_dpath,
+            ) = val_record
+
+            with np.load(train_metrics_fpath) as fd:
+                train_loss = fd["loss"]
+            with np.load(val_metrics_fpath) as fd:
+                val_loss = fd["loss"]
+
+            if train_loss.ndim != 2 or val_loss.ndim != 2:
+                print(f"Skipping run {run.run_id}: unexpected loss shape.")
+                continue
+            n_classes = train_loss.shape[1]
+            if val_loss.shape[1] != n_classes:
+                print(f"Skipping run {run.run_id}: mismatched class counts.")
+                continue
+
+            best_latent_indices = np.argmin(train_loss, axis=0)
+            if best_latent_indices.shape[0] != n_classes:
+                print(f"Skipping run {run.run_id}: argmin shape mismatch.")
+                continue
+
+            class_indices = np.arange(n_classes)
+            train_selected_loss = train_loss[best_latent_indices, class_indices]
+            val_selected_loss = val_loss[best_latent_indices, class_indices]
+
+            train_probe_ce = train_selected_loss.mean().item()
+            val_probe_ce = val_selected_loss.mean().item()
+
+            train_baseline_ce = get_baseline_ce(train_shards_dpath).mean().item()
+            val_baseline_ce = get_baseline_ce(val_shards_dpath).mean().item()
+
+            rows.append({
+                "run_id": run.run_id,
+                "model": wandb_run["model_key"],
+                "layer": wandb_run["config/val_data/layer"],
+                "sae_data": wandb_run["data_key"],
+                "sae_val_mse": wandb_run["summary/eval/mse"],
+                "sae_val_l0": wandb_run["summary/eval/l0"],
+                "sae_val_l1": wandb_run["summary/eval/l1"],
+                "train_probe_shards": train_shards_id,
+                "val_probe_shards": val_shards_id,
+                "train_probe_ce": train_probe_ce,
+                "val_probe_ce": val_probe_ce,
+                "train_baseline_ce": train_baseline_ce,
+                "val_baseline_ce": val_baseline_ce,
+                "train_probe_r": 1 - train_probe_ce / train_baseline_ce,
+                "val_probe_r": 1 - val_probe_ce / val_baseline_ce,
+            })
 
         return pl.DataFrame(rows)
-
 
     df = load_probe_results_df()
     df
@@ -157,23 +259,25 @@ def _(
 def _(df, pl, plt):
     def _():
         filtered = df.filter(
-            (pl.col("model") == "DINOv3 ViT-S/16") & (pl.col("probe_shards") == "781f8739")
+            (pl.col("model") == "DINOv3 ViT-S/16")
+            & (pl.col("train_probe_shards") == "781f8739")
         )
 
         fig, axes = plt.subplots(nrows=4, dpi=200, figsize=(6, 8), layout="constrained")
-        for field, ax in zip(["sae_val_mse", "sae_val_l0", "sae_val_l1", "layer"], axes):
+        for field, ax in zip(
+            ["sae_val_mse", "sae_val_l0", "sae_val_l1", "layer"], axes
+        ):
             xs = filtered.get_column(field).to_numpy()
-            ys = filtered.get_column("probe_r").to_numpy()
+            ys = filtered.get_column("train_probe_r").to_numpy()
             ax.scatter(xs, ys)
 
             ax.grid(True, linewidth=0.3, alpha=0.7)
             ax.spines[["right", "top"]].set_visible(False)
             # ax.set_xscale("log")
             ax.set_xlabel(field)
-            ax.set_ylabel("Probe R ($\\uparrow$)")
+            ax.set_ylabel("Train Probe R ($\\uparrow$)")
 
         return fig
-
 
     _()
     return
@@ -182,11 +286,10 @@ def _(df, pl, plt):
 @app.cell
 def _(df, pl, plt):
     def _():
-        train = df.filter(
-            (pl.col("model") == "DINOv3 ViT-S/16") & (pl.col("probe_shards") == "781f8739")
-        )
-        val = df.filter(
-            (pl.col("model") == "DINOv3 ViT-S/16") & (pl.col("probe_shards") == "5e195bbf")
+        filtered = df.filter(
+            (pl.col("model") == "DINOv3 ViT-S/16")
+            & (pl.col("train_probe_shards") == "781f8739")
+            & (pl.col("val_probe_shards") == "5e195bbf")
         )
 
         fig, (ax_ce, ax_r) = plt.subplots(
@@ -194,8 +297,8 @@ def _(df, pl, plt):
         )
 
         # Plot cross entropy
-        xs = train.get_column("probe_ce")
-        ys = val.get_column("probe_ce")
+        xs = filtered.get_column("train_probe_ce")
+        ys = filtered.get_column("val_probe_ce")
         min_ce = min(xs.min(), ys.min())
         max_ce = max(xs.max(), ys.max())
 
@@ -215,12 +318,12 @@ def _(df, pl, plt):
         ax_ce.spines[["right", "top"]].set_visible(False)
         # ax.set_xscale("log")
         ax_ce.set_xlabel("Train CE ($\\downarrow$)")
-        ax_ce.set_ylabel("Test CE ($\\downarrow$)")
+        ax_ce.set_ylabel("Val CE ($\\downarrow$)")
 
         ax_ce.legend()
 
-        xs = train.get_column("probe_r")
-        ys = val.get_column("probe_r")
+        xs = filtered.get_column("train_probe_r")
+        ys = filtered.get_column("val_probe_r")
         min_r = min(xs.min(), ys.min())
         max_r = max(xs.max(), ys.max())
 
@@ -240,14 +343,13 @@ def _(df, pl, plt):
         ax_r.spines[["right", "top"]].set_visible(False)
         # ax.set_xscale("log")
         ax_r.set_xlabel("Train R ($\\uparrow$)")
-        ax_r.set_ylabel("Test R ($\\uparrow$)")
+        ax_r.set_ylabel("Val R ($\\uparrow$)")
 
         ax_r.legend()
 
         fig.suptitle("Measuring Overfitting")
 
         return fig
-
 
     _()
     return
@@ -257,13 +359,14 @@ def _(df, pl, plt):
 def _(df, np, pl, plt):
     def _():
         filtered = df.filter(
-            (pl.col("model") == "DINOv3 ViT-S/16") & (pl.col("probe_shards") == "5e195bbf")
+            (pl.col("model") == "DINOv3 ViT-S/16")
+            & (pl.col("val_probe_shards") == "5e195bbf")
         ).sort(by="layer")
 
         fig, ax = plt.subplots(dpi=200, figsize=(6, 3), layout="constrained")
 
         xs = filtered.get_column("layer").to_numpy()
-        ys = filtered.get_column("probe_r").to_numpy()
+        ys = filtered.get_column("val_probe_r").to_numpy()
         line = np.polynomial.Polynomial.fit(xs, ys, deg=1)
 
         ax.scatter(xs, ys, label="Observed")
@@ -280,11 +383,10 @@ def _(df, np, pl, plt):
         ax.spines[["right", "top"]].set_visible(False)
         # ax.set_xscale("log")
         ax.set_xlabel("ViT-S/16 Layer")
-        ax.set_ylabel("Probe R ($\\uparrow$)")
+        ax.set_ylabel("Val Probe R ($\\uparrow$)")
         ax.legend()
 
         return fig
-
 
     _()
     return
@@ -292,7 +394,9 @@ def _(df, np, pl, plt):
 
 @app.cell
 def _(mo):
-    mo.md("""For a given layer, how does the MSE/L0 tradeoff correlate with probe $R$?""")
+    mo.md(
+        """For a given layer, how does the MSE/L0 tradeoff correlate with probe $R$?"""
+    )
     return
 
 
@@ -309,12 +413,12 @@ def _(df, np, pl, plt):
         for i, (layer, ax) in enumerate(zip(layers, axes)):
             filtered = df.filter(
                 (pl.col("model") == "DINOv3 ViT-S/16")
-                & (pl.col("probe_shards") == "5e195bbf")
+                & (pl.col("val_probe_shards") == "5e195bbf")
                 & (pl.col("layer") == layer)
             ).sort(by="layer")
 
             xs = filtered.get_column("sae_val_l0").to_numpy()
-            ys = filtered.get_column("probe_r").to_numpy()
+            ys = filtered.get_column("val_probe_r").to_numpy()
 
             ax.set_title(f"Layer {layer + 1}/12")
             ax.scatter(xs, ys)
@@ -329,12 +433,11 @@ def _(df, np, pl, plt):
             if i in (3, 4, 5):
                 ax.set_xlabel("L0")
             if i in (0, 3):
-                ax.set_ylabel("Probe R ($\\uparrow$)")
+                ax.set_ylabel("Val Probe R ($\\uparrow$)")
             if i in (0,):
                 ax.legend()
 
         return fig
-
 
     _()
     return
@@ -362,6 +465,7 @@ def _(beartype, mo, np, pathlib, saev):
 
         prob = y.mean(axis=0)
         return -(prob * np.log(prob) + (1 - prob) * np.log(1 - prob))
+
     return (get_baseline_ce,)
 
 
@@ -381,7 +485,6 @@ def _(
         """Exception raised when metadata cannot be accessed or parsed."""
 
         pass
-
 
     @beartype.beartype
     def find_metadata(shard_root: str, wandb_metadata: dict | None = None):
@@ -409,7 +512,6 @@ def _(
         except json.JSONDecodeError:
             raise MetadataAccessError("Malformed metadata.json file")
 
-
     @beartype.beartype
     def get_wandb_run(run_id: str):
         run = wandb.Api().run(f"{WANDB_USERNAME}/{WANDB_PROJECT}/{run_id}")
@@ -418,35 +520,31 @@ def _(
         row["id"] = run.id
 
         try:
-            row.update(**{f"summary/{key}": value for key, value in run.summary.items()})
+            row.update(**{
+                f"summary/{key}": value for key, value in run.summary.items()
+            })
         except AttributeError as err:
             print(f"Run {run.id} has a problem in run.summary._json_dict: {err}")
             return {}
 
         # config
-        row.update(
-            **{
-                f"config/train_data/{key}": value
-                for key, value in run.config.pop("train_data").items()
-            }
-        )
-        row.update(
-            **{
-                f"config/val_data/{key}": value
-                for key, value in run.config.pop("val_data").items()
-            }
-        )
-        row.update(
-            **{f"config/sae/{key}": value for key, value in run.config.pop("sae").items()}
-        )
+        row.update(**{
+            f"config/train_data/{key}": value
+            for key, value in run.config.pop("train_data").items()
+        })
+        row.update(**{
+            f"config/val_data/{key}": value
+            for key, value in run.config.pop("val_data").items()
+        })
+        row.update(**{
+            f"config/sae/{key}": value for key, value in run.config.pop("sae").items()
+        })
 
         if "objective" in run.config:
-            row.update(
-                **{
-                    f"config/objective/{key}": value
-                    for key, value in run.config.pop("objective").items()
-                }
-            )
+            row.update(**{
+                f"config/objective/{key}": value
+                for key, value in run.config.pop("objective").items()
+            })
 
         row.update(**{f"config/{key}": value for key, value in run.config.items()})
 
@@ -470,7 +568,6 @@ def _(
 
         return row
 
-
     @beartype.beartype
     def get_model_key(metadata: dict[str, object]) -> str:
         family = next(
@@ -480,7 +577,9 @@ def _(
         )
 
         ckpt = next(
-            metadata[key] for key in ("vit_ckpt", "model_ckpt", "ckpt") if key in metadata
+            metadata[key]
+            for key in ("vit_ckpt", "model_ckpt", "ckpt")
+            if key in metadata
         )
 
         if family == "dinov2" and ckpt == "dinov2_vitb14_reg":
@@ -505,7 +604,6 @@ def _(
         print(f"Unknown model: {(family, ckpt)}")
         return ckpt
 
-
     @beartype.beartype
     def get_data_key(metadata: dict[str, object]) -> str | None:
         data_cfg = pickle.loads(base64.b64decode(metadata["data"].encode("utf8")))
@@ -520,6 +618,7 @@ def _(
 
         print(f"Unknown data: {data_cfg}")
         return None
+
     return (get_wandb_run,)
 
 
@@ -592,7 +691,6 @@ def _(baseline_ce, np, plt, runs_root, saev):
         ax3.spines[["top", "right"]].set_visible(False)
 
         return fig
-
 
     _()
     return
