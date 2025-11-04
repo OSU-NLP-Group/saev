@@ -88,13 +88,13 @@
 - [x] Record DINOv3 ViT-B/16 activations with 256 tokens on ADE20K/train. (fd5781e8)
 - [x] Record DINOv3 ViT-B/16 activations with 256 tokens on ADE20K/val. (66a5d2c1)
 
-- [ ] Train Matryoshka SAEs on DINOv3 ViT-S with 256 tokens on ImageNet-1K (train/val).
+- [x] Train Matryoshka SAEs on DINOv3 ViT-S with 256 tokens on ImageNet-1K (train/val).
 - [ ] Train Matryoshka SAEs on DINOv3 ViT-B with 256 tokens on ImageNet-1K (train/val).
 
-- [ ] Record SAE activations for all Pareto SAEs from DINOv3 ViT-S IN1K on ADE20K/train.
-- [ ] Record SAE activations for all Pareto SAEs from DINOv3 ViT-S IN1K on ADE20K/val.
-- [ ] Record SAE activations for all Pareto SAEs from DINOv3 ViT-B IN1K on ADE20K/train.
-- [ ] Record SAE activations for all Pareto SAEs from DINOv3 ViT-B IN1K on ADE20K/val.
+- [x] Record SAE activations for all Pareto SAEs from DINOv3 ViT-S/16 with 256 tokens on IN1K on ADE20K/train.
+- [x] Record SAE activations for all Pareto SAEs from DINOv3 ViT-S/16 with 256 tokens on IN1K on ADE20K/val.
+- [ ] Record SAE activations for all Pareto SAEs from DINOv3 ViT-B/16 with 256 tokens on IN1K on ADE20K/train.
+- [ ] Record SAE activations for all Pareto SAEs from DINOv3 ViT-B/16 with 256 tokens on IN1K on ADE20K/val.
 
-- [ ] Record probe1d statistics for all Pareto SAEs from DINOv3 ViT-S IN1K on ADE20K/val.
-- [ ] Record probe1d statistics for all Pareto SAEs from DINOv3 ViT-B IN1K on ADE20K/val.
+- [ ] Record probe1d statistics for all Pareto SAEs from DINOv3 ViT-S/16 with 256 tokens on IN1K on ADE20K/val.
+- [ ] Record probe1d statistics for all Pareto SAEs from DINOv3 ViT-B/16 with 256 tokens on IN1K on ADE20K/val.

@@ -20,7 +20,6 @@ def _():
 
     import saev.data
     import saev.disk
-
     return base64, beartype, mo, np, pa, pathlib, pickle, pl, plt, saev, wandb
 
 
@@ -59,7 +58,6 @@ def _(beartype, pathlib):
             probe_metric_fpaths.append(probe_metrics_fpath)
 
         return probe_metric_fpaths
-
     return (get_inference_probe_metric_fpaths,)
 
 
@@ -100,6 +98,7 @@ def _(
         train_probe_r: float = pa.Field()
         val_probe_r: float = pa.Field()
 
+
     @beartype.beartype
     def get_probe_split_label(shards_dpath: pathlib.Path) -> str | None:
         try:
@@ -120,135 +119,108 @@ def _(
             return "val"
         return None
 
+
     @beartype.beartype
     @pa.check_types
     def load_probe_results_df() -> pa.typing.DataFrame[ProbeResultsSchema]:
         rows = []
 
-        run_and_probe_fpaths: list[tuple[saev.disk.Run, list[pathlib.Path]]] = []
+        run_probe_fpaths: list[tuple[saev.disk.Run, list[pathlib.Path]]] = []
         n_probe_metrics = 0
         for run_dpath in runs_root.iterdir():
             if not run_dpath.is_dir():
                 continue
 
-            probe_metric_fpaths = get_inference_probe_metric_fpaths(run_dpath)
-            if not probe_metric_fpaths:
+            probe_fpaths = get_inference_probe_metric_fpaths(run_dpath)
+            if not probe_fpaths:
                 continue
 
             run = saev.disk.Run(run_dpath)
-            run_and_probe_fpaths.append((run, probe_metric_fpaths))
-            n_probe_metrics += len(probe_metric_fpaths)
+            run_probe_fpaths.append((run, probe_fpaths))
+            n_probe_metrics += len(probe_fpaths)
 
         print(f"Found {n_probe_metrics} probe1d_metrics.npz files.")
-        for run, probe_metric_fpaths in mo.status.progress_bar(run_and_probe_fpaths):
+        for run, probe_fpaths in mo.status.progress_bar(run_probe_fpaths):
             wandb_run = get_wandb_run(run.run_id)
             if not wandb_run:
                 continue
 
-            split_records: dict[str, tuple[pathlib.Path, str, pathlib.Path]] = {}
-            for probe_metrics_fpath in probe_metric_fpaths:
-                shards_id = probe_metrics_fpath.parent.name
-                shards_dpath = shards_root / shards_id
+            split_map: dict[str, tuple[pathlib.Path, str, pathlib.Path]] = {}
+            for metrics_fpath in probe_fpaths:
+                shard_id = metrics_fpath.parent.name
+                shards_dpath = shards_root / shard_id
 
                 if not shards_dpath.exists():
                     print(
-                        f"Skipping shards {shards_id}: directory {shards_dpath} missing."
+                        f"Skipping run {run.run_id}: shards directory {shards_dpath} missing."
                     )
                     continue
 
                 split_label = get_probe_split_label(shards_dpath)
                 if split_label is None:
-                    print(
-                        f"Skipping shards {shards_id}: unknown split "
-                        f"(run {run.run_id})."
-                    )
+                    print(f"Skipping shards {shard_id}: unknown split (run {run.run_id}).")
                     continue
 
-                if split_label in split_records:
+                if split_label in split_map:
                     print(
-                        f"Skipping run {run.run_id}: duplicate {split_label} "
-                        "probe metrics discovered."
+                        f"Skipping run {run.run_id}: duplicate {split_label} probe metrics discovered."
                     )
-                    split_records = {}
+                    split_map = {}
                     break
 
-                split_records[split_label] = (
-                    probe_metrics_fpath,
-                    shards_id,
-                    shards_dpath,
-                )
+                split_map[split_label] = (metrics_fpath, shard_id, shards_dpath)
 
-            if not split_records:
+            if not split_map:
                 continue
 
-            if "train" not in split_records or "val" not in split_records:
+            if "train" not in split_map or "val" not in split_map:
                 print(
-                    f"Skipping run {run.run_id}: expected train and val probe metrics, "
-                    f"got {sorted(split_records.keys())}."
+                    f"Skipping run {run.run_id}: expected train and val probe metrics, got {sorted(split_map.keys())}."
                 )
                 continue
 
-            train_record = split_records["train"]
-            val_record = split_records["val"]
-
-            (
-                train_metrics_fpath,
-                train_shards_id,
-                train_shards_dpath,
-            ) = train_record
-            (
-                val_metrics_fpath,
-                val_shards_id,
-                val_shards_dpath,
-            ) = val_record
+            train_metrics_fpath, train_shards, train_shards_dpath = split_map["train"]
+            val_metrics_fpath, val_shards, val_shards_dpath = split_map["val"]
 
             with np.load(train_metrics_fpath) as fd:
                 train_loss = fd["loss"]
             with np.load(val_metrics_fpath) as fd:
                 val_loss = fd["loss"]
 
-            if train_loss.ndim != 2 or val_loss.ndim != 2:
-                print(f"Skipping run {run.run_id}: unexpected loss shape.")
-                continue
-            n_classes = train_loss.shape[1]
-            if val_loss.shape[1] != n_classes:
-                print(f"Skipping run {run.run_id}: mismatched class counts.")
-                continue
+            assert train_loss.ndim == 2
+            assert val_loss.ndim == 2
+            assert train_loss.shape == val_loss.shape
 
-            best_latent_indices = np.argmin(train_loss, axis=0)
-            if best_latent_indices.shape[0] != n_classes:
-                print(f"Skipping run {run.run_id}: argmin shape mismatch.")
-                continue
+            n_latents, n_classes = train_loss.shape
 
-            class_indices = np.arange(n_classes)
-            train_selected_loss = train_loss[best_latent_indices, class_indices]
-            val_selected_loss = val_loss[best_latent_indices, class_indices]
+            best_i = np.argmin(train_loss, axis=0)
+            train_ce = train_loss[best_i, np.arange(n_classes)].mean().item()
+            val_ce = val_loss[best_i, np.arange(n_classes)].mean().item()
+            train_base_ce = get_baseline_ce(train_shards_dpath).mean().item()
+            val_base_ce = get_baseline_ce(val_shards_dpath).mean().item()
 
-            train_probe_ce = train_selected_loss.mean().item()
-            val_probe_ce = val_selected_loss.mean().item()
-
-            train_baseline_ce = get_baseline_ce(train_shards_dpath).mean().item()
-            val_baseline_ce = get_baseline_ce(val_shards_dpath).mean().item()
-
-            rows.append({
-                "run_id": run.run_id,
-                "model": wandb_run["model_key"],
-                "layer": wandb_run["config/val_data/layer"],
-                "sae_data": wandb_run["data_key"],
-                "sae_val_mse": wandb_run["summary/eval/mse"],
-                "sae_val_l0": wandb_run["summary/eval/l0"],
-                "sae_val_l1": wandb_run["summary/eval/l1"],
-                "train_probe_shards": train_shards_id,
-                "val_probe_shards": val_shards_id,
-                "train_probe_ce": train_probe_ce,
-                "val_probe_ce": val_probe_ce,
-                "train_baseline_ce": train_baseline_ce,
-                "val_baseline_ce": val_baseline_ce,
-                "train_probe_r": 1 - train_probe_ce / train_baseline_ce,
-                "val_probe_r": 1 - val_probe_ce / val_baseline_ce,
-            })
+            rows.append(
+                {
+                    "run_id": run.run_id,
+                    "model": wandb_run["model_key"],
+                    "layer": wandb_run["config/val_data/layer"],
+                    "sae_data": wandb_run["data_key"],
+                    "sae_val_mse": wandb_run["summary/eval/mse"],
+                    "sae_val_l0": wandb_run["summary/eval/l0"],
+                    "sae_val_l1": wandb_run["summary/eval/l1"],
+                    "train_probe_shards": train_shards,
+                    "val_probe_shards": val_shards,
+                    "train_probe_ce": train_ce,
+                    "val_probe_ce": val_ce,
+                    "train_baseline_ce": train_base_ce,
+                    "val_baseline_ce": val_base_ce,
+                    "train_probe_r": 1 - train_ce / train_base_ce,
+                    "val_probe_r": 1 - val_ce / val_base_ce,
+                }
+            )
 
         return pl.DataFrame(rows)
+
 
     df = load_probe_results_df()
     df
@@ -264,9 +236,7 @@ def _(df, pl, plt):
         )
 
         fig, axes = plt.subplots(nrows=4, dpi=200, figsize=(6, 8), layout="constrained")
-        for field, ax in zip(
-            ["sae_val_mse", "sae_val_l0", "sae_val_l1", "layer"], axes
-        ):
+        for field, ax in zip(["sae_val_mse", "sae_val_l0", "sae_val_l1", "layer"], axes):
             xs = filtered.get_column(field).to_numpy()
             ys = filtered.get_column("train_probe_r").to_numpy()
             ax.scatter(xs, ys)
@@ -278,6 +248,7 @@ def _(df, pl, plt):
             ax.set_ylabel("Train Probe R ($\\uparrow$)")
 
         return fig
+
 
     _()
     return
@@ -293,16 +264,36 @@ def _(df, pl, plt):
         )
 
         fig, (ax_ce, ax_r) = plt.subplots(
-            nrows=2, dpi=200, figsize=(6, 8), layout="constrained"
+            ncols=2, dpi=200, figsize=(8, 3), layout="constrained"
         )
 
         # Plot cross entropy
-        xs = filtered.get_column("train_probe_ce")
-        ys = filtered.get_column("val_probe_ce")
-        min_ce = min(xs.min(), ys.min())
-        max_ce = max(xs.max(), ys.max())
+        train_probe_ce = filtered.get_column("train_probe_ce").to_numpy()
+        val_probe_ce = filtered.get_column("val_probe_ce").to_numpy()
 
-        ax_ce.plot([min_ce, max_ce], [min_ce, max_ce], color="tab:red", alpha=0.3)
+        train_baseline_ce = filtered.get_column("train_baseline_ce").to_numpy()
+        val_baseline_ce = filtered.get_column("val_baseline_ce").to_numpy()
+
+        assert all(ce == train_baseline_ce[0] for ce in train_baseline_ce)
+        assert all(ce == val_baseline_ce[0] for ce in val_baseline_ce)
+
+        train_baseline_ce = train_baseline_ce[0:1]
+        val_baseline_ce = val_baseline_ce[0:1]
+
+        min_ce = min(
+            train_probe_ce.min(),
+            val_probe_ce.min(),
+            train_baseline_ce.item(),
+            val_baseline_ce.item(),
+        )
+        max_ce = max(
+            train_probe_ce.max(),
+            val_probe_ce.max(),
+            train_baseline_ce.item(),
+            val_baseline_ce.item(),
+        )
+
+        ax_ce.plot([min_ce, max_ce], [min_ce, max_ce], color="tab:red", alpha=0.1)
         ax_ce.fill_between(
             [min_ce, max_ce],
             [max_ce, max_ce],
@@ -312,9 +303,10 @@ def _(df, pl, plt):
             linewidth=0,
             label="Overfitting",
         )
-        ax_ce.scatter(xs, ys, label="Probe CE")
+        ax_ce.scatter(train_probe_ce, val_probe_ce, label="Probe CE", alpha=0.5)
+        ax_ce.scatter(train_baseline_ce, val_baseline_ce, label="Baseline CE", alpha=0.5)
 
-        ax_ce.grid(True, linewidth=0.3, alpha=0.7)
+        ax_ce.grid(True, linewidth=0.3, alpha=0.5)
         ax_ce.spines[["right", "top"]].set_visible(False)
         # ax.set_xscale("log")
         ax_ce.set_xlabel("Train CE ($\\downarrow$)")
@@ -327,7 +319,7 @@ def _(df, pl, plt):
         min_r = min(xs.min(), ys.min())
         max_r = max(xs.max(), ys.max())
 
-        ax_r.plot([min_r, max_r], [min_r, max_r], color="tab:red", alpha=0.2)
+        ax_r.plot([min_r, max_r], [min_r, max_r], color="tab:red", alpha=0.1)
         ax_r.fill_between(
             [min_r, max_r],
             [min_r, min_r],
@@ -337,9 +329,9 @@ def _(df, pl, plt):
             linewidth=0,
             label="Overfitting",
         )
-        ax_r.scatter(xs, ys, label="Probe R")
+        ax_r.scatter(xs, ys, label="Probe R", alpha=0.5)
 
-        ax_r.grid(True, linewidth=0.3, alpha=0.7)
+        ax_r.grid(True, linewidth=0.3, alpha=0.5)
         ax_r.spines[["right", "top"]].set_visible(False)
         # ax.set_xscale("log")
         ax_r.set_xlabel("Train R ($\\uparrow$)")
@@ -350,6 +342,7 @@ def _(df, pl, plt):
         fig.suptitle("Measuring Overfitting")
 
         return fig
+
 
     _()
     return
@@ -388,15 +381,14 @@ def _(df, np, pl, plt):
 
         return fig
 
+
     _()
     return
 
 
 @app.cell
 def _(mo):
-    mo.md(
-        """For a given layer, how does the MSE/L0 tradeoff correlate with probe $R$?"""
-    )
+    mo.md("""For a given layer, how does the MSE/L0 tradeoff correlate with probe $R$?""")
     return
 
 
@@ -404,7 +396,7 @@ def _(mo):
 def _(df, np, pl, plt):
     def _():
         fig, axes = plt.subplots(
-            nrows=2, ncols=3, dpi=200, figsize=(8, 5), layout="constrained"
+            nrows=2, ncols=3, dpi=200, figsize=(8, 4), layout="constrained", sharex=True
         )
         axes = axes.reshape(-1)
 
@@ -418,26 +410,42 @@ def _(df, np, pl, plt):
             ).sort(by="layer")
 
             xs = filtered.get_column("sae_val_l0").to_numpy()
+            xs = np.log10(xs)
             ys = filtered.get_column("val_probe_r").to_numpy()
 
             ax.set_title(f"Layer {layer + 1}/12")
-            ax.scatter(xs, ys)
+
+            line = np.polynomial.Polynomial.fit(xs, ys, deg=1)
+            ax.plot(
+                *line.linspace(),
+                color="tab:orange",
+                linestyle=(0, (1, 1)),
+                label="$y=mx+b$",
+            )
 
             line = np.polynomial.Polynomial.fit(xs, ys, deg=2)
-            ax.plot(*line.linspace(), color="tab:orange", alpha=0.3, label="$y=mx+b$")
+            ax.plot(
+                *line.linspace(),
+                color="tab:purple",
+                linestyle=(0, (3, 2)),
+                label="$y=ax^2+bx+c$",
+            )
 
-            ax.grid(True, linewidth=0.3, alpha=0.7)
+            ax.scatter(xs, ys, color="tab:blue")
+
+            ax.grid(True, linewidth=0.3, alpha=0.5)
             ax.spines[["right", "top"]].set_visible(False)
             # ax.set_xscale("log")
 
             if i in (3, 4, 5):
-                ax.set_xlabel("L0")
+                ax.set_xlabel("$\\log_{10}$ L0")
             if i in (0, 3):
                 ax.set_ylabel("Val Probe R ($\\uparrow$)")
             if i in (0,):
                 ax.legend()
 
         return fig
+
 
     _()
     return
@@ -465,7 +473,6 @@ def _(beartype, mo, np, pathlib, saev):
 
         prob = y.mean(axis=0)
         return -(prob * np.log(prob) + (1 - prob) * np.log(1 - prob))
-
     return (get_baseline_ce,)
 
 
@@ -485,6 +492,7 @@ def _(
         """Exception raised when metadata cannot be accessed or parsed."""
 
         pass
+
 
     @beartype.beartype
     def find_metadata(shard_root: str, wandb_metadata: dict | None = None):
@@ -512,6 +520,7 @@ def _(
         except json.JSONDecodeError:
             raise MetadataAccessError("Malformed metadata.json file")
 
+
     @beartype.beartype
     def get_wandb_run(run_id: str):
         run = wandb.Api().run(f"{WANDB_USERNAME}/{WANDB_PROJECT}/{run_id}")
@@ -520,31 +529,35 @@ def _(
         row["id"] = run.id
 
         try:
-            row.update(**{
-                f"summary/{key}": value for key, value in run.summary.items()
-            })
+            row.update(**{f"summary/{key}": value for key, value in run.summary.items()})
         except AttributeError as err:
             print(f"Run {run.id} has a problem in run.summary._json_dict: {err}")
             return {}
 
         # config
-        row.update(**{
-            f"config/train_data/{key}": value
-            for key, value in run.config.pop("train_data").items()
-        })
-        row.update(**{
-            f"config/val_data/{key}": value
-            for key, value in run.config.pop("val_data").items()
-        })
-        row.update(**{
-            f"config/sae/{key}": value for key, value in run.config.pop("sae").items()
-        })
+        row.update(
+            **{
+                f"config/train_data/{key}": value
+                for key, value in run.config.pop("train_data").items()
+            }
+        )
+        row.update(
+            **{
+                f"config/val_data/{key}": value
+                for key, value in run.config.pop("val_data").items()
+            }
+        )
+        row.update(
+            **{f"config/sae/{key}": value for key, value in run.config.pop("sae").items()}
+        )
 
         if "objective" in run.config:
-            row.update(**{
-                f"config/objective/{key}": value
-                for key, value in run.config.pop("objective").items()
-            })
+            row.update(
+                **{
+                    f"config/objective/{key}": value
+                    for key, value in run.config.pop("objective").items()
+                }
+            )
 
         row.update(**{f"config/{key}": value for key, value in run.config.items()})
 
@@ -568,6 +581,7 @@ def _(
 
         return row
 
+
     @beartype.beartype
     def get_model_key(metadata: dict[str, object]) -> str:
         family = next(
@@ -577,9 +591,7 @@ def _(
         )
 
         ckpt = next(
-            metadata[key]
-            for key in ("vit_ckpt", "model_ckpt", "ckpt")
-            if key in metadata
+            metadata[key] for key in ("vit_ckpt", "model_ckpt", "ckpt") if key in metadata
         )
 
         if family == "dinov2" and ckpt == "dinov2_vitb14_reg":
@@ -604,6 +616,7 @@ def _(
         print(f"Unknown model: {(family, ckpt)}")
         return ckpt
 
+
     @beartype.beartype
     def get_data_key(metadata: dict[str, object]) -> str | None:
         data_cfg = pickle.loads(base64.b64decode(metadata["data"].encode("utf8")))
@@ -618,82 +631,7 @@ def _(
 
         print(f"Unknown data: {data_cfg}")
         return None
-
     return (get_wandb_run,)
-
-
-@app.cell
-def _(baseline_ce, np, plt, runs_root, saev):
-    def _():
-        runs = [
-            "3hr3d3w0",
-        ]
-
-        fig, (ax1, ax2, ax3) = plt.subplots(
-            dpi=200, layout="constrained", nrows=3, figsize=(12, 12)
-        )
-
-        for run in runs:
-            run = saev.disk.Run(runs_root / run)
-
-            probe_metrics = run.inference / "614861a0" / "probe1d_metrics.npz"
-            if not probe_metrics.exists():
-                continue
-
-            with np.load(run.inference / "614861a0" / "probe1d_metrics.npz") as fd:
-                loss = fd["loss"]
-                biases = fd["biases"]
-                weights = fd["weights"]
-                # tp = fd["tp"]
-                # tn = fd["tn"]
-                # fp = fd["fp"]
-                # fn = fd["fn"]
-
-            best_i = np.argmin(loss, axis=0)
-
-            ax1.hist(
-                1 - loss[best_i, np.arange(151)] / baseline_ce,
-                bins=np.linspace(0, 1, 101),
-                label=f"{run.run_id} ({(1 - loss[best_i, np.arange(151)] / baseline_ce).mean().item():.3f})",
-                alpha=0.3,
-            )
-            ax2.hist(
-                biases[best_i, np.arange(151)],
-                alpha=0.3,
-                label=run.run_id,
-                # bins=30,
-                # bins=np.linspace(-100, 100, 101),
-                bins=np.linspace(-20, 0, 51),
-            )
-            ax3.hist(
-                weights[best_i, np.arange(151)],
-                alpha=0.3,
-                label=run.run_id,
-                # bins=30,
-                # bins=np.linspace(-3000, 3000, 101),
-                bins=np.linspace(-0.5, 2.5, 51),
-            )
-
-        ax1.set_xlim(0, 1)
-        ax1.set_xlabel("Variance Explained")
-        ax1.set_ylabel("Count of 151 Classes")
-        ax1.legend()
-        ax1.spines[["top", "right"]].set_visible(False)
-
-        ax2.set_title("Bias Term Distribution")
-        # ax2.set_yscale("log")
-        ax2.legend()
-        ax2.spines[["top", "right"]].set_visible(False)
-
-        ax3.set_title("Weight Term Distribution")
-        # ax3.set_yscale("log")
-        ax3.legend()
-        ax3.spines[["top", "right"]].set_visible(False)
-
-        return fig
-
-    _()
-    return
 
 
 if __name__ == "__main__":

@@ -1,3 +1,13 @@
+# uv run scripts/launch.py probe1d \
+#   --run /fs/ess/PAS2136/samuelstevens/saev/runs/xc0h7cq7/ \
+#   --train-shards /fs/scratch/PAS2136/samuelstevens/saev/shards/781f8739 \
+#   --test-shards /fs/scratch/PAS2136/samuelstevens/saev/shards/5e195bbf \
+#   --slurm-acct PAS2136 \
+#   --slurm-partition nextgen \
+#   --n-hours 4 \
+#   --device cuda
+
+
 def make_cfgs():
     import os.path
 
@@ -52,7 +62,7 @@ def make_cfgs():
             # "knglrhzb",
             # "21d1kgyk",
             # "jt45lucm",
-            "6hrok1al",
+            # "6hrok1al",
             # "qrjtyj70",
             # "3j06kxdt",
             "g4dexqq1",
@@ -68,13 +78,13 @@ def make_cfgs():
             "36ztscy4",
         ],
     }
-
-    for layer, ids in run_ids.items():
+    for _, ids in run_ids.items():
         for id in ids:
-            for shards in [dinov3_vits_ade20k_train, dinov3_vits_ade20k_val]:
-                cfgs.append({
-                    "run": os.path.join(run_root, id),
-                    "data": {"shards": shards, "layer": layer},
-                })
+            cfgs.append({
+                "run": os.path.join(run_root, id),
+                "train_shards": dinov3_vits_ade20k_train,
+                "test_shards": dinov3_vits_ade20k_val,
+                "debug": True,
+            })
 
     return cfgs

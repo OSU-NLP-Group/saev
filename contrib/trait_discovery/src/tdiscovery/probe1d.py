@@ -12,14 +12,19 @@ The public surface area is intentionally small and designed to be used by tests 
 """
 
 import dataclasses
+import datetime
+import json
 import logging
 import math
 import pathlib
+import time
 import typing as tp
 from collections.abc import Iterator
 
 import beartype
+import cloudpickle
 import numpy as np
+import psutil
 import scipy.sparse
 import sklearn.base
 import torch
@@ -27,6 +32,7 @@ import tyro
 from jaxtyping import Bool, Float, Int, jaxtyped
 from torch import Tensor
 
+import saev.configs
 import saev.data
 import saev.disk
 import saev.helpers
@@ -142,7 +148,7 @@ class Reference1DProbe(sklearn.base.BaseEstimator):
         self.n_iter_: int = 0
         self._fitted: bool = False
 
-        self.logger = logging.getLogger("reference")
+        self.log = logging.getLogger("reference")
 
     def fit(self, X, y):
         """
@@ -341,7 +347,7 @@ class Reference1DProbe(sklearn.base.BaseEstimator):
                         loss_candidate = loss_curr
 
             step_max_candidate = max(abs(db), abs(dw))
-            self.logger.info(
+            self.log.info(
                 "iter=%d grad_max=%.3e, step_max=%.3e lambda_mean=%.3e",
                 it,
                 grad_max,
@@ -382,7 +388,7 @@ class Reference1DProbe(sklearn.base.BaseEstimator):
             self.coef_[0] = float(w)
             self.intercept_[0] = float(b)
             self._fitted = True
-            self.logger.info("termination: %s", termination_reason)
+            self.log.info("termination: %s", termination_reason)
             return self
 
         self.weight_ = float(w)
@@ -468,9 +474,11 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
         self.eps = 1e-8
         self.fallback_step_scale = 1e-3
 
-        self.logger = logging.getLogger("sparse1d")
+        self.log = logging.getLogger("sparse1d")
+        self.stats_log = logging.getLogger("stats")
         self.device = torch.device(device)
         self.dtype = dtype
+        self._psutil_proc = psutil.Process()
 
         self.max_iter = max_iter
 
@@ -518,8 +526,8 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
         total_bytes = values_bytes + crow_bytes + col_bytes
         target_value_bytes = nnz * torch.tensor([], dtype=torch.float32).element_size()
         total_bytes_target = target_value_bytes + crow_bytes + col_bytes
-        if self.logger.isEnabledFor(logging.INFO):
-            self.logger.info(
+        if self.log.isEnabledFor(logging.INFO):
+            self.log.info(
                 "Sparse design stats before device transfer: shape=%s, nnz=%d, values_dtype=%s, crow_dtype=%s, col_dtype=%s, approx_bytes=%.2f GiB, approx_bytes_target=%.2f GiB",
                 tuple(x.shape),
                 nnz,
@@ -624,10 +632,10 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
 
             for iter_idx in range(self.max_iter):
                 iter_count = iter_idx + 1
-                track_vram = self.device.type == "cuda" and self.logger.isEnabledFor(
+                log_vram = self.device.type == "cuda" and self.stats_log.isEnabledFor(
                     logging.DEBUG
                 )
-                if track_vram:
+                if log_vram:
                     torch.cuda.reset_peak_memory_stats(self.device)
 
                 stats = self._compute_slab_stats(
@@ -723,9 +731,11 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
                 scaled_step = torch.maximum(db.abs(), (qx * dw).abs())
                 step_norm = scaled_step.max().item()
                 lambda_mean = float(lam.mean().item())
+                rss_gb = self._rss_gb()
 
-                debug_enabled = self.logger.isEnabledFor(logging.DEBUG)
-                if debug_enabled:
+                if self.log.isEnabledFor(logging.DEBUG) or (
+                    self.stats_log.isEnabledFor(logging.DEBUG)
+                ):
                     self._debug_last = {
                         "g0": g0,
                         "g1": g1,
@@ -766,47 +776,45 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
 
                 vram_alloc_mb: float | None = None
                 vram_reserved_mb: float | None = None
-                if track_vram:
+                if log_vram:
                     torch.cuda.synchronize(self.device)
                     alloc = torch.cuda.max_memory_allocated(self.device)
                     reserved = torch.cuda.max_memory_reserved(self.device)
                     vram_alloc_mb = float(alloc) / (1024 * 1024)
                     vram_reserved_mb = float(reserved) / (1024 * 1024)
-                    self.logger.debug(
-                        "slab=%s iter=%d grad_max=%.3e step_max=%.3e lambda_mean=%.3e loss_mean=%.3e loss_max=%.3e rho_mean=%.3e rho_min=%.3e success_frac=%.3f fallback=%d step_clipped=%d pred_mean=%.3e peak_alloc_mb=%.2f peak_reserved_mb=%.2f",
-                        (c0, c1),
-                        iter_idx,
-                        grad_norm,
-                        step_norm,
-                        lambda_mean,
-                        loss_mean,
-                        loss_max,
-                        rho_mean,
-                        rho_min,
-                        success_frac,
-                        fallback_count,
-                        step_clipped_count,
-                        pred_success_mean,
-                        vram_alloc_mb,
-                        vram_reserved_mb,
-                    )
-                elif debug_enabled:
-                    self.logger.debug(
-                        "slab=%s iter=%d grad_max=%.3e step_max=%.3e lambda_mean=%.3e loss_mean=%.3e loss_max=%.3e rho_mean=%.3e rho_min=%.3e success_frac=%.3f fallback=%d step_clipped=%d pred_mean=%.3e",
-                        (c0, c1),
-                        iter_idx,
-                        grad_norm,
-                        step_norm,
-                        lambda_mean,
-                        loss_mean,
-                        loss_max,
-                        rho_mean,
-                        rho_min,
-                        success_frac,
-                        fallback_count,
-                        step_clipped_count,
-                        pred_success_mean,
-                    )
+
+                if self.stats_log.isEnabledFor(logging.DEBUG):
+
+                    def _finite_or_none(value: float | None) -> float | None:
+                        if value is None:
+                            return None
+                        if math.isfinite(value):
+                            return float(value)
+                        return None
+
+                    event = {
+                        "timestamp": datetime.datetime.now(
+                            datetime.timezone.utc
+                        ).isoformat(),
+                        "event": "probe_iteration",
+                        "slab": [c0, c1],
+                        "iter": iter_idx,
+                        "grad_max": _finite_or_none(grad_norm),
+                        "step_max": _finite_or_none(step_norm),
+                        "lambda_mean": _finite_or_none(lambda_mean),
+                        "loss_mean": _finite_or_none(loss_mean),
+                        "loss_max": _finite_or_none(loss_max),
+                        "rho_mean": _finite_or_none(rho_mean),
+                        "rho_min": _finite_or_none(rho_min),
+                        "success_frac": _finite_or_none(success_frac),
+                        "fallback": int(fallback_count),
+                        "step_clipped": int(step_clipped_count),
+                        "pred_mean": _finite_or_none(pred_success_mean),
+                        "peak_alloc_mb": _finite_or_none(vram_alloc_mb),
+                        "peak_reserved_mb": _finite_or_none(vram_reserved_mb),
+                        "rss_gb": _finite_or_none(rss_gb),
+                    }
+                    self.stats_log.debug(json.dumps(event))
 
                 if torch.all(grad_abs <= self.tol) or (
                     grad_norm < self.tol and step_norm < self.tol
@@ -822,6 +830,13 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
         self.intercept_ = intercept.to(self.dtype)
         self.coef_ = coef.to(self.dtype)
         return self
+
+    def _rss_gb(self) -> float | None:
+        try:
+            rss_bytes = self._psutil_proc.memory_info().rss
+        except psutil.Error:
+            return None
+        return float(rss_bytes) / (1024**3)
 
     def _compute_slab_stats(
         self,
@@ -942,8 +957,8 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
             lam_failed = lam_curr[failed]
             g0_failed = g0[failed].abs().max().item() if n_fail > 0 else 0.0
             g1_failed = g1[failed].abs().max().item() if n_fail > 0 else 0.0
-            if self.logger.isEnabledFor(logging.WARNING):
-                self.logger.warning(
+            if self.log.isEnabledFor(logging.WARNING):
+                self.log.warning(
                     "LM step fallback: n_fail=%d lam_min=%.3e lam_max=%.3e "
                     "grad_max=(%.3e, %.3e)",
                     n_fail,
@@ -1339,7 +1354,7 @@ class Config:
     """Number of classes to optimize in parallel."""
     row_batch_size: int = 1024
     """Number of rows to query per batch."""
-    max_iter: int = 100
+    max_iter: int = 30
     """Number of iterations in the solver."""
     debug: bool = False
     """Debug logging."""
@@ -1377,6 +1392,41 @@ def worker_fn(cfg: Config) -> int:
     level = logging.DEBUG if cfg.debug else logging.INFO
     logging.basicConfig(level=level, format=log_format)
     logger = logging.getLogger("probe1d")
+    stats_log = logging.getLogger("stats")
+
+    def log_host_mem(event: str, **fields: object) -> None:
+        if not stats_log.isEnabledFor(logging.DEBUG):
+            return
+        peak_alloc_gb: float | None = None
+        if torch.cuda.is_available():
+            try:
+                alloc_bytes = torch.cuda.max_memory_allocated()
+            except RuntimeError:
+                peak_alloc_gb = None
+            else:
+                peak_alloc_gb = float(alloc_bytes) / (1024**3)
+        try:
+            rss_bytes = psutil.Process().memory_info().rss
+            rss_gb = float(rss_bytes) / (1024**3)
+        except psutil.Error:
+            rss_gb = None
+
+        event: dict[str, object] = {
+            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "event": event,
+            "rss_gb": rss_gb,
+        }
+        if peak_alloc_gb is not None:
+            event["peak_alloc_gb"] = peak_alloc_gb
+        for key, value in fields.items():
+            if value is None:
+                continue
+            if isinstance(value, (pathlib.Path,)):
+                event[key] = str(value)
+            else:
+                event[key] = value
+
+        stats_log.debug(json.dumps(event))
 
     logger.info("Started main().")
     if cfg.device == "cuda" and not torch.cuda.is_available():
@@ -1449,11 +1499,27 @@ def worker_fn(cfg: Config) -> int:
     test_md = saev.data.Metadata.load(test_shards_dpath)
     logger.info("Loaded test metadata from %s.", test_shards_dpath)
 
+    log_host_mem(
+        "load_csr_ram_start",
+        split="train",
+        fpath=str(train_token_acts_fpath),
+    )
     train_token_acts_csr = scipy.sparse.load_npz(train_token_acts_fpath)
     logger.info(
         "Loaded train activations: shape=%s, nnz=%d.",
         train_token_acts_csr.shape,
         train_token_acts_csr.nnz,
+    )
+    log_host_mem(
+        "load_csr_ram_end",
+        split="train",
+        nnz=int(train_token_acts_csr.nnz),
+        shape=list(train_token_acts_csr.shape),
+    )
+    log_host_mem(
+        "load_csr_ram_start",
+        split="test",
+        fpath=str(test_token_acts_fpath),
     )
     test_token_acts_csr = scipy.sparse.load_npz(test_token_acts_fpath)
     logger.info(
@@ -1461,15 +1527,24 @@ def worker_fn(cfg: Config) -> int:
         test_token_acts_csr.shape,
         test_token_acts_csr.nnz,
     )
+    log_host_mem(
+        "load_csr_ram_end",
+        split="test",
+        nnz=int(test_token_acts_csr.nnz),
+        shape=list(test_token_acts_csr.shape),
+    )
 
     train_n_samples, train_n_latents = train_token_acts_csr.shape
     test_n_samples, test_n_latents = test_token_acts_csr.shape
 
+    log_host_mem("load_csr_vram_start", split="train", device=cfg.device)
     train_token_acts = sp_csr_to_pt(train_token_acts_csr, device=cfg.device)
-    logger.info("Converted train activations to Tensor on %s.", cfg.device)
-
+    logger.info("Converted train activations to tensor on %s.", cfg.device)
+    log_host_mem("load_csr_vram_end", split="train", device=cfg.device)
+    log_host_mem("load_csr_vram_start", split="test", device=cfg.device)
     test_token_acts = sp_csr_to_pt(test_token_acts_csr, device=cfg.device)
-    logger.info("Converted test activations to Tensor on %s.", cfg.device)
+    logger.info("Converted test activations to tensor on %s.", cfg.device)
+    log_host_mem("load_csr_vram_end", split="test", device=cfg.device)
 
     train_n_expected = train_md.n_examples * train_md.content_tokens_per_example
     if train_n_expected != train_n_samples:
@@ -1513,13 +1588,16 @@ def worker_fn(cfg: Config) -> int:
         test_max_label,
     )
 
+    log_host_mem("one_hot_start", split="train")
     train_labels_flat = train_labels_mem.reshape(train_n_samples)
     train_labels_arr = np.zeros((train_n_samples, n_classes), dtype=np.float32)
     train_labels_arr[np.arange(train_n_samples), train_labels_flat] = 1.0
     train_labels = torch.from_numpy(train_labels_arr)
+    log_host_mem("one_hot_end", split="train")
     logger.info("Created train one-hot labels: shape=%s.", train_labels.shape)
 
     test_labels_flat = test_labels_mem.reshape(test_n_samples)
+    log_host_mem("one_hot_start", split="test")
     test_labels_arr = np.zeros((test_n_samples, n_classes), dtype=np.float32)
     if np.any(test_labels_flat >= n_classes):
         logger.error(
@@ -1528,6 +1606,7 @@ def worker_fn(cfg: Config) -> int:
         return 1
     test_labels_arr[np.arange(test_n_samples), test_labels_flat] = 1.0
     test_labels = torch.from_numpy(test_labels_arr)
+    log_host_mem("one_hot_end", split="test")
     logger.info("Created test one-hot labels: shape=%s.", test_labels.shape)
 
     if train_n_latents != test_n_latents:
@@ -1557,10 +1636,12 @@ def worker_fn(cfg: Config) -> int:
     probe.fit(train_token_acts, train_labels)
     logger.info("Fit probe.")
 
+    log_host_mem("loss_matrix_start", split="train")
     train_loss, train_tp, train_fp, train_tn, train_fn = probe.loss_matrix_with_aux(
         train_token_acts,
         train_labels.bool(),
     )
+    log_host_mem("loss_matrix_end", split="train")
     logger.info("Computed train metrics on %d samples.", train_n_samples)
 
     train_out_fpath = train_inference_dpath / "probe1d_metrics.npz"
@@ -1579,10 +1660,12 @@ def worker_fn(cfg: Config) -> int:
 
     logger.info("Saved train probe outputs to %s.", train_out_fpath)
 
+    log_host_mem("loss_matrix_start", split="test")
     loss, tp, fp, tn, fn = probe.loss_matrix_with_aux(
         test_token_acts,
         test_labels.bool(),
     )
+    log_host_mem("loss_matrix_end", split="test")
     logger.info("Computed test metrics on %d samples.", test_n_samples)
 
     out_fpath = test_inference_dpath / "probe1d_metrics.npz"
@@ -1605,12 +1688,15 @@ def worker_fn(cfg: Config) -> int:
 
 
 @beartype.beartype
-def cli(cfg: tp.Annotated[Config, tyro.conf.arg(name="")]) -> int:
+def cli(
+    cfg: tp.Annotated[Config, tyro.conf.arg(name="")], sweep: pathlib.Path | None = None
+) -> int:
     """
     Fit a sparse 1D probe to each combination of SAE latent and segmentation class.
 
     Args:
         cfg: Config.
+        sweep: Optional sweep file that expands into many configs.
     """
     log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
     level = logging.DEBUG if cfg.debug else logging.INFO
@@ -1619,31 +1705,93 @@ def cli(cfg: tp.Annotated[Config, tyro.conf.arg(name="")]) -> int:
 
     logger.info("Started cli().")
 
-    if cfg.slurm_acct:
-        import submitit
-
-        executor = submitit.SlurmExecutor(folder=cfg.log_to)
-        n_cpus = 8
-        if cfg.mem_gb // 10 > n_cpus:
-            logger.info(
-                "Using %d CPUs instead of %d to get more RAM.", cfg.mem_gb // 10, n_cpus
-            )
-            n_cpus = cfg.mem_gb // 10
-        executor.update_parameters(
-            time=int(cfg.n_hours * 60),
-            partition=cfg.slurm_partition,
-            gpus_per_node=1,
-            ntasks_per_node=1,
-            cpus_per_task=n_cpus,
-            stderr_to_stdout=True,
-            account=cfg.slurm_acct,
-        )
-        job = executor.submit(worker_fn, cfg)
-        logger.info("Running job '%s'.", job.job_id)
-        job.result()
-
+    sweep_fpath = sweep
+    if sweep_fpath is None:
+        cfgs = [cfg]
     else:
-        worker_fn(cfg)
+        sweep_dcts = saev.configs.load_sweep(sweep_fpath)
+        if not sweep_dcts:
+            logger.error("No valid sweeps found in '%s'.", sweep_fpath)
+            return 1
+
+        cfgs, errs = saev.configs.load_cfgs(
+            cfg,
+            default=Config(),
+            sweep_dcts=sweep_dcts,
+        )
+        if errs:
+            for err in errs:
+                logger.warning("Error in config: %s", err)
+            return 1
+
+    if not cfgs:
+        logger.error("No configs resolved for probe1d sweep.")
+        return 1
+
+    logger.info("Prepared %d config(s).", len(cfgs))
+
+    base_cfg = cfgs[0]
+    if any(c.slurm_acct != base_cfg.slurm_acct for c in cfgs):
+        logger.error("All configs must share the same slurm_acct.")
+        return 1
+    if any(c.slurm_partition != base_cfg.slurm_partition for c in cfgs):
+        logger.error("All configs must share the same slurm_partition.")
+        return 1
+    if any(c.log_to != base_cfg.log_to for c in cfgs):
+        logger.error("All configs must share the same log directory.")
+        return 1
+
+    if not base_cfg.slurm_acct:
+        for idx, cfg_item in enumerate(cfgs, start=1):
+            logger.info("Running config %d/%d locally.", idx, len(cfgs))
+            worker_fn(cfg_item)
+        logger.info("Jobs done.")
+        return 0
+
+    import submitit
+    from submitit.core.utils import UncompletedJobError
+
+    executor = submitit.SlurmExecutor(folder=base_cfg.log_to)
+    n_cpus = 8
+    if base_cfg.mem_gb // 10 > n_cpus:
+        logger.info(
+            "Using %d CPUs instead of %d to get more RAM.",
+            base_cfg.mem_gb // 10,
+            n_cpus,
+        )
+        n_cpus = base_cfg.mem_gb // 10
+    executor.update_parameters(
+        time=int(base_cfg.n_hours * 60),
+        partition=base_cfg.slurm_partition,
+        gpus_per_node=1,
+        ntasks_per_node=1,
+        cpus_per_task=n_cpus,
+        stderr_to_stdout=True,
+        account=base_cfg.slurm_acct,
+    )
+
+    try:
+        cloudpickle.dumps(worker_fn)
+        for cfg_item in cfgs:
+            cloudpickle.dumps(cfg_item)
+    except TypeError as err:
+        logger.error("Failed to pickle job payload: %s", err)
+        return 1
+
+    with executor.batch():
+        jobs = [executor.submit(worker_fn, cfg_item) for cfg_item in cfgs]
+
+    time.sleep(5.0)
+
+    for idx, job in enumerate(jobs, start=1):
+        logger.info("Job %d/%d: %s %s", idx, len(jobs), job.job_id, job.state)
+
+    for idx, job in enumerate(jobs, start=1):
+        try:
+            job.result()
+            logger.info("Job %d/%d finished.", idx, len(jobs))
+        except UncompletedJobError:
+            logger.warning("Job %s (%d) did not finish.", job.job_id, idx)
 
     logger.info("Jobs done.")
     return 0
