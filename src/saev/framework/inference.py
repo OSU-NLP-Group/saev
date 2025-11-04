@@ -1,13 +1,20 @@
 """
 Script for dumping image-level activations in a single pass over the dataset.
 
-Dumps 5 files:
+Dumps 6 files:
 
 1. mean_values.pt
 2. sparsity.pt
 3. distributions.pt
 4. token_acts.npz
 5. percentiles_p99.pt
+6. metrics.json
+
+metrics.json contains some individual metrics that are useful for reporting:
+
+* normalized_mse (float): reconstruction sum squared SAE error / reconstruction sum squared mean baseline error
+* sse_sae (float): reconstruction sum squared SAE error, which is ((x - x_hat) ** 2).sum() to get a scalar where x_hat is the output of SAE(x).
+* sse_baseline (float): reconstruction sum squared mean baseline error, which is ((x - x_bar) ** 2).sum(dim=0) to get a scalar where x_bar is the mean vector of all x.
 """
 
 import dataclasses
@@ -15,6 +22,7 @@ import logging
 import os
 import pathlib
 import sys
+import time
 import typing as tp
 
 import beartype
@@ -81,6 +89,7 @@ def worker_fn(cfg: Config):
     distributions_fpath = root / "distributions.pt"
     token_acts_fpath = root / "token_acts.npz"
     percentiles_fpath = root / f"percentiles_p{cfg.percentile}.pt"
+    metrics_fpath = root / "metrics.json"
 
     # Check if we need to compute activations
     fpaths = [
@@ -89,6 +98,7 @@ def worker_fn(cfg: Config):
         distributions_fpath,
         percentiles_fpath,
         token_acts_fpath,
+        metrics_fpath,
     ]
     missing = [fpath for fpath in fpaths if not fpath.exists()]
     need_compute = cfg.force_recompute or bool(missing)
@@ -186,6 +196,9 @@ def worker_fn(cfg: Config):
     torch.save(distributions_nm.cpu(), distributions_fpath)
     torch.save(estimator.estimate.cpu(), percentiles_fpath)
 
+    # Metrics
+    # TODO
+
 
 @beartype.beartype
 def main(
@@ -218,36 +231,47 @@ def main(
     assert all(c.slurm_acct == cfgs[0].slurm_acct for c in cfgs)
     cfg = cfgs[0]
 
-    if cfg.slurm_acct:
-        import submitit
+    if not cfg.slurm_acct:
+        for i, cfg_item in enumerate(cfgs, start=1):
+            logger.info("Running config %d/%d locally.", i, len(cfgs))
+            worker_fn(cfg_item)
+        logger.info("Jobs done.")
+        return 0
 
-        executor = submitit.SlurmExecutor(folder=cfg.log_to)
+    import submitit
 
-        n_cpus = 8
-        if cfg.mem_gb // 10 > n_cpus:
-            logger.info(
-                "Using %d CPUs instead of %d to get more RAM.", cfg.mem_gb // 10, n_cpus
-            )
-            n_cpus = cfg.mem_gb // 10
+    executor = submitit.SlurmExecutor(folder=cfg.log_to)
 
-        executor.update_parameters(
-            time=int(cfg.n_hours * 60),
-            partition=cfg.slurm_partition,
-            gpus_per_node=1,
-            ntasks_per_node=1,
-            cpus_per_task=n_cpus,
-            stderr_to_stdout=True,
-            account=cfg.slurm_acct,
+    n_cpus = 8
+    if cfg.mem_gb // 10 > n_cpus:
+        logger.info(
+            "Using %d CPUs instead of %d to get more RAM.", cfg.mem_gb // 10, n_cpus
         )
-        with executor.batch():
-            jobs = [executor.submit(worker_fn, c) for c in cfgs]
+        n_cpus = cfg.mem_gb // 10
 
-        logger.info(f"Submitted {len(jobs)} job(s).")
-        for j, job in enumerate(jobs):
+    executor.update_parameters(
+        time=int(cfg.n_hours * 60),
+        partition=cfg.slurm_partition,
+        gpus_per_node=1,
+        ntasks_per_node=1,
+        cpus_per_task=n_cpus,
+        stderr_to_stdout=True,
+        account=cfg.slurm_acct,
+    )
+    with executor.batch():
+        jobs = [executor.submit(worker_fn, c) for c in cfgs]
+
+    time.sleep(5.0)
+
+    for i, job in enumerate(jobs, start=1):
+        logger.info("Job %d/%d: %s %s", i, len(jobs), job.job_id, job.state)
+
+    for i, job in enumerate(jobs, start=1):
+        try:
             job.result()
-            logger.info(f"Job {job.job_id} finished ({j + 1}/{len(jobs)}).")
-    else:
-        for c in cfgs:
-            worker_fn(c)
+            logger.info("Job %d/%d finished.", i, len(jobs))
+        except submitit.core.utils.UncompletedJobError:
+            logger.warning("Job %s (%d) did not finish.", job.job_id, i)
 
     logger.info("Jobs done.")
+    return 0
