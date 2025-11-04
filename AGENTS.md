@@ -18,13 +18,14 @@
 - Only use ascii characters. If you would use unicode to represent math, use pseudo-LaTeX instead in comments: 10⁶ should be 10^6, 3×10⁷ should be 3x10^7.
 - Prefix variables with `n_` for totals and cardinalities, but ignore it for dimensions `..._per_...` and dimensions. Examples: `n_examples`, `n_models`, but `tokens_per_example`, `examples_per_shard`
 - Public docs for developers and users are in markdown in docs/src. Internal, messier design and implementation docs are in markdown in docs/research/issues. Both are valuable sources of context when getting started.
+- Try to keep code short. Shorter code is in principle easier to read. If variable names are really long, shorten based on conventions in this codebase (..._indices -> ..._i). Since you use `uvx ruff format --preview`, if you can make a small variable name change to fit everything on one line, that's a good idea. When variables are used once, simply inline it.
 
 # No hacks: ask for help instead
 
 Due to the difficulty of implementing this codebase, we must strive to keep the code high quality, clean, modular, simple and functional; more like an Agda codebase, less like a C codebase.
 Hacks and duct tape must be COMPLETELY AVOIDED, in favor of robust, simple and general solutions.
 In some cases, you will be asked to perform a seemingly impossible task, either because it is (and the developer is unaware), or because you don't grasp how to do it properly.
-In these cases, DO NOT ATTEMPT TO IMPLEMENT A HALF-BAKED SOLUTION JUST TO SATISFY THE DEVELOPER'S REQUEST.
+In these cases, do not attempt to implement a half-baked solution just to satisfy the developer's request.
 If the task seems too hard, be honest that you couldn't solve it in the proper way, leave the code unchanged, explain the situation to the developer and ask for further feedback and clarifications.
 The developer is a domain expert that will be able to assist you in these cases.
 
