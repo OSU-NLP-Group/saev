@@ -116,7 +116,7 @@ def worker_fn(cfg: Config):
         )
 
     with open(root / "config.json", "wb") as fd:
-        helpers.dump(cfg, fd)
+        helpers.jdump(cfg, fd)
 
     assert cfg.data.tokens == "content"
     sae = nn.load(run.ckpt).to(cfg.device)

@@ -410,12 +410,12 @@ def _dumps_default(obj: object):
 
 
 @beartype.beartype
-def dump(obj: object, fd: tp.BinaryIO, *, option: int | None = None):
-    fd.write(dumps(obj, option=option))
+def jdump(obj: object, fd: tp.BinaryIO, *, option: int | None = None):
+    fd.write(jdumps(obj, option=option))
 
 
 @beartype.beartype
-def dumps(obj: object, *, option: int | None = None) -> bytes:
+def jdumps(obj: object, *, option: int | None = None) -> bytes:
     return orjson.dumps(obj, option=option, default=_dumps_default)
 
 

@@ -80,7 +80,7 @@ class Metadata:
         assert self.examples_per_shard >= 1, msg
 
         try:
-            helpers.dumps(self.data)
+            helpers.jdumps(self.data)
         except TypeError as err:
             raise TypeError("self.data has an unhashable object") from err
 
@@ -111,7 +111,7 @@ class Metadata:
         assert disk.is_shards_root(shards_root)
         (shards_root / self.hash).mkdir(exist_ok=True)
         with open(shards_root / self.hash / "metadata.json", "wb") as fd:
-            helpers.dump(self, fd, option=orjson.OPT_INDENT_2)
+            helpers.jdump(self, fd, option=orjson.OPT_INDENT_2)
 
     @property
     def hash(self) -> str:
@@ -121,7 +121,7 @@ class Metadata:
         Returns:
             Hexadecimal hash string uniquely identifying this configuration.
         """
-        cfg_bytes = helpers.dumps(self, option=orjson.OPT_SORT_KEYS)
+        cfg_bytes = helpers.jdumps(self, option=orjson.OPT_SORT_KEYS)
         return hashlib.sha256(cfg_bytes).hexdigest()[:8]
 
     @property
@@ -555,7 +555,7 @@ class ShardInfo:
     def dump(self, shards_dir: pathlib.Path) -> None:
         assert disk.is_shards_dir(shards_dir)
         with open(shards_dir / "shards.json", "wb") as fd:
-            helpers.dump(self.shards, fd, option=orjson.OPT_INDENT_2)
+            helpers.jdump(self.shards, fd, option=orjson.OPT_INDENT_2)
 
     def append(self, shard: Shard):
         self.shards.append(shard)

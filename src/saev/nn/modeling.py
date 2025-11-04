@@ -315,7 +315,7 @@ def dump(fpath: pathlib.Path | str, sae: SparseAutoencoder):
     fpath = pathlib.Path(fpath)
     fpath.parent.mkdir(exist_ok=True, parents=True)
     with open(fpath, "wb") as fd:
-        helpers.dump(header, fd, option=orjson.OPT_APPEND_NEWLINE)
+        helpers.jdump(header, fd, option=orjson.OPT_APPEND_NEWLINE)
         torch.save(sae.state_dict(), fd)
 
 

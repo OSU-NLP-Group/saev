@@ -161,7 +161,7 @@ def worker_fn(cfgs: list[Config]) -> list[str]:
         nn.dump(run.ckpt, sae)
         logger.info("Dumped checkpoint to '%s'.", run.ckpt)
         with open(run.run_dir / "checkpoint" / "config.json", "wb") as fd:
-            helpers.dump(cfg, fd, option=orjson.OPT_INDENT_2)
+            helpers.jdump(cfg, fd, option=orjson.OPT_INDENT_2)
 
     return ids
 
