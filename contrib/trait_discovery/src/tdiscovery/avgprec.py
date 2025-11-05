@@ -20,8 +20,7 @@ import numpy as np
 import torch
 import tyro
 
-import saev.data.datasets
-import saev.data.transforms
+import saev.configs
 import saev.disk
 import saev.helpers
 
@@ -72,7 +71,7 @@ def worker_fn(cfg: Config):
 
     run = saev.disk.Run(cfg.run)
 
-    train_inference_dpath = run.inference / cfg.test_shards.name
+    train_inference_dpath = run.inference / cfg.train_shards.name
     train_token_acts_fpath = train_inference_dpath / "token_acts.npz"
 
     if not train_token_acts_fpath.exists():
@@ -96,13 +95,40 @@ def worker_fn(cfg: Config):
 
     # Look at the call to np.saevz in probe1d.py
     with np.load(train_probe_metrics_fpath) as fd:
-        train_loss = fd["loss"]
-        w = fd["weights"]
-        b = fd["biases"]
+        train_loss_lc = fd["loss"]
+        weights_lc = fd["weights"]
+        biases_lc = fd["biases"]
 
-    # TODO: Choose best latents for each class using minimum train_loss for each class.
-    # TODO: Measure AP using labels from the validation shards and inputs from SAE activations.
-    # Since validation is typically small (< 1M examples) and we only care about the best latents (151 for ADE20K) we can just put it all in GPU memory (1M x 151 x 4 bytes = 604MB) and do one inference pass. Furthermore, we can use the GPU to do the AP calculation.
+    if train_loss_lc.ndim != 2:
+        msg = f"Expected train loss to be 2D (latents x classes); found shape {train_loss_lc.shape}."
+        logger.error(msg)
+        raise ValueError(msg)
+
+    if (
+        weights_lc.shape != train_loss_lc.shape
+        or biases_lc.shape != train_loss_lc.shape
+    ):
+        msg = "Probe metric shapes are inconsistent: loss{train_loss_lc.shape}, weights{weights_lc.shape}, biases{biases_lc.shape}."
+        logger.error(msg)
+        raise ValueError(msg)
+    n_latents, n_classes = train_loss_lc.shape
+
+    best_latent_idx_c = np.argmin(train_loss_lc, axis=0)
+    class_idx_c = np.arange(n_classes)
+    best_train_loss_c = train_loss_lc[best_latent_idx_c, class_idx_c]
+    best_weights_c = weights_lc[best_latent_idx_c, class_idx_c]
+    best_biases_c = biases_lc[best_latent_idx_c, class_idx_c]
+
+    logger.info(
+        "Selected best latents per class: n_classes=%d, unique_latents=%d, train_loss[mean]=%.6f, train_loss[min]=%.6f, train_loss[max]=%.6f.",
+        n_classes,
+        np.unique(best_latent_idx_c).size,
+        best_train_loss_c.mean().item(),
+        best_train_loss_c.min().item(),
+        best_train_loss_c.max().item(),
+    )
+
+    # TODO: Measure AP using labels from the validation shards and inputs from SAE activations. Since validation is typically small (< 1M examples) and we only care about the best latents (151 for ADE20K) we can just put it all in GPU memory (1M x 151 x 4 bytes = 604MB) and do one inference pass. Furthermore, we can use the GPU to do the AP calculation.
     raise NotImplementedError()
 
 
