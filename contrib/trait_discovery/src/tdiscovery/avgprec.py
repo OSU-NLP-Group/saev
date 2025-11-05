@@ -192,8 +192,10 @@ def worker_fn(cfg: Config):
         ap_c.max().item(),
     )
 
-    # TODO: Persist AP results and integrate with downstream evaluation tooling.
-    raise NotImplementedError()
+    avgprec_fname = f"avgprec__train-{cfg.train_shards.name}.npz"
+    avgprec_fpath = val_inference_dpath / avgprec_fname
+    np.savez(avgprec_fpath, ap=ap_c)
+    logger.info("Saved validation AP vector to '%s'.", avgprec_fpath)
 
 
 @beartype.beartype
@@ -239,10 +241,16 @@ def cli(
         return 1
 
     if not base_cfg.slurm_acct:
+        n_errs = 0
         for idx, c in enumerate(cfgs, start=1):
-            logger.info("Running config %d/%d locally.", idx, len(cfgs))
-            worker_fn(c)
-        logger.info("Jobs done.")
+            try:
+                logger.info("Running config %d/%d locally.", idx, len(cfgs))
+                worker_fn(c)
+            except Exception as err:
+                logger.exception("Error with job %d/%d: %s", idx, len(cfgs), err)
+                n_errs += 1
+
+        logger.info("Jobs done. %d error(s)", n_errs)
         return 0
 
     return 0
