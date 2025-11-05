@@ -20,9 +20,9 @@ import numpy as np
 import torch
 import tyro
 
-import saev.data
 import saev.data.datasets
 import saev.data.transforms
+import saev.disk
 import saev.helpers
 
 log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
@@ -70,10 +70,29 @@ def worker_fn(cfg: Config):
         logger.warning("No CUDA device available, using CPU.")
         cfg = dataclasses.replace(cfg, device="cpu")
 
-    # TODO: check that the train shard SAE acts exist.
-    # TODO: check that the val shard SAE acts exist.
-    # TODO: check that the train probe metrics exist.
-    # See docs/src/developers/disk-layout.md, src/save/disk.py and probe1d.py for how to do this.
+    run = saev.disk.Run(cfg.run)
+
+    train_inference_dpath = run.inference / cfg.test_shards.name
+    train_token_acts_fpath = train_inference_dpath / "token_acts.npz"
+
+    if not train_token_acts_fpath.exists():
+        msg = f"Train SAE activations missing: '{train_token_acts_fpath}'. Run inference.py."
+        logger.error(msg)
+        raise FileNotFoundError(msg)
+
+    val_inference_dpath = run.inference / cfg.test_shards.name
+    val_token_acts_fpath = val_inference_dpath / "token_acts.npz"
+
+    if not val_token_acts_fpath.exists():
+        msg = f"Validation SAE activations missing: '{val_token_acts_fpath}'. Run inference.py."
+        logger.error(msg)
+        raise FileNotFoundError(msg)
+
+    train_probe_metrics_fpath = train_inference_dpath / "probe1d_metrics.npz"
+    if not train_probe_metrics_fpath.exists():
+        msg = f"Probe metrics missing: '{train_probe_metrics_fpath}'. Run probe1d.py."
+        logger.error(msg)
+        raise FileNotFoundError(msg)
 
     # Look at the call to np.saevz in probe1d.py
     with np.load(train_probe_metrics_fpath) as fd:
@@ -88,24 +107,23 @@ def worker_fn(cfg: Config):
 
 
 @beartype.beartype
-def cli(cfg: tp.Annotated[Config, tyro.conf.arg(name="")], sweep: str) -> int:
+def cli(
+    cfg: tp.Annotated[Config, tyro.conf.arg(name="")], sweep: pathlib.Path | None = None
+) -> int:
     level = logging.DEBUG if cfg.debug else logging.INFO
     logging.basicConfig(level=level, format=log_format)
     logger = logging.getLogger("avgprec")
 
     logger.info("Started cli().")
 
-    if sweep:
-        sweep_fpath = pathlib.Path(sweep)
-        sweep_dcts = saev.configs.load_sweep(sweep_fpath)
+    if sweep is not None:
+        sweep_dcts = saev.configs.load_sweep(sweep)
         if not sweep_dcts:
-            logger.error("No valid sweeps found in '%s'.", sweep_fpath)
+            logger.error("No valid sweeps found in '%s'.", sweep)
             return 1
 
         cfgs, errs = saev.configs.load_cfgs(
-            cfg,
-            default=Config(),
-            sweep_dcts=sweep_dcts,
+            cfg, default=Config(), sweep_dcts=sweep_dcts
         )
         if errs:
             for err in errs:
@@ -119,4 +137,22 @@ def cli(cfg: tp.Annotated[Config, tyro.conf.arg(name="")], sweep: str) -> int:
         return 1
 
     logger.info("Prepared %d config(s).", len(cfgs))
+    base_cfg = cfgs[0]
+    if any(c.slurm_acct != base_cfg.slurm_acct for c in cfgs):
+        logger.error("All configs must share the same slurm_acct.")
+        return 1
+    if any(c.slurm_partition != base_cfg.slurm_partition for c in cfgs):
+        logger.error("All configs must share the same slurm_partition.")
+        return 1
+    if any(c.log_to != base_cfg.log_to for c in cfgs):
+        logger.error("All configs must share the same log directory.")
+        return 1
+
+    if not base_cfg.slurm_acct:
+        for idx, c in enumerate(cfgs, start=1):
+            logger.info("Running config %d/%d locally.", idx, len(cfgs))
+            worker_fn(c)
+        logger.info("Jobs done.")
+        return 0
+
     return 0
