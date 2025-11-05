@@ -2,7 +2,7 @@ def make_cfgs() -> list[dict]:
     batch_size: int = 1024 * 16
     n_train = 100_000_000
     cfgs = []
-    for lr in [3e-3, 1e-2, 3e-2, 1e-1, 3e-1, 1e0]:
+    for lr in [3e-4, 1e-3, 3e-3, 1e-2, 3e-2, 1e-1]:
         for sparsity_coeff in [1e-4, 1e-3, 1e-2, 1e-1]:
             for layer in [13, 15, 17, 19, 21, 23]:
                 cfgs.append({

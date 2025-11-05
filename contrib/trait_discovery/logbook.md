@@ -1262,3 +1262,36 @@ This is the core experiment, so it should be straightforward to described.
 - Matching Pursuit uses the final layer for many experiments, including many ViTs.
 - Matryoshka used layer 12/26 of Gemma 2 2B and layer 8/12 for Pythia 160M.
 - "Probing the Representational Power of Sparse Autoencoders in Vision Models" trained on every layer of DINOv2's [CLS] token.
+
+# 11/03/2025
+
+Broadly, there seems to be a trend of less sparse SAEs doing better at probing than sparser SAEs.
+This would imply (to me) more monosemantic features.
+
+A summary of my experiment:
+
+1. Train Matryoshka SAEs on the last 6/12 layers of DINOv3 ViT-S/16 activations from IN1K/train, sweeping LR and lambda
+2. Pick out 4-8 checkpoints that lie on the pareto frontier of MSE/L0 (manual step)
+3. Record the SAE activations on ADE20K train/val. So image -> dinov3 -> SAE -> save to disk, these are mostly 0s because of the S in SAE.
+4. Fit logistic regression probes (1d binary classification using cross entropy) on every (SAE latent, ADE20K class) pair using the SAE activations from ADE20K train.
+5. Pick the best SAE latent for each ADE20K class, then measure the binary cross entropy (loss) on the ADE20K val split.
+6. Measure R = 1 - val loss / baseline loss (the loss if you only fit a bias term, no weight term). Lower loss is better, higher R is better, loss is in [0, inf) and R is in (-inf, 1], with 0 being the same as getting baseline loss.
+7. For each layer, plot the tradeoff between SAE L0 on IN1K/val and probe R on ADE20K/val. Also fit a line for fun. 
+
+Basically, later layers are better AND better MSE/worse L0 is better.
+
+Jobs 2766385_11, 2766385_17, 2766385_18 and 2766385_19 didn't finish in contrib/trait_discovery. These are probably because iteration speed is slow (lots of non-zero elements) AND we hit 99 iterations for all classes. So either we need to beg the machine to go faster per iteration or do fewer iterations. Maybe we could inspect loss curves over each iteration and see if there is any meaningful improvement? Or figure out why we never exit early?
+
+Based on some feedback from Codex:
+
+1. The fallback path fires constantly (what is the fallback path?) which clamps the step size to fallback_step_scale * delta_logit = 6e-3, which makes it so that step norm never falls below the step norm. -> Should we set it up so that fallback steps are below the step norm? 
+2. Slabs take about 20 minutes. We could do larger slabs which might speed things up. This depends on VRAM though.
+3. If loss_mean is NaN (like it is in 2766385_17), what should we do? Reset some parameters? Try again? Declare those probes as failed?
+4. Some shards are simply too large. Perhaps those need to be run on the 80GB GPUs.
+
+# 11/05/2025
+
+Based on the graphs I've produced (see `dinov3_vit*16_in1k_ade20k_probe1d*.pdf`), I think that:
+
+- Maybe my SAEs are undertrained? I would like to run an ablation with 100M, 200M, 500M and 1B training tokens. Showing loss curves would be great (for the pareto optimal).
+- I am retraining some more ViT-L SAEs with better learning rates.
