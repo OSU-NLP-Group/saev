@@ -17,10 +17,11 @@ import typing as tp
 
 import beartype
 import numpy as np
-import torch
+import scipy.sparse
 import tyro
 
 import saev.configs
+import saev.data
 import saev.disk
 import saev.helpers
 
@@ -44,8 +45,6 @@ class Config:
     """Debug logging."""
 
     # Hardware
-    device: str = "cuda"
-    """Which accelerator to use."""
     mem_gb: int = 80
     """Node memory in GB."""
     slurm_acct: str = ""
@@ -65,15 +64,11 @@ def worker_fn(cfg: Config):
     logger = logging.getLogger("avgprec")
 
     logger.info("Started worker_fn().")
-    if cfg.device == "cuda" and not torch.cuda.is_available():
-        logger.warning("No CUDA device available, using CPU.")
-        cfg = dataclasses.replace(cfg, device="cpu")
 
     run = saev.disk.Run(cfg.run)
 
     train_inference_dpath = run.inference / cfg.train_shards.name
     train_token_acts_fpath = train_inference_dpath / "token_acts.npz"
-
     if not train_token_acts_fpath.exists():
         msg = f"Train SAE activations missing: '{train_token_acts_fpath}'. Run inference.py."
         logger.error(msg)
@@ -81,7 +76,6 @@ def worker_fn(cfg: Config):
 
     val_inference_dpath = run.inference / cfg.test_shards.name
     val_token_acts_fpath = val_inference_dpath / "token_acts.npz"
-
     if not val_token_acts_fpath.exists():
         msg = f"Validation SAE activations missing: '{val_token_acts_fpath}'. Run inference.py."
         logger.error(msg)
@@ -93,7 +87,12 @@ def worker_fn(cfg: Config):
         logger.error(msg)
         raise FileNotFoundError(msg)
 
-    # Look at the call to np.saevz in probe1d.py
+    val_labels_fpath = cfg.test_shards / "labels.bin"
+    if not val_labels_fpath.exists():
+        msg = f"Validation labels missing: '{val_labels_fpath}'."
+        logger.error(msg)
+        raise FileNotFoundError(msg)
+
     with np.load(train_probe_metrics_fpath) as fd:
         train_loss_lc = fd["loss"]
         weights_lc = fd["weights"]
@@ -108,9 +107,10 @@ def worker_fn(cfg: Config):
         weights_lc.shape != train_loss_lc.shape
         or biases_lc.shape != train_loss_lc.shape
     ):
-        msg = "Probe metric shapes are inconsistent: loss{train_loss_lc.shape}, weights{weights_lc.shape}, biases{biases_lc.shape}."
+        msg = f"Probe metric shapes are inconsistent: loss{train_loss_lc.shape}, weights{weights_lc.shape}, biases{biases_lc.shape}."
         logger.error(msg)
         raise ValueError(msg)
+
     n_latents, n_classes = train_loss_lc.shape
 
     best_latent_idx_c = np.argmin(train_loss_lc, axis=0)
@@ -128,7 +128,71 @@ def worker_fn(cfg: Config):
         best_train_loss_c.max().item(),
     )
 
-    # TODO: Measure AP using labels from the validation shards and inputs from SAE activations. Since validation is typically small (< 1M examples) and we only care about the best latents (151 for ADE20K) we can just put it all in GPU memory (1M x 151 x 4 bytes = 604MB) and do one inference pass. Furthermore, we can use the GPU to do the AP calculation.
+    val_md = saev.data.Metadata.load(cfg.test_shards)
+
+    # Load SAE activations for the best latents.
+    val_token_acts_csr = scipy.sparse.load_npz(val_token_acts_fpath)
+    val_n_samples, val_n_latents = val_token_acts_csr.shape
+    if val_n_latents != n_latents:
+        msg = f"Validation activations have {val_n_latents} latents; expected {n_latents}."
+        logger.error(msg)
+        raise ValueError(msg)
+    val_latents_best = val_token_acts_csr[:, best_latent_idx_c].toarray()
+    val_scores_nc = val_latents_best * best_weights_c + best_biases_c
+
+    val_labels = (
+        np.memmap(
+            val_labels_fpath,
+            mode="r",
+            dtype=np.uint8,
+            shape=(val_md.n_examples, val_md.content_tokens_per_example),
+        )
+        .copy()
+        .reshape(-1)
+    )
+
+    if val_labels.size != val_n_samples:
+        msg = f"Validation labels provide {val_labels.size} samples; expected {val_n_samples}."
+        logger.error(msg)
+        raise ValueError(msg)
+
+    val_max_label = val_labels.max().item()
+    if val_max_label >= n_classes:
+        msg = f"Validation labels include class id {val_max_label}; expected < {n_classes}."
+        logger.error(msg)
+        raise ValueError(msg)
+
+    val_labels_one_hot = np.zeros((val_n_samples, n_classes), dtype=np.float32)
+    np.put_along_axis(val_labels_one_hot, val_labels[:, None], 1.0, axis=1)
+
+    n_pos_c = val_labels_one_hot.sum(axis=0)
+    pos_class_mask_c = n_pos_c > 0
+
+    sort_idx_nc = np.argsort(val_scores_nc, axis=0)[::-1]
+    labels_sorted_nc = np.take_along_axis(val_labels_one_hot, sort_idx_nc, axis=0)
+
+    tp_nc = labels_sorted_nc.cumsum(axis=0)
+    ranks = np.arange(1, val_n_samples + 1, dtype=np.float32).reshape(-1, 1)
+    precision_nc = tp_nc / ranks
+    n_pos_safe_c = np.clip(n_pos_c, a_min=1.0, a_max=None)
+    recall_nc = tp_nc / n_pos_safe_c
+    recall_shift_nc = np.concatenate(
+        (np.zeros((1, n_classes), dtype=recall_nc.dtype), recall_nc[:-1, :]), axis=0
+    )
+    delta_recall_nc = recall_nc - recall_shift_nc
+    ap_c = (precision_nc * delta_recall_nc).sum(axis=0)
+    ap_c = np.where(pos_class_mask_c, ap_c, np.zeros_like(ap_c))
+
+    logger.info(
+        "Computed validation AP on %d samples: n_pos_classes=%d, ap[mean]=%.6f, ap[min]=%.6f, ap[max]=%.6f.",
+        val_n_samples,
+        pos_class_mask_c.sum().item(),
+        ap_c.mean().item(),
+        ap_c.min().item(),
+        ap_c.max().item(),
+    )
+
+    # TODO: Persist AP results and integrate with downstream evaluation tooling.
     raise NotImplementedError()
 
 
