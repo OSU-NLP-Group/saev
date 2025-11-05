@@ -1742,9 +1742,9 @@ def cli(
         return 1
 
     if not base_cfg.slurm_acct:
-        for idx, cfg_item in enumerate(cfgs, start=1):
+        for idx, c in enumerate(cfgs, start=1):
             logger.info("Running config %d/%d locally.", idx, len(cfgs))
-            worker_fn(cfg_item)
+            worker_fn(c)
         logger.info("Jobs done.")
         return 0
 
@@ -1772,14 +1772,14 @@ def cli(
 
     try:
         cloudpickle.dumps(worker_fn)
-        for cfg_item in cfgs:
-            cloudpickle.dumps(cfg_item)
+        for c in cfgs:
+            cloudpickle.dumps(c)
     except TypeError as err:
         logger.error("Failed to pickle job payload: %s", err)
         return 1
 
     with executor.batch():
-        jobs = [executor.submit(worker_fn, cfg_item) for cfg_item in cfgs]
+        jobs = [executor.submit(worker_fn, c) for c in cfgs]
 
     time.sleep(5.0)
 
