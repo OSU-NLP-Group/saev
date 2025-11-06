@@ -17,6 +17,7 @@ metrics.json contains some individual metrics that are useful for reporting:
 * sse_baseline (float): reconstruction sum squared mean baseline error, which is ((x - x_bar) ** 2).sum(dim=0) to get a scalar where x_bar is the mean vector of all x.
 """
 
+import collections.abc
 import dataclasses
 import logging
 import os
@@ -27,6 +28,7 @@ import typing as tp
 
 import beartype
 import einops
+import orjson
 import scipy.sparse
 import torch
 import tyro
@@ -77,44 +79,73 @@ class Config:
 
 
 @beartype.beartype
+@dataclasses.dataclass(frozen=True)
+class Filepaths:
+    mean_values: pathlib.Path
+    sparsity: pathlib.Path
+    distributions: pathlib.Path
+    token_acts: pathlib.Path
+    percentiles: pathlib.Path
+    metrics: pathlib.Path
+
+    @classmethod
+    def from_cfg(cls, cfg: Config):
+        run = disk.Run(cfg.run)
+        md = Metadata.load(cfg.data.shards)
+        root = run.inference / md.hash
+        root.mkdir(exist_ok=True, parents=True)
+        return cls(
+            mean_values=root / "mean_values.pt",
+            sparsity=root / "sparsity.pt",
+            distributions=root / "distributions.pt",
+            token_acts=root / "token_acts.npz",
+            percentiles=root / f"percentiles_p{cfg.percentile}.pt",
+            metrics=root / "metrics.json",
+        )
+
+    def __iter__(self) -> collections.abc.Iterator[pathlib.Path]:
+        yield from [
+            self.mean_values,
+            self.sparsity,
+            self.distributions,
+            self.percentiles,
+            self.token_acts,
+            self.metrics,
+        ]
+
+
+@beartype.beartype
+def need_compute(cfg: Config) -> tuple[bool, str]:
+    # Check if we need to compute activations
+    fpaths = Filepaths.from_cfg(cfg)
+    missing = [fpath for fpath in fpaths if not fpath.exists()]
+
+    if not cfg.force_recompute and not missing:
+        reason = "Found all files."
+        return False, reason
+
+    if cfg.force_recompute:
+        reason = "Force recompute flag set; computing activations."
+        return True, reason
+
+    missing_msg = ", ".join(str(f) for f in missing)
+    return True, f"Missing files {missing_msg}; computing activations."
+
+
+@beartype.beartype
 @torch.inference_mode()
 def worker_fn(cfg: Config):
     run = disk.Run(cfg.run)
     md = Metadata.load(cfg.data.shards)
     root = run.inference / md.hash
-    root.mkdir(exist_ok=True, parents=True)
-
-    mean_values_fpath = root / "mean_values.pt"
-    sparsity_fpath = root / "sparsity.pt"
-    distributions_fpath = root / "distributions.pt"
-    token_acts_fpath = root / "token_acts.npz"
-    percentiles_fpath = root / f"percentiles_p{cfg.percentile}.pt"
-    metrics_fpath = root / "metrics.json"
 
     # Check if we need to compute activations
-    fpaths = [
-        mean_values_fpath,
-        sparsity_fpath,
-        distributions_fpath,
-        percentiles_fpath,
-        token_acts_fpath,
-        metrics_fpath,
-    ]
-    missing = [fpath for fpath in fpaths if not fpath.exists()]
-    need_compute = cfg.force_recompute or bool(missing)
-
-    if not need_compute:
-        logger.info("Found existing activation files.")
+    do, reason = need_compute(cfg)
+    logger.info(reason)
+    if not do:
         return
 
-    if cfg.force_recompute:
-        logger.info("Force recompute flag set; computing activations.")
-    else:
-        logger.info(
-            "Missing files %s; computing activations.",
-            ", ".join(str(f) for f in missing),
-        )
-
+    fpaths = Filepaths.from_cfg(cfg)
     with open(root / "config.json", "wb") as fd:
         helpers.jdump(cfg, fd)
 
@@ -145,6 +176,12 @@ def worker_fn(cfg: Config):
 
     ignore = torch.tensor(cfg.ignore_labels)
 
+    # Float64 accumulators keep NMSE numerics stable when evaluating Q - |S|^2 / N.
+    reconstruction_sse = torch.zeros((), dtype=torch.float64, device=cfg.device)
+    sum_sq = torch.zeros((), dtype=torch.float64, device=cfg.device)
+    sum_vec_s = torch.zeros((sae.cfg.d_model,), dtype=torch.float64, device=cfg.device)
+    n_tokens = 0
+
     logger.info("Loaded SAE and data.")
 
     prev_i = -1
@@ -152,10 +189,20 @@ def worker_fn(cfg: Config):
     for batch in helpers.progress(dataloader):
         # Get SAE activations (shared computation)
         vit_acts_bd = batch["act"].to(cfg.device)
-        _, f_x, *_ = sae(vit_acts_bd)
+        # Here, p stands for prefixes
+        x_hat_bpd, f_x, *_ = sae(vit_acts_bd)
         bsz, d_sae = f_x.shape
 
         mask_b = torch.isin(batch["token_labels"], ignore, invert=True)
+
+        n_batch_tokens = mask_b.sum().item()
+        n_tokens += n_batch_tokens
+        if n_batch_tokens > 0:
+            vit_masked_bd = vit_acts_bd[mask_b].to(torch.float64)
+            diff_bd = vit_masked_bd - x_hat_bpd[:, -1, :][mask_b].to(torch.float64)
+            reconstruction_sse += torch.sum(diff_bd * diff_bd)
+            sum_sq += (vit_masked_bd * vit_masked_bd).sum()
+            sum_vec_s += vit_masked_bd.sum(dim=0)
 
         # Update percentile estimator
         for sae_act_s in f_x[mask_b]:
@@ -188,16 +235,32 @@ def worker_fn(cfg: Config):
 
     # Sparse CSR array
     token_acts = scipy.sparse.vstack(token_acts_blocks, format="csr")
-    scipy.sparse.save_npz(token_acts_fpath, token_acts)
+    scipy.sparse.save_npz(fpaths.token_acts, token_acts)
 
     # Statistics
-    torch.save(mean_values_s.cpu(), mean_values_fpath)
-    torch.save(sparsity_s.cpu(), sparsity_fpath)
-    torch.save(distributions_nm.cpu(), distributions_fpath)
-    torch.save(estimator.estimate.cpu(), percentiles_fpath)
+    torch.save(mean_values_s.cpu(), fpaths.mean_values)
+    torch.save(sparsity_s.cpu(), fpaths.sparsity)
+    torch.save(distributions_nm.cpu(), fpaths.distributions)
+    torch.save(estimator.estimate.cpu(), fpaths.percentiles)
 
     # Metrics
-    # TODO
+    sse_sae = reconstruction_sse.item()
+    sum_sq_item = sum_sq.item()
+    sum_vec_s_sq = torch.dot(sum_vec_s, sum_vec_s).item()
+    sse_baseline = sum_sq_item - sum_vec_s_sq / n_tokens
+    if sse_baseline <= 0.0:
+        raise RuntimeError(
+            f"Baseline variance is non-positive (sse_baseline={sse_baseline:.6e}); cannot compute normalized MSE."
+        )
+
+    metrics = {
+        "normalized_mse": sse_sae / sse_baseline,
+        "sse_sae": sse_sae,
+        "sse_baseline": sse_baseline,
+    }
+
+    with open(fpaths.metrics, "wb") as fd:
+        helpers.jdump(metrics, fd, option=orjson.OPT_INDENT_2)
 
 
 @beartype.beartype
@@ -259,7 +322,14 @@ def main(
         account=cfg.slurm_acct,
     )
     with executor.batch():
-        jobs = [executor.submit(worker_fn, c) for c in cfgs]
+        jobs = []
+        for i, cfg in enumerate(cfgs):
+            do, reason = need_compute(cfg)
+            if not do:
+                continue
+
+            logger.info(reason)
+            jobs.append(executor.submit(worker_fn, cfg))
 
     time.sleep(5.0)
 
