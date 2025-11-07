@@ -5,6 +5,7 @@ import gc
 import json
 import os
 import pathlib
+import queue
 import tempfile
 import time
 
@@ -335,3 +336,202 @@ def test_min_buffer_fill_allows_epoch_restart_with_batch_limiter():
         assert seen >= limit
         assert seen > dataset_tokens
         assert seen < limit * 3
+
+
+@pytest.mark.slow
+def test_min_buffer_fill_handles_manager_shutdown_with_buffered_tokens():
+    import saev.utils.scheduling
+
+    with tmp_shards_root() as shards_root:
+        data_cfg = datasets.FakeImg(n_examples=8)
+        shards_dir = saev.data.shards.worker_fn(
+            family="fake-clip",
+            ckpt="hf-hub:hf-internal-testing/tiny-open-clip-model",
+            content_tokens_per_example=16,
+            cls_token=False,
+            d_model=128,
+            layers=[-2],
+            data=data_cfg,
+            batch_size=4,
+            n_workers=0,
+            max_tokens_per_shard=256,
+            shards_root=shards_root,
+            device="cpu",
+        )
+
+        md = saev.data.Metadata.load(shards_dir)
+        cfg = ShuffledConfig(
+            shards=shards_dir,
+            tokens="content",
+            layer=md.layers[0],
+            debug=True,
+            log_every_s=1.0,
+            batch_size=32,
+            buffer_size=64,
+            min_buffer_fill=0.5,
+        )
+
+        dl = ShuffledDataLoader(cfg)
+        limit = data_cfg.n_examples * md.content_tokens_per_example + 64
+        dl = saev.utils.scheduling.BatchLimiter(dl, limit)
+
+        seen = 0
+        for batch in dl:
+            seen += len(batch["example_idx"])
+
+        assert seen >= limit
+
+
+class _DeadProc:
+    def is_alive(self) -> bool:  # pragma: no cover - trivial shim
+        return False
+
+
+class _FakeReservoir:
+    def __init__(self, *, capacity: int, qsize: int):
+        self.capacity = capacity
+        self._qsize = qsize
+
+    def qsize(self) -> int:
+        return self._qsize
+
+    def close(self) -> None:  # pragma: no cover - used in __del__
+        pass
+
+
+@pytest.mark.slow
+def test_min_buffer_fill_waits_even_when_manager_finished():
+    with tmp_shards_root() as shards_root:
+        data_cfg = datasets.FakeImg(n_examples=2)
+        shards_dir = saev.data.shards.worker_fn(
+            family="fake-clip",
+            ckpt="hf-hub:hf-internal-testing/tiny-open-clip-model",
+            content_tokens_per_example=16,
+            cls_token=False,
+            d_model=128,
+            layers=[-2],
+            data=data_cfg,
+            batch_size=2,
+            n_workers=0,
+            max_tokens_per_shard=256,
+            shards_root=shards_root,
+            device="cpu",
+        )
+
+        md = saev.data.Metadata.load(shards_dir)
+        cfg = ShuffledConfig(
+            shards=shards_dir,
+            tokens="content",
+            layer=md.layers[0],
+            debug=True,
+            log_every_s=1.0,
+            batch_size=32,
+            buffer_size=64,
+            min_buffer_fill=0.5,
+        )
+
+        dl = ShuffledDataLoader(cfg)
+        dl.reservoir = _FakeReservoir(
+            capacity=cfg.buffer_size * cfg.batch_size, qsize=cfg.batch_size
+        )
+        dl.manager_proc = _DeadProc()
+        dl.err_queue = queue.Queue()
+
+        dl._wait_for_min_buffer_fill(cfg.batch_size)
+
+
+@pytest.mark.slow
+def test_min_buffer_fill_allows_epoch_restart_without_runtime_error():
+    import saev.utils.scheduling
+
+    with tmp_shards_root() as shards_root:
+        data_cfg = datasets.FakeImg(n_examples=8)
+        shards_dir = saev.data.shards.worker_fn(
+            family="fake-clip",
+            ckpt="hf-hub:hf-internal-testing/tiny-open-clip-model",
+            content_tokens_per_example=16,
+            cls_token=False,
+            d_model=128,
+            layers=[-2],
+            data=data_cfg,
+            batch_size=4,
+            n_workers=0,
+            max_tokens_per_shard=256,
+            shards_root=shards_root,
+            device="cpu",
+        )
+
+        md = saev.data.Metadata.load(shards_dir)
+        cfg = ShuffledConfig(
+            shards=shards_dir,
+            tokens="content",
+            layer=md.layers[0],
+            debug=True,
+            log_every_s=1.0,
+            batch_size=32,
+            buffer_size=64,
+            min_buffer_fill=0.5,
+        )
+
+        dl = ShuffledDataLoader(cfg)
+        limit = data_cfg.n_examples * md.content_tokens_per_example + 64
+        dl = saev.utils.scheduling.BatchLimiter(dl, limit)
+
+        seen = 0
+        for batch in dl:
+            seen += len(batch["example_idx"])
+
+        assert seen >= limit
+
+
+@pytest.mark.slow
+def test_min_buffer_fill_does_not_raise_when_manager_finishes_with_backlog():
+    with tmp_shards_root() as shards_root:
+        data_cfg = datasets.FakeImg(n_examples=16)
+        shards_dir = saev.data.shards.worker_fn(
+            family="fake-clip",
+            ckpt="hf-hub:hf-internal-testing/tiny-open-clip-model",
+            content_tokens_per_example=16,
+            cls_token=False,
+            d_model=128,
+            layers=[-2],
+            data=data_cfg,
+            batch_size=4,
+            n_workers=0,
+            max_tokens_per_shard=256,
+            shards_root=shards_root,
+            device="cpu",
+        )
+
+        md = saev.data.Metadata.load(shards_dir)
+        cfg = ShuffledConfig(
+            shards=shards_dir,
+            tokens="content",
+            layer=md.layers[0],
+            debug=True,
+            log_every_s=0.1,
+            batch_size=32,
+            buffer_size=64,
+            min_buffer_fill=0.5,
+        )
+
+        dl = ShuffledDataLoader(cfg)
+        try:
+            dl._start_manager()
+
+            target_fill = cfg.batch_size
+            timeout = time.time() + 10.0
+            while dl.reservoir.qsize() < target_fill:
+                if not dl.manager_proc.is_alive():
+                    break
+                assert time.time() < timeout, "Reservoir never filled"
+                time.sleep(0.01)
+
+            assert dl.reservoir.qsize() > 0, "Reservoir stayed empty"
+
+            dl.stop_event.set()
+            dl.manager_proc.join(timeout=5.0)
+
+            dl._wait_for_min_buffer_fill(cfg.batch_size)
+        finally:
+            dl.shutdown()
