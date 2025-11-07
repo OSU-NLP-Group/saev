@@ -1,6 +1,4 @@
-"""
-Only has to work for butterflies, beetles and fish. And let's start with just butterflies.
-"""
+""" """
 
 import dataclasses
 import logging
@@ -38,9 +36,9 @@ logger = logging.getLogger("visuals")
 class Config:
     """Configuration for unified activation computation."""
 
-    run: pathlib.Path = pathlib.Path("./runs/abcdefg")
+    run: pathlib.Path = pathlib.Path("./runs/016lmihg")
     """Run directory."""
-    shards_dir: pathlib.Path = pathlib.Path("./shards/abcdefg")
+    shards: pathlib.Path = pathlib.Path("./shards/abcdef01")
     """Activations."""
     img_scale: float = 1.0
     """How much to scale images by (use higher numbers for high-res visuals)."""
@@ -57,7 +55,7 @@ class Config:
     """Log10 frequency range for which to save images."""
     log_value_range: tuple[float, float] = (-3.0, 3.0)
     """Log10 frequency range for which to save images."""
-    include_latents: list[int] = dataclasses.field(default_factory=list)
+    latents: list[int] = dataclasses.field(default_factory=list)
     """Latents to always include, no matter what."""
     n_distributions: int = 25
     """Number of features to save distributions for."""
@@ -65,7 +63,6 @@ class Config:
     """Number of latents to save images for."""
     top_k: int = 20
     """Number of top images to visualize per feature."""
-
     seed: int = 42
     """Random seed."""
 
@@ -176,22 +173,23 @@ def safe_load(path: pathlib.Path) -> Tensor:
 
 @beartype.beartype
 @torch.inference_mode()
-def main(cfg: tp.Annotated[Config, tyro.conf.arg(name="")]):
+def cli(cfg: tp.Annotated[Config, tyro.conf.arg(name="")]):
     """Generate visual outputs for particular latents."""
 
     try:
         run = saev.disk.Run(cfg.run)
-        token_acts = scipy.sparse.load_npz(run.inference / "token_acts.npz")
-        mean_values_s = safe_load(run.inference / "mean_values.pt")
-        sparsity_s = safe_load(run.inference / "sparsity.pt")
+        token_acts = scipy.sparse.load_npz(
+            run.inference / cfg.shards.name / "token_acts.npz"
+        )
+        mean_values_s = safe_load(run.inference / cfg.shards.name / "mean_values.pt")
+        sparsity_s = safe_load(run.inference / cfg.shards.name / "sparsity.pt")
         # distributions = safe_load(run.inference / "distributions.pt")
     except FileNotFoundError as err:
-        logger.error("Required activation files not found: %s", err)
-        logger.error("Please first compute activations.")
+        logger.error("Required activation files not found: %s. Run inference.py", err)
         return
 
     # Create indexed activations dataset for efficient patch retrieval
-    md = saev.data.Metadata.load(cfg.shards_dir)
+    md = saev.data.Metadata.load(cfg.shards)
     vit_cls = saev.data.models.load_model_cls(md.family)
     resize_tr = vit_cls.make_resize(
         md.ckpt, md.content_tokens_per_example, scale=cfg.img_scale
@@ -224,7 +222,7 @@ def main(cfg: tp.Annotated[Config, tyro.conf.arg(name="")]):
         "log10_value": torch.log10(mean_values_s).tolist(),
         "topk_example_idx": topk_example_idx.T.tolist(),
     })
-    var_fpath = run.inference / "var.parquet"
+    var_fpath = run.inference / cfg.shards.name / "var.parquet"
     var_df.write_parquet(var_fpath)
     logger.info("Saved var.parquet with %d rows to '%s'.", var_df.height, var_fpath)
 
@@ -244,7 +242,7 @@ def main(cfg: tp.Annotated[Config, tyro.conf.arg(name="")]):
         & (torch.log10(mean_values_s) < max_log_value)
     )
 
-    features = cfg.include_latents
+    features = cfg.latents
     random_features = torch.arange(sae.cfg.d_sae)[mask.cpu()].tolist()
     random.seed(cfg.seed)
     random.shuffle(random_features)
@@ -265,7 +263,7 @@ def main(cfg: tp.Annotated[Config, tyro.conf.arg(name="")]):
     for f_i, f in enumerate(
         saev.helpers.progress(features, desc="saving imgs", every=1)
     ):
-        feature_dir = run.inference / "features" / str(f)
+        feature_dir = run.inference / cfg.shards.name / "images" / str(f)
         feature_dir.mkdir(exist_ok=True, parents=True)
 
         f_token_idx = topk_token_idx[f_i]
@@ -273,9 +271,12 @@ def main(cfg: tp.Annotated[Config, tyro.conf.arg(name="")]):
         token_values_kp = token_values_kp.toarray()
         examples = []
 
+        seen_example_idx = set()
         for example_idx, token_values_p in zip(
             topk_example_idx[f_i].tolist(), token_values_kp
         ):
+            if example_idx in seen_example_idx:
+                continue
             sample = img_ds[example_idx]
 
             example = Example(
@@ -287,6 +288,7 @@ def main(cfg: tp.Annotated[Config, tyro.conf.arg(name="")]):
                 label=sample["label"],
             )
             examples.append(example)
+            seen_example_idx.add(example_idx)
 
         # How to scale values.
         upper = token_values_kp.max().item()

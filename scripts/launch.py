@@ -11,6 +11,6 @@ import saev.framework.train
 if __name__ == "__main__":
     tyro.extras.subcommand_cli_from_dict({
         "inference": saev.framework.inference.main,
-        "shards": saev.framework.shards.main,
+        "shards": saev.framework.shards.cli,
         "train": saev.framework.train.main,
     })

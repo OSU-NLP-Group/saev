@@ -71,7 +71,7 @@ class Config:
 
 
 @beartype.beartype
-def main(cfg: tp.Annotated[Config, tyro.conf.arg(name="")]):
+def cli(cfg: tp.Annotated[Config, tyro.conf.arg(name="")]):
     """
     Save ViT activations for use later on.
 

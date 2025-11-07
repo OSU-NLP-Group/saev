@@ -1295,3 +1295,32 @@ Based on the graphs I've produced (see `dinov3_vit*16_in1k_ade20k_probe1d*.pdf`)
 
 - Maybe my SAEs are undertrained? I would like to run an ablation with 100M, 200M, 500M and 1B training tokens. Showing loss curves would be great (for the pareto optimal).
 - I am retraining some more ViT-L SAEs with better learning rates.
+
+Notes from my meeting with Tanya
+
+- Measure precision, recall and F1. -> Goes into the avgprec.py script (which should probably be renamed).
+- Create a graph that compares class frequency in ADE20K with R, AP, F1, etc. -> I did this with AP and R and didn't see anything. But maybe with precision/recall/f1 I will.
+
+There are several snippets of code that I need to write and one big chunk of code.
+
+Snippets: 
+
+1. [done] Update avgprec.py to calculate precision, recall and F1.
+2. [done] Update CLIP checkpoint to parse the patch size from ViTs.
+3. [done] Update inference.py to check if the files exist BEFORE submitting a slurm job.
+4. [done] Update AGENTS.md to not use such defensive programming.
+
+Big:
+
+1. [done] Visuals: given activations, generate the top 4-16 images for an SAE latent.
+
+Well, I need to pick one and get on it I guess.
+
+Okay, I did them all. The visuals look good. I feel comfortable starting the next batch of experiments (FishVista). Unfortunately, Ascend is super busy right now. So I probably need to write a little bit. Instead, I will go for a walk :)
+
+I went for a walk :)
+
+So I probably need to write and work on my workflow diagram. These things needs to happen concurrently, and iteratively. Describe what I want out of a system that discovers things from DINOv3. Then try to visualize it clearly. If I can't visualize it, maybe I need to re-describe what I want. And so on.
+
+Some things I want to work on:
+
