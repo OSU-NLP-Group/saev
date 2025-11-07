@@ -213,6 +213,46 @@ def test_min_buffer_fill_warmup_improves_coverage(cfg):
 
 
 @pytest.mark.slow
+def test_min_buffer_fill_handles_small_dataset():
+    with tmp_shards_root() as shards_root:
+        data_cfg = datasets.FakeImg(n_examples=2)
+        shards_dir = saev.data.shards.worker_fn(
+            family="fake-clip",
+            ckpt="hf-hub:hf-internal-testing/tiny-open-clip-model",
+            content_tokens_per_example=16,
+            cls_token=False,
+            d_model=128,
+            layers=[-2],
+            data=data_cfg,
+            batch_size=2,
+            n_workers=0,
+            max_tokens_per_shard=256,
+            shards_root=shards_root,
+            device="cpu",
+        )
+
+        md = saev.data.Metadata.load(shards_dir)
+        cfg = ShuffledConfig(
+            shards=shards_dir,
+            tokens="content",
+            layer=md.layers[0],
+            debug=True,
+            log_every_s=1.0,
+            batch_size=16,
+            min_buffer_fill=0.5,
+        )
+
+        dl = ShuffledDataLoader(cfg)
+        seen = 0
+        for batch in dl:
+            seen += len(batch["example_idx"])
+            assert batch["act"].shape[0] == cfg.batch_size
+            break
+
+        assert seen == cfg.batch_size
+
+
+@pytest.mark.slow
 def test_min_buffer_fill_with_batch_limiter():
     import saev.utils.scheduling
 
