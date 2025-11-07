@@ -45,9 +45,18 @@ class Vit(models.VisionTransformer, torch.nn.Module):
     @property
     def patch_size(self) -> int:
         """Get patch size for CLIP models."""
-        # Standard CLIP models all use 16x16 patches
-        # The tiny test model uses 2x2 but that's not a real model
-        return 16
+        import open_clip
+
+        if (
+            isinstance(self.model, open_clip.transformer.VisionTransformer)
+            and hasattr(self.model, "conv1")
+            and isinstance(self.model.conv1, torch.nn.Conv2d)
+        ):
+            w, h = self.model.conv1.kernel_size
+            assert w == h and isinstance(w, int)
+            return w
+
+        raise ValueError(f"Unknown patch size for {self.name}")
 
     def get_residuals(self) -> list[torch.nn.Module]:
         return self.model.transformer.resblocks
@@ -103,3 +112,8 @@ class Vit(models.VisionTransformer, torch.nn.Module):
             return img.resize(resize_size_px, resample=resample).crop(crop_coords_px)
 
         return resize
+
+
+@beartype.beartype
+def get_patch_size() -> int:
+    breakpoint()
