@@ -288,3 +288,50 @@ def test_min_buffer_fill_with_batch_limiter():
         dl = saev.utils.scheduling.BatchLimiter(dl, 80)
         for batch in dl:
             assert batch is not None
+
+
+@pytest.mark.slow
+def test_min_buffer_fill_allows_epoch_restart_with_batch_limiter():
+    import saev.utils.scheduling
+
+    with tmp_shards_root() as shards_root:
+        data_cfg = datasets.FakeImg(n_examples=12)
+        shards_dir = saev.data.shards.worker_fn(
+            family="fake-clip",
+            ckpt="hf-hub:hf-internal-testing/tiny-open-clip-model",
+            content_tokens_per_example=16,
+            cls_token=False,
+            d_model=128,
+            layers=[-2],
+            data=data_cfg,
+            batch_size=4,
+            n_workers=0,
+            max_tokens_per_shard=256,
+            shards_root=shards_root,
+            device="cpu",
+        )
+
+        md = saev.data.Metadata.load(shards_dir)
+        cfg = ShuffledConfig(
+            shards=shards_dir,
+            tokens="content",
+            layer=md.layers[0],
+            debug=True,
+            log_every_s=1.0,
+            batch_size=32,
+            buffer_size=8,
+            min_buffer_fill=0.5,
+        )
+
+        dl = ShuffledDataLoader(cfg)
+        limit = 2 * data_cfg.n_examples * md.content_tokens_per_example
+        dl = saev.utils.scheduling.BatchLimiter(dl, limit)
+
+        seen = 0
+        for batch in dl:
+            seen += len(batch["example_idx"])
+
+        dataset_tokens = data_cfg.n_examples * md.content_tokens_per_example
+        assert seen >= limit
+        assert seen > dataset_tokens
+        assert seen < limit * 3

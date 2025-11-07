@@ -10,7 +10,7 @@ import queue
 import threading
 import time
 import traceback
-import typing
+import typing as tp
 from multiprocessing.queues import Queue
 from multiprocessing.synchronize import Event
 
@@ -37,8 +37,8 @@ class Config:
     """
 
     shards: pathlib.Path = pathlib.Path("$SAEV_SCRATCH/saev/shards/abcdefg")
-    tokens: typing.Literal["special", "content", "all"] = "content"
-    layer: int | typing.Literal["all"] = -2
+    tokens: tp.Literal["special", "content", "all"] = "content"
+    layer: int | tp.Literal["all"] = -2
     """Which transformer layer(s) to read from disk. ``-2`` selects the second-to-last layer. ``"all"`` enumerates every recorded layer."""
     batch_size: int = 1024 * 16
     """Batch size."""
@@ -329,7 +329,7 @@ class DataLoader:
     """
 
     @jaxtyped(typechecker=beartype.beartype)
-    class ExampleBatch(typing.TypedDict):
+    class ExampleBatch(tp.TypedDict):
         """Individual example."""
 
         act: Float[Tensor, "batch d_model"]
@@ -453,7 +453,8 @@ class DataLoader:
         try:
             while n < self.n_samples:
                 need = min(self.cfg.batch_size, self.n_samples - n)
-                self._wait_for_min_buffer_fill()
+                remaining_samples = self.n_samples - n
+                self._wait_for_min_buffer_fill(remaining_samples)
                 if not self.err_queue.empty():
                     who, tb = self.err_queue.get_nowait()
                     raise RuntimeError(f"{who} crashed:\n{tb}")
@@ -524,7 +525,9 @@ class DataLoader:
     def __del__(self):
         self.shutdown()
 
-    def _wait_for_min_buffer_fill(self, *, poll_interval_s: float = 0.1) -> None:
+    def _wait_for_min_buffer_fill(
+        self, remaining: int, *, poll_interval_s: float = 0.1
+    ) -> None:
         if self.cfg.min_buffer_fill <= 0.0:
             self._last_reservoir_fill = None
             return
@@ -533,19 +536,20 @@ class DataLoader:
             return
 
         err_queue = getattr(self, "err_queue", None)
-        effective_capacity = min(self.reservoir.capacity, self.n_samples)
+        if remaining <= 0:
+            self._last_reservoir_fill = None
+            return
+
+        effective_capacity = min(self.reservoir.capacity, remaining)
         if effective_capacity <= 0:
             self._last_reservoir_fill = None
             return
 
-        if (
-            not self._logged_effective_capacity
-            and self.reservoir.capacity > self.n_samples
-        ):
+        if not self._logged_effective_capacity and self.reservoir.capacity > remaining:
             self.logger.debug(
-                "Reservoir capacity (%d) exceeds available samples (%d); using %d slots for warmup.",
+                "Reservoir capacity (%d) exceeds remaining samples (%d); using %d slots for warmup.",
                 self.reservoir.capacity,
-                self.n_samples,
+                remaining,
                 effective_capacity,
             )
             self._logged_effective_capacity = True
@@ -592,7 +596,7 @@ class DataLoader:
                     * self.metadata.content_tokens_per_example
                 )
             case _:
-                typing.assert_never((self.cfg.tokens, self.cfg.layer))
+                tp.assert_never((self.cfg.tokens, self.cfg.layer))
 
         # If no filtering, return max samples
         if not self.cfg.ignore_labels:
