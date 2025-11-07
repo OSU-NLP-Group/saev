@@ -343,6 +343,7 @@ class DataLoader:
         self.reservoir = None
         self.stop_event = None
         self._last_reservoir_fill: float | None = None
+        self._logged_effective_capacity = False
 
         self.logger = logging.getLogger("shuffled.DataLoader")
         self.ctx = mp.get_context()
@@ -518,6 +519,7 @@ class DataLoader:
         self.reservoir = None
         self.stop_event = None
         self._last_reservoir_fill = None
+        self._logged_effective_capacity = False
 
     def __del__(self):
         self.shutdown()
@@ -531,6 +533,22 @@ class DataLoader:
             return
 
         err_queue = getattr(self, "err_queue", None)
+        effective_capacity = min(self.reservoir.capacity, self.n_samples)
+        if effective_capacity <= 0:
+            self._last_reservoir_fill = None
+            return
+
+        if (
+            not self._logged_effective_capacity
+            and self.reservoir.capacity > self.n_samples
+        ):
+            self.logger.debug(
+                "Reservoir capacity (%d) exceeds available samples (%d); using %d slots for warmup.",
+                self.reservoir.capacity,
+                self.n_samples,
+                effective_capacity,
+            )
+            self._logged_effective_capacity = True
 
         while True:
             if err_queue and not err_queue.empty():
@@ -542,9 +560,10 @@ class DataLoader:
                     "Manager process died while waiting for reservoir fill."
                 )
 
-            fill = self.reservoir.fill()
-            if fill >= self.cfg.min_buffer_fill:
-                self._last_reservoir_fill = fill
+            qsize = self.reservoir.qsize()
+            fill_fraction = qsize / effective_capacity
+            if fill_fraction >= self.cfg.min_buffer_fill:
+                self._last_reservoir_fill = fill_fraction
                 return
 
             time.sleep(poll_interval_s)

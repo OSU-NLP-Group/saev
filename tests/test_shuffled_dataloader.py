@@ -257,7 +257,7 @@ def test_min_buffer_fill_with_batch_limiter():
     import saev.utils.scheduling
 
     with tmp_shards_root() as shards_root:
-        data_cfg = datasets.FakeImg(n_examples=2)
+        data_cfg = datasets.FakeImg(n_examples=4)
         shards_dir = saev.data.shards.worker_fn(
             family="fake-clip",
             ckpt="hf-hub:hf-internal-testing/tiny-open-clip-model",
@@ -285,6 +285,6 @@ def test_min_buffer_fill_with_batch_limiter():
         )
 
         dl = ShuffledDataLoader(cfg)
-        dl = saev.utils.scheduling.BatchLimiter(dl, 128)
+        dl = saev.utils.scheduling.BatchLimiter(dl, 80)
         for batch in dl:
             assert batch is not None
