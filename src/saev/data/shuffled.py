@@ -94,11 +94,10 @@ def _io_worker(
 
     See https://github.com/beartype/beartype/issues/397 for an explanation of why we use multiprocessing.queues.Queue for the type hint.
     """
-    logger = logging.getLogger(f"shuffled.worker{worker_id}")
     log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
     level = logging.DEBUG if cfg.debug else logging.INFO
     logging.basicConfig(level=level, format=log_format, force=True)
-    logger = logging.getLogger("shuffled.manager")
+    logger = logging.getLogger(f"shuffled.worker{worker_id}")
     logger.info(
         "I/O worker %s started (debug=%s, logging=%s).",
         worker_id,
@@ -123,11 +122,14 @@ def _io_worker(
 
     chunk_size = min(1024, math.ceil(cfg.batch_size * cfg.buffer_size / cfg.n_threads))
 
+    reason = ""
+
     while not stop_event.is_set():
         try:
             shard_i = work_queue.get(timeout=0.1)
             if shard_i is None:  # Poison pill
                 logger.debug("Got 'None' from work_queue; exiting.")
+                reason = "poison_pill"
                 break
             t1 = time.perf_counter()
 
@@ -218,12 +220,23 @@ def _io_worker(
         except queue.Empty:
             # Wait 0.1 seconds for new data.
             time.sleep(0.1)
+            if stop_event.is_set():
+                reason = "stop_event_set"
+                break
             continue
-        except Exception:
+        except Exception as err:
             logger.exception("Error in worker.")
             err_queue.put((f"worker{worker_id}", traceback.format_exc()))
+            reason = f"exception:{type(err).__name__}"
             break
-    logger.info("Worker finished.")
+
+    if reason is None:
+        reason = "stop_event_set" if stop_event.is_set() else "loop_exhausted"
+
+    mb_sent = bytes_sent / 1e6
+    logger.info(
+        "Worker finished (%s). bytes_sent=%.1fMB n_reads=%d", reason, mb_sent, n_reads
+    )
 
 
 @beartype.beartype
@@ -509,14 +522,8 @@ class DataLoader:
     def __del__(self):
         self.shutdown()
 
-    def _wait_for_min_buffer_fill(
-        self,
-        *,
-        poll_interval_s: float = 0.01,
-        sleep_fn: collections.abc.Callable[[float], None] = time.sleep,
-    ) -> None:
-        min_fill = getattr(self.cfg, "min_buffer_fill", 0.0)
-        if min_fill <= 0.0:
+    def _wait_for_min_buffer_fill(self, *, poll_interval_s: float = 0.1) -> None:
+        if self.cfg.min_buffer_fill <= 0.0:
             self._last_reservoir_fill = None
             return
         if not self.reservoir:
@@ -536,11 +543,11 @@ class DataLoader:
                 )
 
             fill = self.reservoir.fill()
-            if fill >= min_fill:
-                self._last_reservoir_fill = float(fill)
+            if fill >= self.cfg.min_buffer_fill:
+                self._last_reservoir_fill = fill
                 return
 
-            sleep_fn(poll_interval_s)
+            time.sleep(poll_interval_s)
 
     def _calculate_n_samples(self) -> int:
         """Helper to calculate total number of examples based on config.

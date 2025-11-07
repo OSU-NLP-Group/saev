@@ -44,7 +44,7 @@ class RingBuffer:
 
         # semaphores for blocking semantics
         self.free = ctx.Semaphore(slots)  # initially all slots free
-        self.fill = ctx.Semaphore(0)  # no filled slots yet
+        self.full = ctx.Semaphore(0)  # no filled slots yet
 
         # one mutex for pointer updates
         self.mutex = ctx.Lock()
@@ -59,11 +59,11 @@ class RingBuffer:
             idx = self.head.value % self.slots
             self.buf[idx].copy_(tensor)
             self.head.value += 1
-        self.fill.release()  # signal there is data
+        self.full.release()  # signal there is data
 
     def get(self) -> torch.Tensor:
         """Return a view of the next item; blocks if the queue is empty."""
-        self.fill.acquire()  # wait for data
+        self.full.acquire()  # wait for data
         with self.mutex:  # exclusive update of tail
             idx = self.tail.value % self.slots
             out = self.buf[idx].clone()

@@ -1,8 +1,11 @@
 # tests/test_iterable_dataloader.py
+import contextlib
 import dataclasses
 import gc
 import json
 import os
+import pathlib
+import tempfile
 import time
 
 import beartype
@@ -26,6 +29,17 @@ def cfg(shards_dir):
     )
 
     return cfg
+
+
+@contextlib.contextmanager
+def tmp_shards_root():
+    """Create a temporary shard root directory."""
+    # We cannot use the tmp_path fixture because of Hypothesis.
+    # See https://hypothesis.readthedocs.io/en/latest/reference/api.html#hypothesis.HealthCheck.function_scoped_fixture
+    with tempfile.TemporaryDirectory() as tmp_path:
+        shards_root = pathlib.Path(tmp_path) / "saev" / "shards"
+        shards_root.mkdir(parents=True)
+        yield shards_root
 
 
 @beartype.beartype
@@ -196,3 +210,41 @@ def test_min_buffer_fill_warmup_improves_coverage(cfg):
         dl.shutdown()
 
     assert coverage >= 0.8
+
+
+@pytest.mark.slow
+def test_min_buffer_fill_with_batch_limiter():
+    import saev.utils.scheduling
+
+    with tmp_shards_root() as shards_root:
+        data_cfg = datasets.FakeImg(n_examples=2)
+        shards_dir = saev.data.shards.worker_fn(
+            family="fake-clip",
+            ckpt="hf-hub:hf-internal-testing/tiny-open-clip-model",
+            content_tokens_per_example=16,
+            cls_token=False,
+            d_model=128,
+            layers=[-2],
+            data=data_cfg,
+            batch_size=2,
+            n_workers=0,
+            max_tokens_per_shard=256,
+            shards_root=shards_root,
+            device="cpu",
+        )
+
+        md = saev.data.Metadata.load(shards_dir)
+        cfg = ShuffledConfig(
+            shards=shards_dir,
+            tokens="content",
+            layer=md.layers[0],
+            debug=True,
+            log_every_s=1.0,
+            batch_size=16,
+            min_buffer_fill=0.2,
+        )
+
+        dl = ShuffledDataLoader(cfg)
+        dl = saev.utils.scheduling.BatchLimiter(dl, 128)
+        for batch in dl:
+            assert batch is not None
