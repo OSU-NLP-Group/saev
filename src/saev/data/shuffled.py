@@ -559,16 +559,21 @@ class DataLoader:
                 who, tb = err_queue.get_nowait()
                 raise RuntimeError(f"{who} crashed:\n{tb}")
 
-            if not self.manager_proc or not self.manager_proc.is_alive():
-                raise RuntimeError(
-                    "Manager process died while waiting for reservoir fill."
-                )
-
             qsize = self.reservoir.qsize()
             fill_fraction = qsize / effective_capacity
             if fill_fraction >= self.cfg.min_buffer_fill:
                 self._last_reservoir_fill = fill_fraction
                 return
+
+            manager_dead = not self.manager_proc or not self.manager_proc.is_alive()
+            if manager_dead:
+                if qsize > 0:
+                    self._last_reservoir_fill = fill_fraction
+                    return
+
+                raise RuntimeError(
+                    "Manager process died while waiting for reservoir fill."
+                )
 
             time.sleep(poll_interval_s)
 

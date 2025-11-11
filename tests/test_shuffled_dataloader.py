@@ -485,7 +485,7 @@ def test_min_buffer_fill_allows_epoch_restart_without_runtime_error():
 
 
 @pytest.mark.slow
-def test_min_buffer_fill_does_not_raise_when_manager_finishes_with_backlog():
+def test_min_buffer_fill_manager_finishes_with_backlog():
     with tmp_shards_root() as shards_root:
         data_cfg = datasets.FakeImg(n_examples=16)
         shards_dir = saev.data.shards.worker_fn(
