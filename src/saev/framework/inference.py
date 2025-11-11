@@ -84,9 +84,7 @@ class Filepaths:
     metrics: pathlib.Path
 
     @classmethod
-    def from_cfg(cls, cfg: Config):
-        run = disk.Run(cfg.run)
-        md = Metadata.load(cfg.data.shards)
+    def from_run(cls, run: disk.Run, md: Metadata):
         root = run.inference / md.hash
         root.mkdir(exist_ok=True, parents=True)
         return cls(
@@ -108,21 +106,23 @@ class Filepaths:
 
 
 @beartype.beartype
-def need_compute(cfg: Config) -> tuple[bool, str]:
+def need_compute(
+    cfg: Config, run: disk.Run, md: Metadata
+) -> tuple[bool, str, Filepaths]:
     # Check if we need to compute activations
-    fpaths = Filepaths.from_cfg(cfg)
+    fpaths = Filepaths.from_run(run, md)
     missing = [fpath for fpath in fpaths if not fpath.exists()]
 
     if not cfg.force_recompute and not missing:
         reason = "Found all files."
-        return False, reason
+        return False, reason, fpaths
 
     if cfg.force_recompute:
         reason = "Force recompute flag set; computing activations."
-        return True, reason
+        return True, reason, fpaths
 
     missing_msg = ", ".join(str(f) for f in missing)
-    return True, f"Missing files {missing_msg}; computing activations."
+    return True, f"Missing files {missing_msg}; computing activations.", fpaths
 
 
 @beartype.beartype
@@ -133,12 +133,11 @@ def worker_fn(cfg: Config):
     root = run.inference / md.hash
 
     # Check if we need to compute activations
-    do, reason = need_compute(cfg)
+    do, reason, fpaths = need_compute(cfg, run, md)
     logger.info(reason)
     if not do:
         return
 
-    fpaths = Filepaths.from_cfg(cfg)
     with open(root / "config.json", "wb") as fd:
         helpers.jdump(cfg, fd)
 
@@ -313,7 +312,9 @@ def main(
     with executor.batch():
         jobs = []
         for i, cfg in enumerate(cfgs):
-            do, reason = need_compute(cfg)
+            run_item = disk.Run(cfg.run)
+            md_item = Metadata.load(cfg.data.shards)
+            do, reason, _ = need_compute(cfg, run_item, md_item)
             if not do:
                 continue
 
