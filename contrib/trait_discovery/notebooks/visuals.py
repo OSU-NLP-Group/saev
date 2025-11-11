@@ -16,6 +16,7 @@ def _():
     from jaxtyping import Float, jaxtyped
 
     import saev.disk
+
     return Float, beartype, bisect, jaxtyped, mo, np, pathlib, pl, saev
 
 
@@ -36,7 +37,6 @@ def _(mo, root):
 
         return mo.ui.dropdown(choices, label="Checkpoint", searchable=True)
 
-
     ckpt_dropdown = make_ckpt_dropdown()
     return (ckpt_dropdown,)
 
@@ -51,6 +51,22 @@ def _(ckpt_dropdown):
 def _(ckpt_dropdown, root, saev):
     run = saev.disk.Run(root / ckpt_dropdown.value)
     return (run,)
+
+
+@app.cell
+def _(mo, run):
+    shards_dropdown = mo.ui.dropdown(
+        [dir.name for dir in run.inference.iterdir() if (dir / "images").is_dir()],
+        label="Shards",
+        searchable=True,
+    )
+    return (shards_dropdown,)
+
+
+@app.cell
+def _(shards_dropdown):
+    shards_dropdown
+    return
 
 
 @app.cell
@@ -75,16 +91,17 @@ def _(pl):
         }
 
         return obs, target2fields
+
     return
 
 
 @app.cell
-def _(pl, run):
+def _(pl, run, shards_dropdown):
     # img_obs, target2fields = add_target(
     #     pl.read_parquet(root / ckpt_dropdown.value / "obs.parquet"),
     #     ["Taxonomic_Name", "View"],
     # )
-    sae_var = pl.read_parquet(run.inference / "781f8739" / "var.parquet")
+    sae_var = pl.read_parquet(run.inference / shards_dropdown.value / "var.parquet")
     return (sae_var,)
 
 
@@ -97,19 +114,15 @@ def _(ckpt_dropdown, mo):
 
 
 @app.cell
-def _(bisect, mo, run):
-    features = sorted(
-        [
-            int(path.name)
-            for path in (run.inference / "781f8739" / "images").iterdir()
-            if path.name.isdigit()
-        ]
-    )
-
+def _(bisect, mo, run, shards_dropdown):
+    features = sorted([
+        int(path.name)
+        for path in (run.inference / shards_dropdown.value / "images").iterdir()
+        if path.name.isdigit()
+    ])
 
     def find_i(f: int):
         return bisect.bisect_left(features, f)
-
 
     mo.md(f"Found {len(features)} saved features.")
     return features, find_i
@@ -158,6 +171,7 @@ def _(features, get_i, mo, sae_var):
         return mo.md(
             f"Feature {f} ({get_i()}/{len(features)}; {get_i() / len(features) * 100:.1f}%) | Frequency: {10 ** feature['log10_freq'] * 100:.5f}% of inputs | Mean Value: {10 ** feature['log10_value']:.3f}"
         )
+
     return (display_info,)
 
 
@@ -227,24 +241,23 @@ def _(
     mo,
     run,
     sae_var,
+    shards_dropdown,
     show_img_switch,
     show_sae_img_switch,
     show_sae_seg_switch,
     show_seg_switch,
 ):
     def show_img(feature: int, i: int):
-        neuron_dir = run.inference / "781f8739" / "images" / str(feature)
+        neuron_dir = run.inference / shards_dropdown.value / "images" / str(feature)
 
         imgs = []
 
-        n_imgs = sum(
-            [
-                show_img_switch.value,
-                show_sae_img_switch.value,
-                show_seg_switch.value,
-                show_sae_seg_switch.value,
-            ]
-        )
+        n_imgs = sum([
+            show_img_switch.value,
+            show_sae_img_switch.value,
+            show_seg_switch.value,
+            show_sae_seg_switch.value,
+        ])
         width = 100 / n_imgs
 
         if show_img_switch.value:
@@ -290,6 +303,7 @@ def _(
             ],
             align="center",
         )
+
     return (show_img,)
 
 
@@ -350,14 +364,15 @@ def _(Float, beartype, img_obs, jaxtyped, mo, np, percentiles, pl, x):
         f1 = np.nan_to_num(f1, 0.0)
         return f1, prec_cs, recall_cs
 
-
     f1, prec, recall = get_f1(x, img_obs)
     return f1, prec, recall
 
 
 @app.cell
 def _(img_obs, pl):
-    img_obs.filter(pl.col("hybrid_stat") == "non-hybrid").select("target").unique().max()
+    img_obs.filter(pl.col("hybrid_stat") == "non-hybrid").select(
+        "target"
+    ).unique().max()
     return
 
 
@@ -375,27 +390,25 @@ def _(f1, img_obs, np, pl, prec, recall, sae_var, target2fields):
     print(i2c)
 
     df = (
-        pl.DataFrame(
-            [
-                {
-                    "species": target2fields[i2c[i]][0],
-                    "view": target2fields[i2c[i]][1],
-                    "f1": f1[i, feature],
-                    "prec": prec[i, feature],
-                    "recall": recall[i, feature],
-                    "feature": feature,
-                    "n_imgs": class_counts[i2c[i]],
-                    "target": i2c[i],
-                    "log10_freq": sae_var.row(feature, named=True)["log10_freq"],
-                }
-                for i, feature in set(
-                    []
-                    + list(enumerate(f1.argmax(axis=1)))
-                    + list(enumerate(prec.argmax(axis=1)))
-                    + list(enumerate(recall.argmax(axis=1)))
-                )
-            ]
-        )
+        pl.DataFrame([
+            {
+                "species": target2fields[i2c[i]][0],
+                "view": target2fields[i2c[i]][1],
+                "f1": f1[i, feature],
+                "prec": prec[i, feature],
+                "recall": recall[i, feature],
+                "feature": feature,
+                "n_imgs": class_counts[i2c[i]],
+                "target": i2c[i],
+                "log10_freq": sae_var.row(feature, named=True)["log10_freq"],
+            }
+            for i, feature in set(
+                []
+                + list(enumerate(f1.argmax(axis=1)))
+                + list(enumerate(prec.argmax(axis=1)))
+                + list(enumerate(recall.argmax(axis=1)))
+            )
+        ])
         .unique()
         .sort(by="f1", descending=True)
         .filter(pl.col("n_imgs") >= 5)
@@ -444,18 +457,16 @@ def _():
 
 @app.cell
 def _(df, mo, pairs, pl):
-    mo.vstack(
-        [
-            df.filter(
-                ~pl.col("species").str.contains(" x ")
-                & (
-                    (pl.col("species").str.contains(f"ssp. {a}"))
-                    | (pl.col("species").str.contains(f"ssp. {b}"))
-                )
-            ).sort(by="f1", descending=True)
-            for a, b in pairs
-        ]
-    )
+    mo.vstack([
+        df.filter(
+            ~pl.col("species").str.contains(" x ")
+            & (
+                (pl.col("species").str.contains(f"ssp. {a}"))
+                | (pl.col("species").str.contains(f"ssp. {b}"))
+            )
+        ).sort(by="f1", descending=True)
+        for a, b in pairs
+    ])
     return
 
 

@@ -8,7 +8,6 @@ import random
 import typing as tp
 
 import beartype
-import glasbey
 import numpy as np
 import polars as pl
 import scipy.sparse
@@ -44,6 +43,8 @@ class Config:
     """How much to scale images by (use higher numbers for high-res visuals)."""
     ignore_labels: list[int] = dataclasses.field(default_factory=list)
     """Which patch labels to ignore when calculating summarized image activations."""
+    palette: pathlib.Path | None = None
+    """Path to a palette .txt file."""
 
     # Hardware
     device: str = "cuda" if torch.cuda.is_available() else "cpu"
@@ -190,8 +191,8 @@ def cli(cfg: tp.Annotated[Config, tyro.conf.arg(name="")]):
 
     # Create indexed activations dataset for efficient patch retrieval
     md = saev.data.Metadata.load(cfg.shards)
-    vit_cls = saev.data.models.load_model_cls(md.family)
-    resize_tr = vit_cls.make_resize(
+    vit = saev.data.models.load_model_cls(md.family)(md.ckpt)
+    resize_tr = vit.make_resize(
         md.ckpt, md.content_tokens_per_example, scale=cfg.img_scale
     )
     img_cfg = md.make_data_cfg()
@@ -256,10 +257,21 @@ def cli(cfg: tp.Annotated[Config, tyro.conf.arg(name="")]):
         + np.arange(md.content_tokens_per_example)[None, None, :]
     )
     assert topk_token_idx.max() < token_acts.shape[0]
+    logger.info("Calculated top-k for each latent.")
 
-    palette = [
-        tuple(rgb) for rgb in glasbey.create_palette(palette_size=256, as_hex=False)
-    ]
+    if cfg.palette is None:
+        import glasbey
+
+        palette = [
+            tuple(rgb) for rgb in glasbey.create_palette(palette_size=256, as_hex=False)
+        ]
+    else:
+        palette = saev.viz.load_palette(cfg.palette)
+
+    logger.info("Generated palette with %d colors.", len(palette))
+
+    patch_size = int(vit.patch_size * cfg.img_scale)
+
     for f_i, f in enumerate(
         saev.helpers.progress(features, desc="saving imgs", every=1)
     ):
@@ -298,7 +310,7 @@ def cli(cfg: tp.Annotated[Config, tyro.conf.arg(name="")]):
             example.img.save(feature_dir / f"{j}_img.png")
             # 2. Save SAE highlighted image under {j}_sae_img.png
             img_with_highlights = saev.viz.add_highlights(
-                example.img, example.tokens, vit_cls.patch_size, upper=upper
+                example.img, example.tokens, patch_size, upper=upper
             )
             img_with_highlights.save(feature_dir / f"{j}_sae_img.png")
 
@@ -307,7 +319,7 @@ def cli(cfg: tp.Annotated[Config, tyro.conf.arg(name="")]):
                 seg = make_seg(
                     example.seg,
                     md.content_tokens_per_example,
-                    vit_cls.patch_size,
+                    patch_size,
                     md.pixel_agg,
                     img_ds.cfg.bg_label,
                     palette,
@@ -316,6 +328,6 @@ def cli(cfg: tp.Annotated[Config, tyro.conf.arg(name="")]):
 
                 # 4. Save SAE highlighted segmentation under {j}_sae_seg.png
                 seg_with_highlights = saev.viz.add_highlights(
-                    seg, example.tokens, vit_cls.patch_size, upper=upper
+                    seg, example.tokens, patch_size, upper=upper
                 )
                 seg_with_highlights.save(feature_dir / f"{j}_sae_seg.png")
