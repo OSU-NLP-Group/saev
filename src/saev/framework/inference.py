@@ -1,14 +1,13 @@
 """
 Script for dumping image-level activations in a single pass over the dataset.
 
-Dumps 6 files:
+Dumps 5 files:
 
 1. mean_values.pt
 2. sparsity.pt
 3. distributions.pt
 4. token_acts.npz
-5. percentiles_p99.pt
-6. metrics.json
+5. metrics.json
 
 metrics.json contains some individual metrics that are useful for reporting:
 
@@ -35,7 +34,6 @@ import tyro
 
 from saev import configs, disk, helpers, nn
 from saev.data import Metadata, OrderedConfig, OrderedDataLoader
-from saev.utils import statistics
 
 log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
 logging.basicConfig(level=logging.INFO, format=log_format)
@@ -54,8 +52,6 @@ class Config:
 
     n_dists: int = 25
     """Number of features to save distributions for."""
-    percentile: int = 99
-    """Percentile to estimate for outlier detection."""
     ignore_labels: list[int] = dataclasses.field(default_factory=list)
     """Which token labels to ignore when calculating summarized image activations."""
 
@@ -85,7 +81,6 @@ class Filepaths:
     sparsity: pathlib.Path
     distributions: pathlib.Path
     token_acts: pathlib.Path
-    percentiles: pathlib.Path
     metrics: pathlib.Path
 
     @classmethod
@@ -99,7 +94,6 @@ class Filepaths:
             sparsity=root / "sparsity.pt",
             distributions=root / "distributions.pt",
             token_acts=root / "token_acts.npz",
-            percentiles=root / f"percentiles_p{cfg.percentile}.pt",
             metrics=root / "metrics.json",
         )
 
@@ -108,7 +102,6 @@ class Filepaths:
             self.mean_values,
             self.sparsity,
             self.distributions,
-            self.percentiles,
             self.token_acts,
             self.metrics,
         ]
@@ -170,10 +163,6 @@ def worker_fn(cfg: Config):
     distributions_nm = torch.zeros(
         (dataloader.n_samples, cfg.n_dists), device=cfg.device
     )
-    estimator = statistics.PercentileEstimator(
-        cfg.percentile, dataloader.n_samples, shape=(sae.cfg.d_sae,)
-    )
-
     ignore = torch.tensor(cfg.ignore_labels)
 
     # Float64 accumulators keep NMSE numerics stable when evaluating Q - |S|^2 / N.
@@ -186,7 +175,11 @@ def worker_fn(cfg: Config):
 
     prev_i = -1
 
-    for batch in helpers.progress(dataloader):
+    dataloader_iter = tp.cast(
+        collections.abc.Iterable[dict[str, torch.Tensor]], dataloader
+    )
+
+    for batch in helpers.progress(dataloader_iter):
         # Get SAE activations (shared computation)
         vit_acts_bd = batch["act"].to(cfg.device)
         # Here, p stands for prefixes
@@ -203,10 +196,6 @@ def worker_fn(cfg: Config):
             reconstruction_sse += torch.sum(diff_bd * diff_bd)
             sum_sq += (vit_masked_bd * vit_masked_bd).sum()
             sum_vec_s += vit_masked_bd.sum(dim=0)
-
-        # Update percentile estimator
-        for sae_act_s in f_x[mask_b]:
-            estimator.update(sae_act_s)
 
         # Update statistics
         distributions_nm[batch["example_idx"][mask_b], :] = f_x[mask_b, : cfg.n_dists]
@@ -241,7 +230,6 @@ def worker_fn(cfg: Config):
     torch.save(mean_values_s.cpu(), fpaths.mean_values)
     torch.save(sparsity_s.cpu(), fpaths.sparsity)
     torch.save(distributions_nm.cpu(), fpaths.distributions)
-    torch.save(estimator.estimate.cpu(), fpaths.percentiles)
 
     # Metrics
     sse_sae = reconstruction_sse.item()
@@ -302,6 +290,7 @@ def main(
         return 0
 
     import submitit
+    from submitit.core.utils import UncompletedJobError
 
     executor = submitit.SlurmExecutor(folder=cfg.log_to)
 
@@ -340,7 +329,7 @@ def main(
         try:
             job.result()
             logger.info("Job %d/%d finished.", i, len(jobs))
-        except submitit.core.utils.UncompletedJobError:
+        except UncompletedJobError:
             logger.warning("Job %s (%d) did not finish.", job.job_id, i)
 
     logger.info("Jobs done.")
