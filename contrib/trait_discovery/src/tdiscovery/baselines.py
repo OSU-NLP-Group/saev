@@ -1,4 +1,5 @@
 import dataclasses
+import io
 import logging
 import pathlib
 import time
@@ -16,6 +17,7 @@ from jaxtyping import Float, jaxtyped
 from submitit.core.utils import UncompletedJobError
 from torch import Tensor
 
+import saev
 import saev.configs
 import saev.data
 import saev.helpers
@@ -24,6 +26,8 @@ import saev.utils.scheduling
 log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
 
 BaselineMethod = tp.Literal["kmeans", "pca"]
+
+BASELINE_SCHEMA_VERSION = 1
 
 
 @beartype.beartype
@@ -55,7 +59,7 @@ class BaselineRun:
         return cls(run_dir)
 
     @property
-    def checkpoint_dir(self) -> pathlib.Path:
+    def ckpt_dir(self) -> pathlib.Path:
         return self.run_dir / "checkpoint"
 
     @property
@@ -77,29 +81,11 @@ class BaselineRun:
         dst.symlink_to(src)
 
 
-def _sanitize_for_wandb(obj: tp.Any) -> tp.Any:
-    if isinstance(obj, dict):
-        return {k: _sanitize_for_wandb(v) for k, v in obj.items()}
-    if isinstance(obj, list):
-        return [_sanitize_for_wandb(v) for v in obj]
-    if isinstance(obj, tuple):
-        return [_sanitize_for_wandb(v) for v in obj]
-    if isinstance(obj, pathlib.Path):
-        return str(obj)
-    return obj
-
-
-def _deserialize_shuffled_config(dct: dict[str, object]) -> saev.data.ShuffledConfig:
-    kwargs = dict(dct)
-    shards = kwargs.get("shards")
-    if isinstance(shards, str):
-        kwargs["shards"] = pathlib.Path(shards)
-    return saev.data.ShuffledConfig(**kwargs)
-
-
 @jaxtyped(typechecker=beartype.beartype)
 class MiniBatchKMeans(torch.nn.Module):
     """GPU mini-batch k-means estimator following the sklearn-style API."""
+
+    method = "kmeans"
 
     def __init__(self, k: int, device: str = "cuda", collapse_tol: float = 0.5):
         super().__init__()
@@ -224,6 +210,8 @@ class MiniBatchKMeans(torch.nn.Module):
 class MiniBatchPCA(torch.nn.Module):
     """Placeholder PCA estimator (implementation pending)."""
 
+    method = "pca"
+
     def __init__(self, n_components: int, device: str = "cuda"):
         super().__init__()
         self.n_components = n_components
@@ -281,14 +269,84 @@ class InferenceConfig:
 
 
 @beartype.beartype
+def _materialize_model(
+    method: BaselineMethod, state: dict[str, tp.Any], *, device: str
+) -> torch.nn.Module:
+    if method == "kmeans":
+        centers = state["cluster_centers"]
+        counts = state["cluster_counts"]
+        collapse_tol = state["collapse_tol"]
+
+        k, n_features_in = centers.shape
+
+        model = MiniBatchKMeans(k=k, device=device, collapse_tol=collapse_tol)
+        model.cluster_centers_ = centers.to(device)
+        model.cluster_counts_ = counts.to(device)
+        model.n_steps_ = state["n_steps"]
+        model.n_features_in_ = n_features_in
+        return model
+
+    if method == "pca":
+        raise NotImplementedError("MiniBatchPCA deserialization not implemented")
+    tp.assert_never(method)
+
+
+@beartype.beartype
+def load(run: BaselineRun, *, device: str = "cpu") -> torch.nn.Module:
+    ckpt_path = run.ckpt_dir / "baseline.pt"
+    with open(ckpt_path, "rb") as fd:
+        header = orjson.loads(fd.readline())
+        buffer = io.BytesIO(fd.read())
+
+    state = torch.load(buffer, map_location=device, weights_only=False)
+    assert isinstance(state, dict), f"Unexpected checkpoint payload in {ckpt_path}"
+
+    model = _materialize_model(header["method"], state, device=device)
+
+    return model
+
+
+@beartype.beartype
+def _serialize_model_state(model: torch.nn.Module) -> dict[str, tp.Any]:
+    if isinstance(model, MiniBatchKMeans):
+        assert model.cluster_centers_ is not None, "cluster_centers_ missing"
+        assert model.cluster_counts_ is not None, "cluster_counts_ missing"
+        assert model.n_features_in_ is not None, "n_features_in_ missing"
+        return {
+            "cluster_centers": model.cluster_centers_.cpu(),
+            "cluster_counts": model.cluster_counts_.cpu(),
+            "n_steps": model.n_steps_,
+            "n_features_in": model.n_features_in_,
+            "collapse_tol": float(model.collapse_tol),
+        }
+    if isinstance(model, MiniBatchPCA):
+        raise NotImplementedError("MiniBatchPCA serialization not implemented")
+    raise TypeError(f"Unsupported baseline model type: {type(model).__name__}")
+
+
+@beartype.beartype
+def dump(dpath: pathlib.Path, *, model: torch.nn.Module) -> pathlib.Path:
+    header: dict[str, tp.Any] = {
+        "method": model.method,
+        "schema": BASELINE_SCHEMA_VERSION,
+        "commit": saev.helpers.current_git_commit() or "unknown",
+        "lib": saev.__version__,
+    }
+
+    fpath = dpath / "baseline.pt"
+    with open(fpath, "wb") as fd:
+        saev.helpers.jdump(header, fd, option=orjson.OPT_APPEND_NEWLINE)
+        torch.save(_serialize_model_state(model), fd)
+    return fpath
+
+
+@beartype.beartype
 def get_training_metrics(model: torch.nn.Module, n_samples: int) -> dict[str, float]:
     if isinstance(model, MiniBatchKMeans):
-        if model.last_batch_inertia_ is None:
-            return {}
         return {
-            "train/inertia": model.last_batch_inertia_,
+            "train/inertia": model.last_batch_inertia_ or 0.0,
             "train/l0": 1.0,
-            "train/n_samples": float(n_samples),
+            "train/n_samples": n_samples,
         }
     else:
         tp.assert_never(model)
@@ -340,7 +398,7 @@ def eval_kmeans(cfg: TrainConfig, model: MiniBatchKMeans) -> dict[str, float]:
 
 
 @beartype.beartype
-def train_worker_fn(cfg: TrainConfig) -> str:
+def train_worker_fn(cfg: TrainConfig):
     level = logging.DEBUG if cfg.debug else logging.INFO
     logging.basicConfig(level=level, format=log_format, force=True)
     logger = logging.getLogger("train_worker_fn")
@@ -350,6 +408,7 @@ def train_worker_fn(cfg: TrainConfig) -> str:
     cfg.log_to.mkdir(parents=True, exist_ok=True)
     dl = saev.data.ShuffledDataLoader(cfg.train_data)
     dl = saev.utils.scheduling.BatchLimiter(dl, cfg.n_train)
+    train_metadata = getattr(dl, "metadata", None)
 
     if cfg.method == "kmeans":
         model = MiniBatchKMeans(k=cfg.k, device=cfg.device)
@@ -359,7 +418,8 @@ def train_worker_fn(cfg: TrainConfig) -> str:
         tp.assert_never(cfg.method)
 
     cfg_dict = dataclasses.asdict(cfg)
-    cfg_dict["train_data"]["metadata"] = dataclasses.asdict(dl.metadata)
+    if train_metadata is not None:
+        cfg_dict["train_data"]["metadata"] = dataclasses.asdict(train_metadata)
     tags = [cfg.tag] if cfg.tag else []
     mode = "online" if cfg.track else "disabled"
     run = wandb.init(project=cfg.wandb_project, config=cfg_dict, mode=mode, tags=tags)
@@ -402,44 +462,17 @@ def train_worker_fn(cfg: TrainConfig) -> str:
     if run and eval_metrics:
         run.log(eval_metrics, step=getattr(model, "n_steps_", 0))
 
-    baseline_run = BaselineRun.new(
-        run.id,
+    run.finish()
+    run_id = getattr(run, "id", "offline")
+    # Baseline Run
+    run = BaselineRun.new(
+        run_id,
         train_shards_dir=cfg.train_data.shards.resolve(),
         val_shards_dir=cfg.val_data.shards.resolve(),
         runs_root=cfg.runs_root,
     )
-
-    config_json = _sanitize_for_wandb(dataclasses.asdict(cfg))
-    with open(baseline_run.checkpoint_dir / "config.json", "wb") as fd:
-        saev.helpers.jdump(config_json, fd, option=orjson.OPT_INDENT_2)
-
-    ckpt: dict[str, tp.Any] = {
-        "method": cfg.method,
-        "config": config_json,
-        "metrics": eval_metrics,
-    }
-    if cfg.method == "kmeans":
-        assert isinstance(model, MiniBatchKMeans)
-        ckpt.update({
-            "cluster_centers": model.cluster_centers_.cpu(),
-            "cluster_counts": model.cluster_counts_.cpu(),
-            "n_steps": model.n_steps_,
-            "n_features_in": model.n_features_in_,
-        })
-    elif cfg.method == "pca":
-        assert isinstance(model, MiniBatchPCA)
-        ckpt.update({
-            "components": None
-            if model.components_ is None
-            else model.components_.cpu(),
-            "n_steps": model.n_steps_,
-        })
-
-    ckpt_path = baseline_run.checkpoint_dir / f"{cfg.method}.pt"
-    torch.save(ckpt, ckpt_path)
+    ckpt_path = dump(run.ckpt_dir, model)
     logger.info("Saved checkpoint to %s", ckpt_path)
-    run.finish()
-    return run.id
 
 
 @beartype.beartype
@@ -448,30 +481,13 @@ def inference_worker_fn(cfg: InferenceConfig):
     logger = logging.getLogger("tdiscovery.baselines.inference")
 
     run = BaselineRun.open(cfg.run)
-    config_path = run.checkpoint_dir / "config.json"
-    with open(config_path, "rb") as fd:
-        train_cfg_dict = orjson.loads(fd.read())
+    ckpt, model = load(run, device=cfg.device)
 
-    method = train_cfg_dict["method"]
-    if method != "kmeans":
+    if ckpt.method != "kmeans":
         raise NotImplementedError("Only kmeans inference is implemented")
 
-    ckpt_path = run.checkpoint_dir / f"{method}.pt"
-    ckpt = torch.load(ckpt_path, map_location=cfg.device)
-
-    model = MiniBatchKMeans(
-        k=ckpt["cluster_centers"].shape[0],
-        device=cfg.device,
-        collapse_tol=float(train_cfg_dict.get("collapse_tol", 0.5)),
-    )
-    model.cluster_centers_ = ckpt["cluster_centers"].to(cfg.device)
-    model.cluster_counts_ = ckpt["cluster_counts"].to(cfg.device)
-    model.n_features_in_ = int(
-        ckpt.get("n_features_in", model.cluster_centers_.shape[1])
-    )
-
-    split_key = "train_data" if cfg.split == "train" else "val_data"
-    split_cfg = _deserialize_shuffled_config(train_cfg_dict[split_key])
+    train_cfg = ckpt.train_cfg
+    split_cfg = train_cfg.train_data if cfg.split == "train" else train_cfg.val_data
     shards_dir = run.train_shards if cfg.split == "train" else run.val_shards
     ordered_cfg = saev.data.make_ordered_config(
         split_cfg,
