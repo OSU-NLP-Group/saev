@@ -1324,3 +1324,39 @@ So I probably need to write and work on my workflow diagram. These things needs 
 
 Some things I want to work on:
 
+# 11/09/2025
+
+- [done] Get some coffee.
+- [done] Look at some BioCLIP visuals.
+- [done] Transcribe Yu's feedback.
+- Make a plan.
+
+Yu's feedback from Nov 7th:
+
+- too many acronyms -> too specific, missing out on the big picture / ADE20K -> foreign to many readers
+- who cares about k-means, PCA?
+
+- feels too indirect
+- doing it this way is too hard for an ml audience
+- all these concepts are unfamiliar. easier to throw 'this is what it enables' that isn't possible before.
+- baselines are secondary.
+
+how do you get people excited about this? why should someone care about this problem?
+
+unstructured data -> ml finds structure -> ? -> insights
+
+we need novel discovery -> dilemma => AI is *not* good at new discoveries <- *why*?
+
+- what's the position of this work?
+- what value does it bring?
+- biology should just be a use case / case study
+
+My thoughts on this feedback:
+
+Agreed that it's indirect. I think punching people in the face with why this matters is a good idea.
+
+I need to make a figure.
+
+# 11/10/2025
+
+I need to finish k-means and PCA (I think).

@@ -1,9 +1,11 @@
 import contextlib
+import dataclasses
 import pathlib
 import tempfile
 import uuid
 
 import hypothesis.strategies as st
+import orjson
 import torch
 from hypothesis import HealthCheck, given, settings
 from tdiscovery.baselines import (
@@ -65,7 +67,7 @@ def test_dump_and_load_round_trip(tmp_path):
     )
     model = _make_model(cfg)
 
-    ckpt_path = dump(run.ckpt_dir, model=model)
+    ckpt_path = dump(run.ckpt_dir, cfg, model=model)
     assert ckpt_path.exists()
 
     loaded = load(run, device="cpu")
@@ -75,6 +77,12 @@ def test_dump_and_load_round_trip(tmp_path):
     assert torch.equal(loaded.cluster_counts_, model.cluster_counts_)
     assert torch.equal(loaded.cluster_centers_, model.cluster_centers_)
     assert loaded.collapse_tol == cfg.collapse_tol
+
+    cfg_path = run.ckpt_dir / "config.json"
+    assert cfg_path.exists()
+    stored_cfg = orjson.loads(cfg_path.read_bytes())
+    expected_cfg = orjson.loads(saev.helpers.jdumps(dataclasses.asdict(cfg)))
+    assert stored_cfg == expected_cfg
 
 
 @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
@@ -104,7 +112,7 @@ def test_dump_and_load_round_trip_property(k, d_model, steps, collapse):
         model.n_features_in_ = d_model
         model.n_steps_ = steps
 
-        dump(run.ckpt_dir, model=model)
+        dump(run.ckpt_dir, cfg, model=model)
         loaded = load(run, device="cpu")
 
         assert isinstance(loaded, MiniBatchKMeans)
@@ -116,3 +124,9 @@ def test_dump_and_load_round_trip_property(k, d_model, steps, collapse):
         assert loaded.collapse_tol == collapse
         assert torch.equal(loaded.cluster_counts_, model.cluster_counts_)
         assert torch.equal(loaded.cluster_centers_, model.cluster_centers_)
+
+        cfg_path = run.ckpt_dir / "config.json"
+        assert cfg_path.exists()
+        stored_cfg = orjson.loads(cfg_path.read_bytes())
+        expected_cfg = orjson.loads(saev.helpers.jdumps(dataclasses.asdict(cfg)))
+        assert stored_cfg == expected_cfg

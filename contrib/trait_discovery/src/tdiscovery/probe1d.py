@@ -1390,9 +1390,14 @@ def sp_csr_to_pt(csr: scipy.sparse.csr_matrix, *, device: str) -> Tensor:
 def worker_fn(cfg: Config) -> int:
     log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
     level = logging.DEBUG if cfg.debug else logging.INFO
-    logging.basicConfig(level=level, format=log_format)
+    logging.basicConfig(level=level, format=log_format, force=True)
     logger = logging.getLogger("probe1d")
     stats_log = logging.getLogger("stats")
+    logger.info(
+        "Started worker_fn() (debug=%s, logging=%s).",
+        cfg.debug,
+        logging.getLevelName(logger.getEffectiveLevel()),
+    )
 
     def log_host_mem(event: str, **fields: object) -> None:
         if not stats_log.isEnabledFor(logging.DEBUG):
@@ -1700,10 +1705,13 @@ def cli(
     """
     log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
     level = logging.DEBUG if cfg.debug else logging.INFO
-    logging.basicConfig(level=level, format=log_format)
+    logging.basicConfig(level=level, format=log_format, force=True)
     logger = logging.getLogger("probe1d")
-
-    logger.info("Started cli().")
+    logger.info(
+        "Started cli() (debug=%s, logging=%s).",
+        cfg.debug,
+        logging.getLevelName(logger.getEffectiveLevel()),
+    )
 
     sweep_fpath = sweep
     if sweep_fpath is None:
@@ -1715,9 +1723,7 @@ def cli(
             return 1
 
         cfgs, errs = saev.configs.load_cfgs(
-            cfg,
-            default=Config(),
-            sweep_dcts=sweep_dcts,
+            cfg, default=Config(), sweep_dcts=sweep_dcts
         )
         if errs:
             for err in errs:

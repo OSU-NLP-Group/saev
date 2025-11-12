@@ -297,21 +297,20 @@ def _materialize_model(
         model.n_steps_ = state["n_steps"]
         model.n_features_in_ = n_features_in
         return model
-
-    if method == "pca":
+    elif method == "pca":
         raise NotImplementedError("MiniBatchPCA deserialization not implemented")
-    tp.assert_never(method)
+    else:
+        tp.assert_never(method)
 
 
 @beartype.beartype
 def load(run: saev.disk.Run, *, device: str = "cpu") -> torch.nn.Module:
-    ckpt_path = run.ckpt_dir / "baseline.pt"
-    with open(ckpt_path, "rb") as fd:
+    with open(run.ckpt, "rb") as fd:
         header = orjson.loads(fd.readline())
         buffer = io.BytesIO(fd.read())
 
     state = torch.load(buffer, map_location=device, weights_only=False)
-    assert isinstance(state, dict), f"Unexpected checkpoint payload in {ckpt_path}"
+    assert isinstance(state, dict), f"Unexpected checkpoint payload in {run.ckpt}"
 
     model = _materialize_model(header["method"], state, device=device)
 
@@ -337,8 +336,7 @@ def _serialize_model_state(model: torch.nn.Module) -> dict[str, tp.Any]:
 
 
 @beartype.beartype
-def dump(dpath: pathlib.Path, cfg: TrainConfig, model: torch.nn.Module) -> pathlib.Path:
-    dpath.mkdir(parents=True, exist_ok=True)
+def dump(run: saev.disk.Run, cfg: TrainConfig, model: torch.nn.Module):
     header: dict[str, tp.Any] = {
         "method": model.method,
         "schema": BASELINE_SCHEMA_VERSION,
@@ -347,15 +345,12 @@ def dump(dpath: pathlib.Path, cfg: TrainConfig, model: torch.nn.Module) -> pathl
     }
 
     cfg_dict = dataclasses.asdict(cfg)
-    config_path = dpath / "config.json"
-    with open(config_path, "wb") as fd:
+    with open(run.ckpt.parent / "config.json", "wb") as fd:
         saev.helpers.jdump(cfg_dict, fd, option=orjson.OPT_INDENT_2)
 
-    fpath = dpath / "baseline.pt"
-    with open(fpath, "wb") as fd:
+    with open(run.ckpt, "wb") as fd:
         saev.helpers.jdump(header, fd, option=orjson.OPT_APPEND_NEWLINE)
         torch.save(_serialize_model_state(model), fd)
-    return fpath
 
 
 @beartype.beartype
@@ -366,6 +361,8 @@ def get_training_metrics(model: torch.nn.Module, n_samples: int) -> dict[str, fl
             "train/l0": 1.0,
             "train/n_samples": n_samples,
         }
+    elif isinstance(model, MiniBatchPCA):
+        raise NotImplementedError()
     else:
         tp.assert_never(model)
 
@@ -413,6 +410,11 @@ def eval_kmeans(cfg: TrainConfig, model: MiniBatchKMeans) -> dict[str, float]:
         "eval/mean_pop": mean_pop,
         "eval/max_pop": max_pop,
     }
+
+
+@beartype.beartype
+def eval_pca(cfg: TrainConfig, model: MiniBatchPCA) -> dict[str, float]:
+    raise NotImplementedError()
 
 
 @beartype.beartype
@@ -472,6 +474,10 @@ def train_worker_fn(cfg: TrainConfig):
         assert model.cluster_counts_ is not None
         assert model.n_features_in_ is not None
         eval_metrics = eval_kmeans(cfg, model)
+    elif cfg.method == "pca":
+        assert isinstance(model, MiniBatchPCA)
+        raise NotImplementedError
+        eval_metrics = eval_pca(cfg, model)
     else:
         tp.assert_never(cfg.method)
 
@@ -489,8 +495,8 @@ def train_worker_fn(cfg: TrainConfig):
         val_shards_dir=cfg.val_data.shards.resolve(),
         runs_root=cfg.runs_root,
     )
-    ckpt_path = dump(run.ckpt_dir, cfg, model)
-    logger.info("Saved checkpoint to %s", ckpt_path)
+    dump(run, cfg, model)
+    logger.info("Saved checkpoint to %s", run.ckpt)
 
 
 @beartype.beartype

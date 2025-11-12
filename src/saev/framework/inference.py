@@ -106,10 +106,10 @@ class Filepaths:
 
 
 @beartype.beartype
-def need_compute(
-    cfg: Config, run: disk.Run, md: Metadata
-) -> tuple[bool, str, Filepaths]:
+def need_compute(cfg: Config) -> tuple[bool, str, Filepaths]:
     # Check if we need to compute activations
+    run = disk.Run(cfg.run)
+    md = Metadata.load(cfg.data.shards)
     fpaths = Filepaths.from_run(run, md)
     missing = [fpath for fpath in fpaths if not fpath.exists()]
 
@@ -133,7 +133,7 @@ def worker_fn(cfg: Config):
     root = run.inference / md.hash
 
     # Check if we need to compute activations
-    do, reason, fpaths = need_compute(cfg, run, md)
+    do, reason, fpaths = need_compute(cfg)
     logger.info(reason)
     if not do:
         return
@@ -312,9 +312,7 @@ def main(
     with executor.batch():
         jobs = []
         for i, cfg in enumerate(cfgs):
-            run_item = disk.Run(cfg.run)
-            md_item = Metadata.load(cfg.data.shards)
-            do, reason, _ = need_compute(cfg, run_item, md_item)
+            do, reason, _ = need_compute(cfg)
             if not do:
                 continue
 
