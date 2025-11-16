@@ -3,11 +3,10 @@
 Helpers for sticking with the layout described in [disk-layout.md](../developers/disk-layout.md).
 """
 
+import json
 import pathlib
 
 import beartype
-
-from . import helpers
 
 
 @beartype.beartype
@@ -137,8 +136,8 @@ class Run:
     def config(self) -> dict[str, object]:
         """The training run config. Not a train.Config object because we don't want to import from train.py."""
         config_fpath = self.run_dir / "checkpoint" / "config.json"
-        with open(config_fpath, "rb") as fd:
-            return helpers.jload(fd)
+        with open(config_fpath) as fd:
+            return json.load(fd)
 
     @property
     def ckpt(self) -> pathlib.Path:
