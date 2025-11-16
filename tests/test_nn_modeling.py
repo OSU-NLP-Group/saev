@@ -710,3 +710,57 @@ def test_remove_parallel_grads_handles_non_normalized_rows():
     sae.remove_parallel_grads()
     row_dots = (sae.W_dec.grad * sae.W_dec).sum(dim=1)
     assert torch.allclose(row_dots, torch.zeros_like(row_dots), atol=1e-6)
+
+
+def test_batchtopk_threshold_updates_from_train_batch():
+    """Training mode should update threshold toward the min positive activation."""
+    cfg = modeling.BatchTopK(top_k=2)
+    act = modeling.BatchTopKActivation(cfg)
+    act.train()
+
+    # Keep a copy of the initial threshold
+    initial = act.threshold.clone()
+
+    # Simple positive tensor so the min-positive is easy to reason about
+    x = torch.tensor([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
+    y = act(x)
+
+    # Take the smallest positive activation that survived BatchTopK
+    pos = y[y > 0]
+    assert pos.numel() > 0
+    batch_min = pos.min()
+
+    # Threshold should have moved away from its initial value
+    updated = act.threshold
+    assert not torch.equal(initial, updated)
+
+    # And it should be positive and no larger than the batch minimum
+    assert updated.item() > 0.0
+    assert updated.item() <= batch_min.item() + 1e-6
+
+
+def test_batchtopk_eval_uses_stored_threshold_jumprelu():
+    """Eval mode should apply JumpReLU with the stored threshold and not update it."""
+    cfg = modeling.BatchTopK(top_k=2)
+    act = modeling.BatchTopKActivation(cfg)
+
+    # Manually set a known threshold
+    with torch.no_grad():
+        act.threshold.fill_(0.5)
+    act.eval()
+
+    x = torch.tensor([[0.1, 0.6, 0.4], [0.7, 0.2, 0.8]])
+    y = act(x)
+
+    # Expected JumpReLU behavior: keep entries strictly above the threshold
+    theta = act.threshold
+    expected = torch.where(x > theta, x, torch.zeros_like(x))
+
+    torch.testing.assert_close(y, expected)
+
+    # Sanity check: we should not be enforcing k*batch non-zeros in eval.
+    # Here 3 entries are > 0.5, while k * batch = 4.
+    assert (y != 0).sum().item() == 3
+
+    # And eval forward should NOT change the stored threshold
+    torch.testing.assert_close(act.threshold, theta)
