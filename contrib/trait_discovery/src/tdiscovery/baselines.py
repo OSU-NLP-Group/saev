@@ -1,7 +1,7 @@
-import collections.abc
 import dataclasses
 import io
 import logging
+import math
 import pathlib
 import time
 import typing as tp
@@ -21,6 +21,7 @@ from torch import Tensor
 import saev
 import saev.configs
 import saev.data
+import saev.disk
 import saev.helpers
 import saev.utils.scheduling
 from saev.framework.inference import Filepaths
@@ -30,6 +31,16 @@ log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
 BaselineMethod = tp.Literal["kmeans", "pca"]
 
 BASELINE_SCHEMA_VERSION = 1
+
+
+@beartype.beartype
+def _baseline_ckpt(run: saev.disk.Run) -> pathlib.Path:
+    """Baseline checkpoints live inside `checkpoint/`."""
+
+    BASELINE_CKPT_NAME = "baseline.pt"
+    # Note: SAE runs always materialize `checkpoint/sae.pt`. Baseline runs reuse the same directory layout but write their weights to `checkpoint/baseline.pt` so it's not confusing.
+
+    return run.ckpt.parent / BASELINE_CKPT_NAME
 
 
 @jaxtyped(typechecker=beartype.beartype)
@@ -175,6 +186,9 @@ class MiniBatchPCA(torch.nn.Module):
         self.n_samples_seen_: int = 0
         self.mean_: Tensor | None = None
         self.scatter_: Tensor | None = None
+        self.total_variance_: float | None = None
+        self.last_batch_recon_error_: float | None = None
+        self.last_batch_var_ratio_: float | None = None
 
     def partial_fit(self, batch: Float[Tensor, "batch d_model"]) -> tp.Self:
         assert batch.ndim == 2, f"batch must be 2D, got {batch.shape}"
@@ -226,6 +240,22 @@ class MiniBatchPCA(torch.nn.Module):
         top = order[: self.n_components]
         self.explained_variance_ = eigvals[top]
         self.components_ = eigvecs[:, top].mT.contiguous()
+        total_variance = float(eigvals.sum().item())
+        self.total_variance_ = total_variance if math.isfinite(total_variance) else None
+        denom_var = max(total_variance, 1e-12)
+        self.last_batch_var_ratio_ = float(
+            self.explained_variance_.sum().item() / denom_var
+        )
+
+        mean = self.mean_
+        components = self.components_
+        assert mean is not None
+        assert components is not None
+        centered_global = batch_device - mean
+        scores = centered_global @ components.T
+        recon = scores @ components + mean
+        diff = (batch_device - recon).to(torch.float64)
+        self.last_batch_recon_error_ = float(diff.pow(2).mean().item())
 
         self.n_steps_ += 1
         return self
@@ -298,19 +328,42 @@ def _materialize_model(
         model.n_features_in_ = n_features_in
         return model
     elif method == "pca":
-        raise NotImplementedError("MiniBatchPCA deserialization not implemented")
+        components = state["components"]
+        mean = state["mean"]
+        scatter = state["scatter"]
+        explained = state["explained_variance"]
+        n_steps = state["n_steps"]
+        n_features_in = state["n_features_in"]
+        n_samples_seen = state["n_samples_seen"]
+
+        n_components, inferred_d = components.shape
+        msg = f"n_features_in mismatch: {n_features_in} vs {inferred_d}"
+        assert n_features_in == inferred_d, msg
+        model = MiniBatchPCA(n_components=n_components, device=device)
+        model.components_ = components.to(device)
+        model.mean_ = mean.to(device)
+        model.scatter_ = scatter.to(device)
+        model.explained_variance_ = explained.to(device)
+        model.n_steps_ = n_steps
+        model.n_features_in_ = n_features_in
+        model.n_samples_seen_ = n_samples_seen
+        model.total_variance_ = state["total_variance"]
+        model.last_batch_recon_error_ = state["last_batch_recon_error"]
+        model.last_batch_var_ratio_ = state["last_batch_var_ratio"]
+        return model
     else:
         tp.assert_never(method)
 
 
 @beartype.beartype
 def load(run: saev.disk.Run, *, device: str = "cpu") -> torch.nn.Module:
-    with open(run.ckpt, "rb") as fd:
+    ckpt_path = _baseline_ckpt(run)
+    with open(ckpt_path, "rb") as fd:
         header = orjson.loads(fd.readline())
         buffer = io.BytesIO(fd.read())
 
     state = torch.load(buffer, map_location=device, weights_only=False)
-    assert isinstance(state, dict), f"Unexpected checkpoint payload in {run.ckpt}"
+    assert isinstance(state, dict), f"Unexpected checkpoint payload in {ckpt_path}"
 
     model = _materialize_model(header["method"], state, device=device)
 
@@ -331,12 +384,28 @@ def _serialize_model_state(model: torch.nn.Module) -> dict[str, tp.Any]:
             "collapse_tol": float(model.collapse_tol),
         }
     if isinstance(model, MiniBatchPCA):
-        raise NotImplementedError("MiniBatchPCA serialization not implemented")
+        assert model.components_ is not None, "components_ missing"
+        assert model.mean_ is not None, "mean_ missing"
+        assert model.scatter_ is not None, "scatter_ missing"
+        assert model.explained_variance_ is not None, "explained_variance_ missing"
+        assert model.n_features_in_ is not None, "n_features_in_ missing"
+        return {
+            "components": model.components_.cpu(),
+            "mean": model.mean_.cpu(),
+            "scatter": model.scatter_.cpu(),
+            "explained_variance": model.explained_variance_.cpu(),
+            "n_steps": model.n_steps_,
+            "n_features_in": model.n_features_in_,
+            "n_samples_seen": model.n_samples_seen_,
+            "total_variance": model.total_variance_,
+            "last_batch_recon_error": model.last_batch_recon_error_,
+            "last_batch_var_ratio": model.last_batch_var_ratio_,
+        }
     raise TypeError(f"Unsupported baseline model type: {type(model).__name__}")
 
 
 @beartype.beartype
-def dump(run: saev.disk.Run, cfg: TrainConfig, model: torch.nn.Module):
+def dump(run: saev.disk.Run, cfg: TrainConfig, model: torch.nn.Module) -> pathlib.Path:
     header: dict[str, tp.Any] = {
         "method": model.method,
         "schema": BASELINE_SCHEMA_VERSION,
@@ -345,12 +414,16 @@ def dump(run: saev.disk.Run, cfg: TrainConfig, model: torch.nn.Module):
     }
 
     cfg_dict = dataclasses.asdict(cfg)
-    with open(run.ckpt.parent / "config.json", "wb") as fd:
+    ckpt_dir = run.ckpt.parent
+    ckpt_dir.mkdir(parents=True, exist_ok=True)
+    with open(ckpt_dir / "config.json", "wb") as fd:
         saev.helpers.jdump(cfg_dict, fd, option=orjson.OPT_INDENT_2)
 
-    with open(run.ckpt, "wb") as fd:
+    baseline_ckpt = _baseline_ckpt(run)
+    with open(baseline_ckpt, "wb") as fd:
         saev.helpers.jdump(header, fd, option=orjson.OPT_APPEND_NEWLINE)
         torch.save(_serialize_model_state(model), fd)
+    return baseline_ckpt
 
 
 @beartype.beartype
@@ -361,10 +434,13 @@ def get_training_metrics(model: torch.nn.Module, n_samples: int) -> dict[str, fl
             "train/l0": 1.0,
             "train/n_samples": n_samples,
         }
-    elif isinstance(model, MiniBatchPCA):
-        raise NotImplementedError()
-    else:
-        tp.assert_never(model)
+    if isinstance(model, MiniBatchPCA):
+        return {
+            "train/recon_mse": model.last_batch_recon_error_ or 0.0,
+            "train/var_ratio": model.last_batch_var_ratio_ or 0.0,
+            "train/n_samples": n_samples,
+        }
+    tp.assert_never(model)
 
 
 @beartype.beartype
@@ -414,7 +490,56 @@ def eval_kmeans(cfg: TrainConfig, model: MiniBatchKMeans) -> dict[str, float]:
 
 @beartype.beartype
 def eval_pca(cfg: TrainConfig, model: MiniBatchPCA) -> dict[str, float]:
-    raise NotImplementedError()
+    if cfg.n_val <= 0:
+        return {}
+
+    assert model.mean_ is not None, "mean_ missing for PCA eval"
+    assert model.components_ is not None, "components_ missing for PCA eval"
+
+    dataloader = saev.data.ShuffledDataLoader(cfg.val_data)
+    loader_like = tp.cast(saev.utils.scheduling.DataLoaderLike, dataloader)
+    limit = min(cfg.n_val, dataloader.n_samples)
+    limiter = saev.utils.scheduling.BatchLimiter(loader_like, limit)
+
+    reconstruction_sse = torch.zeros((), dtype=torch.float64, device=model.device)
+    sum_sq = torch.zeros((), dtype=torch.float64, device=model.device)
+    sum_vec = torch.zeros(
+        (model.components_.shape[1],), dtype=torch.float64, device=model.device
+    )
+    total_samples = 0
+
+    for batch in saev.helpers.progress(limiter, desc="pca-eval", every=20):
+        acts = batch["act"].to(model.device, non_blocking=True)
+        centered = acts - model.mean_
+        latents = centered @ model.components_.T
+        recon = latents @ model.components_ + model.mean_
+        diff = (acts - recon).to(torch.float64)
+        reconstruction_sse += diff.pow(2).sum()
+
+        acts64 = acts.to(torch.float64)
+        sum_sq += (acts64 * acts64).sum()
+        sum_vec += acts64.sum(dim=0)
+        total_samples += acts.shape[0]
+
+    if total_samples == 0:
+        return {}
+
+    sum_vec_sq = torch.dot(sum_vec, sum_vec).item()
+    sse_baseline = sum_sq.item() - sum_vec_sq / total_samples
+    msg = (
+        f"Baseline variance is non-positive (sse_baseline={sse_baseline:.6e});"
+        " cannot compute normalized MSE."
+    )
+    assert sse_baseline > 0.0, msg
+
+    nmse = reconstruction_sse.item() / sse_baseline
+    mse = reconstruction_sse.item() / total_samples
+    var_ratio = float(model.last_batch_var_ratio_ or 0.0)
+    return {
+        "eval/recon_mse": mse,
+        "eval/nmse": nmse,
+        "eval/var_ratio": var_ratio,
+    }
 
 
 @beartype.beartype
@@ -476,7 +601,6 @@ def train_worker_fn(cfg: TrainConfig):
         eval_metrics = eval_kmeans(cfg, model)
     elif cfg.method == "pca":
         assert isinstance(model, MiniBatchPCA)
-        raise NotImplementedError
         eval_metrics = eval_pca(cfg, model)
     else:
         tp.assert_never(cfg.method)
@@ -488,31 +612,37 @@ def train_worker_fn(cfg: TrainConfig):
 
     run.finish()
     run_id = getattr(run, "id", "offline")
-    # Baseline Run
     run = saev.disk.Run.new(
         run_id,
         train_shards_dir=cfg.train_data.shards.resolve(),
         val_shards_dir=cfg.val_data.shards.resolve(),
         runs_root=cfg.runs_root,
     )
-    dump(run, cfg, model)
-    logger.info("Saved checkpoint to %s", run.ckpt)
+    ckpt = dump(run, cfg, model)
+    logger.info("Saved checkpoint to %s", ckpt)
 
 
 @beartype.beartype
-@torch.inference_mode()
-def inference_worker_fn(cfg: InferenceConfig):
-    logging.basicConfig(level=logging.INFO, format=log_format)
-    logger = logging.getLogger("inference")
+def _prepare_inference_artifacts(
+    cfg: InferenceConfig,
+) -> tuple[saev.data.OrderedDataLoader, Filepaths] | None:
+    logger = logging.getLogger("artifacts")
 
     run = saev.disk.Run(cfg.run)
-    model = load(run, device=cfg.device)
-    assert isinstance(model, MiniBatchKMeans), "Only kmeans inference supported."
-    assert model.cluster_centers_ is not None
-    k = model.k
-    d_model = int(model.cluster_centers_.shape[1])
-
     md = saev.data.Metadata.load(cfg.data.shards)
+
+    fpaths = Filepaths.from_run(run, md)
+    missing = [fpath for fpath in fpaths if not fpath.exists()]
+    if not cfg.force and not missing:
+        logger.info("Found all baseline inference artifacts; skipping.")
+        return None
+
+    if cfg.force:
+        logger.info("Force flag set; recomputing baseline inference.")
+    else:
+        missing_msg = ", ".join(str(fpath) for fpath in missing)
+        logger.info("Missing files %s; recomputing baseline inference.", missing_msg)
+
     batch_size = (
         cfg.data.batch_size
         // md.content_tokens_per_example
@@ -523,28 +653,31 @@ def inference_worker_fn(cfg: InferenceConfig):
     dataloader = saev.data.OrderedDataLoader(data_cfg)
     logger.info("Running inference on %d samples", dataloader.n_samples)
 
-    fpaths = Filepaths.from_run(run, md)
-    missing = [fpath for fpath in fpaths if not fpath.exists()]
-    if not cfg.force and not missing:
-        logger.info("Found all baseline inference artifacts; skipping.")
-        return
-
-    if cfg.force:
-        logger.info("Force flag set; recomputing baseline inference.")
-    else:
-        missing_msg = ", ".join(str(fpath) for fpath in missing)
-        logger.info("Missing files %s; recomputing baseline inference.", missing_msg)
-
     root = fpaths.mean_values.parent
     with open(root / "config.json", "wb") as fd:
         saev.helpers.jdump(dataclasses.asdict(cfg), fd, option=orjson.OPT_INDENT_2)
 
+    return dataloader, fpaths
+
+
+@beartype.beartype
+def _run_kmeans_inference(cfg: InferenceConfig, model: MiniBatchKMeans):
+    logger = logging.getLogger("inference")
+    md = saev.data.Metadata.load(cfg.data.shards)
+
+    assert model.cluster_centers_ is not None
+    k = model.k
+    n_clusters, d_model = model.cluster_centers_.shape
+
+    artifacts = _prepare_inference_artifacts(cfg)
+    if artifacts is None:
+        return
+    dl, fpaths = artifacts
+
     device = model.cluster_centers_.device
     mean_values_c = torch.zeros((k,), device=device)
     sparsity_c = torch.zeros((k,), device=device)
-    distributions_nm = torch.zeros(
-        (dataloader.n_samples, cfg.n_dists), dtype=torch.float32
-    )
+    distributions_nm = torch.zeros((dl.n_samples, cfg.n_dists), dtype=torch.float32)
 
     rows: list[Tensor] = []
     cols: list[Tensor] = []
@@ -556,11 +689,7 @@ def inference_worker_fn(cfg: InferenceConfig):
     sum_vec_d = torch.zeros((d_model,), dtype=torch.float64, device=device)
     n_tokens = 0
 
-    dataloader_iter = tp.cast(
-        collections.abc.Iterable[dict[str, torch.Tensor]], dataloader
-    )
-
-    for batch in saev.helpers.progress(dataloader_iter, desc="inference", every=1):
+    for batch in saev.helpers.progress(dl, desc="inference", every=1):
         acts = batch["act"].to(device)
         distances = torch.cdist(acts, model.cluster_centers_)
         min_dist, assignments = distances.min(dim=1)
@@ -601,18 +730,120 @@ def inference_worker_fn(cfg: InferenceConfig):
         sum_vec_d += acts64.sum(dim=0)
         n_tokens += batch_idx.shape[0]
 
-    assert n_tokens == dataloader.n_samples
+    assert n_tokens == dl.n_samples
     assert n_tokens > 0
 
     mean_values_c /= sparsity_c
-    sparsity_c /= dataloader.n_samples
+    sparsity_c /= dl.n_samples
 
     row_idx = torch.cat(rows).numpy()
     col_idx = torch.cat(cols).numpy()
     data = torch.cat(vals).numpy()
     token_acts = scipy.sparse.csr_matrix(
-        (data, (row_idx, col_idx)), shape=(dataloader.n_samples, k)
+        (data, (row_idx, col_idx)), shape=(dl.n_samples, k)
     )
+    scipy.sparse.save_npz(fpaths.token_acts, token_acts)
+
+    torch.save(mean_values_c.cpu(), fpaths.mean_values)
+    torch.save(sparsity_c.cpu(), fpaths.sparsity)
+    torch.save(distributions_nm.cpu(), fpaths.distributions)
+
+    sse_sae = reconstruction_sse.item()
+    sum_sq_item = sum_sq.item()
+    sum_vec_sq = torch.dot(sum_vec_d, sum_vec_d).item()
+    sse_baseline = sum_sq_item - sum_vec_sq / n_tokens
+    msg = f"Baseline variance is non-positive (sse_baseline={sse_baseline:.6e}); cannot compute normalized MSE."
+    assert sse_baseline > 0.0, msg
+    metrics = {
+        "normalized_mse": sse_sae / sse_baseline,
+        "sse_sae": sse_sae,
+        "sse_baseline": sse_baseline,
+    }
+
+    with open(fpaths.metrics, "wb") as fd:
+        saev.helpers.jdump(metrics, fd, option=orjson.OPT_INDENT_2)
+
+    logger.info(
+        "Wrote baseline inference artifacts: %s, %s, %s, %s, %s",
+        fpaths.token_acts,
+        fpaths.mean_values,
+        fpaths.sparsity,
+        fpaths.distributions,
+        fpaths.metrics,
+    )
+
+
+@beartype.beartype
+def _run_pca_inference(cfg: InferenceConfig, model: MiniBatchPCA):
+    logger = logging.getLogger("inference")
+    md = saev.data.Metadata.load(cfg.data.shards)
+
+    assert model.components_ is not None
+    assert model.mean_ is not None
+    n_components, d_model = model.components_.shape
+
+    artifacts = _prepare_inference_artifacts(cfg)
+    if artifacts is None:
+        return
+    dl, fpaths = artifacts
+
+    device = model.components_.device
+    mean_values_c = torch.zeros((n_components,), device=device)
+    sparsity_c = torch.zeros_like(mean_values_c)
+    distributions_nm = torch.zeros((dl.n_samples, cfg.n_dists), dtype=torch.float32)
+
+    token_acts_blocks: list[scipy.sparse.csr_matrix] = []
+    reconstruction_sse = torch.zeros((), dtype=torch.float64, device=device)
+    sum_sq = torch.zeros((), dtype=torch.float64, device=device)
+    sum_vec_d = torch.zeros(
+        (model.components_.shape[1],), dtype=torch.float64, device=device
+    )
+    n_tokens = 0
+
+    prev_i = -1
+
+    for batch in saev.helpers.progress(dl, desc="pca-inference", every=1):
+        acts = batch["act"].to(device)
+        scores = model.transform(acts)
+        scores = scores.to(torch.float32)
+
+        nnz_counts = (scores != 0).to(mean_values_c.dtype).sum(dim=0)
+        sparsity_c += nnz_counts
+        mean_values_c += scores.sum(dim=0).to(mean_values_c.dtype)
+
+        recon = scores @ model.components_ + model.mean_
+        diff = (acts - recon).to(torch.float64)
+        reconstruction_sse += diff.pow(2).sum()
+
+        acts64 = acts.to(torch.float64)
+        sum_sq += (acts64 * acts64).sum()
+        sum_vec_d += acts64.sum(dim=0)
+        n_tokens += acts.shape[0]
+
+        batch_idx = (
+            batch["example_idx"] * md.content_tokens_per_example + batch["token_idx"]
+        )
+        assert batch_idx[0].item() == prev_i + 1
+        assert (torch.sort(batch_idx).values == batch_idx).all()
+        assert (torch.arange(batch_idx[0], batch_idx[-1] + 1) == batch_idx).all()
+        prev_i = batch_idx[-1].item()
+
+        lim = min(cfg.n_dists, scores.shape[1])
+        if lim > 0:
+            distributions_nm[batch_idx, :lim] = scores[:, :lim].cpu()
+
+        token_acts_blocks.append(scipy.sparse.csr_matrix(scores.cpu().numpy()))
+
+    if n_tokens == 0:
+        logger.warning("No tokens processed during PCA inference.")
+        return
+
+    nonzero = sparsity_c > 0
+    mean_values_c[nonzero] = mean_values_c[nonzero] / sparsity_c[nonzero].clamp_min(1.0)
+    mean_values_c[~nonzero] = 0.0
+    sparsity_c /= dl.n_samples
+
+    token_acts = scipy.sparse.vstack(token_acts_blocks, format="csr")
     scipy.sparse.save_npz(fpaths.token_acts, token_acts)
 
     torch.save(mean_values_c.cpu(), fpaths.mean_values)
@@ -632,19 +863,35 @@ def inference_worker_fn(cfg: InferenceConfig):
         "normalized_mse": sse_sae / sse_baseline,
         "sse_sae": sse_sae,
         "sse_baseline": sse_baseline,
+        "n_components": n_components,
     }
 
     with open(fpaths.metrics, "wb") as fd:
         saev.helpers.jdump(metrics, fd, option=orjson.OPT_INDENT_2)
 
     logger.info(
-        "Wrote baseline inference artifacts: %s, %s, %s, %s, %s",
+        "Wrote PCA baseline inference artifacts: %s, %s, %s, %s, %s",
         fpaths.token_acts,
         fpaths.mean_values,
         fpaths.sparsity,
         fpaths.distributions,
         fpaths.metrics,
     )
+
+
+@beartype.beartype
+@torch.inference_mode()
+def inference_worker_fn(cfg: InferenceConfig):
+    logging.basicConfig(level=logging.INFO, format=log_format)
+
+    model = load(saev.disk.Run(cfg.run), device=cfg.device)
+
+    if isinstance(model, MiniBatchKMeans):
+        _run_kmeans_inference(cfg, model)
+    elif isinstance(model, MiniBatchPCA):
+        _run_pca_inference(cfg, model)
+    else:
+        tp.assert_never(model)
 
 
 @beartype.beartype

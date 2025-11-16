@@ -1360,3 +1360,23 @@ I need to make a figure.
 # 11/10/2025
 
 I need to finish k-means and PCA (I think).
+
+# 11/12/2025
+
+- Appendix & supplementary material
+- Share preprint with Antoin, Leonardo and the guy from Pollock's lab
+- Share preprint with Adam at Markov
+- Preprint on arXiv
+- NMSE needs to be on the train/val (IN1K) data, not the downstream (ADE20K) data.
+- BatchAbsTopK??
+- Why do all the methods get the same NMSE but have different MSE? It's all the same normalizing factor?
+
+# 11/16/2025
+
+What's something I'm thinking about?
+
+- Better architecture/training process. Definitely being able to fix $k$ seems to convenient, instead of sweeping lambda.
+- I need to do some discovery! This could be butterflies, beetles, or fish. I think butterflies and beetles are most promising. I could also train some SAEs on the ST or SE model from Arc. That could be quite cool.
+- Supplementary material, bug fixes, and other stuff.
+
+But for fun, I want to do better activation functions and then train an SAE on the SE model.

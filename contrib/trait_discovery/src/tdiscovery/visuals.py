@@ -179,6 +179,9 @@ def cli(cfg: tp.Annotated[Config, tyro.conf.arg(name="")]):
 
     try:
         run = saev.disk.Run(cfg.run)
+        # MASSIVE HACK
+        d_sae = run.config["k"]
+        # d_sae = run.config["sae"]["d_sae"]
         token_acts = scipy.sparse.load_npz(
             run.inference / cfg.shards.name / "token_acts.npz"
         )
@@ -209,16 +212,13 @@ def cli(cfg: tp.Annotated[Config, tyro.conf.arg(name="")]):
     # obs_df.write_parquet(obs_fpath)
     # logger.info("Saved obs.parquet with %d rows to '%s'.", obs_df.height, obs_fpath)
 
-    # Load SAE model for on-demand reconstruction
-    sae = saev.nn.load(run.ckpt).to(cfg.device)
-
     topk_example_idx = (
         saev.helpers.csr_topk(token_acts, k=cfg.top_k, axis=0).indices
         // md.content_tokens_per_example
     )
 
     var_df = pl.DataFrame({
-        "feature": range(sae.cfg.d_sae),
+        "feature": range(d_sae),
         "log10_freq": torch.log10(sparsity_s).tolist(),
         "log10_value": torch.log10(mean_values_s).tolist(),
         "topk_example_idx": topk_example_idx.T.tolist(),
@@ -244,13 +244,13 @@ def cli(cfg: tp.Annotated[Config, tyro.conf.arg(name="")]):
     )
 
     features = cfg.latents
-    random_features = torch.arange(sae.cfg.d_sae)[mask.cpu()].tolist()
+    random_features = torch.arange(d_sae)[mask.cpu()].tolist()
     random.seed(cfg.seed)
     random.shuffle(random_features)
     features += random_features[: cfg.n_latents]
 
     topk_example_idx = np.stack(var_df.get_column("topk_example_idx").to_numpy())
-    assert topk_example_idx.shape == (sae.cfg.d_sae, cfg.top_k)
+    assert topk_example_idx.shape == (d_sae, cfg.top_k)
     topk_example_idx = topk_example_idx[features]
     topk_token_idx = (
         topk_example_idx[:, :, None] * md.content_tokens_per_example

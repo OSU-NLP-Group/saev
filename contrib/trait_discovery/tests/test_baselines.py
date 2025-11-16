@@ -8,15 +8,10 @@ import hypothesis.strategies as st
 import orjson
 import torch
 from hypothesis import HealthCheck, given, settings
-from tdiscovery.baselines import (
-    BaselineRun,
-    MiniBatchKMeans,
-    TrainConfig,
-    dump,
-    load,
-)
+from tdiscovery.baselines import MiniBatchKMeans, MiniBatchPCA, TrainConfig, dump, load
 
 import saev.data
+import saev.disk
 import saev.helpers
 
 
@@ -27,12 +22,14 @@ def _make_train_config(
     val_shards = root / "val-shards"
     train_shards.mkdir(parents=True, exist_ok=True)
     val_shards.mkdir(parents=True, exist_ok=True)
+    runs_root = root / "saev" / "runs"
+    runs_root.mkdir(parents=True, exist_ok=True)
     cfg = TrainConfig(
         method="kmeans",
         k=4,
         device="cpu",
         collapse_tol=0.25,
-        runs_root=root / "runs",
+        runs_root=runs_root,
         train_data=saev.data.ShuffledConfig(shards=train_shards),
         val_data=saev.data.ShuffledConfig(shards=val_shards),
     )
@@ -50,6 +47,22 @@ def _make_model(cfg: TrainConfig) -> MiniBatchKMeans:
     return model
 
 
+def _make_pca_model(k: int, d_model: int) -> MiniBatchPCA:
+    model = MiniBatchPCA(n_components=k, device="cpu")
+    q, _ = torch.linalg.qr(torch.randn(d_model, d_model))
+    model.components_ = q[:, :k].T.contiguous()
+    model.mean_ = torch.randn(d_model)
+    model.scatter_ = torch.eye(d_model)
+    model.explained_variance_ = torch.linspace(1.0, 2.0, k)
+    model.n_features_in_ = d_model
+    model.n_samples_seen_ = 32
+    model.n_steps_ = 4
+    model.total_variance_ = float(model.explained_variance_.sum().item())
+    model.last_batch_recon_error_ = 0.01
+    model.last_batch_var_ratio_ = 0.95
+    return model
+
+
 @contextlib.contextmanager
 def _tmp_baseline_root():
     """Temporary directory helper suitable for Hypothesis (cf. tmp_shards_root)."""
@@ -59,7 +72,7 @@ def _tmp_baseline_root():
 
 def test_dump_and_load_round_trip(tmp_path):
     cfg, train_shards, val_shards = _make_train_config(tmp_path)
-    run = BaselineRun.new(
+    run = saev.disk.Run.new(
         "round-trip",
         train_shards_dir=train_shards,
         val_shards_dir=val_shards,
@@ -67,7 +80,7 @@ def test_dump_and_load_round_trip(tmp_path):
     )
     model = _make_model(cfg)
 
-    ckpt_path = dump(run.ckpt_dir, cfg, model=model)
+    ckpt_path = dump(run, cfg, model=model)
     assert ckpt_path.exists()
 
     loaded = load(run, device="cpu")
@@ -78,7 +91,7 @@ def test_dump_and_load_round_trip(tmp_path):
     assert torch.equal(loaded.cluster_centers_, model.cluster_centers_)
     assert loaded.collapse_tol == cfg.collapse_tol
 
-    cfg_path = run.ckpt_dir / "config.json"
+    cfg_path = run.ckpt.parent / "config.json"
     assert cfg_path.exists()
     stored_cfg = orjson.loads(cfg_path.read_bytes())
     expected_cfg = orjson.loads(saev.helpers.jdumps(dataclasses.asdict(cfg)))
@@ -97,7 +110,7 @@ def test_dump_and_load_round_trip(tmp_path):
 def test_dump_and_load_round_trip_property(k, d_model, steps, collapse):
     with _tmp_baseline_root() as root:
         cfg, train_shards, val_shards = _make_train_config(root)
-        run = BaselineRun.new(
+        run = saev.disk.Run.new(
             f"hypothesis-{uuid.uuid4().hex}",
             train_shards_dir=train_shards,
             val_shards_dir=val_shards,
@@ -112,7 +125,7 @@ def test_dump_and_load_round_trip_property(k, d_model, steps, collapse):
         model.n_features_in_ = d_model
         model.n_steps_ = steps
 
-        dump(run.ckpt_dir, cfg, model=model)
+        dump(run, cfg, model=model)
         loaded = load(run, device="cpu")
 
         assert isinstance(loaded, MiniBatchKMeans)
@@ -125,8 +138,32 @@ def test_dump_and_load_round_trip_property(k, d_model, steps, collapse):
         assert torch.equal(loaded.cluster_counts_, model.cluster_counts_)
         assert torch.equal(loaded.cluster_centers_, model.cluster_centers_)
 
-        cfg_path = run.ckpt_dir / "config.json"
+        cfg_path = run.ckpt.parent / "config.json"
         assert cfg_path.exists()
         stored_cfg = orjson.loads(cfg_path.read_bytes())
         expected_cfg = orjson.loads(saev.helpers.jdumps(dataclasses.asdict(cfg)))
         assert stored_cfg == expected_cfg
+
+
+def test_dump_and_load_round_trip_pca(tmp_path):
+    cfg, train_shards, val_shards = _make_train_config(tmp_path)
+    cfg = dataclasses.replace(cfg, method="pca", k=3)
+    run = saev.disk.Run.new(
+        "pca-round-trip",
+        train_shards_dir=train_shards,
+        val_shards_dir=val_shards,
+        runs_root=cfg.runs_root,
+    )
+
+    model = _make_pca_model(cfg.k, d_model=5)
+    dump(run, cfg, model=model)
+    loaded = load(run, device="cpu")
+
+    assert isinstance(loaded, MiniBatchPCA)
+    assert loaded.components_ is not None
+    assert loaded.mean_ is not None
+    assert torch.allclose(loaded.components_, model.components_)
+    assert torch.allclose(loaded.mean_, model.mean_)
+    assert torch.equal(loaded.explained_variance_, model.explained_variance_)
+    assert loaded.n_samples_seen_ == model.n_samples_seen_
+    assert loaded.n_steps_ == model.n_steps_

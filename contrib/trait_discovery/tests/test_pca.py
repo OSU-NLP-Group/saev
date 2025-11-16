@@ -3,12 +3,14 @@
 import itertools
 import math
 
+import beartype
 import torch
 import torch.nn.functional as F
 from tdiscovery.baselines import MiniBatchPCA
 from torch import Tensor
 
 
+@beartype.beartype
 def _generate_low_rank_gaussian(
     *,
     n_samples: int = 2048,
@@ -28,6 +30,7 @@ def _generate_low_rank_gaussian(
     return data.to(torch.float32), components.to(torch.float32)
 
 
+@beartype.beartype
 def _match_components(similarity: Tensor) -> tuple[int, ...]:
     best_score = float("-inf")
     best_perm: tuple[int, ...] | None = None
@@ -44,6 +47,7 @@ def _match_components(similarity: Tensor) -> tuple[int, ...]:
     return best_perm
 
 
+@beartype.beartype
 def _fit_on_low_rank_gaussian(
     *, epochs: int = 12, batch_size: int = 64
 ) -> tuple[MiniBatchPCA, Tensor, Tensor, int]:

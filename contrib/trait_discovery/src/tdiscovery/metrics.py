@@ -40,6 +40,8 @@ class Config:
     """Training shards directory."""
     test_shards: pathlib.Path = pathlib.Path("./shards/abcdef01")
     """Test shards directory."""
+    max_k: int = 256
+    """How many patches to record labels (for purity@k)."""
 
     debug: bool = False
     """Debug logging."""
@@ -61,7 +63,7 @@ class Config:
 def worker_fn(cfg: Config):
     level = logging.DEBUG if cfg.debug else logging.INFO
     logging.basicConfig(level=level, format=log_format)
-    logger = logging.getLogger("avgprec")
+    logger = logging.getLogger("metrics")
 
     logger.info("Started worker_fn().")
 
@@ -122,9 +124,6 @@ def worker_fn(cfg: Config):
     msg = f"Validation activations have {val_n_latents} latents; expected {n_latents}."
     assert val_n_latents == n_latents, msg
 
-    val_latents_best = val_token_acts_csr[:, best_latent_idx_c].toarray()
-    val_scores_nc = val_latents_best * best_weights_c + best_biases_c
-
     val_labels = (
         np.memmap(
             val_labels_fpath,
@@ -142,6 +141,47 @@ def worker_fn(cfg: Config):
     val_max_label = val_labels.max().item()
     msg = f"Validation labels include class id {val_max_label}; expected < {n_classes}."
     assert val_max_label < n_classes, msg
+
+    msg = f"max_k must be positive; got {cfg.max_k}."
+    assert cfg.max_k > 0, msg
+
+    msg = f"max_k ({cfg.max_k}) exceeds validation samples ({val_n_samples})."
+    assert cfg.max_k <= val_n_samples, msg
+
+    topk = saev.helpers.csr_topk(val_token_acts_csr, k=cfg.max_k, axis=0)
+    top_labels_dk = np.take(val_labels, topk.indices.T).astype(np.uint8, copy=False)
+    logger.info("Captured top-%d labels for %d latents.", cfg.max_k, val_n_latents)
+
+    def _purity_stats(k: int) -> tuple[float, float, float]:
+        msg = f"Cannot compute purity@{k} when only top-{cfg.max_k} labels are stored."
+        assert k <= cfg.max_k, msg
+        labels_dk = top_labels_dk[:, :k]
+        purities = np.empty(labels_dk.shape[0], dtype=np.float32)
+        for latent_i in range(labels_dk.shape[0]):
+            _, counts = np.unique(labels_dk[latent_i], return_counts=True)
+            purities[latent_i] = counts.max() / k
+        return (
+            purities.mean().item(),
+            purities.min().item(),
+            purities.max().item(),
+        )
+
+    for purity_k in (16, 64, 256):
+        if purity_k > cfg.max_k:
+            logger.info("Skipping purity@%d because max_k=%d.", purity_k, cfg.max_k)
+            continue
+        purity_mean, purity_min, purity_max = _purity_stats(purity_k)
+        logger.info(
+            "purity@%d across %d latents: mean=%.6f, min=%.6f, max=%.6f.",
+            purity_k,
+            val_n_latents,
+            purity_mean,
+            purity_min,
+            purity_max,
+        )
+
+    val_latents_best = val_token_acts_csr[:, best_latent_idx_c].toarray()
+    val_scores_nc = val_latents_best * best_weights_c + best_biases_c
 
     val_labels_one_hot = np.zeros((val_n_samples, n_classes), dtype=np.float32)
     np.put_along_axis(val_labels_one_hot, val_labels[:, None], 1.0, axis=1)
@@ -221,7 +261,14 @@ def worker_fn(cfg: Config):
 
     metrics_fname = f"probe1d_metrics__train-{cfg.train_shards.name}.npz"
     metrics_fpath = val_inference_dpath / metrics_fname
-    np.savez(metrics_fpath, ap=ap_c, precision=precision_c, recall=recall_c, f1=f1_c)
+    np.savez(
+        metrics_fpath,
+        ap=ap_c,
+        precision=precision_c,
+        recall=recall_c,
+        f1=f1_c,
+        top_labels=top_labels_dk,
+    )
     logger.info("Saved metrics to '%s'.", metrics_fpath)
 
 
@@ -231,7 +278,7 @@ def cli(
 ) -> int:
     level = logging.DEBUG if cfg.debug else logging.INFO
     logging.basicConfig(level=level, format=log_format)
-    logger = logging.getLogger("avgprec")
+    logger = logging.getLogger("metrics")
 
     logger.info("Started cli().")
 
@@ -252,7 +299,7 @@ def cli(
         cfgs = [cfg]
 
     if not cfgs:
-        logger.error("No configs resolved for avgprec sweep.")
+        logger.error("No configs resolved for metrics sweep.")
         return 1
 
     logger.info("Prepared %d config(s).", len(cfgs))
@@ -269,7 +316,9 @@ def cli(
 
     if not base_cfg.slurm_acct:
         n_errs = 0
-        for idx, c in enumerate(cfgs, start=1):
+        for idx, c in enumerate(
+            saev.helpers.progress(cfgs, desc="jobs", every=1), start=1
+        ):
             try:
                 logger.info("Running config %d/%d locally.", idx, len(cfgs))
                 worker_fn(c)

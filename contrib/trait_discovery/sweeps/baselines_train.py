@@ -5,18 +5,23 @@ def make_cfgs() -> list[dict]:
     dinov3_vitl_in1k_train = "/fs/scratch/PAS2136/samuelstevens/saev/shards/51567c6c"
     dinov3_vitl_in1k_val = "/fs/scratch/PAS2136/samuelstevens/saev/shards/3e27794f"
 
+    methods = [
+        # ("kmeans", [1024 * 16]),
+        ("pca", [1, 4, 16, 64, 256, 1024]),
+    ]
     for layer in [13, 15, 17, 19, 21, 23]:
-        for method, k in [("kmeans", 1024 * 16), ("pca", 1024)]:
-            cfgs.append({
-                "method": method,
-                "k": k,
-                "runs_root": runs_root,
-                "train_data": {
-                    "shards": dinov3_vitl_in1k_train,
-                    "layer": layer,
-                    "min_buffer_fill": 0.2,
-                },
-                "val_data": {"shards": dinov3_vitl_in1k_val, "layer": layer},
-            })
+        for method, ks in methods:
+            for k in ks:
+                cfgs.append({
+                    "method": method,
+                    "k": k,
+                    "runs_root": runs_root,
+                    "train_data": {
+                        "shards": dinov3_vitl_in1k_train,
+                        "layer": layer,
+                        "min_buffer_fill": 0.2,
+                    },
+                    "val_data": {"shards": dinov3_vitl_in1k_val, "layer": layer},
+                })
 
     return cfgs
