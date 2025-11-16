@@ -78,7 +78,7 @@ def batch_topk_cfgs():
 @given(
     cfg=topk_cfgs(),
     batch=st.integers(min_value=1, max_value=4),
-    d_sae=st.integers(min_value=256, max_value=2048),
+    d_sae=st.integers(min_value=128, max_value=1024),
 )
 def test_topk_activation(cfg, batch, d_sae):
     act = modeling.get_activation(cfg)
@@ -92,15 +92,15 @@ def test_topk_activation(cfg, batch, d_sae):
 @given(
     cfg=batch_topk_cfgs(),
     batch=st.integers(min_value=1, max_value=4),
-    d_sae=st.integers(min_value=256, max_value=2048),
+    d_sae=st.integers(min_value=32, max_value=1024),
 )
-def test_batch_topk_activation(cfg, batch, d_sae):
+def test_batchtopk_activation(cfg, batch, d_sae):
     act = modeling.get_activation(cfg)
     x = torch.randn(batch, d_sae)
     y = act(x)
     assert y.shape == (batch, d_sae)
-    # Check that only k elements are non-zero per sample
-    assert (y != 0).sum(dim=1).eq(cfg.top_k).all()
+    # Check that a total of k elements are non-zero per batch
+    assert (y != 0).sum().eq(cfg.top_k * batch).all()
 
 
 def test_topk_basic_forward():
@@ -264,8 +264,8 @@ def test_batchtopk_uneven_distribution():
     x = torch.tensor([[10.0, 20.0, 30.0], [1.0, 2.0, 3.0]])
     y = act(x)
 
-    # Top 2 values per sample
-    expected = torch.tensor([[0.0, 20.0, 30.0], [0.0, 2.0, 3.0]])
+    # Top (2 * batch) values in the batch
+    expected = torch.tensor([[10.0, 20.0, 30.0], [0.0, 0.0, 3.0]])
     torch.testing.assert_close(y, expected)
 
 
@@ -277,8 +277,8 @@ def test_batchtopk_ties():
     x = torch.tensor([[2.0, 2.0, 2.0], [2.0, 2.0, 2.0]])
     y = act(x)
 
-    # Should select k elements per sample
-    assert (y != 0).sum(dim=1).eq(2).all()
+    # Should select (k * batch) elements per sample
+    assert (y != 0).sum().eq(4).all()
     assert y[y != 0].unique().item() == 2.0
 
 
@@ -314,7 +314,7 @@ def test_batchtopk_gradient_global_sparsity():
     y.backward(grad_output)
 
     # Check that exactly k gradients are non-zero per sample
-    assert (x.grad != 0).sum(dim=1).eq(2).all()
+    assert (x.grad != 0).sum().eq(2 * 3).all()
 
     # Check that gradient sparsity matches forward pass
     forward_mask = (y != 0).float()
@@ -341,7 +341,7 @@ def test_batchtopk_gradient_distribution():
     y.backward(grad_output)
 
     # Gradients should flow to top 2 per sample
-    expected_grad = torch.tensor([[0.0, 3.0, 4.0], [0.0, 6.0, 7.0]])
+    expected_grad = torch.tensor([[2.0, 3.0, 4.0], [0.0, 0.0, 7.0]])
     torch.testing.assert_close(x.grad, expected_grad)
 
 
@@ -356,12 +356,11 @@ def test_batchtopk_zero_gradient_verification():
     loss = y.sum()
     loss.backward()
 
-    # Only the highest value per row should have gradients
     torch.testing.assert_close(x.grad[0, 0], torch.tensor(0.0))
-    torch.testing.assert_close(x.grad[0, 1], torch.tensor(1.0))
+    torch.testing.assert_close(x.grad[0, 1], torch.tensor(0.0))
     torch.testing.assert_close(x.grad[1, 0], torch.tensor(0.0))
     torch.testing.assert_close(x.grad[1, 1], torch.tensor(1.0))
-    torch.testing.assert_close(x.grad[2, 0], torch.tensor(0.0))
+    torch.testing.assert_close(x.grad[2, 0], torch.tensor(1.0))
     torch.testing.assert_close(x.grad[2, 1], torch.tensor(1.0))
 
 
@@ -386,19 +385,13 @@ def test_topk_gradient_properties(cfg, batch, d_sae):
     # Property 1: Gradient sparsity matches forward pass
     forward_mask = y != 0
     grad_mask = x.grad != 0
-    assert torch.equal(forward_mask, grad_mask), (
-        "Gradient sparsity doesn't match forward pass"
-    )
+    assert torch.equal(forward_mask, grad_mask)
 
     # Property 2: Exactly k non-zero gradients per sample
-    assert (x.grad != 0).sum(dim=1).eq(cfg.top_k).all(), (
-        "Wrong number of non-zero gradients per sample"
-    )
+    assert (x.grad != 0).sum(dim=1).eq(cfg.top_k).all()
 
     # Property 3: Non-selected elements have exactly zero gradient
-    assert (x.grad[~forward_mask] == 0).all(), (
-        "Non-selected elements have non-zero gradients"
-    )
+    assert (x.grad[~forward_mask] == 0).all()
 
     # Property 4: Selected elements have gradient equal to upstream gradient
     torch.testing.assert_close(x.grad[forward_mask], grad_output[forward_mask])
@@ -408,7 +401,7 @@ def test_topk_gradient_properties(cfg, batch, d_sae):
 @given(
     cfg=batch_topk_cfgs(),
     batch=st.integers(min_value=1, max_value=8),
-    d_sae=st.integers(min_value=256, max_value=2048),
+    d_sae=st.integers(min_value=128, max_value=512),
 )
 def test_batchtopk_gradient_properties(cfg, batch, d_sae):
     """Property-based test for BatchTopK gradients."""
@@ -429,19 +422,13 @@ def test_batchtopk_gradient_properties(cfg, batch, d_sae):
     # Property 1: Gradient sparsity matches forward pass
     forward_mask = y != 0
     grad_mask = x.grad != 0
-    assert torch.equal(forward_mask, grad_mask), (
-        "Gradient sparsity doesn't match forward pass"
-    )
+    assert torch.equal(forward_mask, grad_mask)
 
-    # Property 2: Exactly k non-zero gradients per sample
-    assert (x.grad != 0).sum(dim=1).eq(cfg.top_k).all(), (
-        f"Expected {cfg.top_k} non-zero gradients per sample"
-    )
+    # Property 2: Exactly k * batch non-zero gradients per batch
+    assert (x.grad != 0).sum().eq(cfg.top_k * batch).all()
 
     # Property 3: Non-selected elements have exactly zero gradient
-    assert (x.grad[~forward_mask] == 0).all(), (
-        "Non-selected elements have non-zero gradients"
-    )
+    assert (x.grad[~forward_mask] == 0).all()
 
     # Property 4: Selected elements have gradient equal to upstream gradient
     torch.testing.assert_close(x.grad[forward_mask], grad_output[forward_mask])

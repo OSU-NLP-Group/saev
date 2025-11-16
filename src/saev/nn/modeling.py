@@ -31,6 +31,9 @@ class TopK:
     top_k: int = 32
     """How many values are allowed to be non-zero."""
 
+    def __post_init__(self):
+        assert self.top_k > 0, "top_k must be a positive integer."
+
 
 @beartype.beartype
 @dataclasses.dataclass(frozen=True)
@@ -38,6 +41,8 @@ class BatchTopK:
     top_k: int = 32
     """How many values are allowed to be non-zero per sample in the batch."""
 
+    def __post_init__(self):
+        assert self.top_k > 0, "top_k must be a positive integer."
 
 ActivationConfig = Relu | TopK | BatchTopK
 
@@ -213,19 +218,16 @@ class TopKActivation(torch.nn.Module):
     def __init__(self, cfg: TopK = TopK()):
         super().__init__()
         self.cfg = cfg
-        self.k = cfg.top_k
 
     def forward(self, x: Float[Tensor, "batch d_sae"]) -> Float[Tensor, "batch d_sae"]:
         """
         Apply top-k activation to the input tensor.
         """
-        if self.k <= 0:
-            raise ValueError("k must be a positive integer.")
 
-        k_vals, k_inds = torch.topk(x, self.k, dim=-1, sorted=False)
-        mask = torch.zeros_like(x).scatter_(
-            dim=-1, index=k_inds, src=torch.ones_like(x)
-        )
+        bsz, d_sae = x.shape
+        k = min(self.cfg.top_k, d_sae)
+        _, idxs = torch.topk(x, k, dim=-1, sorted=False)
+        mask = torch.zeros_like(x).scatter(-1, idxs, 1.0)
 
         return torch.mul(mask, x)
 
@@ -234,7 +236,7 @@ class TopKActivation(torch.nn.Module):
 class BatchTopKActivation(torch.nn.Module):
     """
     Batch Top-K activation function. For use as activation function of sparse encoder.
-    Applies top-k selection per sample in the batch.
+    Applies top-k selection to the entire batch.
     """
 
     def __init__(self, cfg: BatchTopK = BatchTopK()):
@@ -246,17 +248,14 @@ class BatchTopKActivation(torch.nn.Module):
         """
         Apply top-k activation to each sample in the batch.
         """
-        if self.k <= 0:
-            raise ValueError("k must be a positive integer.")
 
-        # Handle case where k exceeds number of elements per sample
-        k = min(self.k, x.shape[-1])
+        bsz, d_sae = x.shape
+        x_flat = x.flatten()
 
-        # Apply top-k per sample (along the last dimension)
-        k_vals, k_inds = torch.topk(x, k, dim=-1, sorted=False)
-        mask = torch.zeros_like(x).scatter_(
-            dim=-1, index=k_inds, src=torch.ones_like(x)
-        )
+        bsz, d_sae = x.shape
+        k = min(self.cfg.top_k * bsz, d_sae * bsz)
+        _, idxs = torch.topk(x_flat, k, sorted=False)
+        mask = torch.zeros_like(x_flat).scatter(-1, idxs, 1.0).reshape(x.shape)
 
         return torch.mul(mask, x)
 
