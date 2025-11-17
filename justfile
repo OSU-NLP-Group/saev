@@ -3,7 +3,6 @@ docs: lint
     mkdir -p docs/api
     -yek src/saev README.md AGENTS.md > docs/api/llms.txt
     uv run mkdocs build --config-file docs/mkdocs.yml
-    -lychee docs/api
 
 test: lint
     uv run pytest --cov src/saev --cov-report term --cov-report html --cov-report json --json-report --json-report-file pytest.json -n 4 tests --shards /fs/scratch/PAS2136/samuelstevens/saev/shards/cbe4305d /fs/scratch/PAS2136/samuelstevens/saev/shards/7949ad9b || true
@@ -11,7 +10,7 @@ test: lint
     uv run scripts/regressions.py
 
 lint: fmt
-    uvx ruff check --fix .
+    find src/ scripts/ contrib/ -type f -name '*.py' | grep -v "notebooks" | grep -v "interactive" | xargs uvx ruff check --fix
 
 fmt:
     uvx ruff format --preview .

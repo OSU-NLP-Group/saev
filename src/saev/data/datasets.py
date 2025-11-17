@@ -74,14 +74,27 @@ class Cifar10(DatasetConfig):
 
     @property
     def root(self) -> pathlib.Path:
-        """Root directory path for the dataset."""
+        """Dummy path for the dataset."""
         return pathlib.Path(self.name)
 
 
 @beartype.beartype
 @dataclasses.dataclass(frozen=True)
 class ImgFolder(DatasetConfig):
-    """Configuration for a generic image folder dataset."""
+    """Configuration for a generic image folder dataset that matches the structure used in PyTorch's [ImageFolder](https://docs.pytorch.org/vision/main/generated/torchvision.datasets.ImageFolder.html).
+
+    The datset must be laid out in:
+
+    ```
+    root/class1/image1.png
+    root/class1/helloworld.jpg
+    ...
+    root/classN/123.jpeg
+    root/classN/abc.webp
+    ```
+
+    If you don't have a class structure, you can add a dummy "all" folder instead of a class folder.
+    """
 
     root: pathlib.Path = pathlib.Path("./data/split")
     """Where the class folders with images are stored. Can be a glob pattern to match multiple directories."""
@@ -301,6 +314,21 @@ class Cifar10Dataset(torch.utils.data.Dataset):
 
 @beartype.beartype
 class ImgFolderDataset(torchvision.datasets.ImageFolder):
+    """A generic image folder dataset that matches the structure used in PyTorch's [ImageFolder](https://docs.pytorch.org/vision/main/generated/torchvision.datasets.ImageFolder.html).
+
+    The datset must be laid out in:
+
+    ```
+    root/class1/image1.png
+    root/class1/helloworld.jpg
+    ...
+    root/classN/123.jpeg
+    root/classN/abc.webp
+    ```
+
+    If you don't have a class structure, you can add a dummy "all" folder instead of a class folder.
+    """
+
     def __init__(self, *args, sample_transform: Callable | None = None, **kwargs):
         super().__init__(*args, **kwargs)
         self.sample_transform = sample_transform
@@ -482,6 +510,7 @@ class FakeImgSegDataset(torch.utils.data.Dataset):
     """Synthetic segmentation dataset providing pixel-level segmentation masks.
 
     Mimics ImgSegFolderDataset by providing:
+
     - image: a dummy RGB PIL image
     - segmentation: a PIL image with pixel-level class labels
     - index, target, label
