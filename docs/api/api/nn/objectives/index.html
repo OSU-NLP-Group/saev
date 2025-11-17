@@ -18,7 +18,7 @@
       
       
       <link rel="icon" href="../../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.20">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.22">
     
     
       
@@ -26,7 +26,7 @@
       
     
     
-      <link rel="stylesheet" href="../../../assets/stylesheets/main.e53b48f4.min.css">
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.84d31ad4.min.css">
       
         
         <link rel="stylesheet" href="../../../assets/stylesheets/palette.06af60db.min.css">
@@ -667,6 +667,12 @@
       
         
       
+        
+      
+        
+      
+        
+      
     
     
     
@@ -1194,6 +1200,29 @@
   
   
     <li class="md-nav__item">
+      <a href="../../framework/train/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.framework.train
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../helpers/" class="md-nav__link">
         
   
@@ -1223,6 +1252,29 @@
   
   <span class="md-ellipsis">
     saev.nn
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../activations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.nn.activations
     
   </span>
   
@@ -1360,15 +1412,6 @@
   
 </li>
         
-          <li class="md-nav__item">
-  <a href="#saev.nn.objectives.Matryoshka.sparsity_coeff" class="md-nav__link">
-    <span class="md-ellipsis">
-      sparsity_coeff
-    </span>
-  </a>
-  
-</li>
-        
       </ul>
     </nav>
   
@@ -1444,90 +1487,6 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#saev.nn.objectives.Vanilla" class="md-nav__link">
-    <span class="md-ellipsis">
-      Vanilla
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Vanilla">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#saev.nn.objectives.Vanilla.sparsity_coeff" class="md-nav__link">
-    <span class="md-ellipsis">
-      sparsity_coeff
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#saev.nn.objectives.VanillaLoss" class="md-nav__link">
-    <span class="md-ellipsis">
-      VanillaLoss
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="VanillaLoss">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#saev.nn.objectives.VanillaLoss.l0" class="md-nav__link">
-    <span class="md-ellipsis">
-      l0
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#saev.nn.objectives.VanillaLoss.l1" class="md-nav__link">
-    <span class="md-ellipsis">
-      l1
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#saev.nn.objectives.VanillaLoss.loss" class="md-nav__link">
-    <span class="md-ellipsis">
-      loss
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#saev.nn.objectives.VanillaLoss.mse" class="md-nav__link">
-    <span class="md-ellipsis">
-      mse
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#saev.nn.objectives.VanillaLoss.sparsity" class="md-nav__link">
-    <span class="md-ellipsis">
-      sparsity
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#saev.nn.objectives.sample_prefixes" class="md-nav__link">
     <span class="md-ellipsis">
       sample_prefixes
@@ -1558,6 +1517,29 @@
   
   <span class="md-ellipsis">
     saev.utils
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../utils/monitoring/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.utils.monitoring
     
   </span>
   
@@ -1728,6 +1710,7 @@
     <div class="doc doc-contents ">
 
 
+
         <p>The loss term for an autoencoder training batch.</p>
 
 
@@ -1786,7 +1769,7 @@
 
 
 <h2 id="saev.nn.objectives.Matryoshka" class="doc doc-heading">
-              <code class="highlight language-python"><span class="n">Matryoshka</span><span class="p">(</span><span class="n">sparsity_coeff</span><span class="o">=</span><span class="mf">0.0004</span><span class="p">,</span> <span class="n">n_prefixes</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span></code>
+              <code class="highlight language-python"><span class="n">Matryoshka</span><span class="p">(</span><span class="n">n_prefixes</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
@@ -1796,6 +1779,7 @@
 
 
     <div class="doc doc-contents ">
+
 
 
         <p>Config for the Matryoshka loss for another arbitrary SAE class.</p>
@@ -1842,29 +1826,6 @@
 
 </div>
 
-<div class="doc doc-object doc-attribute">
-
-
-
-<h3 id="saev.nn.objectives.Matryoshka.sparsity_coeff" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">sparsity_coeff</span> <span class="o">=</span> <span class="mf">0.0004</span></code>
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
-      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
-  </span>
-
-<a href="#saev.nn.objectives.Matryoshka.sparsity_coeff" class="headerlink" title="Permanent link">&para;</a></h3>
-
-
-    <div class="doc doc-contents ">
-
-        <p>How much to weight sparsity loss term (if not using TopK/BatchTopK).</p>
-
-    </div>
-
-</div>
-
 
 
 
@@ -1897,6 +1858,7 @@
   
       dataclass
    (saev.nn.objectives.Loss)" href="#saev.nn.objectives.Loss">Loss</a></code></p>
+
 
 
         <p>The composite loss terms for an training batch.</p>
@@ -2055,6 +2017,7 @@
               Bases: <code><span title="saev.nn.objectives.Objective">Objective</span></code></p>
 
 
+
         <p>Torch module for calculating the matryoshka loss for an SAE.</p>
 
 
@@ -2064,17 +2027,13 @@
 
 
 
-                  <details class="quote">
+                  <details class="mkdocstrings-source">
                     <summary>Source code in <code>src/saev/nn/objectives.py</code></summary>
-                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">147</span>
-<span class="normal">148</span>
-<span class="normal">149</span>
-<span class="normal">150</span>
-<span class="normal">151</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">Matryoshka</span><span class="p">):</span>
+                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">84</span>
+<span class="normal">85</span>
+<span class="normal">86</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">Matryoshka</span><span class="p">):</span>
     <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
     <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span> <span class="o">=</span> <span class="n">cfg</span>
-    <span class="c1"># Keep sparsity_coeff as mutable attribute for scheduler compatibility</span>
-    <span class="bp">self</span><span class="o">.</span><span class="n">sparsity_coeff</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">sparsity_coeff</span>
 </code></pre></div></td></tr></table></div>
                   </details>
 
@@ -2087,239 +2046,6 @@
 
 
 
-
-
-
-
-
-
-  </div>
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-class">
-
-
-
-<h2 id="saev.nn.objectives.Vanilla" class="doc doc-heading">
-              <code class="highlight language-python"><span class="n">Vanilla</span><span class="p">(</span><span class="n">sparsity_coeff</span><span class="o">=</span><span class="mf">0.0004</span><span class="p">)</span></code>
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
-  </span>
-
-<a href="#saev.nn.objectives.Vanilla" class="headerlink" title="Permanent link">&para;</a></h2>
-
-
-    <div class="doc doc-contents ">
-
-
-
-
-
-
-
-
-
-
-
-
-  <div class="doc doc-children">
-
-
-
-
-
-
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h3 id="saev.nn.objectives.Vanilla.sparsity_coeff" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">sparsity_coeff</span> <span class="o">=</span> <span class="mf">0.0004</span></code>
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
-      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
-  </span>
-
-<a href="#saev.nn.objectives.Vanilla.sparsity_coeff" class="headerlink" title="Permanent link">&para;</a></h3>
-
-
-    <div class="doc doc-contents ">
-
-        <p>How much to weight sparsity loss term.</p>
-
-    </div>
-
-</div>
-
-
-
-
-
-
-  </div>
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-class">
-
-
-
-<h2 id="saev.nn.objectives.VanillaLoss" class="doc doc-heading">
-              <code class="highlight language-python"><span class="n">VanillaLoss</span><span class="p">(</span><span class="n">mse</span><span class="p">,</span> <span class="n">sparsity</span><span class="p">,</span> <span class="n">l0</span><span class="p">,</span> <span class="n">l1</span><span class="p">)</span></code>
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
-  </span>
-
-<a href="#saev.nn.objectives.VanillaLoss" class="headerlink" title="Permanent link">&para;</a></h2>
-
-
-    <div class="doc doc-contents ">
-            <p class="doc doc-class-bases">
-              Bases: <code><a class="autorefs autorefs-internal" title="Loss()
-
-  
-      dataclass
-   (saev.nn.objectives.Loss)" href="#saev.nn.objectives.Loss">Loss</a></code></p>
-
-
-        <p>The vanilla loss terms for an training batch.</p>
-
-
-
-
-
-
-
-
-
-
-
-  <div class="doc doc-children">
-
-
-
-
-
-
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h3 id="saev.nn.objectives.VanillaLoss.l0" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">l0</span></code>
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
-  </span>
-
-<a href="#saev.nn.objectives.VanillaLoss.l0" class="headerlink" title="Permanent link">&para;</a></h3>
-
-
-    <div class="doc doc-contents ">
-
-        <p>L0 magnitude of hidden activations.</p>
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h3 id="saev.nn.objectives.VanillaLoss.l1" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">l1</span></code>
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
-  </span>
-
-<a href="#saev.nn.objectives.VanillaLoss.l1" class="headerlink" title="Permanent link">&para;</a></h3>
-
-
-    <div class="doc doc-contents ">
-
-        <p>L1 magnitude of hidden activations.</p>
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h3 id="saev.nn.objectives.VanillaLoss.loss" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">loss</span></code>
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-property"><code>property</code></small>
-  </span>
-
-<a href="#saev.nn.objectives.VanillaLoss.loss" class="headerlink" title="Permanent link">&para;</a></h3>
-
-
-    <div class="doc doc-contents ">
-
-        <p>Total loss.</p>
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h3 id="saev.nn.objectives.VanillaLoss.mse" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">mse</span></code>
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
-  </span>
-
-<a href="#saev.nn.objectives.VanillaLoss.mse" class="headerlink" title="Permanent link">&para;</a></h3>
-
-
-    <div class="doc doc-contents ">
-
-        <p>Reconstruction loss (mean squared error).</p>
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h3 id="saev.nn.objectives.VanillaLoss.sparsity" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">sparsity</span></code>
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
-  </span>
-
-<a href="#saev.nn.objectives.VanillaLoss.sparsity" class="headerlink" title="Permanent link">&para;</a></h3>
-
-
-    <div class="doc doc-contents ">
-
-        <p>Sparsity loss, typically lambda * L1.</p>
-
-    </div>
-
-</div>
 
 
 
@@ -2450,51 +2176,51 @@ Matryoshka Sparse Autoencoders" (https://doi.org/10.48550/arXiv.2503.17547)</p>
     </table>
 
 
-            <details class="quote">
+            <details class="mkdocstrings-source">
               <summary>Source code in <code>src/saev/nn/objectives.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">181</span>
-<span class="normal">182</span>
-<span class="normal">183</span>
-<span class="normal">184</span>
-<span class="normal">185</span>
-<span class="normal">186</span>
-<span class="normal">187</span>
-<span class="normal">188</span>
-<span class="normal">189</span>
-<span class="normal">190</span>
-<span class="normal">191</span>
-<span class="normal">192</span>
-<span class="normal">193</span>
-<span class="normal">194</span>
-<span class="normal">195</span>
-<span class="normal">196</span>
-<span class="normal">197</span>
-<span class="normal">198</span>
-<span class="normal">199</span>
-<span class="normal">200</span>
-<span class="normal">201</span>
-<span class="normal">202</span>
-<span class="normal">203</span>
-<span class="normal">204</span>
-<span class="normal">205</span>
-<span class="normal">206</span>
-<span class="normal">207</span>
-<span class="normal">208</span>
-<span class="normal">209</span>
-<span class="normal">210</span>
-<span class="normal">211</span>
-<span class="normal">212</span>
-<span class="normal">213</span>
-<span class="normal">214</span>
-<span class="normal">215</span>
-<span class="normal">216</span>
-<span class="normal">217</span>
-<span class="normal">218</span>
-<span class="normal">219</span>
-<span class="normal">220</span>
-<span class="normal">221</span>
-<span class="normal">222</span>
-<span class="normal">223</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">()</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">118</span>
+<span class="normal">119</span>
+<span class="normal">120</span>
+<span class="normal">121</span>
+<span class="normal">122</span>
+<span class="normal">123</span>
+<span class="normal">124</span>
+<span class="normal">125</span>
+<span class="normal">126</span>
+<span class="normal">127</span>
+<span class="normal">128</span>
+<span class="normal">129</span>
+<span class="normal">130</span>
+<span class="normal">131</span>
+<span class="normal">132</span>
+<span class="normal">133</span>
+<span class="normal">134</span>
+<span class="normal">135</span>
+<span class="normal">136</span>
+<span class="normal">137</span>
+<span class="normal">138</span>
+<span class="normal">139</span>
+<span class="normal">140</span>
+<span class="normal">141</span>
+<span class="normal">142</span>
+<span class="normal">143</span>
+<span class="normal">144</span>
+<span class="normal">145</span>
+<span class="normal">146</span>
+<span class="normal">147</span>
+<span class="normal">148</span>
+<span class="normal">149</span>
+<span class="normal">150</span>
+<span class="normal">151</span>
+<span class="normal">152</span>
+<span class="normal">153</span>
+<span class="normal">154</span>
+<span class="normal">155</span>
+<span class="normal">156</span>
+<span class="normal">157</span>
+<span class="normal">158</span>
+<span class="normal">159</span>
+<span class="normal">160</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">()</span>
 <span class="nd">@jaxtyped</span><span class="p">(</span><span class="n">typechecker</span><span class="o">=</span><span class="n">beartype</span><span class="o">.</span><span class="n">beartype</span><span class="p">)</span>
 <span class="k">def</span><span class="w"> </span><span class="nf">sample_prefixes</span><span class="p">(</span>
     <span class="n">d_sae</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">n_prefixes</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">min_prefix_length</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span> <span class="n">pareto_power</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.5</span>
@@ -2645,7 +2371,7 @@ Matryoshka Sparse Autoencoders" (https://doi.org/10.48550/arXiv.2503.17547)</p>
       
     
     <a href="https://github.com/OSU-NLP-Group/saev" target="_blank" rel="noopener" title="github.com" class="md-social__link">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.0.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
     </a>
   
 </div>

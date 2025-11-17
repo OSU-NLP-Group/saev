@@ -1,0 +1,3959 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+        <link rel="canonical" href="https://osu-nlp-group.github.io/saev/api/api/framework/train/">
+      
+      
+        <link rel="prev" href="../shards/">
+      
+      
+        <link rel="next" href="../../helpers/">
+      
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.22">
+    
+    
+      
+        <title>saev.framework.train - saev</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.84d31ad4.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="../../../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#saev.framework.train" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="saev" class="md-header__button md-logo" aria-label="saev" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            saev
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              saev.framework.train
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../users/guide/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Users
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../developers/contributing/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Developers
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../../saev/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  API
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="saev" class="md-nav__button md-logo" aria-label="saev" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    saev
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Home
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Users
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            Users
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../users/guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Guide
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../users/inference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Inference
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../users/glossary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Glossary
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../users/sweeps/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Sweeps
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Developers
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            Developers
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../developers/contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Contributing
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../developers/protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Shard Protocol
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../developers/disk-layout/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Disk Layout
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    API
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            API
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../saev/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../colors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.colors
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.configs
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../data/saev.data/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.data
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../data/buffers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.data.buffers
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../data/clip/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.data.clip
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../data/datasets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.data.datasets
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../data/dinov2/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.data.dinov2
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../data/dinov3/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.data.dinov3
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../data/fake_clip/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.data.fake_clip
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../data/indexed/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.data.indexed
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../data/models/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.data.models
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../data/ordered/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.data.ordered
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../data/shards/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.data.shards
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../data/shuffled/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.data.shuffled
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../data/siglip/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.data.siglip
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../data/transforms/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.data.transforms
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../disk/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.disk
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../saev.framework/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.framework
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../inference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.framework.inference
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../shards/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.framework.shards
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    saev.framework.train
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.framework.train
+    
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#saev.framework.train" class="md-nav__link">
+    <span class="md-ellipsis">
+      train
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#saev.framework.train.Config" class="md-nav__link">
+    <span class="md-ellipsis">
+      Config
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Config">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#saev.framework.train.Config.device" class="md-nav__link">
+    <span class="md-ellipsis">
+      device
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.framework.train.Config.grad_clip" class="md-nav__link">
+    <span class="md-ellipsis">
+      grad_clip
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.framework.train.Config.log_every" class="md-nav__link">
+    <span class="md-ellipsis">
+      log_every
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.framework.train.Config.log_to" class="md-nav__link">
+    <span class="md-ellipsis">
+      log_to
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.framework.train.Config.lr" class="md-nav__link">
+    <span class="md-ellipsis">
+      lr
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.framework.train.Config.mem_gb" class="md-nav__link">
+    <span class="md-ellipsis">
+      mem_gb
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.framework.train.Config.n_hours" class="md-nav__link">
+    <span class="md-ellipsis">
+      n_hours
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.framework.train.Config.n_lr_warmup" class="md-nav__link">
+    <span class="md-ellipsis">
+      n_lr_warmup
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.framework.train.Config.n_sparsity_warmup" class="md-nav__link">
+    <span class="md-ellipsis">
+      n_sparsity_warmup
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.framework.train.Config.n_train" class="md-nav__link">
+    <span class="md-ellipsis">
+      n_train
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.framework.train.Config.n_val" class="md-nav__link">
+    <span class="md-ellipsis">
+      n_val
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.framework.train.Config.objective" class="md-nav__link">
+    <span class="md-ellipsis">
+      objective
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.framework.train.Config.runs_root" class="md-nav__link">
+    <span class="md-ellipsis">
+      runs_root
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.framework.train.Config.sae" class="md-nav__link">
+    <span class="md-ellipsis">
+      sae
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.framework.train.Config.seed" class="md-nav__link">
+    <span class="md-ellipsis">
+      seed
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.framework.train.Config.slurm_acct" class="md-nav__link">
+    <span class="md-ellipsis">
+      slurm_acct
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.framework.train.Config.slurm_partition" class="md-nav__link">
+    <span class="md-ellipsis">
+      slurm_partition
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.framework.train.Config.tag" class="md-nav__link">
+    <span class="md-ellipsis">
+      tag
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.framework.train.Config.track" class="md-nav__link">
+    <span class="md-ellipsis">
+      track
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.framework.train.Config.train_data" class="md-nav__link">
+    <span class="md-ellipsis">
+      train_data
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.framework.train.Config.val_data" class="md-nav__link">
+    <span class="md-ellipsis">
+      val_data
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.framework.train.Config.wandb_project" class="md-nav__link">
+    <span class="md-ellipsis">
+      wandb_project
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#saev.framework.train.EvalMetrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      EvalMetrics
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="EvalMetrics">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#saev.framework.train.EvalMetrics.almost_dead_threshold" class="md-nav__link">
+    <span class="md-ellipsis">
+      almost_dead_threshold
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.framework.train.EvalMetrics.dense_threshold" class="md-nav__link">
+    <span class="md-ellipsis">
+      dense_threshold
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.framework.train.EvalMetrics.freqs" class="md-nav__link">
+    <span class="md-ellipsis">
+      freqs
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.framework.train.EvalMetrics.l0" class="md-nav__link">
+    <span class="md-ellipsis">
+      l0
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.framework.train.EvalMetrics.l1" class="md-nav__link">
+    <span class="md-ellipsis">
+      l1
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.framework.train.EvalMetrics.mean_values" class="md-nav__link">
+    <span class="md-ellipsis">
+      mean_values
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.framework.train.EvalMetrics.mse" class="md-nav__link">
+    <span class="md-ellipsis">
+      mse
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.framework.train.EvalMetrics.n_almost_dead" class="md-nav__link">
+    <span class="md-ellipsis">
+      n_almost_dead
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.framework.train.EvalMetrics.n_dead" class="md-nav__link">
+    <span class="md-ellipsis">
+      n_dead
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.framework.train.EvalMetrics.n_dense" class="md-nav__link">
+    <span class="md-ellipsis">
+      n_dense
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.framework.train.EvalMetrics.normalized_mse" class="md-nav__link">
+    <span class="md-ellipsis">
+      normalized_mse
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.framework.train.EvalMetrics.sse_baseline" class="md-nav__link">
+    <span class="md-ellipsis">
+      sse_baseline
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saev.framework.train.EvalMetrics.sse_sae" class="md-nav__link">
+    <span class="md-ellipsis">
+      sse_sae
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#saev.framework.train.evaluate" class="md-nav__link">
+    <span class="md-ellipsis">
+      evaluate
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#saev.framework.train.main" class="md-nav__link">
+    <span class="md-ellipsis">
+      main
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#saev.framework.train.split_cfgs" class="md-nav__link">
+    <span class="md-ellipsis">
+      split_cfgs
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#saev.framework.train.train" class="md-nav__link">
+    <span class="md-ellipsis">
+      train
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../helpers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.helpers
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../nn/saev.nn/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.nn
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../nn/activations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.nn.activations
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../nn/modeling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.nn.modeling
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../nn/objectives/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.nn.objectives
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../utils/saev.utils/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.utils
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../utils/monitoring/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.utils.monitoring
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../utils/scheduling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.utils.scheduling
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../utils/statistics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.utils.statistics
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../utils/wandb/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.utils.wandb
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../viz/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.viz
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+  <h1>saev.framework.train</h1>
+
+<div class="doc doc-object doc-module">
+
+
+
+<a id="saev.framework.train"></a>
+    <div class="doc doc-contents first">
+
+        <p>Trains many SAEs in parallel to amortize the cost of loading a single batch of data over many SAE training runs.</p>
+<p>Checklist for making sure your training doesn't suck:</p>
+<ul>
+<li>[ ] Data scaling: scale vectors so their average L2 norm is sqrt(n).</li>
+<li>[ ] Initialize W_e to (d_model / d_sae) * W_d.T</li>
+<li>[ ] Initialize b_e such that each feature activates 10K * d_model / (n * d_sae) of the time, which means that on average, each example activates 10K features.</li>
+<li>[ ] Initialize W_d to ~uniform(-1/sqrt(n), 1/sqrt(n))</li>
+<li>[x] Initialize b_d to 0.</li>
+<li>[x] Sweep learning rate and sparsity coefficients.</li>
+<li>[ ] Decay learning rate to 0 over the last 20% of training.</li>
+<li>[ ] Warmup sparsity over all of training.</li>
+<li>[x] Gradient clipping (clip at 1 with clip_grad_norm)</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="saev.framework.train.Config" class="doc doc-heading">
+              <code class="highlight language-python"><span class="n">Config</span><span class="p">(</span><span class="n">train_data</span><span class="o">=</span><span class="n">saev</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">ShuffledConfig</span><span class="p">(),</span> <span class="n">val_data</span><span class="o">=</span><span class="n">saev</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">ShuffledConfig</span><span class="p">(),</span> <span class="n">n_train</span><span class="o">=</span><span class="mi">100000000</span><span class="p">,</span> <span class="n">n_val</span><span class="o">=</span><span class="mi">10000000</span><span class="p">,</span> <span class="n">sae</span><span class="o">=</span><span class="n">nn</span><span class="o">.</span><span class="n">SparseAutoencoderConfig</span><span class="p">(),</span> <span class="n">objective</span><span class="o">=</span><span class="n">nn</span><span class="o">.</span><span class="n">objectives</span><span class="o">.</span><span class="n">Matryoshka</span><span class="p">(),</span> <span class="n">n_sparsity_warmup</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">lr</span><span class="o">=</span><span class="mf">0.0004</span><span class="p">,</span> <span class="n">n_lr_warmup</span><span class="o">=</span><span class="mi">500</span><span class="p">,</span> <span class="n">grad_clip</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">track</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">wandb_project</span><span class="o">=</span><span class="s1">&#39;saev&#39;</span><span class="p">,</span> <span class="n">tag</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">log_every</span><span class="o">=</span><span class="mi">25</span><span class="p">,</span> <span class="n">runs_root</span><span class="o">=</span><span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="s1">&#39;$SAEV_NFS/saev/runs&#39;</span><span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="s1">&#39;cuda&#39;</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">42</span><span class="p">,</span> <span class="n">slurm_acct</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">slurm_partition</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">n_hours</span><span class="o">=</span><span class="mf">24.0</span><span class="p">,</span> <span class="n">mem_gb</span><span class="o">=</span><span class="mi">128</span><span class="p">,</span> <span class="n">log_to</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">,</span> <span class="s1">&#39;logs&#39;</span><span class="p">))</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#saev.framework.train.Config" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents ">
+
+
+
+        <p>Configuration for training a sparse autoencoder on a vision transformer.</p>
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="saev.framework.train.Config.device" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">device</span> <span class="o">=</span> <span class="s1">&#39;cuda&#39;</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#saev.framework.train.Config.device" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Hardware device.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="saev.framework.train.Config.grad_clip" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">grad_clip</span> <span class="o">=</span> <span class="mf">1.0</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#saev.framework.train.Config.grad_clip" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Maximum gradient norm across all SAE parameters.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="saev.framework.train.Config.log_every" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">log_every</span> <span class="o">=</span> <span class="mi">25</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#saev.framework.train.Config.log_every" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>How often to log to WandB.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="saev.framework.train.Config.log_to" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">log_to</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">,</span> <span class="s1">&#39;logs&#39;</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#saev.framework.train.Config.log_to" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Where to log Slurm job stdout/stderr.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="saev.framework.train.Config.lr" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">lr</span> <span class="o">=</span> <span class="mf">0.0004</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#saev.framework.train.Config.lr" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Learning rate.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="saev.framework.train.Config.mem_gb" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">mem_gb</span> <span class="o">=</span> <span class="mi">128</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#saev.framework.train.Config.mem_gb" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Node memory in GB.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="saev.framework.train.Config.n_hours" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">n_hours</span> <span class="o">=</span> <span class="mf">24.0</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#saev.framework.train.Config.n_hours" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Slurm job length in hours.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="saev.framework.train.Config.n_lr_warmup" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">n_lr_warmup</span> <span class="o">=</span> <span class="mi">500</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#saev.framework.train.Config.n_lr_warmup" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Number of learning rate warmup steps.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="saev.framework.train.Config.n_sparsity_warmup" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">n_sparsity_warmup</span> <span class="o">=</span> <span class="mi">0</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#saev.framework.train.Config.n_sparsity_warmup" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Number of sparsity coefficient warmup steps.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="saev.framework.train.Config.n_train" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">n_train</span> <span class="o">=</span> <span class="mi">100000000</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#saev.framework.train.Config.n_train" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Number of SAE training samples.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="saev.framework.train.Config.n_val" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">n_val</span> <span class="o">=</span> <span class="mi">10000000</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#saev.framework.train.Config.n_val" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Number of SAE evaluation samples.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="saev.framework.train.Config.objective" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">objective</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">objectives</span><span class="o">.</span><span class="n">Matryoshka</span><span class="p">()</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#saev.framework.train.Config.objective" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>SAE objective configuration.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="saev.framework.train.Config.runs_root" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">runs_root</span> <span class="o">=</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="s1">&#39;$SAEV_NFS/saev/runs&#39;</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#saev.framework.train.Config.runs_root" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Root directory for runs.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="saev.framework.train.Config.sae" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">sae</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">SparseAutoencoderConfig</span><span class="p">()</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#saev.framework.train.Config.sae" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>SAE configuration.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="saev.framework.train.Config.seed" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">seed</span> <span class="o">=</span> <span class="mi">42</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#saev.framework.train.Config.seed" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Random seed.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="saev.framework.train.Config.slurm_acct" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">slurm_acct</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#saev.framework.train.Config.slurm_acct" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Slurm account string. Empty means to not use Slurm.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="saev.framework.train.Config.slurm_partition" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">slurm_partition</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#saev.framework.train.Config.slurm_partition" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Slurm partition.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="saev.framework.train.Config.tag" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">tag</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#saev.framework.train.Config.tag" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Tag to add to WandB run.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="saev.framework.train.Config.track" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">track</span> <span class="o">=</span> <span class="kc">True</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#saev.framework.train.Config.track" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Whether to track with WandB.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="saev.framework.train.Config.train_data" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">train_data</span> <span class="o">=</span> <span class="n">saev</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">ShuffledConfig</span><span class="p">()</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#saev.framework.train.Config.train_data" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Training data.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="saev.framework.train.Config.val_data" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">val_data</span> <span class="o">=</span> <span class="n">saev</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">ShuffledConfig</span><span class="p">()</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#saev.framework.train.Config.val_data" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Validation data.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="saev.framework.train.Config.wandb_project" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">wandb_project</span> <span class="o">=</span> <span class="s1">&#39;saev&#39;</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#saev.framework.train.Config.wandb_project" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>WandB project name.</p>
+
+    </div>
+
+</div>
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="saev.framework.train.EvalMetrics" class="doc doc-heading">
+              <code class="highlight language-python"><span class="n">EvalMetrics</span><span class="p">(</span><span class="n">l0</span><span class="p">,</span> <span class="n">l1</span><span class="p">,</span> <span class="n">mse</span><span class="p">,</span> <span class="n">normalized_mse</span><span class="p">,</span> <span class="n">sse_sae</span><span class="p">,</span> <span class="n">sse_baseline</span><span class="p">,</span> <span class="n">n_dead</span><span class="p">,</span> <span class="n">n_almost_dead</span><span class="p">,</span> <span class="n">n_dense</span><span class="p">,</span> <span class="n">freqs</span><span class="p">,</span> <span class="n">mean_values</span><span class="p">,</span> <span class="n">almost_dead_threshold</span><span class="p">,</span> <span class="n">dense_threshold</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#saev.framework.train.EvalMetrics" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents ">
+
+
+
+        <p>Results of evaluating a trained SAE on a datset.</p>
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="saev.framework.train.EvalMetrics.almost_dead_threshold" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">almost_dead_threshold</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#saev.framework.train.EvalMetrics.almost_dead_threshold" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Threshold for an "almost dead" neuron.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="saev.framework.train.EvalMetrics.dense_threshold" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">dense_threshold</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#saev.framework.train.EvalMetrics.dense_threshold" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Threshold for a dense neuron.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="saev.framework.train.EvalMetrics.freqs" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">freqs</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#saev.framework.train.EvalMetrics.freqs" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>How often each feature fired.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="saev.framework.train.EvalMetrics.l0" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">l0</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#saev.framework.train.EvalMetrics.l0" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Mean L0 across all examples.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="saev.framework.train.EvalMetrics.l1" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">l1</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#saev.framework.train.EvalMetrics.l1" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Mean L1 across all examples.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="saev.framework.train.EvalMetrics.mean_values" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">mean_values</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#saev.framework.train.EvalMetrics.mean_values" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>The mean value for each feature when it did fire.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="saev.framework.train.EvalMetrics.mse" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">mse</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#saev.framework.train.EvalMetrics.mse" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Mean MSE across all examples.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="saev.framework.train.EvalMetrics.n_almost_dead" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">n_almost_dead</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#saev.framework.train.EvalMetrics.n_almost_dead" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Number of neurons that fired on fewer than <code>almost_dead_threshold</code> of examples.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="saev.framework.train.EvalMetrics.n_dead" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">n_dead</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#saev.framework.train.EvalMetrics.n_dead" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Number of neurons that never fired on any example.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="saev.framework.train.EvalMetrics.n_dense" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">n_dense</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#saev.framework.train.EvalMetrics.n_dense" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Number of neurons that fired on more than <code>dense_threshold</code> of examples.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="saev.framework.train.EvalMetrics.normalized_mse" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">normalized_mse</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#saev.framework.train.EvalMetrics.normalized_mse" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Normalized reconstruction MSE (SAE SSE / mean-baseline SSE).</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="saev.framework.train.EvalMetrics.sse_baseline" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">sse_baseline</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#saev.framework.train.EvalMetrics.sse_baseline" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Total reconstruction sum-squared error for the mean baseline.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="saev.framework.train.EvalMetrics.sse_sae" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">sse_sae</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#saev.framework.train.EvalMetrics.sse_sae" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Total reconstruction sum-squared error for the SAE.</p>
+
+    </div>
+
+</div>
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="saev.framework.train.evaluate" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">evaluate</span><span class="p">(</span><span class="n">cfgs</span><span class="p">,</span> <span class="n">saes</span><span class="p">,</span> <span class="n">objectives</span><span class="p">)</span></code>
+
+<a href="#saev.framework.train.evaluate" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Evaluates SAE quality by counting dead and dense features, recording reconstruction metrics (including normalized MSE), and making histogram plots to help human qualitative comparison.</p>
+<p>The metrics computed are mean <code>L0</code>/<code>L1</code>/<code>MSE</code> losses, normalized reconstruction error, the number of dead, almost dead, and dense neurons, plus per-feature firing frequencies and mean values.  A list of <code>EvalMetrics</code> is returned, one for each SAE.</p>
+
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>src/saev/framework/train.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">403</span>
+<span class="normal">404</span>
+<span class="normal">405</span>
+<span class="normal">406</span>
+<span class="normal">407</span>
+<span class="normal">408</span>
+<span class="normal">409</span>
+<span class="normal">410</span>
+<span class="normal">411</span>
+<span class="normal">412</span>
+<span class="normal">413</span>
+<span class="normal">414</span>
+<span class="normal">415</span>
+<span class="normal">416</span>
+<span class="normal">417</span>
+<span class="normal">418</span>
+<span class="normal">419</span>
+<span class="normal">420</span>
+<span class="normal">421</span>
+<span class="normal">422</span>
+<span class="normal">423</span>
+<span class="normal">424</span>
+<span class="normal">425</span>
+<span class="normal">426</span>
+<span class="normal">427</span>
+<span class="normal">428</span>
+<span class="normal">429</span>
+<span class="normal">430</span>
+<span class="normal">431</span>
+<span class="normal">432</span>
+<span class="normal">433</span>
+<span class="normal">434</span>
+<span class="normal">435</span>
+<span class="normal">436</span>
+<span class="normal">437</span>
+<span class="normal">438</span>
+<span class="normal">439</span>
+<span class="normal">440</span>
+<span class="normal">441</span>
+<span class="normal">442</span>
+<span class="normal">443</span>
+<span class="normal">444</span>
+<span class="normal">445</span>
+<span class="normal">446</span>
+<span class="normal">447</span>
+<span class="normal">448</span>
+<span class="normal">449</span>
+<span class="normal">450</span>
+<span class="normal">451</span>
+<span class="normal">452</span>
+<span class="normal">453</span>
+<span class="normal">454</span>
+<span class="normal">455</span>
+<span class="normal">456</span>
+<span class="normal">457</span>
+<span class="normal">458</span>
+<span class="normal">459</span>
+<span class="normal">460</span>
+<span class="normal">461</span>
+<span class="normal">462</span>
+<span class="normal">463</span>
+<span class="normal">464</span>
+<span class="normal">465</span>
+<span class="normal">466</span>
+<span class="normal">467</span>
+<span class="normal">468</span>
+<span class="normal">469</span>
+<span class="normal">470</span>
+<span class="normal">471</span>
+<span class="normal">472</span>
+<span class="normal">473</span>
+<span class="normal">474</span>
+<span class="normal">475</span>
+<span class="normal">476</span>
+<span class="normal">477</span>
+<span class="normal">478</span>
+<span class="normal">479</span>
+<span class="normal">480</span>
+<span class="normal">481</span>
+<span class="normal">482</span>
+<span class="normal">483</span>
+<span class="normal">484</span>
+<span class="normal">485</span>
+<span class="normal">486</span>
+<span class="normal">487</span>
+<span class="normal">488</span>
+<span class="normal">489</span>
+<span class="normal">490</span>
+<span class="normal">491</span>
+<span class="normal">492</span>
+<span class="normal">493</span>
+<span class="normal">494</span>
+<span class="normal">495</span>
+<span class="normal">496</span>
+<span class="normal">497</span>
+<span class="normal">498</span>
+<span class="normal">499</span>
+<span class="normal">500</span>
+<span class="normal">501</span>
+<span class="normal">502</span>
+<span class="normal">503</span>
+<span class="normal">504</span>
+<span class="normal">505</span>
+<span class="normal">506</span>
+<span class="normal">507</span>
+<span class="normal">508</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@beartype</span><span class="o">.</span><span class="n">beartype</span>
+<span class="nd">@torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">()</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">evaluate</span><span class="p">(</span>
+    <span class="n">cfgs</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Config</span><span class="p">],</span> <span class="n">saes</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">ModuleList</span><span class="p">,</span> <span class="n">objectives</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">ModuleList</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">EvalMetrics</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Evaluates SAE quality by counting dead and dense features, recording reconstruction metrics (including normalized MSE), and making histogram plots to help human qualitative comparison.</span>
+
+<span class="sd">    The metrics computed are mean ``L0``/``L1``/``MSE`` losses, normalized reconstruction error, the number of dead, almost dead, and dense neurons, plus per-feature firing frequencies and mean values.  A list of `EvalMetrics` is returned, one for each SAE.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">empty_cache</span><span class="p">()</span>
+
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">split_cfgs</span><span class="p">(</span><span class="n">cfgs</span><span class="p">))</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Configs are not parallelizeable: </span><span class="si">{cfgs}</span><span class="s2">.&quot;</span><span class="p">)</span>
+
+    <span class="n">saes</span><span class="o">.</span><span class="n">eval</span><span class="p">()</span>
+
+    <span class="n">cfg</span> <span class="o">=</span> <span class="n">cfgs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="n">almost_dead_lim</span> <span class="o">=</span> <span class="mf">1e-7</span>
+    <span class="n">dense_lim</span> <span class="o">=</span> <span class="mf">1e-2</span>
+
+    <span class="n">dataloader</span> <span class="o">=</span> <span class="n">saev</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">ShuffledDataLoader</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">val_data</span><span class="p">)</span>
+    <span class="n">dataloader</span> <span class="o">=</span> <span class="n">saev</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">scheduling</span><span class="o">.</span><span class="n">BatchLimiter</span><span class="p">(</span><span class="n">dataloader</span><span class="p">,</span> <span class="n">cfg</span><span class="o">.</span><span class="n">n_val</span><span class="p">)</span>
+
+    <span class="n">n_fired</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="nb">len</span><span class="p">(</span><span class="n">cfgs</span><span class="p">),</span> <span class="n">saes</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">d_sae</span><span class="p">))</span>
+    <span class="n">values</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="nb">len</span><span class="p">(</span><span class="n">cfgs</span><span class="p">),</span> <span class="n">saes</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">d_sae</span><span class="p">))</span>
+    <span class="n">total_l0</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">cfgs</span><span class="p">))</span>
+    <span class="n">total_l1</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">cfgs</span><span class="p">))</span>
+    <span class="n">total_mse</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">cfgs</span><span class="p">))</span>
+    <span class="n">total_sse_sae</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">cfgs</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float64</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+    <span class="n">sum_sq</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">((),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float64</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+    <span class="n">sum_vec</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span>
+        <span class="p">(</span><span class="n">saes</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">d_model</span><span class="p">,),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float64</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">device</span>
+    <span class="p">)</span>
+    <span class="n">n_tokens</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="k">for</span> <span class="n">batch</span> <span class="ow">in</span> <span class="n">helpers</span><span class="o">.</span><span class="n">progress</span><span class="p">(</span><span class="n">dataloader</span><span class="p">,</span> <span class="n">desc</span><span class="o">=</span><span class="s2">&quot;eval&quot;</span><span class="p">,</span> <span class="n">every</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">log_every</span><span class="p">):</span>
+        <span class="n">acts_BD</span> <span class="o">=</span> <span class="n">batch</span><span class="p">[</span><span class="s2">&quot;act&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">device</span><span class="p">,</span> <span class="n">non_blocking</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">acts_bd_f64</span> <span class="o">=</span> <span class="n">acts_BD</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
+        <span class="n">sum_sq</span> <span class="o">+=</span> <span class="n">torch</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">acts_bd_f64</span> <span class="o">*</span> <span class="n">acts_bd_f64</span><span class="p">)</span>
+        <span class="n">sum_vec</span> <span class="o">+=</span> <span class="n">acts_bd_f64</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        <span class="n">n_tokens</span> <span class="o">+=</span> <span class="n">acts_bd_f64</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">sae</span><span class="p">,</span> <span class="n">objective</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">saes</span><span class="p">,</span> <span class="n">objectives</span><span class="p">)):</span>
+            <span class="c1"># Objective now handles the forward pass internally</span>
+            <span class="n">loss</span> <span class="o">=</span> <span class="n">objective</span><span class="p">(</span><span class="n">sae</span><span class="p">,</span> <span class="n">acts_BD</span><span class="p">)</span>
+            <span class="c1"># Get f_x for metrics</span>
+            <span class="n">f_x_BS</span> <span class="o">=</span> <span class="n">sae</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">acts_BD</span><span class="p">)</span>
+            <span class="n">x_hat</span> <span class="o">=</span> <span class="n">sae</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">f_x_BS</span><span class="p">)</span>
+            <span class="n">residual</span> <span class="o">=</span> <span class="n">acts_BD</span> <span class="o">-</span> <span class="n">x_hat</span><span class="p">[:,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="p">:]</span>
+            <span class="n">total_sse_sae</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">+=</span> <span class="n">torch</span><span class="o">.</span><span class="n">sum</span><span class="p">((</span><span class="n">residual</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">float64</span><span class="p">))</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)</span>
+            <span class="n">n_fired</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">+=</span> <span class="n">einops</span><span class="o">.</span><span class="n">reduce</span><span class="p">(</span><span class="n">f_x_BS</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;batch d_sae -&gt; d_sae&quot;</span><span class="p">,</span> <span class="s2">&quot;sum&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span>
+            <span class="n">values</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">+=</span> <span class="n">einops</span><span class="o">.</span><span class="n">reduce</span><span class="p">(</span><span class="n">f_x_BS</span><span class="p">,</span> <span class="s2">&quot;batch d_sae -&gt; d_sae&quot;</span><span class="p">,</span> <span class="s2">&quot;sum&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span>
+            <span class="n">total_l0</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">+=</span> <span class="n">loss</span><span class="o">.</span><span class="n">l0</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span>
+            <span class="n">total_l1</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">+=</span> <span class="n">loss</span><span class="o">.</span><span class="n">l1</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span>
+            <span class="n">total_mse</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">+=</span> <span class="n">loss</span><span class="o">.</span><span class="n">mse</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span>
+
+    <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;Validation dataloader yielded zero tokens; cannot compute normalized MSE.&quot;</span>
+    <span class="k">assert</span> <span class="n">n_tokens</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">,</span> <span class="n">msg</span>
+    <span class="n">sum_vec_sq</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">sum_vec</span><span class="p">,</span> <span class="n">sum_vec</span><span class="p">)</span>
+    <span class="n">sse_baseline</span> <span class="o">=</span> <span class="n">sum_sq</span> <span class="o">-</span> <span class="n">sum_vec_sq</span> <span class="o">/</span> <span class="n">n_tokens</span>
+    <span class="n">msg</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="sa">f</span><span class="s2">&quot;Validation baseline variance non-positive: &quot;</span>
+        <span class="sa">f</span><span class="s2">&quot;sse_baseline=</span><span class="si">{</span><span class="n">sse_baseline</span><span class="o">.</span><span class="n">item</span><span class="p">()</span><span class="si">:</span><span class="s2">.6e</span><span class="si">}</span><span class="s2">&quot;</span>
+    <span class="p">)</span>
+    <span class="k">assert</span> <span class="n">sse_baseline</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">,</span> <span class="n">msg</span>
+    <span class="n">sse_baseline_value</span> <span class="o">=</span> <span class="n">sse_baseline</span><span class="o">.</span><span class="n">item</span><span class="p">()</span>
+
+    <span class="n">mean_values</span> <span class="o">=</span> <span class="n">values</span> <span class="o">/</span> <span class="n">n_fired</span>
+    <span class="n">freqs</span> <span class="o">=</span> <span class="n">n_fired</span> <span class="o">/</span> <span class="n">cfg</span><span class="o">.</span><span class="n">n_val</span>
+
+    <span class="n">l0</span> <span class="o">=</span> <span class="p">(</span><span class="n">total_l0</span> <span class="o">/</span> <span class="nb">len</span><span class="p">(</span><span class="n">dataloader</span><span class="p">))</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+    <span class="n">l1</span> <span class="o">=</span> <span class="p">(</span><span class="n">total_l1</span> <span class="o">/</span> <span class="nb">len</span><span class="p">(</span><span class="n">dataloader</span><span class="p">))</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+    <span class="n">mse</span> <span class="o">=</span> <span class="p">(</span><span class="n">total_mse</span> <span class="o">/</span> <span class="nb">len</span><span class="p">(</span><span class="n">dataloader</span><span class="p">))</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+    <span class="n">sse_sae</span> <span class="o">=</span> <span class="n">total_sse_sae</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+    <span class="n">normalized_mse</span> <span class="o">=</span> <span class="p">(</span><span class="n">total_sse_sae</span> <span class="o">/</span> <span class="n">sse_baseline_value</span><span class="p">)</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+    <span class="n">sse_baseline_all</span> <span class="o">=</span> <span class="p">[</span><span class="n">sse_baseline_value</span><span class="p">]</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="n">cfgs</span><span class="p">)</span>
+
+    <span class="n">n_dead</span> <span class="o">=</span> <span class="n">einops</span><span class="o">.</span><span class="n">reduce</span><span class="p">(</span><span class="n">freqs</span> <span class="o">==</span> <span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;n_saes d_sae -&gt; n_saes&quot;</span><span class="p">,</span> <span class="s2">&quot;sum&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+    <span class="n">n_almost_dead</span> <span class="o">=</span> <span class="n">einops</span><span class="o">.</span><span class="n">reduce</span><span class="p">(</span>
+        <span class="n">freqs</span> <span class="o">&lt;</span> <span class="n">almost_dead_lim</span><span class="p">,</span> <span class="s2">&quot;n_saes d_sae -&gt; n_saes&quot;</span><span class="p">,</span> <span class="s2">&quot;sum&quot;</span>
+    <span class="p">)</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+    <span class="n">n_dense</span> <span class="o">=</span> <span class="n">einops</span><span class="o">.</span><span class="n">reduce</span><span class="p">(</span><span class="n">freqs</span> <span class="o">&gt;</span> <span class="n">dense_lim</span><span class="p">,</span> <span class="s2">&quot;n_saes d_sae -&gt; n_saes&quot;</span><span class="p">,</span> <span class="s2">&quot;sum&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+
+    <span class="n">metrics</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">cfgs</span><span class="p">)):</span>
+        <span class="n">metrics</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+            <span class="n">EvalMetrics</span><span class="p">(</span>
+                <span class="n">l0</span><span class="o">=</span><span class="n">l0</span><span class="p">[</span><span class="n">i</span><span class="p">],</span>
+                <span class="n">l1</span><span class="o">=</span><span class="n">l1</span><span class="p">[</span><span class="n">i</span><span class="p">],</span>
+                <span class="n">mse</span><span class="o">=</span><span class="n">mse</span><span class="p">[</span><span class="n">i</span><span class="p">],</span>
+                <span class="n">normalized_mse</span><span class="o">=</span><span class="n">normalized_mse</span><span class="p">[</span><span class="n">i</span><span class="p">],</span>
+                <span class="n">sse_sae</span><span class="o">=</span><span class="n">sse_sae</span><span class="p">[</span><span class="n">i</span><span class="p">],</span>
+                <span class="n">sse_baseline</span><span class="o">=</span><span class="n">sse_baseline_all</span><span class="p">[</span><span class="n">i</span><span class="p">],</span>
+                <span class="n">n_dead</span><span class="o">=</span><span class="n">n_dead</span><span class="p">[</span><span class="n">i</span><span class="p">],</span>
+                <span class="n">n_almost_dead</span><span class="o">=</span><span class="n">n_almost_dead</span><span class="p">[</span><span class="n">i</span><span class="p">],</span>
+                <span class="n">n_dense</span><span class="o">=</span><span class="n">n_dense</span><span class="p">[</span><span class="n">i</span><span class="p">],</span>
+                <span class="n">freqs</span><span class="o">=</span><span class="n">freqs</span><span class="p">[</span><span class="n">i</span><span class="p">],</span>
+                <span class="n">mean_values</span><span class="o">=</span><span class="n">mean_values</span><span class="p">[</span><span class="n">i</span><span class="p">],</span>
+                <span class="n">almost_dead_threshold</span><span class="o">=</span><span class="n">almost_dead_lim</span><span class="p">,</span>
+                <span class="n">dense_threshold</span><span class="o">=</span><span class="n">dense_lim</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">metrics</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="saev.framework.train.main" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">main</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">sweep</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+
+<a href="#saev.framework.train.main" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Train an SAE over activations, optionally running a parallel grid search over a set of hyperparameters.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>cfg</code>
+            </td>
+            <td>
+                  <code><span title="typing.Annotated">Annotated</span>[<a class="autorefs autorefs-internal" title="Config(train_data=saev.data.ShuffledConfig(), val_data=saev.data.ShuffledConfig(), n_train=100000000, n_val=10000000, sae=nn.SparseAutoencoderConfig(), objective=nn.objectives.Matryoshka(), n_sparsity_warmup=0, lr=0.0004, n_lr_warmup=500, grad_clip=1.0, track=True, wandb_project='saev', tag='', log_every=25, runs_root=pathlib.Path('$SAEV_NFS/saev/runs'), device='cuda', seed=42, slurm_acct='', slurm_partition='', n_hours=24.0, mem_gb=128, log_to=os.path.join('.', 'logs'))
+
+  
+      dataclass
+   (saev.framework.train.Config)" href="#saev.framework.train.Config">Config</a>, <span title="tyro.conf.arg">arg</span>(name=&#39;&#39;)]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Baseline config for training an SAE.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>sweep</code>
+            </td>
+            <td>
+                  <code><span title="pathlib.Path">Path</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Path to .py file defining the sweep parameters.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>src/saev/framework/train.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">566</span>
+<span class="normal">567</span>
+<span class="normal">568</span>
+<span class="normal">569</span>
+<span class="normal">570</span>
+<span class="normal">571</span>
+<span class="normal">572</span>
+<span class="normal">573</span>
+<span class="normal">574</span>
+<span class="normal">575</span>
+<span class="normal">576</span>
+<span class="normal">577</span>
+<span class="normal">578</span>
+<span class="normal">579</span>
+<span class="normal">580</span>
+<span class="normal">581</span>
+<span class="normal">582</span>
+<span class="normal">583</span>
+<span class="normal">584</span>
+<span class="normal">585</span>
+<span class="normal">586</span>
+<span class="normal">587</span>
+<span class="normal">588</span>
+<span class="normal">589</span>
+<span class="normal">590</span>
+<span class="normal">591</span>
+<span class="normal">592</span>
+<span class="normal">593</span>
+<span class="normal">594</span>
+<span class="normal">595</span>
+<span class="normal">596</span>
+<span class="normal">597</span>
+<span class="normal">598</span>
+<span class="normal">599</span>
+<span class="normal">600</span>
+<span class="normal">601</span>
+<span class="normal">602</span>
+<span class="normal">603</span>
+<span class="normal">604</span>
+<span class="normal">605</span>
+<span class="normal">606</span>
+<span class="normal">607</span>
+<span class="normal">608</span>
+<span class="normal">609</span>
+<span class="normal">610</span>
+<span class="normal">611</span>
+<span class="normal">612</span>
+<span class="normal">613</span>
+<span class="normal">614</span>
+<span class="normal">615</span>
+<span class="normal">616</span>
+<span class="normal">617</span>
+<span class="normal">618</span>
+<span class="normal">619</span>
+<span class="normal">620</span>
+<span class="normal">621</span>
+<span class="normal">622</span>
+<span class="normal">623</span>
+<span class="normal">624</span>
+<span class="normal">625</span>
+<span class="normal">626</span>
+<span class="normal">627</span>
+<span class="normal">628</span>
+<span class="normal">629</span>
+<span class="normal">630</span>
+<span class="normal">631</span>
+<span class="normal">632</span>
+<span class="normal">633</span>
+<span class="normal">634</span>
+<span class="normal">635</span>
+<span class="normal">636</span>
+<span class="normal">637</span>
+<span class="normal">638</span>
+<span class="normal">639</span>
+<span class="normal">640</span>
+<span class="normal">641</span>
+<span class="normal">642</span>
+<span class="normal">643</span>
+<span class="normal">644</span>
+<span class="normal">645</span>
+<span class="normal">646</span>
+<span class="normal">647</span>
+<span class="normal">648</span>
+<span class="normal">649</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@beartype</span><span class="o">.</span><span class="n">beartype</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">(</span>
+    <span class="n">cfg</span><span class="p">:</span> <span class="n">tp</span><span class="o">.</span><span class="n">Annotated</span><span class="p">[</span><span class="n">Config</span><span class="p">,</span> <span class="n">tyro</span><span class="o">.</span><span class="n">conf</span><span class="o">.</span><span class="n">arg</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">)],</span>
+    <span class="n">sweep</span><span class="p">:</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Train an SAE over activations, optionally running a parallel grid search over a set of hyperparameters.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        cfg: Baseline config for training an SAE.</span>
+<span class="sd">        sweep: Path to .py file defining the sweep parameters.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">log_format</span> <span class="o">=</span> <span class="s2">&quot;[</span><span class="si">%(asctime)s</span><span class="s2">] [</span><span class="si">%(levelname)s</span><span class="s2">] [</span><span class="si">%(name)s</span><span class="s2">] </span><span class="si">%(message)s</span><span class="s2">&quot;</span>
+    <span class="n">logging</span><span class="o">.</span><span class="n">basicConfig</span><span class="p">(</span><span class="n">level</span><span class="o">=</span><span class="n">logging</span><span class="o">.</span><span class="n">INFO</span><span class="p">,</span> <span class="nb">format</span><span class="o">=</span><span class="n">log_format</span><span class="p">)</span>
+
+    <span class="kn">import</span><span class="w"> </span><span class="nn">submitit</span>
+
+    <span class="k">if</span> <span class="n">sweep</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">sweep_dcts</span> <span class="o">=</span> <span class="n">configs</span><span class="o">.</span><span class="n">load_sweep</span><span class="p">(</span><span class="n">sweep</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">sweep_dcts</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">&quot;No valid sweeps found in &#39;</span><span class="si">%s</span><span class="s2">&#39;.&quot;</span><span class="p">,</span> <span class="n">sweep</span><span class="p">)</span>
+            <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+
+        <span class="n">cfgs</span><span class="p">,</span> <span class="n">errs</span> <span class="o">=</span> <span class="n">configs</span><span class="o">.</span><span class="n">load_cfgs</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="n">Config</span><span class="p">(),</span> <span class="n">sweep_dcts</span><span class="o">=</span><span class="n">sweep_dcts</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">errs</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">err</span> <span class="ow">in</span> <span class="n">errs</span><span class="p">:</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Error in config: </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">err</span><span class="p">)</span>
+            <span class="k">return</span>
+
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">cfgs</span> <span class="o">=</span> <span class="p">[</span><span class="n">cfg</span><span class="p">]</span>
+
+    <span class="n">cfgs</span> <span class="o">=</span> <span class="n">split_cfgs</span><span class="p">(</span><span class="n">cfgs</span><span class="p">)</span>
+
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Running </span><span class="si">%d</span><span class="s2"> training jobs.&quot;</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">cfgs</span><span class="p">))</span>
+
+    <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">slurm_acct</span><span class="p">:</span>
+        <span class="n">executor</span> <span class="o">=</span> <span class="n">submitit</span><span class="o">.</span><span class="n">SlurmExecutor</span><span class="p">(</span><span class="n">folder</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">log_to</span><span class="p">)</span>
+
+        <span class="n">n_cpus</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">train_data</span><span class="o">.</span><span class="n">n_threads</span><span class="p">,</span> <span class="n">cfg</span><span class="o">.</span><span class="n">val_data</span><span class="o">.</span><span class="n">n_threads</span><span class="p">)</span> <span class="o">+</span> <span class="mi">4</span>
+        <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">mem_gb</span> <span class="o">//</span> <span class="mi">10</span> <span class="o">&gt;</span> <span class="n">n_cpus</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+                <span class="s2">&quot;Using </span><span class="si">%d</span><span class="s2"> CPUs instead of </span><span class="si">%d</span><span class="s2"> to get more RAM.&quot;</span><span class="p">,</span> <span class="n">cfg</span><span class="o">.</span><span class="n">mem_gb</span> <span class="o">//</span> <span class="mi">10</span><span class="p">,</span> <span class="n">n_cpus</span>
+            <span class="p">)</span>
+            <span class="n">n_cpus</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">mem_gb</span> <span class="o">//</span> <span class="mi">10</span>
+
+        <span class="n">executor</span><span class="o">.</span><span class="n">update_parameters</span><span class="p">(</span>
+            <span class="n">time</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">n_hours</span> <span class="o">*</span> <span class="mi">60</span><span class="p">),</span>
+            <span class="n">partition</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">slurm_partition</span><span class="p">,</span>
+            <span class="n">gpus_per_node</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+            <span class="n">ntasks_per_node</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+            <span class="n">cpus_per_task</span><span class="o">=</span><span class="n">n_cpus</span><span class="p">,</span>
+            <span class="n">stderr_to_stdout</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">account</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">slurm_acct</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">executor</span> <span class="o">=</span> <span class="n">submitit</span><span class="o">.</span><span class="n">DebugExecutor</span><span class="p">(</span><span class="n">folder</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">log_to</span><span class="p">)</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">cloudpickle</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">worker_fn</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">group</span> <span class="ow">in</span> <span class="n">cfgs</span><span class="p">:</span>
+            <span class="n">cloudpickle</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">group</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">TypeError</span> <span class="k">as</span> <span class="n">err</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">AssertionError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Failed to pickle: </span><span class="si">{</span><span class="n">err</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="k">with</span> <span class="n">executor</span><span class="o">.</span><span class="n">batch</span><span class="p">():</span>
+        <span class="n">jobs</span> <span class="o">=</span> <span class="p">[</span><span class="n">executor</span><span class="o">.</span><span class="n">submit</span><span class="p">(</span><span class="n">worker_fn</span><span class="p">,</span> <span class="n">group</span><span class="p">)</span> <span class="k">for</span> <span class="n">group</span> <span class="ow">in</span> <span class="n">cfgs</span><span class="p">]</span>
+
+    <span class="c1"># Give the executor five seconds to fire the jobs off.</span>
+    <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mf">5.0</span><span class="p">)</span>
+
+    <span class="c1"># Log initial status.</span>
+    <span class="k">for</span> <span class="n">j</span><span class="p">,</span> <span class="n">job</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">jobs</span><span class="p">):</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Job </span><span class="si">%d</span><span class="s2">/</span><span class="si">%d</span><span class="s2">: </span><span class="si">%s</span><span class="s2"> </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">j</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">jobs</span><span class="p">),</span> <span class="n">job</span><span class="o">.</span><span class="n">job_id</span><span class="p">,</span> <span class="n">job</span><span class="o">.</span><span class="n">state</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">j</span><span class="p">,</span> <span class="n">job</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">jobs</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">job</span><span class="o">.</span><span class="n">result</span><span class="p">()</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Job </span><span class="si">%d</span><span class="s2">/</span><span class="si">%d</span><span class="s2"> finished.&quot;</span><span class="p">,</span> <span class="n">j</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">jobs</span><span class="p">))</span>
+        <span class="k">except</span> <span class="n">submitit</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">UncompletedJobError</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Job </span><span class="si">%s</span><span class="s2"> (</span><span class="si">%d</span><span class="s2">) did not finish.&quot;</span><span class="p">,</span> <span class="n">job</span><span class="o">.</span><span class="n">job_id</span><span class="p">,</span> <span class="n">j</span><span class="p">)</span>
+
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Jobs done.&quot;</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="saev.framework.train.split_cfgs" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">split_cfgs</span><span class="p">(</span><span class="n">cfgs</span><span class="p">)</span></code>
+
+<a href="#saev.framework.train.split_cfgs" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Splits configs into groups that can be parallelized.</p>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="list">list</span>[<span title="list">list</span>[<a class="autorefs autorefs-internal" title="Config(train_data=saev.data.ShuffledConfig(), val_data=saev.data.ShuffledConfig(), n_train=100000000, n_val=10000000, sae=nn.SparseAutoencoderConfig(), objective=nn.objectives.Matryoshka(), n_sparsity_warmup=0, lr=0.0004, n_lr_warmup=500, grad_clip=1.0, track=True, wandb_project='saev', tag='', log_every=25, runs_root=pathlib.Path('$SAEV_NFS/saev/runs'), device='cuda', seed=42, slurm_acct='', slurm_partition='', n_hours=24.0, mem_gb=128, log_to=os.path.join('.', 'logs'))
+
+  
+      dataclass
+   (saev.framework.train.Config)" href="#saev.framework.train.Config">Config</a>]]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A list of lists, where the configs in each sublist do not differ in any keys that are in <code>CANNOT_PARALLELIZE</code>. This means that each sublist is a valid "parallel" set of configs for <code>train</code>.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>src/saev/framework/train.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">536</span>
+<span class="normal">537</span>
+<span class="normal">538</span>
+<span class="normal">539</span>
+<span class="normal">540</span>
+<span class="normal">541</span>
+<span class="normal">542</span>
+<span class="normal">543</span>
+<span class="normal">544</span>
+<span class="normal">545</span>
+<span class="normal">546</span>
+<span class="normal">547</span>
+<span class="normal">548</span>
+<span class="normal">549</span>
+<span class="normal">550</span>
+<span class="normal">551</span>
+<span class="normal">552</span>
+<span class="normal">553</span>
+<span class="normal">554</span>
+<span class="normal">555</span>
+<span class="normal">556</span>
+<span class="normal">557</span>
+<span class="normal">558</span>
+<span class="normal">559</span>
+<span class="normal">560</span>
+<span class="normal">561</span>
+<span class="normal">562</span>
+<span class="normal">563</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@beartype</span><span class="o">.</span><span class="n">beartype</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">split_cfgs</span><span class="p">(</span><span class="n">cfgs</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Config</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="n">Config</span><span class="p">]]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Splits configs into groups that can be parallelized.</span>
+
+<span class="sd">    Arguments:</span>
+<span class="sd">        A list of configs from a sweep file.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        A list of lists, where the configs in each sublist do not differ in any keys that are in `CANNOT_PARALLELIZE`. This means that each sublist is a valid &quot;parallel&quot; set of configs for `train`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Group configs by their values for CANNOT_PARALLELIZE keys</span>
+    <span class="n">groups</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">cfg</span> <span class="ow">in</span> <span class="n">cfgs</span><span class="p">:</span>
+        <span class="n">dct</span> <span class="o">=</span> <span class="n">dataclasses</span><span class="o">.</span><span class="n">asdict</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
+
+        <span class="c1"># Create a key tuple from the values of CANNOT_PARALLELIZE keys</span>
+        <span class="n">key_values</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">CANNOT_PARALLELIZE</span><span class="p">):</span>
+            <span class="n">key_values</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">key</span><span class="p">,</span> <span class="n">helpers</span><span class="o">.</span><span class="n">make_hashable</span><span class="p">(</span><span class="n">helpers</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">dct</span><span class="p">,</span> <span class="n">key</span><span class="p">))))</span>
+        <span class="n">group_key</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">key_values</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">group_key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">groups</span><span class="p">:</span>
+            <span class="n">groups</span><span class="p">[</span><span class="n">group_key</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">groups</span><span class="p">[</span><span class="n">group_key</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
+
+    <span class="c1"># Convert groups dict to list of lists</span>
+    <span class="k">return</span> <span class="nb">list</span><span class="p">(</span><span class="n">groups</span><span class="o">.</span><span class="n">values</span><span class="p">())</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="saev.framework.train.train" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">train</span><span class="p">(</span><span class="n">cfgs</span><span class="p">)</span></code>
+
+<a href="#saev.framework.train.train" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Explicitly declare the optimizer, schedulers, dataloader, etc outside of <code>main</code> so that all the variables are dropped from scope and can be garbage collected.</p>
+
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>src/saev/framework/train.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">167</span>
+<span class="normal">168</span>
+<span class="normal">169</span>
+<span class="normal">170</span>
+<span class="normal">171</span>
+<span class="normal">172</span>
+<span class="normal">173</span>
+<span class="normal">174</span>
+<span class="normal">175</span>
+<span class="normal">176</span>
+<span class="normal">177</span>
+<span class="normal">178</span>
+<span class="normal">179</span>
+<span class="normal">180</span>
+<span class="normal">181</span>
+<span class="normal">182</span>
+<span class="normal">183</span>
+<span class="normal">184</span>
+<span class="normal">185</span>
+<span class="normal">186</span>
+<span class="normal">187</span>
+<span class="normal">188</span>
+<span class="normal">189</span>
+<span class="normal">190</span>
+<span class="normal">191</span>
+<span class="normal">192</span>
+<span class="normal">193</span>
+<span class="normal">194</span>
+<span class="normal">195</span>
+<span class="normal">196</span>
+<span class="normal">197</span>
+<span class="normal">198</span>
+<span class="normal">199</span>
+<span class="normal">200</span>
+<span class="normal">201</span>
+<span class="normal">202</span>
+<span class="normal">203</span>
+<span class="normal">204</span>
+<span class="normal">205</span>
+<span class="normal">206</span>
+<span class="normal">207</span>
+<span class="normal">208</span>
+<span class="normal">209</span>
+<span class="normal">210</span>
+<span class="normal">211</span>
+<span class="normal">212</span>
+<span class="normal">213</span>
+<span class="normal">214</span>
+<span class="normal">215</span>
+<span class="normal">216</span>
+<span class="normal">217</span>
+<span class="normal">218</span>
+<span class="normal">219</span>
+<span class="normal">220</span>
+<span class="normal">221</span>
+<span class="normal">222</span>
+<span class="normal">223</span>
+<span class="normal">224</span>
+<span class="normal">225</span>
+<span class="normal">226</span>
+<span class="normal">227</span>
+<span class="normal">228</span>
+<span class="normal">229</span>
+<span class="normal">230</span>
+<span class="normal">231</span>
+<span class="normal">232</span>
+<span class="normal">233</span>
+<span class="normal">234</span>
+<span class="normal">235</span>
+<span class="normal">236</span>
+<span class="normal">237</span>
+<span class="normal">238</span>
+<span class="normal">239</span>
+<span class="normal">240</span>
+<span class="normal">241</span>
+<span class="normal">242</span>
+<span class="normal">243</span>
+<span class="normal">244</span>
+<span class="normal">245</span>
+<span class="normal">246</span>
+<span class="normal">247</span>
+<span class="normal">248</span>
+<span class="normal">249</span>
+<span class="normal">250</span>
+<span class="normal">251</span>
+<span class="normal">252</span>
+<span class="normal">253</span>
+<span class="normal">254</span>
+<span class="normal">255</span>
+<span class="normal">256</span>
+<span class="normal">257</span>
+<span class="normal">258</span>
+<span class="normal">259</span>
+<span class="normal">260</span>
+<span class="normal">261</span>
+<span class="normal">262</span>
+<span class="normal">263</span>
+<span class="normal">264</span>
+<span class="normal">265</span>
+<span class="normal">266</span>
+<span class="normal">267</span>
+<span class="normal">268</span>
+<span class="normal">269</span>
+<span class="normal">270</span>
+<span class="normal">271</span>
+<span class="normal">272</span>
+<span class="normal">273</span>
+<span class="normal">274</span>
+<span class="normal">275</span>
+<span class="normal">276</span>
+<span class="normal">277</span>
+<span class="normal">278</span>
+<span class="normal">279</span>
+<span class="normal">280</span>
+<span class="normal">281</span>
+<span class="normal">282</span>
+<span class="normal">283</span>
+<span class="normal">284</span>
+<span class="normal">285</span>
+<span class="normal">286</span>
+<span class="normal">287</span>
+<span class="normal">288</span>
+<span class="normal">289</span>
+<span class="normal">290</span>
+<span class="normal">291</span>
+<span class="normal">292</span>
+<span class="normal">293</span>
+<span class="normal">294</span>
+<span class="normal">295</span>
+<span class="normal">296</span>
+<span class="normal">297</span>
+<span class="normal">298</span>
+<span class="normal">299</span>
+<span class="normal">300</span>
+<span class="normal">301</span>
+<span class="normal">302</span>
+<span class="normal">303</span>
+<span class="normal">304</span>
+<span class="normal">305</span>
+<span class="normal">306</span>
+<span class="normal">307</span>
+<span class="normal">308</span>
+<span class="normal">309</span>
+<span class="normal">310</span>
+<span class="normal">311</span>
+<span class="normal">312</span>
+<span class="normal">313</span>
+<span class="normal">314</span>
+<span class="normal">315</span>
+<span class="normal">316</span>
+<span class="normal">317</span>
+<span class="normal">318</span>
+<span class="normal">319</span>
+<span class="normal">320</span>
+<span class="normal">321</span>
+<span class="normal">322</span>
+<span class="normal">323</span>
+<span class="normal">324</span>
+<span class="normal">325</span>
+<span class="normal">326</span>
+<span class="normal">327</span>
+<span class="normal">328</span>
+<span class="normal">329</span>
+<span class="normal">330</span>
+<span class="normal">331</span>
+<span class="normal">332</span>
+<span class="normal">333</span>
+<span class="normal">334</span>
+<span class="normal">335</span>
+<span class="normal">336</span>
+<span class="normal">337</span>
+<span class="normal">338</span>
+<span class="normal">339</span>
+<span class="normal">340</span>
+<span class="normal">341</span>
+<span class="normal">342</span>
+<span class="normal">343</span>
+<span class="normal">344</span>
+<span class="normal">345</span>
+<span class="normal">346</span>
+<span class="normal">347</span>
+<span class="normal">348</span>
+<span class="normal">349</span>
+<span class="normal">350</span>
+<span class="normal">351</span>
+<span class="normal">352</span>
+<span class="normal">353</span>
+<span class="normal">354</span>
+<span class="normal">355</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@beartype</span><span class="o">.</span><span class="n">beartype</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">train</span><span class="p">(</span>
+    <span class="n">cfgs</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Config</span><span class="p">],</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span>
+    <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">ModuleList</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">ModuleList</span><span class="p">,</span> <span class="n">saev</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">wandb</span><span class="o">.</span><span class="n">ParallelWandbRun</span><span class="p">,</span> <span class="nb">int</span>
+<span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Explicitly declare the optimizer, schedulers, dataloader, etc outside of `main` so that all the variables are dropped from scope and can be garbage collected.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">split_cfgs</span><span class="p">(</span><span class="n">cfgs</span><span class="p">))</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Configs are not parallelizeable: </span><span class="si">{cfgs}</span><span class="s2">.&quot;</span><span class="p">)</span>
+
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Parallelizing </span><span class="si">%d</span><span class="s2"> runs.&quot;</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">cfgs</span><span class="p">))</span>
+
+    <span class="n">cfg</span> <span class="o">=</span> <span class="n">cfgs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">is_available</span><span class="p">():</span>
+        <span class="c1"># This enables tf32 on Ampere GPUs which is only 8% slower than</span>
+        <span class="c1"># float16 and almost as accurate as float32</span>
+        <span class="c1"># This was a default in pytorch until 1.12</span>
+        <span class="n">torch</span><span class="o">.</span><span class="n">backends</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">matmul</span><span class="o">.</span><span class="n">allow_tf32</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="n">dataloader</span> <span class="o">=</span> <span class="n">saev</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">ShuffledDataLoader</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">train_data</span><span class="p">)</span>
+    <span class="n">dataloader</span> <span class="o">=</span> <span class="n">saev</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">scheduling</span><span class="o">.</span><span class="n">BatchLimiter</span><span class="p">(</span><span class="n">dataloader</span><span class="p">,</span> <span class="n">cfg</span><span class="o">.</span><span class="n">n_train</span><span class="p">)</span>
+
+    <span class="n">saes</span><span class="p">,</span> <span class="n">objectives</span><span class="p">,</span> <span class="n">param_groups</span> <span class="o">=</span> <span class="n">make_saes</span><span class="p">([(</span><span class="n">c</span><span class="o">.</span><span class="n">sae</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">objective</span><span class="p">)</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">cfgs</span><span class="p">])</span>
+
+    <span class="n">mode</span> <span class="o">=</span> <span class="s2">&quot;online&quot;</span> <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">track</span> <span class="k">else</span> <span class="s2">&quot;disabled&quot;</span>
+    <span class="n">tags</span> <span class="o">=</span> <span class="p">[</span><span class="n">cfg</span><span class="o">.</span><span class="n">tag</span><span class="p">]</span> <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">tag</span> <span class="k">else</span> <span class="p">[]</span>
+
+    <span class="c1"># Add metadata to configs for WandB logging</span>
+    <span class="n">metadata_dict</span> <span class="o">=</span> <span class="n">dataclasses</span><span class="o">.</span><span class="n">asdict</span><span class="p">(</span><span class="n">dataloader</span><span class="o">.</span><span class="n">metadata</span><span class="p">)</span>
+    <span class="n">wandb_configs</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">cfgs</span><span class="p">:</span>
+        <span class="n">cfg_dict</span> <span class="o">=</span> <span class="n">dataclasses</span><span class="o">.</span><span class="n">asdict</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>
+        <span class="n">cfg_dict</span><span class="p">[</span><span class="s2">&quot;train_data&quot;</span><span class="p">][</span><span class="s2">&quot;metadata&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">metadata_dict</span>
+        <span class="n">wandb_configs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">cfg_dict</span><span class="p">)</span>
+
+    <span class="n">run</span> <span class="o">=</span> <span class="n">saev</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">wandb</span><span class="o">.</span><span class="n">ParallelWandbRun</span><span class="p">(</span>
+        <span class="n">cfg</span><span class="o">.</span><span class="n">wandb_project</span><span class="p">,</span> <span class="n">wandb_configs</span><span class="p">,</span> <span class="n">mode</span><span class="p">,</span> <span class="n">tags</span>
+    <span class="p">)</span>
+
+    <span class="n">optimizer</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">Adam</span><span class="p">(</span><span class="n">param_groups</span><span class="p">,</span> <span class="n">fused</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">lr_schedulers</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="n">saev</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">scheduling</span><span class="o">.</span><span class="n">WarmupCosine</span><span class="p">(</span>
+            <span class="mf">0.0</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">n_lr_warmup</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">lr</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">dataloader</span><span class="p">),</span> <span class="mf">0.0</span>
+        <span class="p">)</span>
+        <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">cfgs</span>
+    <span class="p">]</span>
+
+    <span class="n">saes</span><span class="o">.</span><span class="n">train</span><span class="p">()</span>
+    <span class="n">saes</span> <span class="o">=</span> <span class="n">saes</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+    <span class="n">objectives</span><span class="o">.</span><span class="n">train</span><span class="p">()</span>
+    <span class="n">objectives</span> <span class="o">=</span> <span class="n">objectives</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+
+    <span class="n">global_step</span><span class="p">,</span> <span class="n">n_patches_seen</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span>
+    <span class="n">dl_monitor</span> <span class="o">=</span> <span class="n">DataloaderMonitor</span><span class="p">(</span><span class="n">dataloader</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">batch</span> <span class="ow">in</span> <span class="n">helpers</span><span class="o">.</span><span class="n">progress</span><span class="p">(</span><span class="n">dataloader</span><span class="p">,</span> <span class="n">every</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">log_every</span><span class="p">):</span>
+        <span class="n">acts_BD</span> <span class="o">=</span> <span class="n">batch</span><span class="p">[</span><span class="s2">&quot;act&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">device</span><span class="p">,</span> <span class="n">non_blocking</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">sae</span> <span class="ow">in</span> <span class="n">saes</span><span class="p">:</span>
+            <span class="n">sae</span><span class="o">.</span><span class="n">normalize_w_dec</span><span class="p">()</span>
+        <span class="c1"># Forward passes and loss calculations.</span>
+        <span class="n">losses</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">sae</span><span class="p">,</span> <span class="n">objective</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">saes</span><span class="p">,</span> <span class="n">objectives</span><span class="p">):</span>
+            <span class="c1"># Objective now handles the forward pass internally</span>
+            <span class="n">loss</span> <span class="o">=</span> <span class="n">objective</span><span class="p">(</span><span class="n">sae</span><span class="p">,</span> <span class="n">acts_BD</span><span class="p">)</span>
+            <span class="n">losses</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">loss</span><span class="p">)</span>
+
+        <span class="n">n_patches_seen</span> <span class="o">+=</span> <span class="nb">len</span><span class="p">(</span><span class="n">acts_BD</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">loss</span> <span class="ow">in</span> <span class="n">losses</span><span class="p">:</span>
+            <span class="n">loss</span><span class="o">.</span><span class="n">loss</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span>
+
+        <span class="c1"># remove parallel gradients or normalize columns?</span>
+        <span class="k">for</span> <span class="n">sae</span> <span class="ow">in</span> <span class="n">saes</span><span class="p">:</span>
+            <span class="n">sae</span><span class="o">.</span><span class="n">remove_parallel_grads</span><span class="p">()</span>
+
+        <span class="c1"># Calculate gradient norms before optimizer step</span>
+        <span class="n">grad_norms</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">sae</span><span class="p">,</span> <span class="n">cfg</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">saes</span><span class="p">,</span> <span class="n">cfgs</span><span class="p">):</span>
+            <span class="c1"># Clip gradients and get the gradient norm</span>
+            <span class="n">grad_norm</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">clip_grad_norm_</span><span class="p">(</span>
+                <span class="n">sae</span><span class="o">.</span><span class="n">parameters</span><span class="p">(),</span> <span class="n">max_norm</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">grad_clip</span>
+            <span class="p">)</span>
+
+            <span class="n">grad_norms</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">grad_norm</span><span class="p">)</span>
+
+        <span class="c1"># Log metrics after gradient computation</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">global_step</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">%</span> <span class="n">cfg</span><span class="o">.</span><span class="n">log_every</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">():</span>
+                <span class="n">now</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+                <span class="n">dl_metrics</span> <span class="o">=</span> <span class="n">dl_monitor</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span><span class="n">now</span><span class="o">=</span><span class="n">now</span><span class="p">)</span>
+
+                <span class="n">metadata</span> <span class="o">=</span> <span class="n">dataloader</span><span class="o">.</span><span class="n">metadata</span>
+                <span class="n">entropy_metrics</span> <span class="o">=</span> <span class="n">statistics</span><span class="o">.</span><span class="n">calc_batch_entropy</span><span class="p">(</span>
+                    <span class="n">batch</span><span class="p">[</span><span class="s2">&quot;example_idx&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="s2">&quot;cpu&quot;</span><span class="p">),</span>
+                    <span class="n">batch</span><span class="p">[</span><span class="s2">&quot;token_idx&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="s2">&quot;cpu&quot;</span><span class="p">),</span>
+                    <span class="n">metadata</span><span class="o">.</span><span class="n">n_examples</span><span class="p">,</span>
+                    <span class="n">metadata</span><span class="o">.</span><span class="n">content_tokens_per_example</span><span class="p">,</span>
+                <span class="p">)</span>
+                <span class="n">dl_metrics</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">entropy_metrics</span><span class="p">)</span>
+
+                <span class="n">acts_bd_f64</span> <span class="o">=</span> <span class="n">acts_BD</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
+                <span class="n">n_batch</span> <span class="o">=</span> <span class="n">acts_bd_f64</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;Batch is empty; cannot compute normalized MSE.&quot;</span>
+                <span class="k">assert</span> <span class="n">n_batch</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">,</span> <span class="n">msg</span>
+                <span class="n">batch_sum_sq</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">acts_bd_f64</span> <span class="o">*</span> <span class="n">acts_bd_f64</span><span class="p">)</span>
+                <span class="n">batch_sum_vec</span> <span class="o">=</span> <span class="n">acts_bd_f64</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+                <span class="n">batch_baseline_sse</span> <span class="o">=</span> <span class="p">(</span>
+                    <span class="n">batch_sum_sq</span> <span class="o">-</span> <span class="n">torch</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">batch_sum_vec</span><span class="p">,</span> <span class="n">batch_sum_vec</span><span class="p">)</span> <span class="o">/</span> <span class="n">n_batch</span>
+                <span class="p">)</span>
+                <span class="n">msg</span> <span class="o">=</span> <span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Batch baseline variance non-positive: &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;sse_baseline=</span><span class="si">{</span><span class="n">batch_baseline_sse</span><span class="o">.</span><span class="n">item</span><span class="p">()</span><span class="si">:</span><span class="s2">.6e</span><span class="si">}</span><span class="s2">&quot;</span>
+                <span class="p">)</span>
+                <span class="k">assert</span> <span class="n">batch_baseline_sse</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">,</span> <span class="n">msg</span>
+                <span class="n">batch_baseline_sse_value</span> <span class="o">=</span> <span class="n">batch_baseline_sse</span><span class="o">.</span><span class="n">item</span><span class="p">()</span>
+
+                <span class="n">metrics</span> <span class="o">=</span> <span class="p">[]</span>
+                <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">loss</span><span class="p">,</span> <span class="n">sae</span><span class="p">,</span> <span class="n">objective</span><span class="p">,</span> <span class="n">group</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span>
+                    <span class="nb">zip</span><span class="p">(</span><span class="n">losses</span><span class="p">,</span> <span class="n">saes</span><span class="p">,</span> <span class="n">objectives</span><span class="p">,</span> <span class="n">optimizer</span><span class="o">.</span><span class="n">param_groups</span><span class="p">)</span>
+                <span class="p">):</span>
+                    <span class="c1"># Recompute f_x and x_hat for metrics (since we don&#39;t have them anymore)</span>
+                    <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">():</span>
+                        <span class="n">f_x</span> <span class="o">=</span> <span class="n">sae</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">acts_BD</span><span class="p">)</span>
+                        <span class="n">x_hat</span> <span class="o">=</span> <span class="n">sae</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">f_x</span><span class="p">)</span>
+
+                    <span class="c1"># Explained variance: 1 - Var(x - x_hat) / Var(x)</span>
+                    <span class="n">residual</span> <span class="o">=</span> <span class="n">acts_BD</span> <span class="o">-</span> <span class="n">x_hat</span><span class="p">[:,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="p">:]</span>
+                    <span class="n">batch_sse_sae_value</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span>
+                        <span class="p">(</span><span class="n">residual</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">float64</span><span class="p">))</span> <span class="o">**</span> <span class="mi">2</span>
+                    <span class="p">)</span><span class="o">.</span><span class="n">item</span><span class="p">()</span>
+                    <span class="n">normalized_mse_value</span> <span class="o">=</span> <span class="p">(</span>
+                        <span class="n">batch_sse_sae_value</span> <span class="o">/</span> <span class="n">batch_baseline_sse_value</span>
+                    <span class="p">)</span>
+                    <span class="n">explained_var</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">-</span> <span class="n">residual</span><span class="o">.</span><span class="n">var</span><span class="p">()</span> <span class="o">/</span> <span class="n">acts_BD</span><span class="o">.</span><span class="n">var</span><span class="p">()</span>
+
+                    <span class="c1"># Dead unit percentage: fraction of units that never activate</span>
+                    <span class="n">dead_pct</span> <span class="o">=</span> <span class="p">((</span><span class="n">f_x</span><span class="o">.</span><span class="n">abs</span><span class="p">()</span> <span class="o">&gt;</span> <span class="mf">1e-8</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">float</span><span class="p">()</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
+
+                    <span class="c1"># Dictionary coherence: max |&lt;w_i, w_j&gt;| for i != j</span>
+                    <span class="n">W</span> <span class="o">=</span> <span class="n">sae</span><span class="o">.</span><span class="n">W_dec</span>  <span class="c1"># (d_sae, d_model)</span>
+                    <span class="c1"># Normalize each row (each SAE feature)</span>
+                    <span class="n">W_norm</span> <span class="o">=</span> <span class="n">W</span> <span class="o">/</span> <span class="n">W</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdim</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                    <span class="n">coherence</span> <span class="o">=</span> <span class="p">(</span><span class="n">W_norm</span> <span class="o">@</span> <span class="n">W_norm</span><span class="o">.</span><span class="n">T</span><span class="p">)</span><span class="o">.</span><span class="n">abs</span><span class="p">()</span><span class="o">.</span><span class="n">triu</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">max</span><span class="p">()</span>
+
+                    <span class="c1"># Average decoder row L2 norm (since W_dec is d_sae x d_model)</span>
+                    <span class="n">avg_w_row_norm</span> <span class="o">=</span> <span class="n">sae</span><span class="o">.</span><span class="n">W_dec</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
+
+                    <span class="n">metric</span> <span class="o">=</span> <span class="p">{</span>
+                        <span class="o">**</span><span class="n">loss</span><span class="o">.</span><span class="n">metrics</span><span class="p">(),</span>
+                        <span class="s2">&quot;progress/n_patches_seen&quot;</span><span class="p">:</span> <span class="n">n_patches_seen</span><span class="p">,</span>
+                        <span class="s2">&quot;progress/learning_rate&quot;</span><span class="p">:</span> <span class="n">group</span><span class="p">[</span><span class="s2">&quot;lr&quot;</span><span class="p">],</span>
+                        <span class="s2">&quot;metrics/explained_variance&quot;</span><span class="p">:</span> <span class="n">explained_var</span><span class="o">.</span><span class="n">item</span><span class="p">(),</span>
+                        <span class="s2">&quot;metrics/dead_unit_pct&quot;</span><span class="p">:</span> <span class="n">dead_pct</span><span class="o">.</span><span class="n">item</span><span class="p">(),</span>
+                        <span class="s2">&quot;metrics/dictionary_coherence&quot;</span><span class="p">:</span> <span class="n">coherence</span><span class="o">.</span><span class="n">item</span><span class="p">(),</span>
+                        <span class="s2">&quot;metrics/avg_decoder_row_norm&quot;</span><span class="p">:</span> <span class="n">avg_w_row_norm</span><span class="o">.</span><span class="n">item</span><span class="p">(),</span>
+                        <span class="s2">&quot;metrics/grad_norm&quot;</span><span class="p">:</span> <span class="n">grad_norms</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">item</span><span class="p">(),</span>
+                        <span class="s2">&quot;metrics/sse_sae&quot;</span><span class="p">:</span> <span class="n">batch_sse_sae_value</span><span class="p">,</span>
+                        <span class="s2">&quot;metrics/sse_baseline&quot;</span><span class="p">:</span> <span class="n">batch_baseline_sse_value</span><span class="p">,</span>
+                        <span class="s2">&quot;metrics/normalized_mse&quot;</span><span class="p">:</span> <span class="n">normalized_mse_value</span><span class="p">,</span>
+                        <span class="o">**</span><span class="n">dl_metrics</span><span class="p">,</span>
+                    <span class="p">}</span>
+
+                    <span class="n">metrics</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">metric</span><span class="p">)</span>
+                <span class="n">run</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">metrics</span><span class="p">,</span> <span class="n">step</span><span class="o">=</span><span class="n">global_step</span><span class="p">)</span>
+
+                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+                    <span class="s2">&quot;, &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">value</span><span class="si">:</span><span class="s2">.5f</span><span class="si">}</span><span class="s2">&quot;</span>
+                        <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">losses</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">metrics</span><span class="p">()</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+                    <span class="p">)</span>
+                <span class="p">)</span>
+
+        <span class="n">optimizer</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+
+        <span class="c1"># Update LR and sparsity coefficients.</span>
+        <span class="k">for</span> <span class="n">param_group</span><span class="p">,</span> <span class="n">scheduler</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">optimizer</span><span class="o">.</span><span class="n">param_groups</span><span class="p">,</span> <span class="n">lr_schedulers</span><span class="p">):</span>
+            <span class="n">param_group</span><span class="p">[</span><span class="s2">&quot;lr&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">scheduler</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+
+        <span class="c1"># for objective, scheduler in zip(objectives, sparsity_schedulers):</span>
+        <span class="c1">#     objective.sparsity_coeff = scheduler.step()</span>
+
+        <span class="c1"># Don&#39;t need these anymore.</span>
+        <span class="n">optimizer</span><span class="o">.</span><span class="n">zero_grad</span><span class="p">()</span>
+
+        <span class="n">global_step</span> <span class="o">+=</span> <span class="mi">1</span>
+
+    <span class="k">return</span> <span class="n">saes</span><span class="p">,</span> <span class="n">objectives</span><span class="p">,</span> <span class="n">run</span><span class="p">,</span> <span class="n">global_step</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../shards/" class="md-footer__link md-footer__link--prev" aria-label="Previous: saev.framework.shards">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                saev.framework.shards
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../../helpers/" class="md-footer__link md-footer__link--next" aria-label="Next: saev.helpers">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                saev.helpers
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+        
+<div class="md-social">
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://github.com/OSU-NLP-Group/saev" target="_blank" rel="noopener" title="github.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      <script id="__config" type="application/json">{"base": "../../..", "features": ["navigation.tabs", "navigation.path", "navigation.indexes", "navigation.expand", "toc.follow", "toc.integrate", "navigation.top", "search.suggest", "search.highlight", "content.tabs.link", "content.code.annotation", "content.code.copy", "navigation.footer", "content.action.edit"], "search": "../../../assets/javascripts/workers/search.973d3a69.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.f55a23d4.min.js"></script>
+      
+    
+  </body>
+</html>

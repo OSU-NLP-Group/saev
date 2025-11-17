@@ -8,13 +8,13 @@
       
       
       
-        <link rel="canonical" href="https://osu-nlp-group.github.io/saev/api/api/framework/saev.framework/">
+        <link rel="canonical" href="https://osu-nlp-group.github.io/saev/api/api/nn/activations/">
       
       
-        <link rel="prev" href="../../disk/">
+        <link rel="prev" href="../saev.nn/">
       
       
-        <link rel="next" href="../inference/">
+        <link rel="next" href="../modeling/">
       
       
       <link rel="icon" href="../../../assets/images/favicon.png">
@@ -22,7 +22,7 @@
     
     
       
-        <title>saev.framework - saev</title>
+        <title>saev.nn.activations - saev</title>
       
     
     
@@ -70,7 +70,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#saev.framework" class="md-skip">
+        <a href="#saev.nn.activations" class="md-skip">
           Skip to content
         </a>
       
@@ -104,7 +104,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              saev.framework
+              saev.nn.activations
             
           </span>
         </div>
@@ -1128,30 +1128,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    saev.framework
-    
-  </span>
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../framework/saev.framework/" class="md-nav__link">
         
   
   
@@ -1162,33 +1142,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#saev.framework" class="md-nav__link">
-    <span class="md-ellipsis">
-      framework
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -1201,7 +1154,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../inference/" class="md-nav__link">
+      <a href="../../framework/inference/" class="md-nav__link">
         
   
   
@@ -1224,7 +1177,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../shards/" class="md-nav__link">
+      <a href="../../framework/shards/" class="md-nav__link">
         
   
   
@@ -1247,7 +1200,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../train/" class="md-nav__link">
+      <a href="../../framework/train/" class="md-nav__link">
         
   
   
@@ -1293,7 +1246,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../nn/saev.nn/" class="md-nav__link">
+      <a href="../saev.nn/" class="md-nav__link">
         
   
   
@@ -1313,10 +1266,30 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../../nn/activations/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    saev.nn.activations
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -1327,6 +1300,147 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#saev.nn.activations" class="md-nav__link">
+    <span class="md-ellipsis">
+      activations
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#saev.nn.activations.BatchTopK" class="md-nav__link">
+    <span class="md-ellipsis">
+      BatchTopK
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="BatchTopK">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#saev.nn.activations.BatchTopK.top_k" class="md-nav__link">
+    <span class="md-ellipsis">
+      top_k
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#saev.nn.activations.BatchTopKActivation" class="md-nav__link">
+    <span class="md-ellipsis">
+      BatchTopKActivation
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="BatchTopKActivation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#saev.nn.activations.BatchTopKActivation.forward" class="md-nav__link">
+    <span class="md-ellipsis">
+      forward
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#saev.nn.activations.NoSparsity" class="md-nav__link">
+    <span class="md-ellipsis">
+      NoSparsity
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#saev.nn.activations.Relu" class="md-nav__link">
+    <span class="md-ellipsis">
+      Relu
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#saev.nn.activations.TopK" class="md-nav__link">
+    <span class="md-ellipsis">
+      TopK
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TopK">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#saev.nn.activations.TopK.top_k" class="md-nav__link">
+    <span class="md-ellipsis">
+      top_k
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#saev.nn.activations.TopKActivation" class="md-nav__link">
+    <span class="md-ellipsis">
+      TopKActivation
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TopKActivation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#saev.nn.activations.TopKActivation.forward" class="md-nav__link">
+    <span class="md-ellipsis">
+      forward
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -1339,7 +1453,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../nn/modeling/" class="md-nav__link">
+      <a href="../modeling/" class="md-nav__link">
         
   
   
@@ -1362,7 +1476,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../nn/objectives/" class="md-nav__link">
+      <a href="../objectives/" class="md-nav__link">
         
   
   
@@ -1539,13 +1653,13 @@
 
 
 
-  <h1>saev.framework</h1>
+  <h1>saev.nn.activations</h1>
 
 <div class="doc doc-object doc-module">
 
 
 
-<a id="saev.framework"></a>
+<a id="saev.nn.activations"></a>
     <div class="doc doc-contents first">
 
 
@@ -1566,6 +1680,511 @@
 
 
 
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="saev.nn.activations.BatchTopK" class="doc doc-heading">
+              <code class="highlight language-python"><span class="n">BatchTopK</span><span class="p">(</span><span class="n">top_k</span><span class="o">=</span><span class="mi">32</span><span class="p">,</span> <span class="n">sparsity</span><span class="o">=</span><span class="n">NoSparsity</span><span class="p">(),</span> <span class="n">momentum</span><span class="o">=</span><span class="mf">0.1</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#saev.nn.activations.BatchTopK" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents ">
+
+
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="saev.nn.activations.BatchTopK.top_k" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">top_k</span> <span class="o">=</span> <span class="mi">32</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#saev.nn.activations.BatchTopK.top_k" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>How many values are allowed to be non-zero per sample in the batch.</p>
+
+    </div>
+
+</div>
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="saev.nn.activations.BatchTopKActivation" class="doc doc-heading">
+              <code class="highlight language-python"><span class="n">BatchTopKActivation</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span></code>
+
+<a href="#saev.nn.activations.BatchTopKActivation" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="torch.nn.Module">Module</span></code></p>
+
+
+
+        <p>BatchTopK activation and inference-time threshold for sparse autoencoders.</p>
+<p>This module implements a BatchTopK nonlinearity that enforces a fixed sparsity budget across a batch, together with an inference-time approximation that replaces the batch-coupled operation with a simple elementwise threshold.</p>
+<p>Training mode (model.train()):
+    Given pre-activation codes x with shape [batch, d_sae], the BatchTopK activation flattens the batch to shape [batch * d_sae], selects the largest (batch * top_k) entries by value, and sets all other entries to zero. This enforces an average of exactly <code>top_k</code> active features per example while allowing the "activation budget" to move between examples in the batch.</p>
+<pre><code>During training, we also estimate an inference threshold theta that approximates the effective cutoff induced by BatchTopK. For each batch, we compute the minimum positive activation that survives the BatchTopK mask and update an exponential moving average of this quantity. This running estimate plays the same role as BatchNorm running statistics: it is updated only in training mode and treated as fixed at inference.
+</code></pre>
+<p>Eval mode (model.eval()):
+    At inference time we do not apply a batch-coupled top-k, since that would make each example depend on the rest of the eval batch. Instead, we use the stored running threshold theta to define a JumpReLU nonlinearity:</p>
+<pre><code>    y = x if x &gt; theta else 0
+
+applied elementwise and independently to each example. This preserves the approximate sparsity level learned during training, but makes the layer deterministic and sample-wise independent for evaluation, probing, and downstream use.
+</code></pre>
+
+
+<details class="inputs" open>
+  <summary>Inputs</summary>
+  <p>x: Tensor of shape [batch, d_sae] containing pre-activation codes.</p>
+</details>
+
+<details class="outputs" open>
+  <summary>Outputs</summary>
+  <p>Tensor of shape [batch, d_sae] with the same dtype and device as x, where either:
+    - in training mode: exactly (batch * top_k) entries are non-zero across the batch due to the BatchTopK mask, or
+    - in eval mode: entries are zeroed by an elementwise JumpReLU with the learned threshold theta.</p>
+</details>
+
+
+
+
+
+
+
+                  <details class="mkdocstrings-source">
+                    <summary>Source code in <code>src/saev/nn/activations.py</code></summary>
+                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">127</span>
+<span class="normal">128</span>
+<span class="normal">129</span>
+<span class="normal">130</span>
+<span class="normal">131</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">BatchTopK</span><span class="p">):</span>
+    <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span> <span class="o">=</span> <span class="n">cfg</span>
+
+    <span class="bp">self</span><span class="o">.</span><span class="n">register_buffer</span><span class="p">(</span><span class="s2">&quot;threshold&quot;</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="mf">0.0</span><span class="p">))</span>
+</code></pre></div></td></tr></table></div>
+                  </details>
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="saev.nn.activations.BatchTopKActivation.forward" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">forward</span><span class="p">(</span><span class="n">x</span><span class="p">)</span></code>
+
+<a href="#saev.nn.activations.BatchTopKActivation.forward" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Apply top-k activation to each sample in the batch.</p>
+
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>src/saev/nn/activations.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">133</span>
+<span class="normal">134</span>
+<span class="normal">135</span>
+<span class="normal">136</span>
+<span class="normal">137</span>
+<span class="normal">138</span>
+<span class="normal">139</span>
+<span class="normal">140</span>
+<span class="normal">141</span>
+<span class="normal">142</span>
+<span class="normal">143</span>
+<span class="normal">144</span>
+<span class="normal">145</span>
+<span class="normal">146</span>
+<span class="normal">147</span>
+<span class="normal">148</span>
+<span class="normal">149</span>
+<span class="normal">150</span>
+<span class="normal">151</span>
+<span class="normal">152</span>
+<span class="normal">153</span>
+<span class="normal">154</span>
+<span class="normal">155</span>
+<span class="normal">156</span>
+<span class="normal">157</span>
+<span class="normal">158</span>
+<span class="normal">159</span>
+<span class="normal">160</span>
+<span class="normal">161</span>
+<span class="normal">162</span>
+<span class="normal">163</span>
+<span class="normal">164</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span> <span class="n">Float</span><span class="p">[</span><span class="n">Tensor</span><span class="p">,</span> <span class="s2">&quot;batch d_sae&quot;</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Float</span><span class="p">[</span><span class="n">Tensor</span><span class="p">,</span> <span class="s2">&quot;batch d_sae&quot;</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Apply top-k activation to each sample in the batch.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">training</span><span class="p">:</span>
+        <span class="c1"># Fallback: if θ is still 0 (e.g. never trained), just do ReLU.</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">threshold</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">x</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">x</span><span class="p">))</span>
+
+        <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">x</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">threshold</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">x</span><span class="p">))</span>
+
+    <span class="n">bsz</span><span class="p">,</span> <span class="n">d_sae</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">shape</span>
+    <span class="n">x_flat</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
+
+    <span class="n">bsz</span><span class="p">,</span> <span class="n">d_sae</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">shape</span>
+    <span class="n">k</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">top_k</span> <span class="o">*</span> <span class="n">bsz</span><span class="p">,</span> <span class="n">d_sae</span> <span class="o">*</span> <span class="n">bsz</span><span class="p">)</span>
+    <span class="n">_</span><span class="p">,</span> <span class="n">idxs</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">topk</span><span class="p">(</span><span class="n">x_flat</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="nb">sorted</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="n">mask</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">x_flat</span><span class="p">)</span><span class="o">.</span><span class="n">scatter</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">idxs</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+
+    <span class="n">x</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">mul</span><span class="p">(</span><span class="n">mask</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span>
+
+    <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">():</span>
+        <span class="c1"># smallest positive activation in this batch (i.e. the effective threshold)</span>
+        <span class="n">pos</span> <span class="o">=</span> <span class="n">x</span><span class="p">[</span><span class="n">x</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">pos</span><span class="o">.</span><span class="n">numel</span><span class="p">()</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="c1"># EMA update, like BatchNorm</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">threshold</span><span class="o">.</span><span class="n">mul_</span><span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">momentum</span><span class="p">)</span><span class="o">.</span><span class="n">add_</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">momentum</span> <span class="o">*</span> <span class="n">pos</span><span class="o">.</span><span class="n">min</span><span class="p">()</span>
+            <span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">x</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="saev.nn.activations.NoSparsity" class="doc doc-heading">
+              <code class="highlight language-python"><span class="n">NoSparsity</span><span class="p">()</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#saev.nn.activations.NoSparsity" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents ">
+
+
+
+        <p>No explicit sparsity penalty (e.g. for TopK/BatchTopK where k controls sparsity).</p>
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="saev.nn.activations.Relu" class="doc doc-heading">
+              <code class="highlight language-python"><span class="n">Relu</span><span class="p">(</span><span class="n">sparsity</span><span class="o">=</span><span class="n">L1Sparsity</span><span class="p">(</span><span class="n">coeff</span><span class="o">=</span><span class="mf">0.0004</span><span class="p">))</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#saev.nn.activations.Relu" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents ">
+
+
+
+        <p>Vanilla ReLU</p>
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="saev.nn.activations.TopK" class="doc doc-heading">
+              <code class="highlight language-python"><span class="n">TopK</span><span class="p">(</span><span class="n">top_k</span><span class="o">=</span><span class="mi">32</span><span class="p">,</span> <span class="n">sparsity</span><span class="o">=</span><span class="n">NoSparsity</span><span class="p">())</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#saev.nn.activations.TopK" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents ">
+
+
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="saev.nn.activations.TopK.top_k" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">top_k</span> <span class="o">=</span> <span class="mi">32</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#saev.nn.activations.TopK.top_k" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>How many values are allowed to be non-zero.</p>
+
+    </div>
+
+</div>
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="saev.nn.activations.TopKActivation" class="doc doc-heading">
+              <code class="highlight language-python"><span class="n">TopKActivation</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span></code>
+
+<a href="#saev.nn.activations.TopKActivation" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="torch.nn.Module">Module</span></code></p>
+
+
+
+        <p>Top-K activation function. For use as activation function of sparse encoder.</p>
+
+
+
+
+
+
+
+
+                  <details class="mkdocstrings-source">
+                    <summary>Source code in <code>src/saev/nn/activations.py</code></summary>
+                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">82</span>
+<span class="normal">83</span>
+<span class="normal">84</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">TopK</span><span class="p">):</span>
+    <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span> <span class="o">=</span> <span class="n">cfg</span>
+</code></pre></div></td></tr></table></div>
+                  </details>
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="saev.nn.activations.TopKActivation.forward" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">forward</span><span class="p">(</span><span class="n">x</span><span class="p">)</span></code>
+
+<a href="#saev.nn.activations.TopKActivation.forward" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Apply top-k activation to the input tensor.</p>
+
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>src/saev/nn/activations.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">86</span>
+<span class="normal">87</span>
+<span class="normal">88</span>
+<span class="normal">89</span>
+<span class="normal">90</span>
+<span class="normal">91</span>
+<span class="normal">92</span>
+<span class="normal">93</span>
+<span class="normal">94</span>
+<span class="normal">95</span>
+<span class="normal">96</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span> <span class="n">Float</span><span class="p">[</span><span class="n">Tensor</span><span class="p">,</span> <span class="s2">&quot;batch d_sae&quot;</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Float</span><span class="p">[</span><span class="n">Tensor</span><span class="p">,</span> <span class="s2">&quot;batch d_sae&quot;</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Apply top-k activation to the input tensor.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">bsz</span><span class="p">,</span> <span class="n">d_sae</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">shape</span>
+    <span class="n">k</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">top_k</span><span class="p">,</span> <span class="n">d_sae</span><span class="p">)</span>
+    <span class="n">_</span><span class="p">,</span> <span class="n">idxs</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">topk</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span> <span class="nb">sorted</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="n">mask</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">x</span><span class="p">)</span><span class="o">.</span><span class="n">scatter</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">idxs</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">mul</span><span class="p">(</span><span class="n">mask</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
 
 
 
@@ -1612,7 +2231,7 @@
       <nav class="md-footer__inner md-grid" aria-label="Footer" >
         
           
-          <a href="../../disk/" class="md-footer__link md-footer__link--prev" aria-label="Previous: saev.disk">
+          <a href="../saev.nn/" class="md-footer__link md-footer__link--prev" aria-label="Previous: saev.nn">
             <div class="md-footer__button md-icon">
               
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
@@ -1622,20 +2241,20 @@
                 Previous
               </span>
               <div class="md-ellipsis">
-                saev.disk
+                saev.nn
               </div>
             </div>
           </a>
         
         
           
-          <a href="../inference/" class="md-footer__link md-footer__link--next" aria-label="Next: saev.framework.inference">
+          <a href="../modeling/" class="md-footer__link md-footer__link--next" aria-label="Next: saev.nn.modeling">
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 Next
               </span>
               <div class="md-ellipsis">
-                saev.framework.inference
+                saev.nn.modeling
               </div>
             </div>
             <div class="md-footer__button md-icon">
