@@ -1737,7 +1737,7 @@
 
 
 <h2 id="saev.data.shuffled.Config" class="doc doc-heading">
-              <code class="highlight language-python"><span class="n">Config</span><span class="p">(</span><span class="n">shards</span><span class="o">=</span><span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="s1">&#39;$SAEV_SCRATCH/saev/shards/abcdefg&#39;</span><span class="p">),</span> <span class="n">tokens</span><span class="o">=</span><span class="s1">&#39;content&#39;</span><span class="p">,</span> <span class="n">layer</span><span class="o">=-</span><span class="mi">2</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">1024</span> <span class="o">*</span> <span class="mi">16</span><span class="p">,</span> <span class="n">drop_last</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">scale_norm</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">ignore_labels</span><span class="o">=</span><span class="nb">list</span><span class="p">(),</span> <span class="n">n_threads</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">buffer_size</span><span class="o">=</span><span class="mi">64</span><span class="p">,</span> <span class="n">min_buffer_fill</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">batch_timeout_s</span><span class="o">=</span><span class="mf">30.0</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">17</span><span class="p">,</span> <span class="n">debug</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">log_every_s</span><span class="o">=</span><span class="mf">30.0</span><span class="p">)</span></code>
+              <code class="highlight language-python"><span class="n">Config</span><span class="p">(</span><span class="n">shards</span><span class="o">=</span><span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="s1">&#39;$SAEV_SCRATCH/saev/shards/abcdefg&#39;</span><span class="p">),</span> <span class="n">tokens</span><span class="o">=</span><span class="s1">&#39;content&#39;</span><span class="p">,</span> <span class="n">layer</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">1024</span> <span class="o">*</span> <span class="mi">16</span><span class="p">,</span> <span class="n">drop_last</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">scale_norm</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">ignore_labels</span><span class="o">=</span><span class="nb">list</span><span class="p">(),</span> <span class="n">n_threads</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">buffer_size</span><span class="o">=</span><span class="mi">64</span><span class="p">,</span> <span class="n">min_buffer_fill</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">batch_timeout_s</span><span class="o">=</span><span class="mf">30.0</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">17</span><span class="p">,</span> <span class="n">debug</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">log_every_s</span><span class="o">=</span><span class="mf">30.0</span><span class="p">)</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
@@ -1949,7 +1949,7 @@
 
 
 <h3 id="saev.data.shuffled.Config.layer" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">layer</span> <span class="o">=</span> <span class="o">-</span><span class="mi">2</span></code>
+            <code class="highlight language-python"><span class="n">layer</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
@@ -1961,7 +1961,7 @@
 
     <div class="doc doc-contents ">
 
-        <p>Which transformer layer(s) to read from disk. <code>-2</code> selects the second-to-last layer. <code>"all"</code> enumerates every recorded layer.</p>
+        <p>Which transformer layer(s) to read from disk. <code>-1</code> is the default, but must be changed. <code>"all"</code> enumerates every recorded layer.</p>
 
     </div>
 

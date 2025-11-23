@@ -38,8 +38,8 @@ class Config:
 
     shards: pathlib.Path = pathlib.Path("$SAEV_SCRATCH/saev/shards/abcdefg")
     tokens: tp.Literal["special", "content", "all"] = "content"
-    layer: int | tp.Literal["all"] = -2
-    """Which transformer layer(s) to read from disk. ``-2`` selects the second-to-last layer. ``"all"`` enumerates every recorded layer."""
+    layer: int | tp.Literal["all"] = -1
+    """Which transformer layer(s) to read from disk. `-1` is the default, but must be changed. `"all"` enumerates every recorded layer."""
     batch_size: int = 1024 * 16
     """Batch size."""
     drop_last: bool = False

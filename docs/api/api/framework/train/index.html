@@ -3341,6 +3341,41 @@
         <p>Splits configs into groups that can be parallelized.</p>
 
 
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>cfgs</code>
+            </td>
+            <td>
+                  <code><span title="list">list</span>[<a class="autorefs autorefs-internal" title="Config(train_data=saev.data.ShuffledConfig(), val_data=saev.data.ShuffledConfig(), n_train=100000000, n_val=10000000, sae=nn.SparseAutoencoderConfig(), objective=nn.objectives.Matryoshka(), n_sparsity_warmup=0, lr=0.0004, n_lr_warmup=500, grad_clip=1.0, track=True, wandb_project='saev', tag='', log_every=25, runs_root=pathlib.Path('$SAEV_NFS/saev/runs'), device='cuda', seed=42, slurm_acct='', slurm_partition='', n_hours=24.0, mem_gb=128, log_to=os.path.join('.', 'logs'))
+
+  
+      dataclass
+   (saev.framework.train.Config)" href="#saev.framework.train.Config">Config</a>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A list of configs from a sweep file.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
     <p><span class="doc-section-title">Returns:</span></p>
     <table>
       <thead>
@@ -3403,7 +3438,7 @@
 <span class="sd">    Splits configs into groups that can be parallelized.</span>
 
 <span class="sd">    Arguments:</span>
-<span class="sd">        A list of configs from a sweep file.</span>
+<span class="sd">        cfgs: A list of configs from a sweep file.</span>
 
 <span class="sd">    Returns:</span>
 <span class="sd">        A list of lists, where the configs in each sublist do not differ in any keys that are in `CANNOT_PARALLELIZE`. This means that each sublist is a valid &quot;parallel&quot; set of configs for `train`.</span>

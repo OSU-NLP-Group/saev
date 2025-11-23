@@ -21,7 +21,7 @@ To save activations to disk, we need to specify:
 3. Where on disk and how we would like to save activations.
 4. Which images we want to save activations for.
 
-The `scripts/shards.py` script does all of this for us.
+The `saev/framework/shards.py` script does all of this for us.
 
 Run `uv run scripts/launch.py shards --help` to see all the configuration.
 
@@ -68,6 +68,12 @@ The `train.py` script handles this.
 
 Run `uv run train.py --help` to see all the configuration.
 
+The most important options are:
+
+- `--runs-root`: where to store runs.
+- `--train-data` and `--val-data`: How to load the training and validation data. You probably want to specify both `--{train,val}-data.shards` (the shard directory) and `--{train,val}-data.layer` (which layer to use).
+- `sae.activation`: `sae.activation:relu` to use the ReLU activation.
+
 This is a full example:
 
 ```sh
@@ -80,10 +86,10 @@ uv run train.py \
   --n-train 100_000_000 \
   --slurm-acct PAS2136 \
   --slurm-partition nextgen \
-  --train-data.shards /fs/scratch/PAS2136/samuelstevens/saev/shards/849be3b5d390cb4e759d83deeced236b569492e0579c8db62faa13da1f68b112 \
-  --train-data.layer 13 \
-  --val-data.shards /fs/scratch/PAS2136/samuelstevens/saev/shards/39a45d6c3c034f6342d91e8af6f7da9e6650ecc6794f333471f48e5d2df74e42/ \
-  --val-data.layer 13 \
+  --train-data.shards /fs/scratch/PAS2136/samuelstevens/saev/shards/51567c6c \
+  --train-data.layer 11 \
+  --val-data.shards /fs/scratch/PAS2136/samuelstevens/saev/shards/3e27794f \
+  --val-data.layer 11 \
   sae.activation:relu \
   objective:matryoshka \
   --objective.sparsity-coeff 1e-3 \

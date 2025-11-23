@@ -1666,7 +1666,7 @@
 <li>Where on disk and how we would like to save activations.</li>
 <li>Which images we want to save activations for.</li>
 </ol>
-<p>The <code>scripts/shards.py</code> script does all of this for us.</p>
+<p>The <code>saev/framework/shards.py</code> script does all of this for us.</p>
 <p>Run <code>uv run scripts/launch.py shards --help</code> to see all the configuration.</p>
 <p>In practice, you might run:</p>
 <pre><code class="language-sh">uv run scripts/launch.py shards \
@@ -1702,6 +1702,12 @@ The activations will be in <code>.bin</code> files, numbered starting from 00000
 </ol>
 <p>The <code>train.py</code> script handles this.</p>
 <p>Run <code>uv run train.py --help</code> to see all the configuration.</p>
+<p>The most important options are:</p>
+<ul>
+<li><code>--runs-root</code>: where to store runs.</li>
+<li><code>--train-data</code> and <code>--val-data</code>: How to load the training and validation data. You probably want to specify both <code>--{train,val}-data.shards</code> (the shard directory) and <code>--{train,val}-data.layer</code> (which layer to use).</li>
+<li><code>sae.activation</code>: <code>sae.activation:relu</code> to use the ReLU activation.</li>
+</ul>
 <p>This is a full example:</p>
 <pre><code class="language-sh">uv run train.py \
   --runs-root /fs/ess/PAS2136/samuelstevens/saev/runs \
@@ -1712,10 +1718,10 @@ The activations will be in <code>.bin</code> files, numbered starting from 00000
   --n-train 100_000_000 \
   --slurm-acct PAS2136 \
   --slurm-partition nextgen \
-  --train-data.shards /fs/scratch/PAS2136/samuelstevens/saev/shards/849be3b5d390cb4e759d83deeced236b569492e0579c8db62faa13da1f68b112 \
-  --train-data.layer 13 \
-  --val-data.shards /fs/scratch/PAS2136/samuelstevens/saev/shards/39a45d6c3c034f6342d91e8af6f7da9e6650ecc6794f333471f48e5d2df74e42/ \
-  --val-data.layer 13 \
+  --train-data.shards /fs/scratch/PAS2136/samuelstevens/saev/shards/51567c6c \
+  --train-data.layer 11 \
+  --val-data.shards /fs/scratch/PAS2136/samuelstevens/saev/shards/3e27794f \
+  --val-data.layer 11 \
   sae.activation:relu \
   objective:matryoshka \
   --objective.sparsity-coeff 1e-3 \

@@ -36,6 +36,15 @@ Use float64 accumulators for (E, Q, S) to avoid cancellation in (Q - |S|^2/N).
 
 Don't use a scalar mean over all elements (that would normalize to a constant baseline). We want the vector mean baseline, which is why we keep the vector sum (S) (or a running vector mean).
 
+We also need to update src/saev/framework/train.py to calculate this metric as well during both training and eval.
+Since we have a working implementation in inference.py feel free to use that.
+In train.py, we have train() and evaluate():
+In train(), add fields to the metric dict.
+I don't care what prefix you use, so pick whatever you think is best.
+In evaluate(), we have EvalMetrics; add fields to EvalMetrics for sse_sae and sse_baseline and normalized_mse.
+
+> codex resume 019a8e43-5996-7ef1-a824-a55097923b10
+
 # Citations
 
 * Gao et al., 2024 (Scaling and Evaluating SAEs): "We report a normalized version of all MSE numbers, where we divide by a baseline reconstruction error of always predicting the mean activations."
