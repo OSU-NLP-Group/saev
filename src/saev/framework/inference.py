@@ -164,7 +164,7 @@ def worker_fn(cfg: Config):
     )
     ignore = torch.tensor(cfg.ignore_labels)
 
-    # Float64 accumulators keep NMSE numerics stable when evaluating Q - |S|^2 / N.
+    # float64 accumulators keep NMSE numerics stable when evaluating Q - |S|^2 / N.
     reconstruction_sse = torch.zeros((), dtype=torch.float64, device=cfg.device)
     sum_sq = torch.zeros((), dtype=torch.float64, device=cfg.device)
     sum_vec_s = torch.zeros((sae.cfg.d_model,), dtype=torch.float64, device=cfg.device)
@@ -185,7 +185,10 @@ def worker_fn(cfg: Config):
         x_hat_bpd, f_x, *_ = sae(vit_acts_bd)
         bsz, d_sae = f_x.shape
 
-        mask_b = torch.isin(batch["token_labels"], ignore, invert=True)
+        mask_b = torch.ones(bsz, dtype=torch.bool, device=cfg.device)
+        if "token_labels" in batch:
+            # Segmentation datasets
+            mask_b = torch.isin(batch["token_labels"], ignore, invert=True)
 
         n_batch_tokens = mask_b.sum().item()
         n_tokens += n_batch_tokens

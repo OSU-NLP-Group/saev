@@ -46,4 +46,8 @@ def test_img_folder_inference():
 
         run = saev.disk.Run(runs_root / run_id)
         fpaths = saev.framework.inference.Filepaths.from_run(run, md)
-        breakpoint()
+
+        # Assert all files exist and have non-zero size
+        for fpath in fpaths:
+            assert fpath.exists()
+            assert fpath.stat().st_size > 0

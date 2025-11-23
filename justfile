@@ -5,7 +5,7 @@ docs: lint
     uv run mkdocs build --config-file docs/mkdocs.yml
 
 test: lint
-    uv run pytest --cov src/saev --cov-report term --cov-report html --cov-report json --json-report --json-report-file pytest.json -n 4 tests --shards /fs/scratch/PAS2136/samuelstevens/saev/shards/cbe4305d /fs/scratch/PAS2136/samuelstevens/saev/shards/7949ad9b || true
+    uv run pytest --cov src/saev --cov-report term --cov-report html --cov-report json --json-report --json-report-file pytest.json -n 4 --m "" tests --shards /fs/scratch/PAS2136/samuelstevens/saev/shards/cbe4305d /fs/scratch/PAS2136/samuelstevens/saev/shards/7949ad9b || true
     uv run coverage-badge -o docs/assets/coverage.svg -f
     uv run scripts/regressions.py
 

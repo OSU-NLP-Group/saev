@@ -81,9 +81,11 @@ dev = [
 [tool.pytest.ini_options]
 timeout = 300
 timeout_method = "thread"
+addopts = "-m 'not integration'"
 filterwarnings = [
     "ignore:Can't initialize NVML:UserWarning"
 ]
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
 ]
