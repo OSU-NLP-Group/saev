@@ -13,22 +13,17 @@ authors:
     email: samuel.robert.stevens@gmail.com
     orcid: 'https://orcid.org/0009-0000-9493-7766'
     affiliation: The Ohio State University
-identifiers:
-  - type: url
-    value: 'https://arxiv.org/abs/2502.06755'
-    description: Preprint
 repository-code: 'https://github.com/OSU-NLP-Group/saev'
 url: 'https://osu-nlp-group.github.io/saev/'
 repository-artifact: 'https://pypi.org/project/saev/'
 abstract: >-
   saev is a package for training sparse autoencoders (SAEs)
-  on vision transformers (ViTs) in PyTorch. It also includes
-  an interactive webapp for looking through a trained SAE's
-  features.
+  on vision transformers (ViTs) in PyTorch.
 keywords:
   - sparse autoencoders
   - interpretability
   - computer vision
 license: CC-BY-4.0
-commit: 5951e8497e16b06ebc5dbf38de0a87daf38331a5
-date-released: '2025-04-28'
+commit: 6a34b6916fda7b04cc2d89749b3ad6425a8f39e6
+date-released: '2025-11-16'
+
