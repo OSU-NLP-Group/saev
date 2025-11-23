@@ -65,6 +65,17 @@ class namespace:
             yield shards_root
 
     @staticmethod
+    @contextlib.contextmanager
+    def tmp_runs_root():
+        """Create a temporary runs directory."""
+        # We cannot use the tmp_path fixture because of Hypothesis.
+        # See https://hypothesis.readthedocs.io/en/latest/reference/api.html#hypothesis.HealthCheck.function_scoped_fixture
+        with tempfile.TemporaryDirectory() as tmp_path:
+            runs_root = pathlib.Path(tmp_path) / "saev" / "runs"
+            runs_root.mkdir(parents=True)
+            yield runs_root
+
+    @staticmethod
     def write_shards(shards_root: pathlib.Path, **kwargs) -> pathlib.Path:
         from saev.data import shards
 
