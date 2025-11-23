@@ -1594,8 +1594,10 @@
 </code></pre>
 <p>Or clone it and install it as an editable with pip, lik <code>pip install -e .</code> in your virtual environment.</p>
 <p>Then you can do things like <code>from saev import ...</code>.</p>
-<p>.. note::
-  If you struggle to get <code>saev</code> installed, open an issue on <a href="https://github.com/OSU-NLP-Group/saev">GitHub</a> and I will figure out how to make it easier.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>If you struggle to get <code>saev</code> installed, open an issue on <a href="https://github.com/OSU-NLP-Group/saev">GitHub</a> and I will figure out how to make it easier.</p>
+</div>
 <h2 id="load-the-checkpoint">Load the Checkpoint<a class="headerlink" href="#load-the-checkpoint" title="Permanent link">&para;</a></h2>
 <pre><code class="language-py">import saev.nn
 
@@ -1615,13 +1617,14 @@ We need to:</p>
 If the permalinks change, you are looking for the <code>get_sae_latents()</code> functions in both files.</p>
 <p>Below is example code to do it using the <code>saev</code> package.</p>
 <pre><code class="language-py">import saev.nn
-import saev.activations
+import saev.data.models
+import saev.data.shards
 
-img_transform = saev.activations.make_img_transform(&quot;clip&quot;, &quot;ViT-B-16/openai&quot;)
+vit_cls = saev.data.models.load_model_cls(&quot;clip&quot;)
+vit = vit_cls(&quot;ViT-B-16/openai&quot;).to(device)
+vit = saev.data.shards.RecordedTransformer(vit, 196, True, [10])
 
-vit = saev.activations.make_vit(&quot;clip&quot;, &quot;ViT-B-16/openai&quot;)
-recorded_vit = saev.activations.RecordedVisionTransformer(vit, 196, True, [10])
-
+img_tr, _ = vit_cls.make_transforms(&quot;ViT-B-16/openai&quot;, 196)
 img = Image.open(&quot;example.jpg&quot;)
 
 x = img_transform(img)
@@ -1635,8 +1638,6 @@ x_hat, f_x, loss = sae(vit_acts)
 </code></pre>
 <p>Now you have the reconstructed x (<code>x_hat</code>) and the sparse representation of all patches in the image (<code>f_x</code>).</p>
 <p>You might select the dimensions with maximal values for each patch and see what other images are maximimally activating.</p>
-<p>.. todo::
-  Provide documentation for how get maximally activating images.</p>
 
 
 

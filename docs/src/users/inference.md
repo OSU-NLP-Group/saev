@@ -39,8 +39,9 @@ Or clone it and install it as an editable with pip, lik `pip install -e .` in yo
 
 Then you can do things like `from saev import ...`.
 
-.. note::
-  If you struggle to get `saev` installed, open an issue on [GitHub](https://github.com/OSU-NLP-Group/saev) and I will figure out how to make it easier.
+!!! note
+
+    If you struggle to get `saev` installed, open an issue on [GitHub](https://github.com/OSU-NLP-Group/saev) and I will figure out how to make it easier.
 
 ## Load the Checkpoint
 
@@ -69,13 +70,14 @@ Below is example code to do it using the `saev` package.
 
 ```py
 import saev.nn
-import saev.activations
+import saev.data.models
+import saev.data.shards
 
-img_transform = saev.activations.make_img_transform("clip", "ViT-B-16/openai")
+vit_cls = saev.data.models.load_model_cls("clip")
+vit = vit_cls("ViT-B-16/openai").to(device)
+vit = saev.data.shards.RecordedTransformer(vit, 196, True, [10])
 
-vit = saev.activations.make_vit("clip", "ViT-B-16/openai")
-recorded_vit = saev.activations.RecordedVisionTransformer(vit, 196, True, [10])
-
+img_tr, _ = vit_cls.make_transforms("ViT-B-16/openai", 196)
 img = Image.open("example.jpg")
 
 x = img_transform(img)
@@ -91,7 +93,3 @@ x_hat, f_x, loss = sae(vit_acts)
 Now you have the reconstructed x (`x_hat`) and the sparse representation of all patches in the image (`f_x`).
 
 You might select the dimensions with maximal values for each patch and see what other images are maximimally activating.
-
-.. todo::
-  Provide documentation for how get maximally activating images.
-

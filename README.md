@@ -19,9 +19,10 @@ This framework was developed for a series of projects leveraging SAEs with visio
 
 - [Feb 2025] [Interpretable and Testable Vision Features via Sparse Autoencoders](https://arxiv.org/abs/2502.06755)
 - [Nov 2025] [Towards Open-Ended Visual Scientific Discovery with Sparse Autoencoders]()
+
+Trained SAE checkpoints are available at:
+
 - [Huggingface Models](https://huggingface.co/collections/osunlp/sae-v-67ab8c4fdf179d117db28195)
-- [API Docs](https://osu-nlp-group.github.io/saev/api/saev)
-- [Demos](https://osu-nlp-group.github.io/saev/#demos)
 
 If you want to cite the software, please cite it as:
 

@@ -180,8 +180,8 @@ def cli(cfg: tp.Annotated[Config, tyro.conf.arg(name="")]):
     try:
         run = saev.disk.Run(cfg.run)
         # MASSIVE HACK
-        d_sae = run.config["k"]
-        # d_sae = run.config["sae"]["d_sae"]
+        # d_sae = run.config["k"]
+        d_sae = run.config["sae"]["d_sae"]
         token_acts = scipy.sparse.load_npz(
             run.inference / cfg.shards.name / "token_acts.npz"
         )

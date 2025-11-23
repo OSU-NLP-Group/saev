@@ -463,18 +463,18 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#inference" class="md-nav__link">
+  <a href="#evaluation" class="md-nav__link">
     <span class="md-ellipsis">
-      Inference
+      Evaluation
     </span>
   </a>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#visualize-the-learned-features" class="md-nav__link">
+  <a href="#visualize-learned-features" class="md-nav__link">
     <span class="md-ellipsis">
-      Visualize the Learned Features
+      Visualize Learned Features
     </span>
   </a>
   
@@ -528,15 +528,6 @@
         
       </ul>
     </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#training-metrics-and-visualizations" class="md-nav__link">
-    <span class="md-ellipsis">
-      Training Metrics and Visualizations
-    </span>
-  </a>
   
 </li>
       
@@ -1651,8 +1642,8 @@
 <ol>
 <li><a href="#save-vit-activations-to-disk">Save ViT activations to disk</a></li>
 <li><a href="#train-saes-on-activations">Train SAEs on activations</a></li>
-<li><a href="">Evaluate the SAE checkpoints</a></li>
-<li><a href="">Visualize the learned features from the trained SAEs</a></li>
+<li><a href="#evaluation">Evaluate the SAE checkpoints</a></li>
+<li><a href="#visualize-learned-features">Visualize Learned Features</a></li>
 </ol>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
@@ -1736,45 +1727,51 @@ See the section on sweeps to learn how to train multiple SAEs in parallel using 
 <li><code>loader/example_coverage</code> and <code>loader/token_coverage</code> report the fraction of distinct example or patch indices seen in the current batch relative to their theoretical support.</li>
 </ul>
 <p>All eight metrics appear alongside the existing <code>loader/read_mb</code> counters, helping spot skewed sampling or under-covered patches mid-run.</p>
-<h2 id="inference">Inference<a class="headerlink" href="#inference" title="Permanent link">&para;</a></h2>
+<h2 id="evaluation">Evaluation<a class="headerlink" href="#evaluation" title="Permanent link">&para;</a></h2>
 <p>After training an SAE, you probably want to <em>use</em> the SAE.
-The <code>inference.py</code> script handles this.
+While you can use the SAE as a regular PyTorch <code>torch.nn.Module</code> in combination with a <code>saev.data.OrderedDataLoader</code> or <code>saev.data.IndexedDataset</code>.</p>
+<p>However, most SAEs are evaluated with a similar set of metrics (normalized MSE, L0, etc).
+The <code>saev/framework/inference.py</code> script calculates these metrics.
 You can run <code>uv run scripts/launch.py inference --help</code> to see all the options.</p>
+<p>The most important options are:</p>
+<ul>
+<li><code>--run</code>: The path to the SAE run directory.</li>
+<li><code>--data</code>: The options for the OrderedDataLoader. Specifically, you need to set <code>--data.shards</code> and <code>--data.layer</code>, just like for training.</li>
+</ul>
 <pre><code class="language-sh">uv run scripts/launch.py inference \
   --run /fs/ess/PAS2136/samuelstevens/saev/runs/z55bntm1/ \
-  --data.shards /fs/scratch/PAS2136/samuelstevens/saev/shards/39a45d6c3c034f6342d91e8af6f7da9e6650ecc6794f333471f48e5d2df74e42/ \
-  --data.layer 13
+  --data.shards /fs/scratch/PAS2136/samuelstevens/saev/shards/614861a0 \
+  --data.layer 11
 </code></pre>
-<h2 id="visualize-the-learned-features">Visualize the Learned Features<a class="headerlink" href="#visualize-the-learned-features" title="Permanent link">&para;</a></h2>
+<h2 id="visualize-learned-features">Visualize Learned Features<a class="headerlink" href="#visualize-learned-features" title="Permanent link">&para;</a></h2>
 <p>Now that you've trained an SAE, you probably want to look at its learned features.
-One way to visualize an individual learned feature (f) is by picking out images that maximize the activation of feature (f).
-Since we train SAEs on patch-level activations, we try to find the top <em>patches</em> for each feature (f).
-Then, we pick out the images those patches correspond to and create a heatmap based on SAE activation values.</p>
-<p>.. note:: More advanced forms of visualization are possible (and valuable!), but should not be included in <code>saev</code> unless they can be applied to every SAE/dataset combination. If you have specific visualizations, please add them to <code>contrib/</code> or another location.</p>
-<p><code>saev.visuals</code> records these maximally activating images for us.
-You can see all the options with <code>uv run python -m saev visuals --help</code>.</p>
-<p>The most important configuration options:</p>
-<ol>
-<li>The SAE checkpoint that you want to use (<code>--ckpt</code>).</li>
-<li>The ViT activations that you want to use (<code>--data.*</code> options, should be roughly the same as the options you used to train your SAE, like the same layer, same <code>--data.patches</code>).</li>
-<li>The images that produced the ViT activations that you want to use (<code>images</code> and <code>--images.*</code> options, should be the same as what you used to generate your ViT activtions).</li>
-<li>Some filtering options on which SAE latents to include (<code>--log-freq-range</code>, <code>--log-value-range</code>, <code>--include-latents</code>, <code>--n-latents</code>).</li>
-</ol>
-<p>Then, the script runs SAE inference on all of the ViT activations, calculates the images with maximal activation for each SAE feature, then retrieves the images from the original image dataset and highlights them for browsing later on.</p>
-<p>.. note:: Because of limitations in the SAE training process, not all SAE latents (dimensions of (f)) are equally interesting. Some latents are dead, some are <em>dense</em>, some only fire on two images, etc. Typically, you want neurons that fire very strongly (high value) and fairly infrequently (low frequency). You might be interested in particular, fixed latents (<code>--include-latents</code>). <strong>I recommend using <code>saev.interactive.metrics</code> to figure out good thresholds.</strong></p>
-<p>So you might run:</p>
-<pre><code class="language-sh">uv run python -m saev visuals \
-  --ckpt checkpoints/abcdefg/sae.pt \
-  --dump-to /nfs/$USER/saev/webapp/abcdefg \
-  --data.shard-root /local/scratch/$USER/cache/saev/ac89246f1934b45e2f0487298aebe36ad998b6bd252d880c0c9ec5de78d793c8 \
-  --data.layer -2 \
-  --data.patches patches \
-  images:imagenet-dataset
+One way to visualize an individual learned feature is by picking out images that maximize the activation of feature.
+We use the saved sparse <code>token_acts.npz</code> file from the previous inference step.</p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>Because there are so many different ways to visualize SAE features, I moved it to <code>contrib/trait_discovery</code> (used for our preprint <a href="">"Towards Open-Ended Visual Scientific Discovery with Sparse Autoencoders"</a>).</p>
+</div>
+<p>The most important options:</p>
+<ul>
+<li><code>--run</code>: The path to the SAE run directory.</li>
+<li><code>--shards</code>: The shards directory.</li>
+<li><code>--latents</code>: The 0-indexed latents to save images for.</li>
+<li><code>--n-latents</code>: The number of randomly selected latents to save images for.</li>
+</ul>
+<p>So first, move into the <code>contrib/trait_discovery</code>:</p>
+<pre><code class="language-sh">cd contrib/trait_discovery
 </code></pre>
-<p>This will record the top 128 patches, and then save the unique images among those top 128 patches for each feature in the trained SAE.
-It will cache these best activations to disk, then start saving images to visualize later on.</p>
-<p><code>saev.interactive.features</code> is a small web application based on <a href="https://marimo.io/">marimo</a> to interactively look at these images.</p>
-<p>You can run it with <code>uv run marimo edit saev/interactive/features.py</code>.</p>
+<p>Then run the script that generates highlighted images:</p>
+<pre><code class="language-sh">uv run scripts/launch.py visuals \
+  --run /fs/ess/PAS2136/samuelstevens/saev/runs/unu6dbfb \
+  --shards /fs/scratch/PAS2136/samuelstevens/saev/shards/3802cb66 \
+  --latents 0 1 2 3 4 5 6 7 8 9 49 56 57 125 202 \
+  --n-latents 20 \
+</code></pre>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Because of limitations in the SAE training process, not all SAE latents are equally interesting. Some latents are dead, some are <em>dense</em>, some only fire on two images, etc. Typically, you want neurons that fire very strongly (high value) and fairly infrequently (low frequency). You might be interested in particular, fixed latents (<code>--include-latents</code>). <strong>I recommend using <code>saev/interactive/metrics.py</code> with marimo to figure out good thresholds.</strong></p>
+</div>
 <h2 id="sweeps">Sweeps<a class="headerlink" href="#sweeps" title="Permanent link">&para;</a></h2>
 <blockquote>
 <p>tl;dr: basically the slow part of training SAEs is loading vit activations from disk, and since SAEs are pretty small compared to other models, you can train a bunch of different SAEs in parallel on the same data using a big GPU. That way you can sweep learning rate, lambda, etc. all on one GPU.</p>
@@ -1822,23 +1819,6 @@ scale_mean = true
 <p>Not all parameters can be swept in parallel.
 Parameters that affect data loading (like <code>batch_size</code> or dataset configuration) will cause the sweep to split into separate parallel groups.
 The system automatically handles this division to maximize efficiency.</p>
-<h2 id="training-metrics-and-visualizations">Training Metrics and Visualizations<a class="headerlink" href="#training-metrics-and-visualizations" title="Permanent link">&para;</a></h2>
-<p>When you train a sweep of SAEs, you probably want to understand which checkpoint is best.
-<code>saev</code> provides some tools to help with that.</p>
-<p>First, we offer a tool to look at some basic summary statistics of all your trained checkpoints.</p>
-<p><code>saev.interactive.metrics</code> is a <a href="https://marimo.io/">marimo</a> notebook (similar to Jupyter, but more interactive) for making L0 vs MSE plots by reading runs off of WandB.</p>
-<p>However, there are some pieces of code that need to be changed for you to use it.</p>
-<p>.. todo:: Explain how to use the <code>saev.interactive.metrics</code> notebook.</p>
-<ul>
-<li>Need to change your wandb username from samuelstevens to USERNAME from wandb</li>
-<li>Tag filter</li>
-<li>Need to run the notebook on the same machine as the original ViT shards and the shards need to be there.</li>
-<li>Think of better ways to do model and data keys</li>
-<li>Look at examples</li>
-<li>run visuals before features</li>
-</ul>
-<p>How to run visuals faster?</p>
-<p>explain how these features are visualized</p>
 
 
 

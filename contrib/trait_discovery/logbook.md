@@ -1363,10 +1363,10 @@ I need to finish k-means and PCA (I think).
 
 # 11/12/2025
 
-- Appendix & supplementary material
+- [done] Appendix & supplementary material
+- Preprint on arXiv
 - Share preprint with Antoin, Leonardo and the guy from Pollock's lab
 - Share preprint with Adam at Markov
-- Preprint on arXiv
 - NMSE needs to be on the train/val (IN1K) data, not the downstream (ADE20K) data.
 - BatchAbsTopK??
 - Why do all the methods get the same NMSE but have different MSE? It's all the same normalizing factor?
@@ -1380,3 +1380,12 @@ What's something I'm thinking about?
 - Supplementary material, bug fixes, and other stuff.
 
 But for fun, I want to do better activation functions and then train an SAE on the SE model.
+
+So I should compare the metrics on FishVista to the ReLU activation.
+
+---
+
+I'm worried about how to compose the objectives with the different activations.
+
+
+I'm concerned about the way that the objectives and the activation functions interact. I originally wanted to be able to compose different objectives, like regular reconstruction + lambda * l1, as well as matryoshka objectives, and different objectives (ReLU, TopK, BatchTopK, etc). But there's no lambda for TopK: it's a fixed sparsity level (k). I think I am comfortable getting rid of the vanilla objective, because it's just a special case of the matryoshka objective. But how should we set up the APIs so that user can use different activations? Maybe activations need to be responsible for the loss calculation too? What do you think?

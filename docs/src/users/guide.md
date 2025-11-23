@@ -6,8 +6,8 @@ Here are the steps:
 
 1. [Save ViT activations to disk](#save-vit-activations-to-disk)
 2. [Train SAEs on activations](#train-saes-on-activations)
-3. [Evaluate the SAE checkpoints]()
-4. [Visualize the learned features from the trained SAEs]()
+3. [Evaluate the SAE checkpoints](#evaluation)
+3. [Visualize Learned Features](#visualize-learned-features)
 
 !!! note
     `saev` assumes you are running on NVIDIA GPUs. On a multi-GPU system, prefix your commands with `CUDA_VISIBLE_DEVICES=X` to run on GPU X.
@@ -108,60 +108,64 @@ The training loop logs additional loader diagnostics derived from `calc_batch_en
 
 All eight metrics appear alongside the existing `loader/read_mb` counters, helping spot skewed sampling or under-covered patches mid-run.
 
-## Inference
+## Evaluation
 
 After training an SAE, you probably want to *use* the SAE.
-The `inference.py` script handles this.
+While you can use the SAE as a regular PyTorch `torch.nn.Module` in combination with a `saev.data.OrderedDataLoader` or `saev.data.IndexedDataset`.
+
+However, most SAEs are evaluated with a similar set of metrics (normalized MSE, L0, etc).
+The `saev/framework/inference.py` script calculates these metrics.
 You can run `uv run scripts/launch.py inference --help` to see all the options.
+
+The most important options are:
+
+- `--run`: The path to the SAE run directory.
+- `--data`: The options for the OrderedDataLoader. Specifically, you need to set `--data.shards` and `--data.layer`, just like for training.
 
 ```sh
 uv run scripts/launch.py inference \
   --run /fs/ess/PAS2136/samuelstevens/saev/runs/z55bntm1/ \
-  --data.shards /fs/scratch/PAS2136/samuelstevens/saev/shards/39a45d6c3c034f6342d91e8af6f7da9e6650ecc6794f333471f48e5d2df74e42/ \
-  --data.layer 13
+  --data.shards /fs/scratch/PAS2136/samuelstevens/saev/shards/614861a0 \
+  --data.layer 11
 ```
 
-## Visualize the Learned Features
+## Visualize Learned Features
 
 Now that you've trained an SAE, you probably want to look at its learned features.
-One way to visualize an individual learned feature \(f\) is by picking out images that maximize the activation of feature \(f\).
-Since we train SAEs on patch-level activations, we try to find the top *patches* for each feature \(f\).
-Then, we pick out the images those patches correspond to and create a heatmap based on SAE activation values.
+One way to visualize an individual learned feature is by picking out images that maximize the activation of feature.
+We use the saved sparse `token_acts.npz` file from the previous inference step.
 
-.. note:: More advanced forms of visualization are possible (and valuable!), but should not be included in `saev` unless they can be applied to every SAE/dataset combination. If you have specific visualizations, please add them to `contrib/` or another location.
+!!! warning
 
-`saev.visuals` records these maximally activating images for us.
-You can see all the options with `uv run python -m saev visuals --help`.
+    Because there are so many different ways to visualize SAE features, I moved it to `contrib/trait_discovery` (used for our preprint ["Towards Open-Ended Visual Scientific Discovery with Sparse Autoencoders"]()).
 
-The most important configuration options:
 
-1. The SAE checkpoint that you want to use (`--ckpt`).
-2. The ViT activations that you want to use (`--data.*` options, should be roughly the same as the options you used to train your SAE, like the same layer, same `--data.patches`).
-3. The images that produced the ViT activations that you want to use (`images` and `--images.*` options, should be the same as what you used to generate your ViT activtions).
-4. Some filtering options on which SAE latents to include (`--log-freq-range`, `--log-value-range`, `--include-latents`, `--n-latents`).
+The most important options:
 
-Then, the script runs SAE inference on all of the ViT activations, calculates the images with maximal activation for each SAE feature, then retrieves the images from the original image dataset and highlights them for browsing later on.
+- `--run`: The path to the SAE run directory.
+- `--shards`: The shards directory.
+- `--latents`: The 0-indexed latents to save images for.
+- `--n-latents`: The number of randomly selected latents to save images for.
 
-.. note:: Because of limitations in the SAE training process, not all SAE latents (dimensions of \(f\)) are equally interesting. Some latents are dead, some are *dense*, some only fire on two images, etc. Typically, you want neurons that fire very strongly (high value) and fairly infrequently (low frequency). You might be interested in particular, fixed latents (`--include-latents`). **I recommend using `saev.interactive.metrics` to figure out good thresholds.**
-
-So you might run:
+So first, move into the `contrib/trait_discovery`:
 
 ```sh
-uv run python -m saev visuals \
-  --ckpt checkpoints/abcdefg/sae.pt \
-  --dump-to /nfs/$USER/saev/webapp/abcdefg \
-  --data.shard-root /local/scratch/$USER/cache/saev/ac89246f1934b45e2f0487298aebe36ad998b6bd252d880c0c9ec5de78d793c8 \
-  --data.layer -2 \
-  --data.patches patches \
-  images:imagenet-dataset
+cd contrib/trait_discovery
 ```
 
-This will record the top 128 patches, and then save the unique images among those top 128 patches for each feature in the trained SAE.
-It will cache these best activations to disk, then start saving images to visualize later on.
+Then run the script that generates highlighted images:
 
-`saev.interactive.features` is a small web application based on [marimo](https://marimo.io/) to interactively look at these images.
+```sh
+uv run scripts/launch.py visuals \
+  --run /fs/ess/PAS2136/samuelstevens/saev/runs/unu6dbfb \
+  --shards /fs/scratch/PAS2136/samuelstevens/saev/shards/3802cb66 \
+  --latents 0 1 2 3 4 5 6 7 8 9 49 56 57 125 202 \
+  --n-latents 20 \
+```
 
-You can run it with `uv run marimo edit saev/interactive/features.py`.
+!!! note
+
+    Because of limitations in the SAE training process, not all SAE latents are equally interesting. Some latents are dead, some are *dense*, some only fire on two images, etc. Typically, you want neurons that fire very strongly (high value) and fairly infrequently (low frequency). You might be interested in particular, fixed latents (`--include-latents`). **I recommend using `saev/interactive/metrics.py` with marimo to figure out good thresholds.**
 
 
 ## Sweeps
@@ -225,27 +229,3 @@ This would train 6 models (3 sparsity coefficients × 2 SAE widths), each sharin
 Not all parameters can be swept in parallel.
 Parameters that affect data loading (like `batch_size` or dataset configuration) will cause the sweep to split into separate parallel groups.
 The system automatically handles this division to maximize efficiency.
-
-## Training Metrics and Visualizations
-
-When you train a sweep of SAEs, you probably want to understand which checkpoint is best.
-`saev` provides some tools to help with that.
-
-First, we offer a tool to look at some basic summary statistics of all your trained checkpoints.
-
-`saev.interactive.metrics` is a [marimo](https://marimo.io/) notebook (similar to Jupyter, but more interactive) for making L0 vs MSE plots by reading runs off of WandB.
-
-However, there are some pieces of code that need to be changed for you to use it.
-
-.. todo:: Explain how to use the `saev.interactive.metrics` notebook.
-
-* Need to change your wandb username from samuelstevens to USERNAME from wandb
-* Tag filter
-* Need to run the notebook on the same machine as the original ViT shards and the shards need to be there.
-* Think of better ways to do model and data keys
-* Look at examples
-* run visuals before features
-
-How to run visuals faster?
-
-explain how these features are visualized
