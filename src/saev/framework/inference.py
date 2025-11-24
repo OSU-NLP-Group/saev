@@ -185,7 +185,7 @@ def worker_fn(cfg: Config):
         x_hat_bpd, f_x, *_ = sae(vit_acts_bd)
         bsz, d_sae = f_x.shape
 
-        mask_b = torch.ones(bsz, dtype=torch.bool, device=cfg.device)
+        mask_b = torch.ones(bsz, dtype=torch.bool)
         if "token_labels" in batch:
             # Segmentation datasets
             mask_b = torch.isin(batch["token_labels"], ignore, invert=True)
