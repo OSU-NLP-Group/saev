@@ -1,3 +1,4 @@
+import collections.abc
 import math
 from typing import Any, Iterator, Protocol, runtime_checkable
 
@@ -90,7 +91,7 @@ class BatchLimiter:
         self.batch_size = dataloader.batch_size
 
     def __len__(self) -> int:
-        return self.n_samples // self.batch_size
+        return math.ceil(self.n_samples / self.batch_size)
 
     def __getattr__(self, name: str) -> Any:
         """Pass through attribute access to the wrapped dataloader."""
@@ -110,14 +111,44 @@ class BatchLimiter:
             for batch in self.dataloader:
                 yield batch
 
-                # Sometimes we underestimate because the final batch in the dataloader might not be a full batch.
-                self.n_seen += self.batch_size
-                if self.n_seen > self.n_samples:
+                batch_n = _infer_batch_size(batch, fallback=self.batch_size)
+                self.n_seen += batch_n
+                if self.n_seen >= self.n_samples:
                     return
 
             # We try to mitigate the above issue by ignoring the last batch if we don't have drop_last.
             if not self.dataloader.drop_last:
                 self.n_seen -= self.batch_size
+
+
+def _infer_batch_size(batch: Any, fallback: int) -> int:
+    """
+    Best-effort extraction of batch size without assuming a specific batch schema.
+
+    Priority:
+      1) If batch is a mapping, use len(first value).
+      2) Else if batch implements __len__, use len(batch).
+      3) Fallback to provided batch_size.
+    """
+    try:
+        if isinstance(batch, collections.abc.Mapping):
+            if len(batch) == 0:
+                return fallback
+            first_value = next(iter(batch.values()))
+            try:
+                n = len(first_value)  # type: ignore[arg-type]
+                if isinstance(n, int) and n > 0:
+                    return n
+            except Exception:
+                pass
+        else:
+            n = len(batch)  # type: ignore[arg-type]
+            if isinstance(n, int) and n > 0:
+                return n
+    except Exception:
+        pass
+
+    return fallback
 
 
 def _plot_example_schedules():

@@ -1389,3 +1389,41 @@ I'm worried about how to compose the objectives with the different activations.
 
 
 I'm concerned about the way that the objectives and the activation functions interact. I originally wanted to be able to compose different objectives, like regular reconstruction + lambda * l1, as well as matryoshka objectives, and different objectives (ReLU, TopK, BatchTopK, etc). But there's no lambda for TopK: it's a fixed sparsity level (k). I think I am comfortable getting rid of the vanilla objective, because it's just a special case of the matryoshka objective. But how should we set up the APIs so that user can use different activations? Maybe activations need to be responsible for the loss calculation too? What do you think?
+
+# 11/23/2025
+
+So now I want to check on the TopK results.
+
+So I didn't even vary k. That's disappointing.
+I also don't know how to compare the TopK activation results to the ReLU.
+I think it will have to be the same way that Gao et al. did.
+
+> Non-TopK cannot set a precise L0, so we interpolated using a piecewise linear function in log-log space.
+
+1. Train TopK (and vary k)
+2. Train ReLU
+3. Interpolate ReLU to compare the methods.
+
+I started jobs with tag v0.4.3. When they finish, I can make a copy of the notebook and explain it.
+
+# 11/24/2025
+
+Jobs are finished. I will get a comparison of dictionary learning metrics.
+Then we can also compare the pareto frontier on FishVista body-part probing.
+
+
+While GPT is working on some of this, I also want to dig into the normalized MSE problem.
+
+1. Training runs should log the normalized mse
+2. Inference runs can log it for the inference datasets.
+
+
+For some godforsaken reason, TopK does not actually have an L0 of k. Why? I don't know.
+To make this easier, I want to:
+
+1. Log the Slurm Job ID in the training run.
+
+There are two issues:
+
+1. L0 was measured as (f_x > 0) but it should be (f_x != 0)
+2. In eval, we use the len of the batch limiter to normalize the L0, but that's just an estimate. We need to fix that.
