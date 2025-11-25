@@ -1417,13 +1417,39 @@ While GPT is working on some of this, I also want to dig into the normalized MSE
 1. Training runs should log the normalized mse
 2. Inference runs can log it for the inference datasets.
 
-
 For some godforsaken reason, TopK does not actually have an L0 of k. Why? I don't know.
 To make this easier, I want to:
 
-1. Log the Slurm Job ID in the training run.
+1. [done] Log the Slurm Job ID in the training run.
 
 There are two issues:
 
-1. L0 was measured as (f_x > 0) but it should be (f_x != 0)
-2. In eval, we use the len of the batch limiter to normalize the L0, but that's just an estimate. We need to fix that.
+1. [done] L0 was measured as (f_x > 0) but it should be (f_x != 0)
+2. [done] In eval, we use the len of the batch limiter to normalize the L0, but that's just an estimate. We need to fix that.
+
+I am re-running again, but with v4.4.
+
+The training runs do log normalized MSE now so that's great.
+
+To recap:
+
+1. Found some bugs in reporting. Fixed them.
+2. Re-running TopK vs ReLU on FishVista under tag `fishvista-v4.4`.
+3. Once it's finished, use `notebooks/architecture-comparison.py` to compare the two activation functions.
+
+To check:
+
+- L0 = K for all values of K.
+- summary/eval/sse_baseline should be ~0.02% different among all runs, including between ReLU and TopK.
+- Which activation function has better NMSE vs L0?
+
+# 11/25/2025
+
+TopK seems to be underperforming ReLU on FishVista.
+Why is this the case?
+
+Some explanations:
+
+1. FishVista is too simple a dataset.
+2. There are dead latents - we can compare this.
+3. [other direction] ReLU could actually be better if we measure L0 as whatever is greater than 1e-6 as L0, instead of true 0 for L0.
