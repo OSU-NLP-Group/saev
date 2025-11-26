@@ -1,17 +1,18 @@
 # Regressions
 
-Last checked: 2025-10-16
+Last checked: 2025-11-26
 
-# 7 failing test(s)
+# 8 failing test(s)
 
-- tests/test_nn_modeling.py::test_remove_parallel_grads_handles_non_normalized_rows
-- tests/test_nn_objectives.py::test_safe_mse_hypothesis
+- tests/test_framework_inference.py::test_img_folder_inference
 - tests/test_reservoir_buffer.py::test_blocking_get_when_empty[proc]
 - tests/test_reservoir_buffer.py::test_blocking_put_when_full[proc]
 - tests/test_ring_buffer.py::test_blocking_get_when_empty[proc]
 - tests/test_ring_buffer.py::test_blocking_put_when_full[proc]
+- tests/test_shuffled_dataloader.py::test_min_buffer_fill_manager_finishes_with_backlog
+- tests/test_shuffled_dataloader.py::test_min_buffer_fill_warmup_improves_coverage[shards=7949ad9b]
 - tests/test_unfold.py::test_hypothesis_special_values
 
 # Coverage
 
-Coverage: 2118/3247 lines (65.2%)
+Coverage: 2731/4129 lines (66.1%)

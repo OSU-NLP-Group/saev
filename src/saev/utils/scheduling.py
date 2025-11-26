@@ -89,6 +89,7 @@ class BatchLimiter:
         self.dataloader = dataloader
         self.n_samples = n_samples
         self.batch_size = dataloader.batch_size
+        self.drop_last = dataloader.drop_last
 
     def __len__(self) -> int:
         return math.ceil(self.n_samples / self.batch_size)
