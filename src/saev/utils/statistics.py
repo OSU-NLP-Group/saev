@@ -24,7 +24,7 @@ class PercentileEstimator:
         self._estimate = torch.zeros(shape)
         self._step = 0
 
-    def update(self, x):
+    def update(self, x: float | Tensor):
         """
         Update the estimator with a new value.
 
