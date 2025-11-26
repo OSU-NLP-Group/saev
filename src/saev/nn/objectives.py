@@ -1,5 +1,5 @@
 import dataclasses
-import typing
+import typing as tp
 
 import beartype
 import einops
@@ -12,13 +12,6 @@ from . import modeling
 
 @beartype.beartype
 @dataclasses.dataclass(frozen=True, slots=True)
-class Vanilla:
-    sparsity_coeff: float = 4e-4
-    """How much to weight sparsity loss term."""
-
-
-@beartype.beartype
-@dataclasses.dataclass(frozen=True, slots=True)
 class Matryoshka:
     """
     Config for the Matryoshka loss for another arbitrary SAE class.
@@ -26,13 +19,11 @@ class Matryoshka:
     Reference code is here: https://github.com/noanabeshima/matryoshka-saes and the original reading is https://sparselatents.com/matryoshka.html and https://arxiv.org/pdf/2503.17547
     """
 
-    sparsity_coeff: float = 4e-4
-    """How much to weight sparsity loss term (if not using TopK/BatchTopK)."""
     n_prefixes: int = 10
     """Number of random length prefixes to use for loss calculation."""
 
 
-ObjectiveConfig = Vanilla | Matryoshka
+ObjectiveConfig = Matryoshka
 
 
 @jaxtyped(typechecker=beartype.beartype)
@@ -55,60 +46,6 @@ class Objective(torch.nn.Module):
         self, sae: modeling.SparseAutoencoder, x: Float[Tensor, "batch d_model"]
     ) -> Loss:
         raise NotImplementedError()
-
-
-@jaxtyped(typechecker=beartype.beartype)
-@dataclasses.dataclass(frozen=True, slots=True)
-class VanillaLoss(Loss):
-    """The vanilla loss terms for an training batch."""
-
-    mse: Float[Tensor, ""]
-    """Reconstruction loss (mean squared error)."""
-    sparsity: Float[Tensor, ""]
-    """Sparsity loss, typically lambda * L1."""
-    l0: Float[Tensor, ""]
-    """L0 magnitude of hidden activations."""
-    l1: Float[Tensor, ""]
-    """L1 magnitude of hidden activations."""
-
-    @property
-    def loss(self) -> Float[Tensor, ""]:
-        """Total loss."""
-        return self.mse + self.sparsity
-
-    def metrics(self) -> dict[str, object]:
-        return {
-            "loss": self.loss.item(),
-            "mse": self.mse.item(),
-            "l0": self.l0.item(),
-            "l1": self.l1.item(),
-            "sparsity": self.sparsity.item(),
-        }
-
-
-@jaxtyped(typechecker=beartype.beartype)
-class VanillaObjective(Objective):
-    def __init__(self, cfg: Vanilla):
-        super().__init__()
-        self.cfg = cfg
-        # Keep sparsity_coeff as mutable attribute for scheduler compatibility
-        self.sparsity_coeff = cfg.sparsity_coeff
-
-    def forward(
-        self, sae: modeling.SparseAutoencoder, x: Float[Tensor, "batch d_model"]
-    ) -> VanillaLoss:
-        f_x = sae.encode(x)
-        x_hat = einops.rearrange(sae.decode(f_x), "batch () d_model -> batch d_model")
-
-        # Some values of x and x_hat can be very large. We can calculate a safe MSE
-        mse_loss = mean_squared_err(x_hat, x)
-
-        mse_loss = mse_loss.mean()
-        l0 = (f_x > 0).float().sum(axis=1).mean(axis=0)
-        l1 = f_x.abs().sum(dim=1).mean(dim=0)
-        sparsity_loss = self.sparsity_coeff * l1
-
-        return VanillaLoss(mse_loss, sparsity_loss, l0, l1)
 
 
 @jaxtyped(typechecker=beartype.beartype)
@@ -147,8 +84,6 @@ class MatryoshkaObjective(Objective):
     def __init__(self, cfg: Matryoshka):
         super().__init__()
         self.cfg = cfg
-        # Keep sparsity_coeff as mutable attribute for scheduler compatibility
-        self.sparsity_coeff = cfg.sparsity_coeff
 
     def forward(
         self, sae: modeling.SparseAutoencoder, x: Float[Tensor, "batch d_model"]
@@ -171,11 +106,13 @@ class MatryoshkaObjective(Objective):
         ).mean()
 
         # Calculate sparsity metrics on full encoding
-        l0 = (f_x > 0).float().sum(axis=1).mean(axis=0)
-        l1 = f_x.abs().sum(axis=1).mean(axis=0)
-        sparsity_loss = self.sparsity_coeff * l1
 
-        return MatryoshkaLoss(mse_loss, sparsity_loss, l0, l1)
+        return MatryoshkaLoss(
+            mse=mse_loss,
+            sparsity=sae.activation.cfg.sparsity.loss(f_x),
+            l0=(f_x != 0).float().sum(axis=1).mean(axis=0),
+            l1=f_x.abs().sum(axis=1).mean(axis=0),
+        )
 
 
 @torch.no_grad()
@@ -225,12 +162,10 @@ def sample_prefixes(
 
 @beartype.beartype
 def get_objective(cfg: ObjectiveConfig) -> Objective:
-    if isinstance(cfg, Vanilla):
-        return VanillaObjective(cfg)
-    elif isinstance(cfg, Matryoshka):
+    if isinstance(cfg, Matryoshka):
         return MatryoshkaObjective(cfg)
     else:
-        typing.assert_never(cfg)
+        tp.assert_never(cfg)
 
 
 @jaxtyped(typechecker=beartype.beartype)

@@ -24,6 +24,7 @@ class ParallelWandbRun:
         self.mode = mode
         self.tags = tags
         self.dir = dir
+        self.summary_updates: dict[str, object] = {}
 
         self.live_run = wandb.init(
             project=project, config=cfg, mode=mode, tags=tags, dir=dir
@@ -36,6 +37,11 @@ class ParallelWandbRun:
         self.live_run.log(metric, step=step)
         for queue, metric in zip(self.metric_queues, metrics):
             queue.append((step, metric))
+
+    @beartype.beartype
+    def set_summary(self, key: str, value: object):
+        self.summary_updates[key] = value
+        self.live_run.summary[key] = value
 
     def finish(self) -> list[str]:
         ids = [self.live_run.id]
@@ -50,6 +56,8 @@ class ParallelWandbRun:
                 tags=self.tags + ["queued"],
                 dir=self.dir,
             )
+            for key, value in self.summary_updates.items():
+                run.summary[key] = value
             for step, metric in queue:
                 run.log(metric, step=step)
             ids.append(run.id)

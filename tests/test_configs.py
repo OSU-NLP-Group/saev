@@ -535,14 +535,14 @@ def test_load_cfgs_from_python_sweep():
 def test_load_cfgs_sweep_overrides_objective_fields():
     override = dataclasses.replace(train.Config(), objective=objectives.Matryoshka())
     default = train.Config()
-    sweep_dcts = [{"objective": {"sparsity_coeff": 0.001}}]
+    sweep_dcts = [{"objective": {"n_prefixes": 20}}]
 
     cfgs, errs = load_cfgs(override, default=default, sweep_dcts=sweep_dcts)
 
     assert not errs
     assert len(cfgs) == 1
     assert isinstance(cfgs[0].objective, objectives.Matryoshka)
-    assert cfgs[0].objective.sparsity_coeff == 0.001
+    assert cfgs[0].objective.n_prefixes == 20
 
 
 def test_load_sweep_missing_function():
@@ -603,3 +603,51 @@ def test_load_sweep_nonexistent_file():
     result = load_sweep(sweep_fpath)
 
     assert result == []
+
+
+def test_load_cfgs_union_dataclass_field_sweep():
+    """Test sweeping union dataclass fields when type is set via override.
+
+    This mimics the actual usage pattern:
+    1. User passes `sae.activation:topk` to tyro, setting the type to TopK
+    2. Sweep dict provides only the parameters: `{"activation": {"top_k": 512}}`
+    3. load_cfgs should update the existing TopK instance with the new top_k value
+
+    This is the pattern used in fishvista_train_topk.py.
+    """
+    from saev.nn import activations
+
+    @beartype.beartype
+    @dataclasses.dataclass(frozen=True)
+    class ConfigWithActivation:
+        """Mimics SparseAutoencoderConfig with union activation field."""
+
+        activation: activations.Config = activations.Relu()
+        d_sae: int = 16384
+
+    # The key difference from a broken implicit test: override already has TopK set
+    # (simulating tyro parsing `sae.activation:topk`)
+    override = ConfigWithActivation(activation=activations.TopK(top_k=32))
+    default = ConfigWithActivation()
+
+    # Sweep dict provides only the parameter to update
+    sweep_dcts = [
+        {"activation": {"top_k": 32}},
+        {"activation": {"top_k": 128}},
+        {"activation": {"top_k": 512}},
+    ]
+
+    cfgs, errs = load_cfgs(override, default=default, sweep_dcts=sweep_dcts)
+
+    assert not errs, f"Expected no errors, got: {errs}"
+    assert len(cfgs) == 3
+
+    # All should remain TopK instances (not converted to something else)
+    assert all(isinstance(cfg.activation, activations.TopK) for cfg in cfgs), (
+        f"Expected all TopK, got {[type(cfg.activation) for cfg in cfgs]}"
+    )
+
+    # And the top_k values should be updated correctly
+    assert cfgs[0].activation.top_k == 32
+    assert cfgs[1].activation.top_k == 128
+    assert cfgs[2].activation.top_k == 512
