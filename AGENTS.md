@@ -21,6 +21,7 @@
 - submitit and jaxtyping don't work in the same file. See [this issue]. To solve this, all jaxtyped functions/classes need to be in a different file to the submitit launcher script.
 - Never create a simple script to demonstrate functionality unless explicitly asked..
 - Write single-line commit messages; never say you co-authored a commit.
+- Before committing, run `git status` to check for already-staged files. If asked to commit only specific files, unstage everything first, then stage only the requested files, then after the commit, restage the already-staged files.
 - Only use ascii characters. If you would use unicode to represent math, use pseudo-LaTeX instead in comments: 10⁶ should be 10^6, 3×10⁷ should be 3x10^7.
 - Prefix variables with `n_` for totals and cardinalities, but ignore it for dimensions `..._per_...` and dimensions. Examples: `n_examples`, `n_models`, but `tokens_per_example`, `examples_per_shard`
 - Try to keep code short. Shorter code is in principle easier to read. If variable names are really long, shorten based on conventions in this codebase (..._indices -> ..._i). Since you use `uvx ruff format --preview`, if you can make a small variable name change to fit everything on one line, that's a good idea. When variables are used once, simply inline it.

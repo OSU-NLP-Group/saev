@@ -12,12 +12,13 @@ Checklist for making sure your training doesn't suck:
 * [x] Sweep learning rate and sparsity coefficients.
 * [ ] Decay learning rate to 0 over the last 20% of training.
 * [ ] Warmup sparsity over all of training.
-* [ ] Gradient clipping (clip at 1 with clip_grad_norm)
+* [x] Gradient clipping (clip at 1 with clip_grad_norm)
+* [ ] Track dead latents through training
 """
 
 import dataclasses
 import logging
-import os.path
+import os
 import pathlib
 import sys
 import time
@@ -64,10 +65,8 @@ class Config:
     """Number of SAE evaluation samples."""
     sae: nn.SparseAutoencoderConfig = nn.SparseAutoencoderConfig()
     """SAE configuration."""
-    objective: nn.ObjectiveConfig = dataclasses.field(
-        default_factory=nn.objectives.Vanilla
-    )
-    """SAE loss configuration."""
+    objective: nn.ObjectiveConfig = nn.objectives.Matryoshka()
+    """SAE objective configuration."""
     n_sparsity_warmup: int = 0
     """Number of sparsity coefficient warmup steps."""
     lr: float = 0.0004
@@ -108,6 +107,7 @@ class Config:
 @beartype.beartype
 def make_saes(
     cfgs: list[tuple[nn.SparseAutoencoderConfig, nn.ObjectiveConfig]],
+    dl: saev.utils.scheduling.DataLoaderLike,
 ) -> tuple[torch.nn.ModuleList, torch.nn.ModuleList, list[dict[str, object]]]:
     saes, objectives, param_groups = [], [], []
     for sae_cfg, obj_cfg in cfgs:
@@ -116,6 +116,58 @@ def make_saes(
         # Use an empty LR because our first step is warmup.
         param_groups.append({"params": sae.parameters(), "lr": 0.0})
         objectives.append(nn.get_objective(obj_cfg))
+
+    ##################
+    # Datapoint init #
+    ##################
+    assert saes, "Need at least one SAE to initialize."
+
+    d_sae = saes[0].cfg.d_sae
+    assert d_sae > 0, "Need at least one sample for datapoint init."
+
+    msg = "All SAEs must have same .d_sae: {sae.cfg.d_sae for sae in saes}"
+    assert all(d_sae == sae.cfg.d_sae for sae in saes), msg
+
+    if hasattr(dl, "n_samples"):
+        dl_n = dl.n_samples
+        msg = f"Need {d_sae} samples for datapoint init; dataloader has {dl.n_samples}."
+        assert dl_n >= d_sae, msg
+
+    with torch.no_grad():
+        batches: list[Tensor] = []
+        n_seen = 0
+        for batch in dl:
+            act = batch["act"]
+            batches.append(act)
+            n_seen += len(act)
+            if n_seen >= d_sae:
+                break
+
+        msg = f"Datapoint init requested {d_sae} samples but saw {n_seen}."
+        assert n_seen >= d_sae, msg
+
+        acts = torch.cat(batches, dim=0)[:d_sae]
+        acts_mean = acts.mean(dim=0, keepdim=True)
+        zero_centered = acts - acts_mean
+
+        kaiming = torch.empty_like(zero_centered)
+        torch.nn.init.kaiming_uniform_(kaiming)
+
+        idx = torch.randperm(d_sae)
+
+        for sae in saes:
+            blend = sae.cfg.reinit_blend
+            msg = f"reinit_blend must be in [0, 1], got {blend}."
+            assert 0.0 <= blend <= 1.0, msg
+
+            enc_rows = blend * zero_centered[idx] + (1 - blend) * kaiming[idx]
+            msg = f"enc_rows has shape {enc_rows.shape}; expected {(sae.cfg.d_sae, sae.cfg.d_model)}."
+            assert enc_rows.shape == (sae.cfg.d_sae, sae.cfg.d_model), msg
+
+            sae.W_enc.data.copy_(enc_rows.T)
+            if sae.cfg.reinit_enc_dec_tranpose:
+                sae.W_dec.data.copy_(sae.W_enc.data.T)
+            sae.normalize_w_dec()
 
     return torch.nn.ModuleList(saes), torch.nn.ModuleList(objectives), param_groups
 
@@ -190,7 +242,9 @@ def train(
     dataloader = saev.data.ShuffledDataLoader(cfg.train_data)
     dataloader = saev.utils.scheduling.BatchLimiter(dataloader, cfg.n_train)
 
-    saes, objectives, param_groups = make_saes([(c.sae, c.objective) for c in cfgs])
+    saes, objectives, param_groups = make_saes(
+        [(c.sae, c.objective) for c in cfgs], dataloader
+    )
 
     mode = "online" if cfg.track else "disabled"
     tags = [cfg.tag] if cfg.tag else []
@@ -206,17 +260,14 @@ def train(
     run = saev.utils.wandb.ParallelWandbRun(
         cfg.wandb_project, wandb_configs, mode, tags
     )
+    slurm_job_id = os.environ.get("SLURM_JOB_ID")
+    if slurm_job_id:
+        run.set_summary("slurm_job_id", slurm_job_id)
 
     optimizer = torch.optim.Adam(param_groups, fused=True)
     lr_schedulers = [
         saev.utils.scheduling.WarmupCosine(
             0.0, c.n_lr_warmup, c.lr, len(dataloader), 0.0
-        )
-        for c in cfgs
-    ]
-    sparsity_schedulers = [
-        saev.utils.scheduling.Warmup(
-            0.0, c.objective.sparsity_coeff, c.n_sparsity_warmup
         )
         for c in cfgs
     ]
@@ -274,6 +325,22 @@ def train(
                 )
                 dl_metrics.update(entropy_metrics)
 
+                acts_bd_f64 = acts_BD.to(torch.float64)
+                n_batch = acts_bd_f64.shape[0]
+                msg = "Batch is empty; cannot compute normalized MSE."
+                assert n_batch > 0, msg
+                batch_sum_sq = torch.sum(acts_bd_f64 * acts_bd_f64)
+                batch_sum_vec = acts_bd_f64.sum(dim=0)
+                batch_baseline_sse = (
+                    batch_sum_sq - torch.dot(batch_sum_vec, batch_sum_vec) / n_batch
+                )
+                msg = (
+                    f"Batch baseline variance non-positive: "
+                    f"sse_baseline={batch_baseline_sse.item():.6e}"
+                )
+                assert batch_baseline_sse > 0, msg
+                batch_baseline_sse_value = batch_baseline_sse.item()
+
                 metrics = []
                 for i, (loss, sae, objective, group) in enumerate(
                     zip(losses, saes, objectives, optimizer.param_groups)
@@ -285,10 +352,16 @@ def train(
 
                     # Explained variance: 1 - Var(x - x_hat) / Var(x)
                     residual = acts_BD - x_hat[:, -1, :]
+                    batch_sse_sae_value = torch.sum(
+                        (residual.to(torch.float64)) ** 2
+                    ).item()
+                    normalized_mse_value = (
+                        batch_sse_sae_value / batch_baseline_sse_value
+                    )
                     explained_var = 1 - residual.var() / acts_BD.var()
 
                     # Dead unit percentage: fraction of units that never activate
-                    dead_pct = ((f_x.abs() > 1e-8).sum(0) == 0).float().mean()
+                    dead_pct = ((f_x.abs() > 1e-12).sum(0) == 0).float().mean()
 
                     # Dictionary coherence: max |<w_i, w_j>| for i != j
                     W = sae.W_dec  # (d_sae, d_model)
@@ -303,12 +376,14 @@ def train(
                         **loss.metrics(),
                         "progress/n_patches_seen": n_patches_seen,
                         "progress/learning_rate": group["lr"],
-                        "progress/sparsity_coeff": objective.sparsity_coeff,
                         "metrics/explained_variance": explained_var.item(),
                         "metrics/dead_unit_pct": dead_pct.item(),
                         "metrics/dictionary_coherence": coherence.item(),
                         "metrics/avg_decoder_row_norm": avg_w_row_norm.item(),
                         "metrics/grad_norm": grad_norms[i].item(),
+                        "metrics/sse_sae": batch_sse_sae_value,
+                        "metrics/sse_baseline": batch_baseline_sse_value,
+                        "metrics/normalized_mse": normalized_mse_value,
                         **dl_metrics,
                     }
 
@@ -328,8 +403,8 @@ def train(
         for param_group, scheduler in zip(optimizer.param_groups, lr_schedulers):
             param_group["lr"] = scheduler.step()
 
-        for objective, scheduler in zip(objectives, sparsity_schedulers):
-            objective.sparsity_coeff = scheduler.step()
+        # for objective, scheduler in zip(objectives, sparsity_schedulers):
+        #     objective.sparsity_coeff = scheduler.step()
 
         # Don't need these anymore.
         optimizer.zero_grad()
@@ -351,6 +426,12 @@ class EvalMetrics:
     """Mean L1 across all examples."""
     mse: float
     """Mean MSE across all examples."""
+    normalized_mse: float
+    """Normalized reconstruction MSE (SAE SSE / mean-baseline SSE)."""
+    sse_sae: float
+    """Total reconstruction sum-squared error for the SAE."""
+    sse_baseline: float
+    """Total reconstruction sum-squared error for the mean baseline."""
     n_dead: int
     """Number of neurons that never fired on any example."""
     n_almost_dead: int
@@ -384,9 +465,9 @@ def evaluate(
     cfgs: list[Config], saes: torch.nn.ModuleList, objectives: torch.nn.ModuleList
 ) -> list[EvalMetrics]:
     """
-    Evaluates SAE quality by counting dead and dense features and recording loss metrics. Also makes histogram plots to help human qualitative comparison.
+    Evaluates SAE quality by counting dead and dense features, recording reconstruction metrics (including normalized MSE), and making histogram plots to help human qualitative comparison.
 
-    The metrics computed are mean ``L0``/``L1``/``MSE`` losses, the number of dead, almost dead, and dense neurons, plus per-feature firing frequencies and mean values.  A list of `EvalMetrics` is returned, one for each SAE.
+    The metrics computed are mean ``L0``/``L1``/``MSE`` losses, normalized reconstruction error, the number of dead, almost dead, and dense neurons, plus per-feature firing frequencies and mean values.  A list of `EvalMetrics` is returned, one for each SAE.
     """
 
     torch.cuda.empty_cache()
@@ -406,29 +487,57 @@ def evaluate(
 
     n_fired = torch.zeros((len(cfgs), saes[0].cfg.d_sae))
     values = torch.zeros((len(cfgs), saes[0].cfg.d_sae))
-    total_l0 = torch.zeros(len(cfgs))
-    total_l1 = torch.zeros(len(cfgs))
-    total_mse = torch.zeros(len(cfgs))
+    total_l0_sum = torch.zeros(len(cfgs), dtype=torch.float64)
+    total_l1_sum = torch.zeros(len(cfgs), dtype=torch.float64)
+    total_mse_sum = torch.zeros(len(cfgs), dtype=torch.float64)
+    total_sse_sae = torch.zeros(len(cfgs), dtype=torch.float64, device=cfg.device)
+    sum_sq = torch.zeros((), dtype=torch.float64, device=cfg.device)
+    sum_vec = torch.zeros(
+        (saes[0].cfg.d_model,), dtype=torch.float64, device=cfg.device
+    )
+    n_tokens = 0
 
     for batch in helpers.progress(dataloader, desc="eval", every=cfg.log_every):
         acts_BD = batch["act"].to(cfg.device, non_blocking=True)
+        batch_size = acts_BD.shape[0]
+        acts_bd_f64 = acts_BD.to(torch.float64)
+        sum_sq += torch.sum(acts_bd_f64 * acts_bd_f64)
+        sum_vec += acts_bd_f64.sum(dim=0)
+        n_tokens += batch_size
         for i, (sae, objective) in enumerate(zip(saes, objectives)):
             # Objective now handles the forward pass internally
             loss = objective(sae, acts_BD)
             # Get f_x for metrics
             f_x_BS = sae.encode(acts_BD)
+            x_hat = sae.decode(f_x_BS)
+            residual = acts_BD - x_hat[:, -1, :]
+            total_sse_sae[i] += torch.sum((residual.to(torch.float64)) ** 2)
             n_fired[i] += einops.reduce(f_x_BS > 0, "batch d_sae -> d_sae", "sum").cpu()
             values[i] += einops.reduce(f_x_BS, "batch d_sae -> d_sae", "sum").cpu()
-            total_l0[i] += loss.l0.cpu()
-            total_l1[i] += loss.l1.cpu()
-            total_mse[i] += loss.mse.cpu()
+            total_l0_sum[i] += loss.l0.cpu().item() * batch_size
+            total_l1_sum[i] += loss.l1.cpu().item() * batch_size
+            total_mse_sum[i] += loss.mse.cpu().item() * batch_size
+
+    msg = "Validation dataloader yielded zero tokens; cannot compute normalized MSE."
+    assert n_tokens > 0, msg
+    sum_vec_sq = torch.dot(sum_vec, sum_vec)
+    sse_baseline = sum_sq - sum_vec_sq / n_tokens
+    msg = (
+        f"Validation baseline variance non-positive: "
+        f"sse_baseline={sse_baseline.item():.6e}"
+    )
+    assert sse_baseline > 0, msg
+    sse_baseline_value = sse_baseline.item()
 
     mean_values = values / n_fired
-    freqs = n_fired / cfg.n_val
+    freqs = n_fired / n_tokens
 
-    l0 = (total_l0 / len(dataloader)).tolist()
-    l1 = (total_l1 / len(dataloader)).tolist()
-    mse = (total_mse / len(dataloader)).tolist()
+    l0 = (total_l0_sum / n_tokens).tolist()
+    l1 = (total_l1_sum / n_tokens).tolist()
+    mse = (total_mse_sum / n_tokens).tolist()
+    sse_sae = total_sse_sae.tolist()
+    normalized_mse = (total_sse_sae / sse_baseline_value).tolist()
+    sse_baseline_all = [sse_baseline_value] * len(cfgs)
 
     n_dead = einops.reduce(freqs == 0, "n_saes d_sae -> n_saes", "sum").tolist()
     n_almost_dead = einops.reduce(
@@ -437,8 +546,24 @@ def evaluate(
     n_dense = einops.reduce(freqs > dense_lim, "n_saes d_sae -> n_saes", "sum").tolist()
 
     metrics = []
-    for row in zip(l0, l1, mse, n_dead, n_almost_dead, n_dense, freqs, mean_values):
-        metrics.append(EvalMetrics(*row, almost_dead_lim, dense_lim))
+    for i in range(len(cfgs)):
+        metrics.append(
+            EvalMetrics(
+                l0=l0[i],
+                l1=l1[i],
+                mse=mse[i],
+                normalized_mse=normalized_mse[i],
+                sse_sae=sse_sae[i],
+                sse_baseline=sse_baseline_all[i],
+                n_dead=n_dead[i],
+                n_almost_dead=n_almost_dead[i],
+                n_dense=n_dense[i],
+                freqs=freqs[i],
+                mean_values=mean_values[i],
+                almost_dead_threshold=almost_dead_lim,
+                dense_threshold=dense_lim,
+            )
+        )
 
     return metrics
 
@@ -465,6 +590,8 @@ CANNOT_PARALLELIZE = set([
     "log_to",
     "sae.d_sae",
     "sae.d_model",
+    "sae.reinit_blend",
+    "sae.reinit_enc_dec_tranpose",
 ])
 
 
@@ -474,7 +601,7 @@ def split_cfgs(cfgs: list[Config]) -> list[list[Config]]:
     Splits configs into groups that can be parallelized.
 
     Arguments:
-        A list of configs from a sweep file.
+        cfgs: A list of configs from a sweep file.
 
     Returns:
         A list of lists, where the configs in each sublist do not differ in any keys that are in `CANNOT_PARALLELIZE`. This means that each sublist is a valid "parallel" set of configs for `train`.

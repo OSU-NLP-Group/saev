@@ -1686,7 +1686,7 @@
 
 
 <h2 id="saev.nn.activations.BatchTopK" class="doc doc-heading">
-              <code class="highlight language-python"><span class="n">BatchTopK</span><span class="p">(</span><span class="n">top_k</span><span class="o">=</span><span class="mi">32</span><span class="p">,</span> <span class="n">sparsity</span><span class="o">=</span><span class="n">NoSparsity</span><span class="p">(),</span> <span class="n">momentum</span><span class="o">=</span><span class="mf">0.1</span><span class="p">)</span></code>
+              <code class="highlight language-python"><span class="n">BatchTopK</span><span class="p">(</span><span class="n">kind</span><span class="o">=</span><span class="s1">&#39;batch-top-k&#39;</span><span class="p">,</span> <span class="n">top_k</span><span class="o">=</span><span class="mi">32</span><span class="p">,</span> <span class="n">sparsity</span><span class="o">=</span><span class="n">NoSparsity</span><span class="p">(),</span> <span class="n">momentum</span><span class="o">=</span><span class="mf">0.1</span><span class="p">)</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
@@ -1801,11 +1801,11 @@ applied elementwise and independently to each example. This preserves the approx
 
                   <details class="mkdocstrings-source">
                     <summary>Source code in <code>src/saev/nn/activations.py</code></summary>
-                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">127</span>
-<span class="normal">128</span>
-<span class="normal">129</span>
-<span class="normal">130</span>
-<span class="normal">131</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">BatchTopK</span><span class="p">):</span>
+                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">133</span>
+<span class="normal">134</span>
+<span class="normal">135</span>
+<span class="normal">136</span>
+<span class="normal">137</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">BatchTopK</span><span class="p">):</span>
     <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
     <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span> <span class="o">=</span> <span class="n">cfg</span>
 
@@ -1842,13 +1842,7 @@ applied elementwise and independently to each example. This preserves the approx
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/saev/nn/activations.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">133</span>
-<span class="normal">134</span>
-<span class="normal">135</span>
-<span class="normal">136</span>
-<span class="normal">137</span>
-<span class="normal">138</span>
-<span class="normal">139</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">139</span>
 <span class="normal">140</span>
 <span class="normal">141</span>
 <span class="normal">142</span>
@@ -1873,7 +1867,13 @@ applied elementwise and independently to each example. This preserves the approx
 <span class="normal">161</span>
 <span class="normal">162</span>
 <span class="normal">163</span>
-<span class="normal">164</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span> <span class="n">Float</span><span class="p">[</span><span class="n">Tensor</span><span class="p">,</span> <span class="s2">&quot;batch d_sae&quot;</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Float</span><span class="p">[</span><span class="n">Tensor</span><span class="p">,</span> <span class="s2">&quot;batch d_sae&quot;</span><span class="p">]:</span>
+<span class="normal">164</span>
+<span class="normal">165</span>
+<span class="normal">166</span>
+<span class="normal">167</span>
+<span class="normal">168</span>
+<span class="normal">169</span>
+<span class="normal">170</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span> <span class="n">Float</span><span class="p">[</span><span class="n">Tensor</span><span class="p">,</span> <span class="s2">&quot;batch d_sae&quot;</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Float</span><span class="p">[</span><span class="n">Tensor</span><span class="p">,</span> <span class="s2">&quot;batch d_sae&quot;</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Apply top-k activation to each sample in the batch.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -1924,7 +1924,7 @@ applied elementwise and independently to each example. This preserves the approx
 
 
 <h2 id="saev.nn.activations.NoSparsity" class="doc doc-heading">
-              <code class="highlight language-python"><span class="n">NoSparsity</span><span class="p">()</span></code>
+              <code class="highlight language-python"><span class="n">NoSparsity</span><span class="p">(</span><span class="n">kind</span><span class="o">=</span><span class="s1">&#39;no-sparsity&#39;</span><span class="p">)</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
@@ -1973,7 +1973,7 @@ applied elementwise and independently to each example. This preserves the approx
 
 
 <h2 id="saev.nn.activations.Relu" class="doc doc-heading">
-              <code class="highlight language-python"><span class="n">Relu</span><span class="p">(</span><span class="n">sparsity</span><span class="o">=</span><span class="n">L1Sparsity</span><span class="p">(</span><span class="n">coeff</span><span class="o">=</span><span class="mf">0.0004</span><span class="p">))</span></code>
+              <code class="highlight language-python"><span class="n">Relu</span><span class="p">(</span><span class="n">kind</span><span class="o">=</span><span class="s1">&#39;relu&#39;</span><span class="p">,</span> <span class="n">sparsity</span><span class="o">=</span><span class="n">L1Sparsity</span><span class="p">(</span><span class="n">coeff</span><span class="o">=</span><span class="mf">0.0004</span><span class="p">))</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
@@ -2022,7 +2022,7 @@ applied elementwise and independently to each example. This preserves the approx
 
 
 <h2 id="saev.nn.activations.TopK" class="doc doc-heading">
-              <code class="highlight language-python"><span class="n">TopK</span><span class="p">(</span><span class="n">top_k</span><span class="o">=</span><span class="mi">32</span><span class="p">,</span> <span class="n">sparsity</span><span class="o">=</span><span class="n">NoSparsity</span><span class="p">())</span></code>
+              <code class="highlight language-python"><span class="n">TopK</span><span class="p">(</span><span class="n">kind</span><span class="o">=</span><span class="s1">&#39;top-k&#39;</span><span class="p">,</span> <span class="n">top_k</span><span class="o">=</span><span class="mi">32</span><span class="p">,</span> <span class="n">sparsity</span><span class="o">=</span><span class="n">NoSparsity</span><span class="p">())</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
@@ -2114,9 +2114,9 @@ applied elementwise and independently to each example. This preserves the approx
 
                   <details class="mkdocstrings-source">
                     <summary>Source code in <code>src/saev/nn/activations.py</code></summary>
-                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">82</span>
-<span class="normal">83</span>
-<span class="normal">84</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">TopK</span><span class="p">):</span>
+                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">88</span>
+<span class="normal">89</span>
+<span class="normal">90</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">TopK</span><span class="p">):</span>
     <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
     <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span> <span class="o">=</span> <span class="n">cfg</span>
 </code></pre></div></td></tr></table></div>
@@ -2151,17 +2151,17 @@ applied elementwise and independently to each example. This preserves the approx
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/saev/nn/activations.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">86</span>
-<span class="normal">87</span>
-<span class="normal">88</span>
-<span class="normal">89</span>
-<span class="normal">90</span>
-<span class="normal">91</span>
-<span class="normal">92</span>
-<span class="normal">93</span>
-<span class="normal">94</span>
-<span class="normal">95</span>
-<span class="normal">96</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span> <span class="n">Float</span><span class="p">[</span><span class="n">Tensor</span><span class="p">,</span> <span class="s2">&quot;batch d_sae&quot;</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Float</span><span class="p">[</span><span class="n">Tensor</span><span class="p">,</span> <span class="s2">&quot;batch d_sae&quot;</span><span class="p">]:</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 92</span>
+<span class="normal"> 93</span>
+<span class="normal"> 94</span>
+<span class="normal"> 95</span>
+<span class="normal"> 96</span>
+<span class="normal"> 97</span>
+<span class="normal"> 98</span>
+<span class="normal"> 99</span>
+<span class="normal">100</span>
+<span class="normal">101</span>
+<span class="normal">102</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span> <span class="n">Float</span><span class="p">[</span><span class="n">Tensor</span><span class="p">,</span> <span class="s2">&quot;batch d_sae&quot;</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Float</span><span class="p">[</span><span class="n">Tensor</span><span class="p">,</span> <span class="s2">&quot;batch d_sae&quot;</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Apply top-k activation to the input tensor.</span>
 <span class="sd">    &quot;&quot;&quot;</span>

@@ -62,18 +62,29 @@ ActivationConfig = Relu | TopK | BatchTopK | AbsBatchTopK
 @beartype.beartype
 @dataclasses.dataclass(frozen=True)
 class SparseAutoencoderConfig:
+    #########
+    # MODEL #
+    #########
     d_model: int = 1024
+    """Size of x."""
     d_sae: int = 1024 * 16
-    """Number of features in SAE latent space."""
-    n_reinit_samples: int = 1024 * 16 * 32
-    """Number of samples to use for SAE re-init. Anthropic proposes initializing b_dec to the geometric median of the dataset here: https://transformer-circuits.pub/2023/monosemantic-features/index.html#appendix-autoencoder-bias. We use the regular mean."""
+    """Number of features in SAE latent space; size of f(x)."""
+    activation: activations.Config = activations.Relu()
+    """Activation function."""
+    ##################
+    # INITIALIZATION #
+    ##################
+    reinit_blend: float = 0.8
+    """"""
+    reinit_enc_dec_tranpose: bool = True
+    """"""
+    ################
+    # OPTIMIZATION #
+    ################
     remove_parallel_grads: bool = True
-    """Whether to remove gradients parallel to W_dec columns (which will be ignored because we force the columns to have unit norm). See https://transformer-circuits.pub/2023/monosemantic-features/index.html#appendix-autoencoder-optimization for the original discussion from Anthropic."""
+    """Whether to remove gradients parallel to W_dec columns (which will be ignored because we force the columns to have unit norm). See [Towards Monosemanticity; Appendix "Advice for Training Sparse Autoencoders: Autoencoder Architecture"](https://transformer-circuits.pub/2023/monosemantic-features/index.html#appendix-autoencoder-optimization) for discussion by Anthropic."""
     normalize_w_dec: bool = True
-    """Whether to make sure W_dec has unit norm columns. See https://transformer-circuits.pub/2023/monosemantic-features/index.html#appendix-autoencoder for original citation."""
-    seed: int = 0
-    """Random seed."""
-    activation: ActivationConfig = Relu()
+    """Whether to make sure W_dec has unit norm columns. See [Towards Monosemanticity; Appendix "Advice for Training Sparse Autoencoders: Autoencoder Architecture"](https://transformer-circuits.pub/2023/monosemantic-features/index.html#appendix-autoencoder)."""
 
 
 @jaxtyped(typechecker=beartype.beartype)
