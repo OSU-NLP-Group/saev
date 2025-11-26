@@ -120,6 +120,10 @@ def make_saes(
     ##################
     # Datapoint init #
     ##################
+    if all(cfg.reinit_blend == 0 for cfg in cfgs):
+        logger.info("No datapoint initialization necessary; skipping.")
+        return torch.nn.ModuleList(saes), torch.nn.ModuleList(objectives), param_groups
+
     assert saes, "Need at least one SAE to initialize."
 
     d_sae = saes[0].cfg.d_sae
@@ -129,9 +133,8 @@ def make_saes(
     assert all(d_sae == sae.cfg.d_sae for sae in saes), msg
 
     if hasattr(dl, "n_samples"):
-        dl_n = dl.n_samples
         msg = f"Need {d_sae} samples for datapoint init; dataloader has {dl.n_samples}."
-        assert dl_n >= d_sae, msg
+        assert dl.n_samples >= d_sae, msg
 
     with torch.no_grad():
         batches: list[Tensor] = []

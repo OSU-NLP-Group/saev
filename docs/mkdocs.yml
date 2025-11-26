@@ -43,6 +43,7 @@ nav:
       - Contributing: developers/contributing.md
       - Shard Protocol: developers/protocol.md
       - Disk Layout: developers/disk-layout.md
+      - Datapoint Initialization: developers/datapoint-init.md
   - API: api/
   
 plugins:
@@ -66,3 +67,9 @@ markdown_extensions:
   - footnotes
   - toc:
       permalink: true
+  - pymdownx.arithmatex:
+      generic: true
+
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js

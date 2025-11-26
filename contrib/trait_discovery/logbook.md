@@ -1453,3 +1453,31 @@ Some explanations:
 1. FishVista is too simple a dataset.
 2. There are dead latents - we can compare this.
 3. [other direction] ReLU could actually be better if we measure L0 as whatever is greater than 1e-6 as L0, instead of true 0 for L0.
+4. We are not using enough latents?
+5. We are not using enough training tokens?
+
+Some notes: I was miscalculating which ones go on the pareto frontier because eval/mse and normalized MSE are calculating different things. eval/mse is using the entire matryoshka MSE, while normalized MSE uses just the full prefix (no prefixes, technically). This means my `is_pareto` field was wrong, and now it appears that TopK is a bit better.
+
+What did I learn?
+
+- TopK learning rates could shift lower, but we are hitting the minimum correctly
+- ReLU learning rates definitely need to shift lower.
+- The vast majority of latents for each activation function are dead.
+
+With respect to downstream metrics, what did I learn?
+
+- Not enough different values of $k$ to get a parabola for TopK
+- Overall, the best come from ReLU activations
+
+1. Add another two values of $k$
+2. Fix the dead latents!
+
+# 11/26/2025
+
+Dead latents: how are we going to fix them?
+
+1. Better W_dec/enc initialization
+2. [maybe] Better b_enc initialization
+3. [maybe] Gao et al's 'AuxK' loss
+4. [maybe] Anthropic's pre-act loss?
+

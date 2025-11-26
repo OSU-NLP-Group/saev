@@ -8,28 +8,28 @@
       
       
       
-        <link rel="canonical" href="https://osu-nlp-group.github.io/saev/api/api/utils/saev.utils/">
+        <link rel="canonical" href="https://osu-nlp-group.github.io/saev/api/developers/datapoint-init/">
       
       
-        <link rel="prev" href="../../nn/objectives/">
+        <link rel="prev" href="../disk-layout/">
       
       
-        <link rel="next" href="../monitoring/">
+        <link rel="next" href="../../api/saev/">
       
       
-      <link rel="icon" href="../../../assets/images/favicon.png">
+      <link rel="icon" href="../../assets/images/favicon.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.22">
     
     
       
-        <title>saev.utils - saev</title>
+        <title>Datapoint Initialization - saev</title>
       
     
     
-      <link rel="stylesheet" href="../../../assets/stylesheets/main.84d31ad4.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.84d31ad4.min.css">
       
         
-        <link rel="stylesheet" href="../../../assets/stylesheets/palette.06af60db.min.css">
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.06af60db.min.css">
       
       
 
@@ -42,11 +42,11 @@
       
     
     
-      <link rel="stylesheet" href="../../../assets/_mkdocstrings.css">
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
     
-      <link rel="stylesheet" href="../../../stylesheets/extra.css">
+      <link rel="stylesheet" href="../../stylesheets/extra.css">
     
-    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
 
@@ -70,7 +70,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#saev.utils" class="md-skip">
+        <a href="#datapoint-initialization" class="md-skip">
           Skip to content
         </a>
       
@@ -84,7 +84,7 @@
 
 <header class="md-header" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="../../.." title="saev" class="md-header__button md-logo" aria-label="saev" data-md-component="logo">
+    <a href="../.." title="saev" class="md-header__button md-logo" aria-label="saev" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -104,7 +104,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              saev.utils
+              Datapoint Initialization
             
           </span>
         </div>
@@ -179,7 +179,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="../../.." class="md-tabs__link">
+      <a href="../.." class="md-tabs__link">
         
   
   
@@ -200,7 +200,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../../users/guide/" class="md-tabs__link">
+        <a href="../../users/guide/" class="md-tabs__link">
           
   
   
@@ -218,11 +218,13 @@
   
   
   
+    
+  
   
     
     
-      <li class="md-tabs__item">
-        <a href="../../../developers/contributing/" class="md-tabs__link">
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../contributing/" class="md-tabs__link">
           
   
   
@@ -240,13 +242,11 @@
   
   
   
-    
-  
   
     
     
-      <li class="md-tabs__item md-tabs__item--active">
-        <a href="../../saev/" class="md-tabs__link">
+      <li class="md-tabs__item">
+        <a href="../../api/saev/" class="md-tabs__link">
           
   
   
@@ -284,7 +284,7 @@
 
 <nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="../../.." title="saev" class="md-nav__button md-logo" aria-label="saev" data-md-component="logo">
+    <a href="../.." title="saev" class="md-nav__button md-logo" aria-label="saev" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -302,7 +302,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../.." class="md-nav__link">
+      <a href="../.." class="md-nav__link">
         
   
   
@@ -377,7 +377,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../users/guide/" class="md-nav__link">
+      <a href="../../users/guide/" class="md-nav__link">
         
   
   
@@ -400,7 +400,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../users/inference/" class="md-nav__link">
+      <a href="../../users/inference/" class="md-nav__link">
         
   
   
@@ -423,7 +423,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../users/glossary/" class="md-nav__link">
+      <a href="../../users/glossary/" class="md-nav__link">
         
   
   
@@ -446,7 +446,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../users/sweeps/" class="md-nav__link">
+      <a href="../../users/sweeps/" class="md-nav__link">
         
   
   
@@ -473,222 +473,12 @@
       
   
   
-  
-  
-    
-    
-      
-        
-      
-        
-      
-        
-      
-        
-      
-    
-    
-    
-      
-      
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
-        
-          
-          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
-            
-  
-  
-  <span class="md-ellipsis">
-    Developers
-    
-  </span>
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3">
-            <span class="md-nav__icon md-icon"></span>
-            Developers
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../developers/contributing/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    Contributing
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../developers/protocol/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    Shard Protocol
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../developers/disk-layout/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    Disk Layout
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../developers/datapoint-init/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    Datapoint Initialization
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-    
-      
-      
-  
-  
     
   
   
   
     
     
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
       
         
       
@@ -712,15 +502,15 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
         
           
-          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
             
   
   
   <span class="md-ellipsis">
-    API
+    Developers
     
   </span>
   
@@ -728,10 +518,10 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_4">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
             <span class="md-nav__icon md-icon"></span>
-            API
+            Developers
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
@@ -742,12 +532,12 @@
   
   
     <li class="md-nav__item">
-      <a href="../../saev/" class="md-nav__link">
+      <a href="../contributing/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
-    saev
+    Contributing
     
   </span>
   
@@ -765,12 +555,12 @@
   
   
     <li class="md-nav__item">
-      <a href="../../colors/" class="md-nav__link">
+      <a href="../protocol/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
-    saev.colors
+    Shard Protocol
     
   </span>
   
@@ -788,564 +578,12 @@
   
   
     <li class="md-nav__item">
-      <a href="../../configs/" class="md-nav__link">
+      <a href="../disk-layout/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
-    saev.configs
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../data/saev.data/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    saev.data
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../data/buffers/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    saev.data.buffers
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../data/clip/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    saev.data.clip
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../data/datasets/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    saev.data.datasets
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../data/dinov2/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    saev.data.dinov2
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../data/dinov3/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    saev.data.dinov3
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../data/fake_clip/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    saev.data.fake_clip
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../data/indexed/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    saev.data.indexed
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../data/models/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    saev.data.models
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../data/ordered/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    saev.data.ordered
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../data/shards/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    saev.data.shards
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../data/shuffled/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    saev.data.shuffled
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../data/siglip/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    saev.data.siglip
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../data/transforms/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    saev.data.transforms
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../disk/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    saev.disk
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../framework/saev.framework/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    saev.framework
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../framework/inference/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    saev.framework.inference
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../framework/shards/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    saev.framework.shards
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../framework/train/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    saev.framework.train
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../helpers/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    saev.helpers
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../nn/saev.nn/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    saev.nn
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../nn/activations/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    saev.nn.activations
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../nn/modeling/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    saev.nn.modeling
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../nn/objectives/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    saev.nn.objectives
+    Disk Layout
     
   </span>
   
@@ -1369,58 +607,162 @@
       <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
       
       
+        
       
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    saev.utils
-    
-  </span>
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
       
       <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
   <span class="md-ellipsis">
-    saev.utils
+    Datapoint Initialization
     
   </span>
   
 
       </a>
       
-        
+    </li>
+  
 
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+              
+            
+          </ul>
+        </nav>
       
-        <li class="md-nav__item">
-  <a href="#saev.utils" class="md-nav__link">
-    <span class="md-ellipsis">
-      utils
-    </span>
-  </a>
+    </li>
   
-</li>
+
+    
       
-    </ul>
+      
   
-</nav>
+  
+  
+  
+    
+    
       
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    API
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            API
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/saev/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev
+    
+  </span>
+  
+
+      </a>
     </li>
   
 
@@ -1433,7 +775,628 @@
   
   
     <li class="md-nav__item">
-      <a href="../monitoring/" class="md-nav__link">
+      <a href="../../api/colors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.colors
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/configs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.configs
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/data/saev.data/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.data
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/data/buffers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.data.buffers
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/data/clip/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.data.clip
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/data/datasets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.data.datasets
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/data/dinov2/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.data.dinov2
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/data/dinov3/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.data.dinov3
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/data/fake_clip/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.data.fake_clip
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/data/indexed/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.data.indexed
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/data/models/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.data.models
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/data/ordered/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.data.ordered
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/data/shards/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.data.shards
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/data/shuffled/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.data.shuffled
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/data/siglip/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.data.siglip
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/data/transforms/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.data.transforms
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/disk/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.disk
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/framework/saev.framework/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.framework
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/framework/inference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.framework.inference
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/framework/shards/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.framework.shards
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/framework/train/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.framework.train
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/helpers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.helpers
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/nn/saev.nn/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.nn
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/nn/activations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.nn.activations
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/nn/modeling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.nn.modeling
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/nn/objectives/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.nn.objectives
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/utils/saev.utils/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    saev.utils
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/utils/monitoring/" class="md-nav__link">
         
   
   
@@ -1456,7 +1419,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../scheduling/" class="md-nav__link">
+      <a href="../../api/utils/scheduling/" class="md-nav__link">
         
   
   
@@ -1479,7 +1442,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../statistics/" class="md-nav__link">
+      <a href="../../api/utils/statistics/" class="md-nav__link">
         
   
   
@@ -1502,7 +1465,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../wandb/" class="md-nav__link">
+      <a href="../../api/utils/wandb/" class="md-nav__link">
         
   
   
@@ -1525,7 +1488,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../viz/" class="md-nav__link">
+      <a href="../../api/viz/" class="md-nav__link">
         
   
   
@@ -1564,42 +1527,19 @@
 
 
 
-  <h1>saev.utils</h1>
-
-<div class="doc doc-object doc-module">
-
-
-
-<a id="saev.utils"></a>
-    <div class="doc doc-contents first">
-
-
-
-
-
-
-
-
-
-
-  <div class="doc doc-children">
-
-
-
-
-
-
-
-
-
-
-
-
-  </div>
-
-    </div>
-
-</div>
+<h1 id="datapoint-initialization">Datapoint Initialization<a class="headerlink" href="#datapoint-initialization" title="Permanent link">&para;</a></h1>
+<p>Datapoint initialization is an SAE weight initializations strategy independently proposed by <a href="https://transformer-circuits.pub/2025/october-update/index.html#data-point-init">Anthropic</a> and <a href="https://www.lesswrong.com/posts/YJpMgi7HJuHwXTkjk/taking-features-out-of-superposition-with-sparse">Pierre Peigne</a> for improving SAE training.</p>
+<p>Conceptually, we initialize each decoder column to look like a real datapoint, so every latent starts with a patch of input space where it "wins" and gets some gradient.
+Here's the algorithm:</p>
+<ol>
+<li>Select <span class="arithmatex">\(n\)</span> random data points from your training data.</li>
+<li>Compute the mean <span class="arithmatex">\(\mu\)</span> and zero-center the data: <span class="arithmatex">\(x_0 = x - \mu\)</span>.</li>
+<li>Linearly blend each zero-centered datapoint with Kaiming initialization: <span class="arithmatex">\(w = p \cdot (x - \mu) + (1 - p) \cdot r\)</span> where <span class="arithmatex">\(p\)</span> is your blend probability and <span class="arithmatex">\(r\)</span> is a randomly sampled Kaiming initalization vector.</li>
+<li>Initialize <span class="arithmatex">\(W_\text{enc}\)</span> as a concatenation of <span class="arithmatex">\(n\)</span> blended vectors.</li>
+<li>Initialize <span class="arithmatex">\(W_\text{dec}\)</span> as <span class="arithmatex">\(W_\text{enc}^T\)</span>.</li>
+</ol>
+<p>Anthropic suggests <span class="arithmatex">\(p = 0.8\)</span> for SAEs and 0.4 for "weakly causal crosscoders".
+I interpret this that there is no universally appropriate <span class="arithmatex">\(p\)</span>.</p>
 
 
 
@@ -1637,7 +1577,7 @@
       <nav class="md-footer__inner md-grid" aria-label="Footer" >
         
           
-          <a href="../../nn/objectives/" class="md-footer__link md-footer__link--prev" aria-label="Previous: saev.nn.objectives">
+          <a href="../disk-layout/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Disk Layout">
             <div class="md-footer__button md-icon">
               
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
@@ -1647,20 +1587,20 @@
                 Previous
               </span>
               <div class="md-ellipsis">
-                saev.nn.objectives
+                Disk Layout
               </div>
             </div>
           </a>
         
         
           
-          <a href="../monitoring/" class="md-footer__link md-footer__link--next" aria-label="Next: saev.utils.monitoring">
+          <a href="../../api/saev/" class="md-footer__link md-footer__link--next" aria-label="Next: saev">
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 Next
               </span>
               <div class="md-ellipsis">
-                saev.utils.monitoring
+                saev
               </div>
             </div>
             <div class="md-footer__button md-icon">
@@ -1712,12 +1652,12 @@
     
     
       
-      <script id="__config" type="application/json">{"base": "../../..", "features": ["navigation.tabs", "navigation.path", "navigation.indexes", "navigation.expand", "toc.follow", "toc.integrate", "navigation.top", "search.suggest", "search.highlight", "content.tabs.link", "content.code.annotation", "content.code.copy", "navigation.footer", "content.action.edit"], "search": "../../../assets/javascripts/workers/search.973d3a69.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"base": "../..", "features": ["navigation.tabs", "navigation.path", "navigation.indexes", "navigation.expand", "toc.follow", "toc.integrate", "navigation.top", "search.suggest", "search.highlight", "content.tabs.link", "content.code.annotation", "content.code.copy", "navigation.footer", "content.action.edit"], "search": "../../assets/javascripts/workers/search.973d3a69.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../../assets/javascripts/bundle.f55a23d4.min.js"></script>
+      <script src="../../assets/javascripts/bundle.f55a23d4.min.js"></script>
       
-        <script src="../../../javascripts/mathjax.js"></script>
+        <script src="../../javascripts/mathjax.js"></script>
       
         <script src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
       

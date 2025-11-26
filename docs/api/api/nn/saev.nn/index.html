@@ -484,6 +484,8 @@
       
         
       
+        
+      
     
     
     
@@ -579,6 +581,29 @@
   
   <span class="md-ellipsis">
     Disk Layout
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../developers/datapoint-init/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Datapoint Initialization
     
   </span>
   
@@ -1389,15 +1414,6 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#saev.nn.SparseAutoencoderConfig.n_reinit_samples" class="md-nav__link">
-    <span class="md-ellipsis">
-      n_reinit_samples
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
   <a href="#saev.nn.SparseAutoencoderConfig.normalize_w_dec" class="md-nav__link">
     <span class="md-ellipsis">
       normalize_w_dec
@@ -1750,7 +1766,9 @@
 
                   <details class="mkdocstrings-source">
                     <summary>Source code in <code>src/saev/nn/modeling.py</code></summary>
-                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">57</span>
+                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">55</span>
+<span class="normal">56</span>
+<span class="normal">57</span>
 <span class="normal">58</span>
 <span class="normal">59</span>
 <span class="normal">60</span>
@@ -1765,9 +1783,7 @@
 <span class="normal">69</span>
 <span class="normal">70</span>
 <span class="normal">71</span>
-<span class="normal">72</span>
-<span class="normal">73</span>
-<span class="normal">74</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">SparseAutoencoderConfig</span><span class="p">):</span>
+<span class="normal">72</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">SparseAutoencoderConfig</span><span class="p">):</span>
     <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
 
     <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span> <span class="o">=</span> <span class="n">cfg</span>
@@ -1887,7 +1903,9 @@
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/saev/nn/modeling.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 98</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 96</span>
+<span class="normal"> 97</span>
+<span class="normal"> 98</span>
 <span class="normal"> 99</span>
 <span class="normal">100</span>
 <span class="normal">101</span>
@@ -1942,9 +1960,7 @@
 <span class="normal">150</span>
 <span class="normal">151</span>
 <span class="normal">152</span>
-<span class="normal">153</span>
-<span class="normal">154</span>
-<span class="normal">155</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">decode</span><span class="p">(</span>
+<span class="normal">153</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">decode</span><span class="p">(</span>
     <span class="bp">self</span><span class="p">,</span>
     <span class="n">f_x</span><span class="p">:</span> <span class="n">Float</span><span class="p">[</span><span class="n">Tensor</span><span class="p">,</span> <span class="s2">&quot;batch d_sae&quot;</span><span class="p">],</span>
     <span class="o">*</span><span class="p">,</span>
@@ -2055,7 +2071,9 @@
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/saev/nn/modeling.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">76</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">74</span>
+<span class="normal">75</span>
+<span class="normal">76</span>
 <span class="normal">77</span>
 <span class="normal">78</span>
 <span class="normal">79</span>
@@ -2065,9 +2083,7 @@
 <span class="normal">83</span>
 <span class="normal">84</span>
 <span class="normal">85</span>
-<span class="normal">86</span>
-<span class="normal">87</span>
-<span class="normal">88</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span>
+<span class="normal">86</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span>
     <span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span> <span class="n">Float</span><span class="p">[</span><span class="n">Tensor</span><span class="p">,</span> <span class="s2">&quot;batch d_model&quot;</span><span class="p">]</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Float</span><span class="p">[</span><span class="n">Tensor</span><span class="p">,</span> <span class="s2">&quot;batch d_model&quot;</span><span class="p">],</span> <span class="n">Float</span><span class="p">[</span><span class="n">Tensor</span><span class="p">,</span> <span class="s2">&quot;batch d_sae&quot;</span><span class="p">]]:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
@@ -2102,13 +2118,13 @@
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/saev/nn/modeling.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">157</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">155</span>
+<span class="normal">156</span>
+<span class="normal">157</span>
 <span class="normal">158</span>
 <span class="normal">159</span>
 <span class="normal">160</span>
-<span class="normal">161</span>
-<span class="normal">162</span>
-<span class="normal">163</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">()</span>
+<span class="normal">161</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">()</span>
 <span class="k">def</span><span class="w"> </span><span class="nf">normalize_w_dec</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Set W_dec to unit-norm columns.</span>
@@ -2137,7 +2153,9 @@
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/saev/nn/modeling.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">165</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">163</span>
+<span class="normal">164</span>
+<span class="normal">165</span>
 <span class="normal">166</span>
 <span class="normal">167</span>
 <span class="normal">168</span>
@@ -2161,9 +2179,7 @@
 <span class="normal">186</span>
 <span class="normal">187</span>
 <span class="normal">188</span>
-<span class="normal">189</span>
-<span class="normal">190</span>
-<span class="normal">191</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">()</span>
+<span class="normal">189</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">()</span>
 <span class="k">def</span><span class="w"> </span><span class="nf">remove_parallel_grads</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Update grads so that they remove the parallel component</span>
@@ -2209,7 +2225,7 @@
 
 
 <h2 id="saev.nn.SparseAutoencoderConfig" class="doc doc-heading">
-              <code class="highlight language-python"><span class="n">SparseAutoencoderConfig</span><span class="p">(</span><span class="n">d_model</span><span class="o">=</span><span class="mi">1024</span><span class="p">,</span> <span class="n">d_sae</span><span class="o">=</span><span class="mi">1024</span> <span class="o">*</span> <span class="mi">16</span><span class="p">,</span> <span class="n">activation</span><span class="o">=</span><span class="n">activations</span><span class="o">.</span><span class="n">Relu</span><span class="p">(),</span> <span class="n">n_reinit_samples</span><span class="o">=</span><span class="mi">1024</span> <span class="o">*</span> <span class="mi">16</span> <span class="o">*</span> <span class="mi">32</span><span class="p">,</span> <span class="n">reinit_blend</span><span class="o">=</span><span class="mf">0.8</span><span class="p">,</span> <span class="n">reinit_enc_dec_tranpose</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">remove_parallel_grads</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">normalize_w_dec</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></code>
+              <code class="highlight language-python"><span class="n">SparseAutoencoderConfig</span><span class="p">(</span><span class="n">d_model</span><span class="o">=</span><span class="mi">1024</span><span class="p">,</span> <span class="n">d_sae</span><span class="o">=</span><span class="mi">1024</span> <span class="o">*</span> <span class="mi">16</span><span class="p">,</span> <span class="n">activation</span><span class="o">=</span><span class="n">activations</span><span class="o">.</span><span class="n">Relu</span><span class="p">(),</span> <span class="n">reinit_blend</span><span class="o">=</span><span class="mf">0.8</span><span class="p">,</span> <span class="n">reinit_enc_dec_tranpose</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">remove_parallel_grads</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">normalize_w_dec</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
@@ -2304,29 +2320,6 @@
     <div class="doc doc-contents ">
 
         <p>Number of features in SAE latent space; size of f(x).</p>
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h3 id="saev.nn.SparseAutoencoderConfig.n_reinit_samples" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">n_reinit_samples</span> <span class="o">=</span> <span class="mi">1024</span> <span class="o">*</span> <span class="mi">16</span> <span class="o">*</span> <span class="mi">32</span></code>
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
-      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
-  </span>
-
-<a href="#saev.nn.SparseAutoencoderConfig.n_reinit_samples" class="headerlink" title="Permanent link">&para;</a></h3>
-
-
-    <div class="doc doc-contents ">
-
-        <p>Number of samples to use for SAE re-init. Anthropic and Pierre Peigne propose data-point initialization; see <a href="http://samuelstevens.me/writing/training-saes#initialization">Sam Stevens' writing on this topic</a> for links to the original works.</p>
 
     </div>
 
@@ -2644,7 +2637,13 @@
 <span class="normal">385</span>
 <span class="normal">386</span>
 <span class="normal">387</span>
-<span class="normal">388</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@beartype</span><span class="o">.</span><span class="n">beartype</span>
+<span class="normal">388</span>
+<span class="normal">389</span>
+<span class="normal">390</span>
+<span class="normal">391</span>
+<span class="normal">392</span>
+<span class="normal">393</span>
+<span class="normal">394</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@beartype</span><span class="o">.</span><span class="n">beartype</span>
 <span class="k">def</span><span class="w"> </span><span class="nf">load</span><span class="p">(</span><span class="n">fpath</span><span class="p">:</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span> <span class="o">|</span> <span class="nb">str</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s2">&quot;cpu&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SparseAutoencoder</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Loads a sparse autoencoder from disk.</span>
@@ -2656,7 +2655,13 @@
     <span class="k">if</span> <span class="s2">&quot;schema&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">header</span><span class="p">:</span>
         <span class="c1"># Original, pre-schema format: just raw config parameters</span>
         <span class="c1"># Remove old parameters that no longer exist</span>
-        <span class="k">for</span> <span class="n">keyword</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">&quot;sparsity_coeff&quot;</span><span class="p">,</span> <span class="s2">&quot;ghost_grads&quot;</span><span class="p">,</span> <span class="s2">&quot;l1_coeff&quot;</span><span class="p">,</span> <span class="s2">&quot;use_ghost_grads&quot;</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">keyword</span> <span class="ow">in</span> <span class="p">(</span>
+            <span class="s2">&quot;sparsity_coeff&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;ghost_grads&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;l1_coeff&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;use_ghost_grads&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;seed&quot;</span><span class="p">,</span>
+        <span class="p">):</span>
             <span class="n">header</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">keyword</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
         <span class="c1"># Legacy format - create SparseAutoencoderConfig with Relu activation</span>
         <span class="n">header</span><span class="p">[</span><span class="s2">&quot;d_model&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">header</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;d_vit&quot;</span><span class="p">)</span>
@@ -2848,6 +2853,10 @@
     
     
       <script src="../../../assets/javascripts/bundle.f55a23d4.min.js"></script>
+      
+        <script src="../../../javascripts/mathjax.js"></script>
+      
+        <script src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
       
     
   </body>

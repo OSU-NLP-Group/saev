@@ -486,6 +486,8 @@
       
         
       
+        
+      
     
     
     
@@ -726,6 +728,29 @@
   
   <span class="md-ellipsis">
     Disk Layout
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../datapoint-init/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Datapoint Initialization
     
   </span>
   
@@ -1818,15 +1843,15 @@ A reader must raise an error if <code>layer</code> is not in <code>layers</code>
 </ul>
 </li>
 </ol>
-<p>A reader can then seek to <code>offset_in_bytes</code> and read $D \times 4$ bytes to retrieve the vector.</p>
+<p>A reader can then seek to <code>offset_in_bytes</code> and read <span class="arithmatex">\(D \times 4\)</span> bytes to retrieve the vector.</p>
 <p><em>Alternatively, rather than calculate the offset, readers can memmap the shard, then use Numpy indexing to get the activation vector.</em></p>
 <h3 id="43-token-axis-layout">4.3 Token Axis Layout<a class="headerlink" href="#43-token-axis-layout" title="Permanent link">&para;</a></h3>
-<p>The <code>token</code> axis of length $T$ is ordered as follows:
+<p>The <code>token</code> axis of length <span class="arithmatex">\(T\)</span> is ordered as follows:
 * If <code>cls_token</code> is <code>true</code>:
     * Index <code>0</code>: [CLS] token activation
-    * Indices <code>1</code> to $P$: Patch token activations
+    * Indices <code>1</code> to <span class="arithmatex">\(P\)</span>: Patch token activations
 * If <code>cls_token</code> is <code>false</code>:
-    * Indices <code>0</code> to $P-1$: Patch token activations</p>
+    * Indices <code>0</code> to <span class="arithmatex">\(P-1\)</span>: Patch token activations</p>
 <p>The relative order of patch tokens is preserved exactly as produced by the upstream Vision Transformer.</p>
 <hr />
 <h2 id="5-versioning-compatibility">5 Versioning &amp; compatibility<a class="headerlink" href="#5-versioning-compatibility" title="Permanent link">&para;</a></h2>
@@ -1953,6 +1978,10 @@ Anything else you find in code that contradicts this document, fix the code or u
     
     
       <script src="../../assets/javascripts/bundle.f55a23d4.min.js"></script>
+      
+        <script src="../../javascripts/mathjax.js"></script>
+      
+        <script src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
       
     
   </body>
