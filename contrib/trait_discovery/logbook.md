@@ -1481,3 +1481,60 @@ Dead latents: how are we going to fix them?
 3. [maybe] Gao et al's 'AuxK' loss
 4. [maybe] Anthropic's pre-act loss?
 
+I started training jobs for both ReLU (2939102_) and TopK (2939196_) on FishVista and ImageNet.
+The plan is to fill this table in.
+
+For all checkpoints trained on layer 24/24:
+
+| Activation | Initialization | Dataset | Dead Unit % |
+|---|---|---|---|
+| ReLU | Kaiming | ImageNet-1K | 38.89 |
+| ReLU | Kaiming | FishVista | 46.96 |
+| ReLU | Datapoint | ImageNet-1K | 31.44 |
+| ReLU | Datapoint | FishVista | 54.28 |
+| TopK | Kaiming | ImageNet-1K | 53.08 |
+| TopK | Kaiming | FishVista | 79.09 |
+| TopK | Datapoint | ImageNet-1K | 47.22 |
+| TopK | Datapoint | FishVista | 77.64 |
+
+For all checkpoints across layers 14, 16, 18, 20, 22 and 24:
+
+| Activation | Initialization | Dataset | Dead Unit % |
+|---|---|---|---|
+| ReLU | Kaiming | ImageNet-1K | 17.98 |
+| ReLU | Kaiming | FishVista | 36.80 |
+| ReLU | Datapoint | ImageNet-1K | 17.88 |
+| ReLU | Datapoint | FishVista | 51.33 |
+| TopK | Kaiming | ImageNet-1K | 29.12 |
+| TopK | Kaiming | FishVista | 55.20 |
+| TopK | Datapoint | ImageNet-1K | 13.35 |
+| TopK | Datapoint | FishVista | 51.46 |
+
+And for pareto checkpoints on layer 24/24:
+
+| Activation | Initialization | Dataset | Dead Unit % |
+|---|---|---|---|
+| ReLU | Kaiming | ImageNet-1K | 57.81 |
+| ReLU | Kaiming | FishVista | 55.65 |
+| ReLU | Datapoint | ImageNet-1K | 49.11 |
+| ReLU | Datapoint | FishVista | 60.55 |
+| TopK | Kaiming | ImageNet-1K | |
+| TopK | Kaiming | FishVista | |
+| TopK | Datapoint | ImageNet-1K | |
+| TopK | Datapoint | FishVista | |
+
+# 11/06/2025
+
+The evidence is pretty conclusive that TopK > ReLU, and that datapoint initialization is equal or better, and is very cheap.
+We ran the same set of quantitative experiments as in the preprint, and TopK has better probe accuracy, purity, etc on both ADE20K (pretrained on ImageNet) and FishVista.
+
+| Run ID   | Dataset    | Act  | Init      | NMSE | Train R | Val R | Val mAP | Val F1 | Cov@0.3 |
+| -------- | ---------- | ---- | --------- | ---- | ------- | ----- | ------- | ------ | ------- |
+| egqf52o2 | FishVista  | TopK | Datapoint | 0.13 | 0.45    | 0.45  | 0.62    | 0.58   | 0.90    |
+| 3ww2qwv9 | FishVista  | TopK | Kaiming   | 0.20 | 0.44    | 0.45  | 0.59    | 0.57   | 0.80    |
+| 2mmqgv8c | FishVista  | ReLU | Kaiming   | 0.15 | 0.46    | 0.45  | 0.59    | 0.56   | 0.90    |
+| 2kek5j0o | FishVista  | ReLU | Datapoint | 0.04 | 0.42    | 0.42  | 0.56    | 0.51   | 0.80    |
+| r1ayls0t | IN1K/train | TopK | Datapoint | 0.30 | 0.49    | 0.48  | 0.38    | 0.34   | 0.54    |
+| iq5sef52 | IN1K/train | TopK | Kaiming   | 0.25 | 0.48    | 0.48  | 0.39    | 0.34   | 0.56    |
+| i4zbglfh | IN1K/train | ReLU | Datapoint | 0.25 | 0.44    | 0.43  | 0.37    | 0.32   | 0.55    |
+| kfuntjnw | IN1K/train | ReLU | Kaiming   | 0.20 | 0.43    | 0.43  | 0.37    | 0.32   | 0.56    |

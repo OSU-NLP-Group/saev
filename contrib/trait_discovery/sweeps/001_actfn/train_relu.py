@@ -7,12 +7,12 @@ def make_cfgs() -> list[dict]:
     dinov3_vitl_fishvista_segfolder_train = (
         "/fs/scratch/PAS2136/samuelstevens/saev/shards/5dcb2f75"
     )
-    dinov3_vitl_ade20k_train = "/fs/scratch/PAS2136/samuelstevens/saev/shards/51567c6c"
-    dinov3_vitl_ade20k_val = "/fs/scratch/PAS2136/samuelstevens/saev/shards/3e27794f"
+    dinov3_vitl_in1k_train = "/fs/scratch/PAS2136/samuelstevens/saev/shards/51567c6c"
+    dinov3_vitl_in1k_val = "/fs/scratch/PAS2136/samuelstevens/saev/shards/3e27794f"
 
     shard_pairs = [
         (dinov3_vitl_fishvista_imgfolder, dinov3_vitl_fishvista_segfolder_train),
-        (dinov3_vitl_ade20k_train, dinov3_vitl_ade20k_val),
+        (dinov3_vitl_in1k_train, dinov3_vitl_in1k_val),
     ]
 
     cfgs = []
@@ -37,12 +37,9 @@ def make_cfgs() -> list[dict]:
                             },
                             "train_data": {
                                 "layer": layer,
-                                "shards": dinov3_vitl_fishvista_imgfolder,
+                                "shards": train,
                                 "min_buffer_fill": 0.2,
                             },
-                            "val_data": {
-                                "layer": layer,
-                                "shards": dinov3_vitl_fishvista_segfolder_train,
-                            },
+                            "val_data": {"layer": layer, "shards": val},
                         })
     return cfgs
