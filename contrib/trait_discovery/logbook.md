@@ -1523,7 +1523,7 @@ And for pareto checkpoints on layer 24/24:
 | TopK | Datapoint | ImageNet-1K | |
 | TopK | Datapoint | FishVista | |
 
-# 11/06/2025
+# 12/06/2025
 
 The evidence is pretty conclusive that TopK > ReLU, and that datapoint initialization is equal or better, and is very cheap.
 We ran the same set of quantitative experiments as in the preprint, and TopK has better probe accuracy, purity, etc on both ADE20K (pretrained on ImageNet) and FishVista.
@@ -1538,3 +1538,12 @@ We ran the same set of quantitative experiments as in the preprint, and TopK has
 | iq5sef52 | IN1K/train | TopK | Kaiming   | 0.25 | 0.48    | 0.48  | 0.39    | 0.34   | 0.56    |
 | i4zbglfh | IN1K/train | ReLU | Datapoint | 0.25 | 0.44    | 0.43  | 0.37    | 0.32   | 0.55    |
 | kfuntjnw | IN1K/train | ReLU | Kaiming   | 0.20 | 0.43    | 0.43  | 0.37    | 0.32   | 0.56    |
+
+Let's try Muon as an optimizer.
+
+| Run ID   | Dataset    | Optim | NMSE | Train R | Val R | Val mAP | Val F1 | Cov@0.3 |
+| -------- | ---------- | ----- | ---- | ------- | ----- | ------- | ------ | ------- |
+|          | FishVista  | Adam  |      |         |       |         |        |         |
+|          | FishVista  | Muon  |      |         |       |         |        |         |
+|          | IN1K/train | Adam  |      |         |       |         |        |         |
+|          | IN1K/train | Muon  |      |         |       |         |        |         |
