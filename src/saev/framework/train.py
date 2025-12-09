@@ -321,7 +321,7 @@ def train(
         # Forward passes and loss calculations.
         losses = []
         for sae, objective in zip(saes, objectives):
-            # Objective now handles the forward pass internally
+            # Objective handles the SAE forward pass internally
             loss = objective(sae, acts_BD)
             losses.append(loss)
 
@@ -368,10 +368,7 @@ def train(
                 batch_baseline_sse = (
                     batch_sum_sq - torch.dot(batch_sum_vec, batch_sum_vec) / n_batch
                 )
-                msg = (
-                    f"Batch baseline variance non-positive: "
-                    f"sse_baseline={batch_baseline_sse.item():.6e}"
-                )
+                msg = f"Batch baseline variance non-positive: sse_baseline={batch_baseline_sse.item():.6e}"
                 assert batch_baseline_sse > 0, msg
                 batch_baseline_sse_value = batch_baseline_sse.item()
 
