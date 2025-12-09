@@ -5,15 +5,13 @@ Trains many SAEs in parallel to amortize the cost of loading a single batch of d
 Checklist for making sure your training doesn't suck:
 
 * [ ] Data scaling: scale vectors so their average L2 norm is sqrt(n).
-* [ ] Initialize W_e to (d_model / d_sae) * W_d.T
 * [ ] Initialize b_e such that each feature activates 10K * d_model / (n * d_sae) of the time, which means that on average, each example activates 10K features.
-* [ ] Initialize W_d to ~uniform(-1/sqrt(n), 1/sqrt(n))
 * [x] Initialize b_d to 0.
 * [x] Sweep learning rate and sparsity coefficients.
 * [ ] Decay learning rate to 0 over the last 20% of training.
 * [ ] Warmup sparsity over all of training.
 * [x] Gradient clipping (clip at 1 with clip_grad_norm)
-* [ ] Track dead latents through training
+* [x] Track dead latents through training
 """
 
 import dataclasses
@@ -69,6 +67,8 @@ class Config:
     """SAE objective configuration."""
     n_sparsity_warmup: int = 0
     """Number of sparsity coefficient warmup steps."""
+    optim: tp.Literal["adam", "muon"] = "adam"
+    """Optimizer for training."""
     lr: float = 0.0004
     """Learning rate."""
     n_lr_warmup: int = 500
@@ -267,12 +267,29 @@ def train(
     if slurm_job_id:
         run.set_summary("slurm_job_id", slurm_job_id)
 
-    optimizer = torch.optim.Adam(param_groups, fused=True)
+    if cfg.optim == "adam":
+        optimizers = [torch.optim.Adam(param_groups, fused=True)]
+    elif cfg.optim == "muon":
+        all_params = [p for sae in saes for p in sae.parameters()]
+        muon_params = [p for p in all_params if p.ndim == 2]
+        assert muon_params
+        adam_params = [p for p in all_params if p.ndim != 2]
+        assert adam_params
+
+        optimizers = [
+            torch.optim.Muon(muon_params, lr=0.0),
+            torch.optim.Adam(adam_params, lr=0.0, fused=True),
+        ]
+    else:
+        tp.assert_never(cfg.optim)
+
+    # One scheduler per param_group across all optimizers
+    all_param_groups = [pg for opt in optimizers for pg in opt.param_groups]
     lr_schedulers = [
         saev.utils.scheduling.WarmupCosine(
-            0.0, c.n_lr_warmup, c.lr, len(dataloader), 0.0
+            0.0, cfg.n_lr_warmup, cfg.lr, len(dataloader), 0.0
         )
-        for c in cfgs
+        for _ in all_param_groups
     ]
 
     saes.train()

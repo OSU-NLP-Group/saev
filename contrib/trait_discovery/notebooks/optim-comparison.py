@@ -51,7 +51,7 @@ def _():
 def _(pathlib):
     WANDB_USERNAME = "samuelstevens"
     WANDB_PROJECT = "saev"
-    WANDB_TAG = "arch-comparison-v0.2"
+    WANDB_TAG = "optim-comparison-v0.1"
 
     runs_root = pathlib.Path("/fs/ess/PAS2136/samuelstevens/saev/runs")
     shards_root = pathlib.Path("/fs/scratch/PAS2136/samuelstevens/saev/shards")
@@ -273,6 +273,7 @@ def _(
             "data_key",
             "config/sae/activation_kind",
             "config/sae/reinit_blend",
+            "config/optim",
         )
 
         # Compute Pareto explicitly
@@ -339,64 +340,7 @@ def _(
 
 @app.cell
 def _(df, pl):
-    df.filter(
-        pl.col("is_pareto"), pl.col("downstream/frac_w_neg").is_not_null()
-    ).select("id", "^downstream/.*$")
-    return
-
-
-@app.cell
-def _(df, np, pl, plt):
-    def _():
-        fig, ax = plt.subplots(figsize=(4.5, 3), dpi=300, layout="constrained")
-        ks, ys, ids = (
-            df.filter(pl.col("config/sae/activation_kind") == "topk")
-            .group_by(pl.col("config/sae/activation").struct.field("top_k"))
-            .agg(pl.col("summary/eval/l0"), pl.col("id"))
-            .sort(by="top_k")
-        )
-        ks = ks.to_numpy()
-        ys = ys.to_numpy()
-
-        # ids = np.array(ids.to_list())
-        # ax.boxplot(ys)
-
-        ax.violinplot(ys)
-
-        for i, y in enumerate(ys):
-            ax.axhline(ks[i], color="tab:red", alpha=0.9, linewidth=0.1)
-            print(
-                f"k={ks[i]}:\trun {ids[i, y.argmin().item()]} -> {y.min().item():.4f}"
-            )
-
-        ax.set_xticks(np.arange(len(ks)) + 1, [f"$k$={k}" for k in ks])
-        ax.set_yscale("log")
-        ax.set_ylabel("Observed L$_0$")
-        ax.spines[["top", "right"]].set_visible(False)
-
-        return fig
-
-    _()
-    return
-
-
-@app.cell
-def _(df, pl):
-    df.filter(
-        True
-        & pl.col("is_pareto")
-        & (pl.col("config/sae/activation_kind") == "topk")
-        & (pl.col("config/sae/activation").struct.field("top_k") == 8)
-        & (pl.col("config/val_data/layer") == 23)
-        & (pl.col("data_key") == "FishVista (Img)")
-        & (pl.col("config/sae/reinit_blend") == 0.0)
-    )
-    #     .select(
-    #     "id",
-    #     pl.col("config/sae/activation").struct.field("top_k"),
-    #     "summary/eval/l0",
-    #     "summary/eval/normalized_mse",
-    # ).sort("summary/eval/l0")
+    df.select(pl.col("config/lr").log10()).unique()
     return
 
 
@@ -414,11 +358,10 @@ def _(collections, df, itertools, mo, pl, plt, saev):
         layers = [13, 15, 17, 19, 21, 23]
         data_keys = ["FishVista (Img)", "IN1K/train"]
 
-        activation_fns = [
-            ("relu", "ReLU", "-"),
-            ("topk", "TopK", "--"),
+        optims = [
+            ("adam", "Adam", "-", "o"),
+            ("muon", "Muon", "--", "^"),
         ]
-        blends = [(0.0, "o"), (0.8, "^")]
 
         colors = [
             saev.colors.BLUE_RGB01,
@@ -444,12 +387,11 @@ def _(collections, df, itertools, mo, pl, plt, saev):
             zip(itertools.product(data_keys, layers), axes)
         ):
             texts = []
-            for ((kind, label, linestyle), (blend, marker)), color in zip(
-                itertools.product(activation_fns, blends), colors
-            ):
+            for (optim, label, linestyle, marker), color in zip(optims, colors):
                 group = df.filter(
-                    (pl.col("config/sae/activation_kind") == kind)
-                    & (pl.col("config/sae/reinit_blend") == blend)
+                    (pl.col("config/sae/activation_kind") == "topk")
+                    & (pl.col("config/sae/reinit_blend") == 0.8)
+                    & (pl.col("config/optim") == optim)
                     & (pl.col("config/val_data/layer") == layer)
                     & (pl.col("data_key") == data_key)
                 )
@@ -470,18 +412,15 @@ def _(collections, df, itertools, mo, pl, plt, saev):
                     xs,
                     ys,
                     alpha=0.5,
-                    label=f"{label}/p={blend:.1f}",
+                    label=f"{label}",
                     color=color,
                     marker=marker,
                     linestyle=linestyle,
                 )
 
-                if layer == 23:
-                    print(layer, data_key, blend, kind, len(ids))
-                    pareto_ckpts[(layer, data_key, blend, kind)].extend(ids)
-
-                if kind == "topk":
-                    print(xs, ys)
+                # if layer == 23:
+                #     print(layer, data_key, blend, kind, len(ids))
+                #     pareto_ckpts[(layer, data_key, blend, kind)].extend(ids)
 
                 # edge_mask = pl.col("is_lr_min") | pl.col("is_lr_max")
                 # edge_df = pareto.filter(edge_mask)
@@ -542,7 +481,7 @@ def _(collections, df, itertools, mo, pl, plt, saev):
 
             ax.set_title(f"Layer {layer + 1}/24 ({data_key})")
 
-        fig.savefig("contrib/trait_discovery/docs/assets/relu-topk-pareto.pdf")
+        fig.savefig("contrib/trait_discovery/docs/assets/adam-muon-pareto-mse.pdf")
         # return fig
 
         return mo.vstack([fig, dict(pareto_ckpts)])
@@ -552,29 +491,102 @@ def _(collections, df, itertools, mo, pl, plt, saev):
 
 
 @app.cell
-def _(df, pl):
-    df.filter(pl.col("is_pareto")).sort(
-        "model_key",
-        "data_key",
-        "config/sae/activation_kind",
-        "config/val_data/layer",
-        "summary/eval/l0",
-    ).select(
-        "id",
-        "model_key",
-        "config/val_data/layer",
-        "data_key",
-        "config/sae/activation_kind",
-        "summary/eval/l0",
-        "summary/eval/normalized_mse",
-    ).filter(
-        (pl.col("config/val_data/layer") == 13) & (pl.col("data_key") != "IN1K/train")
-    )
+def _(collections, df, itertools, mo, pl, plt, saev):
+    def _(df: pl.DataFrame):
+        # mse_col = "ade20k_val_nmse"
+        x_col = "summary/eval/l0"
+        y_col = "summary/eval/n_dead"
+
+        layer_col = "config/val_data/layer"
+
+        point_alpha = 0.5
+
+        layers = [13, 15, 17, 19, 21, 23]
+        data_keys = ["FishVista (Img)", "IN1K/train"]
+
+        optims = [
+            ("adam", "Adam", "-", "o"),
+            ("muon", "Muon", "--", "^"),
+        ]
+
+        colors = [
+            saev.colors.BLUE_RGB01,
+            saev.colors.SEA_RGB01,
+            saev.colors.ORANGE_RGB01,
+            saev.colors.SCARLET_RGB01,
+        ]
+
+        fig, axes = plt.subplots(
+            figsize=(8, 10),
+            nrows=4,
+            ncols=3,
+            dpi=300,
+            sharex=True,
+            sharey=True,
+            layout="constrained",
+        )
+        axes = axes.reshape(-1)
+
+        pareto_ckpts = collections.defaultdict(list)
+
+        for i, ((data_key, layer), ax) in enumerate(
+            zip(itertools.product(data_keys, layers), axes)
+        ):
+            for (optim, label, linestyle, marker), color in zip(optims, colors):
+                group = df.filter(
+                    (pl.col("config/sae/activation_kind") == "topk")
+                    & (pl.col("config/sae/reinit_blend") == 0.8)
+                    & (pl.col("config/optim") == optim)
+                    & (pl.col("config/val_data/layer") == layer)
+                    & (pl.col("data_key") == data_key)
+                )
+                group = group.sort(by=x_col)
+
+                pareto = group.filter(pl.col("is_pareto"))
+                if pareto.height == 0:
+                    continue
+
+                ids = pareto.get_column("id").to_list()
+                xs = pareto.get_column(x_col).to_numpy()
+                ys = pareto.get_column(y_col).to_numpy() / (1024 * 16) * 100
+
+                line, *_ = ax.plot(
+                    xs,
+                    ys,
+                    alpha=0.5,
+                    label=f"{label}",
+                    color=color,
+                    marker=marker,
+                    linestyle=linestyle,
+                )
+
+            if i in (9, 10, 11):
+                ax.set_xlabel("L$_0$ ($\\downarrow$)")
+
+            if i in (0, 3, 6, 9):
+                ax.set_ylabel("% Dead Neurons ($\\downarrow$)")
+
+            if i in (0,):
+                ax.legend()
+
+            ax.grid(True, linewidth=0.3, alpha=0.7)
+            ax.spines[["right", "top"]].set_visible(False)
+            ax.set_xscale("log")
+            # ax.set_yscale("log")
+
+            ax.set_title(f"Layer {layer + 1}/24 ({data_key})")
+
+        fig.savefig("contrib/trait_discovery/docs/assets/adam-muon-pareto-dead.pdf")
+        # return fig
+
+        return mo.vstack([fig, dict(pareto_ckpts)])
+
+    _(df)
     return
 
 
 @app.cell
-def _(collections, df, mo, pl, plt, saev):
+def _(collections, df, itertools, mo, pl, plt, saev):
     def _(df: pl.DataFrame):
         # mse_col = "ade20k_val_nmse"
         x_col = "config/lr"
@@ -586,10 +598,17 @@ def _(collections, df, mo, pl, plt, saev):
 
         layers = [13, 15, 17, 19, 21, 23]
         ks = [
-            # (8, saev.colors.BLUE_RGB01, "o", "-"),
-            (32, saev.colors.SEA_RGB01, "^", "--"),
-            (128, saev.colors.CREAM_RGB01, "s", "-."),
-            (512, saev.colors.ORANGE_RGB01, "x", ":"),
+            (8, saev.colors.BLUE_RGB01),
+            (16, saev.colors.CYAN_RGB01),
+            (32, saev.colors.SEA_RGB01),
+            (64, saev.colors.CREAM_RGB01),
+            (128, saev.colors.GOLD_RGB01),
+            (256, saev.colors.ORANGE_RGB01),
+        ]
+
+        optims = [
+            ("adam", "Adam", "-", "o"),
+            ("muon", "Muon", "--", "^"),
         ]
 
         fig, axes = plt.subplots(
@@ -607,10 +626,15 @@ def _(collections, df, mo, pl, plt, saev):
         texts = []
 
         for i, (layer, ax) in enumerate(zip(layers, axes)):
-            for k, color, marker, linestyle in ks:
+            for (optim, label, linestyle, marker), (k, color) in itertools.product(
+                optims, ks
+            ):
                 group = df.filter(
                     (pl.col("config/sae/activation_kind") == "topk")
                     & (pl.col("config/val_data/layer") == layer)
+                    & (pl.col("config/optim") == optim)
+                    # & (pl.col("data_key") == 'IN1K/train')
+                    & (pl.col("data_key") == "FishVista (Img)")
                     & (pl.col("config/sae/activation").struct.field("top_k") == k)
                 ).sort(by=x_col)
 
@@ -622,347 +646,44 @@ def _(collections, df, mo, pl, plt, saev):
                     xs,
                     ys,
                     alpha=0.8,
-                    label=f"$k$={k}",
+                    label=f"{label} ($k$={k})",
                     color=color,
                     marker=marker,
                     linestyle=linestyle,
                 )
 
-                # for x, y, rid in zip(xs, ys, ids):
-                #     ax.text(x, y, rid, fontsize=12, color="black", ha="left", va="bottom")
+                if group.height > 0:
+                    fig.suptitle(group.item(column="data_key", row=0))
 
             if i in (3, 4, 5):
                 ax.set_xlabel("Learning Rate")
 
             if i in (0, 3):
                 ax.set_ylabel("Normalized MSE ($\\downarrow$)")
-
-            if i in (5,):
-                ax.legend()
-
-            ax.grid(True, linewidth=0.3, alpha=0.7)
-            ax.spines[["right", "top"]].set_visible(False)
-            ax.set_xscale("log")
-            ax.set_yscale("log")
-
-            ax.set_title(f"Layer {layer + 1}/24")
-
-        fig.suptitle("FishVista (TopK)")
-
-        fig.savefig("contrib/trait_discovery/docs/assets/topk-fishvista-lr.pdf")
-
-        txt = mo.md(
-            """
-    # Learning Rate Sweeps
-
-    How does learning rate affect performance? For a fixed $k$, what is the optimal learning rate?
-
-    """.strip()
-        )
-
-        return mo.vstack([txt, fig])
-
-    _(df)
-    return
-
-
-@app.cell
-def _(collections, df, mo, pl, plt, saev):
-    def _(df: pl.DataFrame):
-        # mse_col = "ade20k_val_nmse"
-        x_col = "config/lr"
-        y_col = "summary/eval/normalized_mse"
-
-        layer_col = "config/val_data/layer"
-
-        point_alpha = 0.5
-
-        layers = [13, 15, 17, 19, 21, 23]
-        lambdas = [
-            (1e-4, saev.colors.BLUE_RGB01, "o", "-"),
-            (1e-3, saev.colors.SEA_RGB01, "^", "--"),
-            (1e-2, saev.colors.CREAM_RGB01, "s", "-."),
-            (1e-1, saev.colors.ORANGE_RGB01, "x", ":"),
-        ]
-
-        fig, axes = plt.subplots(
-            figsize=(8, 5),
-            nrows=2,
-            ncols=3,
-            dpi=300,
-            sharex=True,
-            sharey=True,
-            layout="constrained",
-        )
-        axes = axes.reshape(-1)
-
-        pareto_ckpts = collections.defaultdict(list)
-        texts = []
-
-        for i, (layer, ax) in enumerate(zip(layers, axes)):
-            for lam, color, marker, linestyle in lambdas:
-                group = df.filter(
-                    (pl.col("config/sae/activation_kind") == "relu")
-                    & (pl.col("config/val_data/layer") == layer)
-                    & (
-                        pl.col("config/sae/activation")
-                        .struct.field("sparsity")
-                        .struct.field("coeff")
-                        == lam
-                    )
-                ).sort(by=x_col)
-
-                ids = group.get_column("id").to_list()
-                xs = group.get_column(x_col).to_numpy()
-                ys = group.get_column(y_col).to_numpy()
-
-                line, *_ = ax.plot(
-                    xs,
-                    ys,
-                    alpha=0.8,
-                    label=f"$\\lambda$={lam:.1g}",
-                    color=color,
-                    marker=marker,
-                    linestyle=linestyle,
-                )
-
-                # for x, y, rid in zip(xs, ys, ids):
-                #     ax.text(x, y, rid, fontsize=12, color="black", ha="left", va="bottom")
-
-            if i in (3, 4, 5):
-                ax.set_xlabel("Learning Rate")
-
-            if i in (0, 3):
-                ax.set_ylabel("Normalized MSE ($\\downarrow$)")
-
-            if i in (5,):
-                ax.legend()
-
-            ax.grid(True, linewidth=0.3, alpha=0.7)
-            ax.spines[["right", "top"]].set_visible(False)
-            ax.set_xscale("log")
-            ax.set_yscale("log")
-
-            ax.set_title(f"Layer {layer + 1}/24")
-
-        fig.suptitle("FishVista (ReLU + L1)")
-
-        fig.savefig("contrib/trait_discovery/docs/assets/relu-fishvista-lr.pdf")
-
-        txt = mo.md(
-            """
-    # ReLU Learning Rate Sweeps
-
-    How does learning rate affect performance? For a fixed $\\lambda$, what is the optimal learning rate?
-
-    """.strip()
-        )
-
-        return mo.vstack([txt, fig])
-
-    _(df)
-    return
-
-
-@app.cell
-def _(collections, df, mo, pl, plt, saev):
-    def _(df: pl.DataFrame):
-        # mse_col = "ade20k_val_nmse"
-        x_col = "config/lr"
-        y_col = "summary/eval/l0"
-
-        layer_col = "config/val_data/layer"
-
-        point_alpha = 0.5
-
-        layers = [13, 15, 17, 19, 21, 23]
-        lambdas = [
-            (1e-4, saev.colors.BLUE_RGB01, "o", "-"),
-            (1e-3, saev.colors.SEA_RGB01, "^", "--"),
-            (1e-2, saev.colors.CREAM_RGB01, "s", "-."),
-            (1e-1, saev.colors.ORANGE_RGB01, "x", ":"),
-        ]
-
-        fig, axes = plt.subplots(
-            figsize=(8, 5),
-            nrows=2,
-            ncols=3,
-            dpi=300,
-            sharex=True,
-            sharey=True,
-            layout="constrained",
-        )
-        axes = axes.reshape(-1)
-
-        pareto_ckpts = collections.defaultdict(list)
-        texts = []
-
-        for i, (layer, ax) in enumerate(zip(layers, axes)):
-            for lam, color, marker, linestyle in lambdas:
-                group = df.filter(
-                    (pl.col("config/sae/activation_kind") == "relu")
-                    & (pl.col("config/val_data/layer") == layer)
-                    & (
-                        pl.col("config/sae/activation")
-                        .struct.field("sparsity")
-                        .struct.field("coeff")
-                        == lam
-                    )
-                ).sort(by=x_col)
-
-                ids = group.get_column("id").to_list()
-                xs = group.get_column(x_col).to_numpy()
-                ys = group.get_column(y_col).to_numpy()
-
-                line, *_ = ax.plot(
-                    xs,
-                    ys,
-                    alpha=0.8,
-                    label=f"$\\lambda$={lam:.1g}",
-                    color=color,
-                    marker=marker,
-                    linestyle=linestyle,
-                )
-
-                # for x, y, rid in zip(xs, ys, ids):
-                #     ax.text(x, y, rid, fontsize=12, color="black", ha="left", va="bottom")
-
-            if i in (3, 4, 5):
-                ax.set_xlabel("Learning Rate")
-
-            if i in (0, 3):
-                ax.set_ylabel("L$_0$ ($\\downarrow$)")
-
-            if i in (5,):
-                ax.legend()
-
-            ax.grid(True, linewidth=0.3, alpha=0.7)
-            ax.spines[["right", "top"]].set_visible(False)
-            ax.set_xscale("log")
-            ax.set_yscale("log")
-
-            ax.set_title(f"Layer {layer + 1}/24")
-
-        fig.suptitle("FishVista (ReLU + L1)")
-
-        fig.savefig("contrib/trait_discovery/docs/assets/relu-fishvista-lr-l0.pdf")
-
-        txt = mo.md(
-            """
-    # ReLU Learning Rate Sweeps
-
-    How does learning rate affect performance? For a fixed $\\lambda$, what is the optimal learning rate?
-
-    """.strip()
-        )
-
-        return mo.vstack([txt, fig])
-
-    _(df)
-    return
-
-
-@app.cell
-def _(df, pl):
-    df.filter(
-        pl.col("is_pareto")
-        & pl.col("downstream/val/mean_ap").is_null()
-        & (pl.col("config/val_data/layer") == 23)
-    ).select("id", "^downstream.*$")
-    return
-
-
-@app.cell
-def _(df, itertools, np, pl, plt, saev):
-    def _(df: pl.DataFrame):
-        # mse_col = "ade20k_val_nmse"
-        x_col = "summary/eval/normalized_mse"
-        # x_col = 'summary/eval/n_dead'
-        y_col = "downstream/val/mean_ap"
-
-        alpha = 0.5
-
-        data_keys = ["FishVista (Img)", "IN1K/train"]
-
-        activation_fns = [
-            ("relu", "ReLU", "-"),
-            ("topk", "TopK", "--"),
-        ]
-        blends = [(0.0, "o"), (0.8, "^")]
-
-        colors = [
-            saev.colors.BLUE_RGB01,
-            saev.colors.SEA_RGB01,
-            saev.colors.ORANGE_RGB01,
-            saev.colors.SCARLET_RGB01,
-        ]
-
-        fig, axes = plt.subplots(
-            figsize=(8, 4),
-            nrows=1,
-            ncols=2,
-            dpi=300,
-            sharex=False,
-            sharey=True,
-            layout="constrained",
-        )
-        axes = axes.reshape(-1)
-
-        for i, (data_key, ax) in enumerate(zip(data_keys, axes)):
-            for ((act_key, label, linestyle), (blend, marker)), color in zip(
-                itertools.product(activation_fns, blends), colors
-            ):
-                group = df.filter(
-                    (pl.col("config/sae/activation_kind") == act_key)
-                    & pl.col(y_col).is_not_null()
-                    & pl.col("is_pareto")
-                    & (pl.col("config/val_data/layer") == 23)
-                    & (pl.col("data_key") == data_key)
-                    & (pl.col("config/sae/reinit_blend") == blend)
-                ).sort(by=x_col)
-
-                ids = group.get_column("id").to_list()
-                xs = group.get_column(x_col).to_numpy()
-                ys = group.get_column(y_col).to_numpy()
-
-                ax.scatter(
-                    xs,
-                    ys,
-                    alpha=alpha,
-                    label=f"{label}; $p$={blend}",
-                    color=color,
-                    marker=marker,
-                )
-
-                try:
-                    line = np.polynomial.Polynomial.fit(np.log10(xs), ys, deg=2)
-                    x_line, y_line = line.linspace()
-                    ax.plot(
-                        10**x_line,
-                        y_line,
-                        color=color,
-                        linestyle=linestyle,
-                        alpha=alpha,
-                    )
-                except ValueError:
-                    pass
-
-            if i in (0, 1):
-                ax.set_xlabel(x_col)
 
             if i in (0,):
-                ax.set_ylabel(y_col)
-
-            if i in (1,):
-                ax.legend()
+                fig.legend(loc="outside right upper", fontsize="small")
 
             ax.grid(True, linewidth=0.3, alpha=0.7)
             ax.spines[["right", "top"]].set_visible(False)
             ax.set_xscale("log")
+            ax.set_ylim(6e-2, 1e0)
+            ax.set_yscale("log")
 
-            ax.set_title(data_key)
+            ax.set_title(f"Layer {layer + 1}/24")
 
-        return fig
+        # fig.legend()
+
+        # fig.savefig("contrib/trait_discovery/docs/assets/topk-fishvista-lr.pdf")
+
+        txt = mo.md(
+            """
+    # Learning Rate
+
+    """.strip()
+        )
+
+        return mo.vstack([txt, fig])
 
     _(df)
     return
@@ -971,78 +692,38 @@ def _(df, itertools, np, pl, plt, saev):
 @app.cell
 def _(df, mo, pl):
     def _(df):
-        col = "summary/eval/n_dead"
         # col = "summary/eval/n_almost_dead"
 
         dfs = []
 
-        for data_key in ["FishVista (Img)", "IN1K/train"]:
+        for optim in ["adam", "muon"]:
             group = (
                 df.filter(
-                    pl.col(col).is_not_null()
+                    (pl.col("config/optim") == optim)
+                    # & pl.col(col).is_not_null()
                     # & pl.col("is_pareto")
                     & (pl.col("config/val_data/layer") == 23)
-                    & (pl.col("data_key") == data_key)
-                )
-                .with_columns(
-                    (
-                        pl.col("downstream/train/probe_r")
-                        == pl.col("downstream/train/probe_r").max()
-                    )
-                    .over("config/sae/reinit_blend", "config/sae/activation_kind")
-                    .alias("best_train_probe_r")
-                )
-                .filter(pl.col("best_train_probe_r"))
-                .select(
-                    "id",
-                    "data_key",
-                    "config/sae/activation_kind",
-                    "config/sae/reinit_blend",
-                    "summary/eval/normalized_mse",
-                    "downstream/train/probe_r",
-                    "downstream/val/probe_r",
-                    "downstream/val/mean_ap",
-                    "downstream/val/mean_f1",
-                    "downstream/val/cov_at_0_3",
-                    # "^downstream/val.*$",
-                )
-            )
-
-            dfs.append(group)
-
-        return mo.vstack([mo.md("# Probe Results"), *dfs])
-
-    _(df)
-    return
-
-
-@app.cell
-def _(df, mo, pl):
-    def _(df):
-        col = "summary/eval/n_dead"
-        # col = "summary/eval/n_almost_dead"
-
-        dfs = []
-
-        for kind in ["relu", "topk"]:
-            group = (
-                df.filter(
-                    (pl.col("config/sae/activation_kind") == kind)
-                    & pl.col(col).is_not_null()
-                    # & pl.col("is_pareto")
-                    # & (pl.col("config/val_data/layer") == 23)
                 )
                 .group_by(
-                    pl.col("config/sae/activation_kind").alias("act_key"),
+                    pl.col("config/optim"),
                     pl.col("data_key"),
-                    pl.col("config/sae/reinit_blend").alias("blend"),
                 )
                 .agg(
-                    pl.count().alias("n_trials"),
-                    (pl.col(col) / (1024 * 16) * 100).mean().alias("mean_pct"),
-                    (pl.col(col) / (1024 * 16) * 100).std().alias("std_pct"),
+                    pl.len().alias("n_trials"),
+                    pl.col("summary/metrics/dead_unit_pct")
+                    .mean()
+                    .alias("train_mean_pct"),
+                    pl.col("summary/metrics/dead_unit_pct")
+                    .std()
+                    .alias("train_std_pct"),
+                    (pl.col("summary/eval/n_dead") / (1024 * 16) * 100)
+                    .mean()
+                    .alias("eval_mean_pct"),
+                    (pl.col("summary/eval/n_dead") / (1024 * 16) * 100)
+                    .std()
+                    .alias("eval_std_pct"),
                 )
-                .sort("blend", "data_key")
+                .sort("data_key")
             )
 
             dfs.append(group)
