@@ -1,9 +1,3 @@
-"""
-.. include:: ./protocol.md
-
-.. include:: ./performance.md
-"""
-
 import dataclasses
 
 import beartype
