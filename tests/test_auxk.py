@@ -126,7 +126,7 @@ def test_objective_aux_included_in_total_loss():
     obj = objectives.Matryoshka(n_prefixes=1)
     objective = objectives.get_objective(obj)
     x = torch.randn(2, 4)
-    loss = objective(sae, x)
+    loss, _ = objective(sae, x)
     assert torch.allclose(loss.loss, loss.mse + loss.sparsity + loss.aux)
 
 
@@ -138,7 +138,7 @@ def test_objective_aux_zero_for_relu():
     obj = objectives.Matryoshka(n_prefixes=1)
     objective = objectives.get_objective(obj)
     x = torch.randn(2, 4)
-    loss = objective(sae, x)
+    loss, _ = objective(sae, x)
     assert torch.allclose(loss.aux, torch.zeros_like(loss.aux))
 
 
@@ -147,7 +147,7 @@ def test_full_backward_updates_mse_and_aux_paths():
     obj = objectives.Matryoshka(n_prefixes=1)
     objective = objectives.get_objective(obj)
     x = torch.tensor([[1.0, 0.0, 0.0, 0.0]], requires_grad=True)
-    loss = objective(sae, x)
+    loss, _ = objective(sae, x)
     loss.loss.backward()
     # Gradients should hit decoder and encoder
     assert sae.W_dec.grad is not None

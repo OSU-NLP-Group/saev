@@ -82,15 +82,15 @@ class AuxK:
         assert dead_mask is not None
         x_hat = out.x_hats[:, -1, :]
         residual = (x - x_hat).detach()
-        masked = out.pre_acts.masked_fill(~dead_mask, float("-inf"))
+        masked = out.h_x.masked_fill(~dead_mask, float("-inf"))
         n_dead = int(dead_mask.sum().item())
         k_use = min(self.k_aux, n_dead)
         if k_use == 0:
             return residual.new_zeros(())
 
         _, top_i = masked.topk(k_use, dim=-1)
-        aux_acts = torch.zeros_like(out.pre_acts)
-        aux_acts.scatter_(-1, top_i, out.pre_acts.gather(-1, top_i))
+        aux_acts = torch.zeros_like(out.h_x)
+        aux_acts.scatter_(-1, top_i, out.h_x.gather(-1, top_i))
 
         # Use full-prefix reconstruction (last prefix) to match main x_hat shape
         aux_recon = sae.decode(aux_acts).x_hats[:, -1, :]
@@ -288,15 +288,15 @@ class SparseAutoencoder(torch.nn.Module):
     class EncodeOut(tp.NamedTuple):
         """Outputs of encode: pre-activations and activated latents."""
 
-        pre_acts: Float[Tensor, "batch d_sae"]
-        acts: Float[Tensor, "batch d_sae"]
+        h_x: Float[Tensor, "batch d_sae"]
+        f_x: Float[Tensor, "batch d_sae"]
 
     @jaxtyped(typechecker=beartype.beartype)
-    class DecodeOutput(tp.NamedTuple):
-        """Decoder outputs, optionally bundled with encode outputs for aux losses."""
+    class Output(tp.NamedTuple):
+        """Full SAE forward outputs for objectives and metrics."""
 
-        pre_acts: Float[Tensor, "batch d_sae"] | None
-        acts: Float[Tensor, "batch d_sae"]
+        h_x: Float[Tensor, "batch d_sae"]
+        f_x: Float[Tensor, "batch d_sae"]
         x_hats: Float[Tensor, "batch n_prefixes d_model"]
 
     def __init__(self, cfg: SparseAutoencoderConfig):
@@ -318,9 +318,7 @@ class SparseAutoencoder(torch.nn.Module):
 
         self.activation = get_activation(cfg.activation)
 
-    def forward(
-        self, x: Float[Tensor, "batch d_model"]
-    ) -> tuple[Float[Tensor, "batch 1 d_model"], Float[Tensor, "batch d_sae"]]:
+    def forward(self, x: Float[Tensor, "batch d_model"]) -> Output:
         """
         Given x, calculates the reconstructed x_hat and the intermediate activations f_x.
 
@@ -328,25 +326,24 @@ class SparseAutoencoder(torch.nn.Module):
             x: a batch of transformer activations.
         """
         enc = self.encode(x)
-        dec = self.decode(enc.acts)
+        x_hats = self.decode(enc.f_x)
 
-        # (sam) I also feel that this should not be a tuple, if encode/decode are not tuples.
-        return dec.x_hats, enc.acts
+        return self.Output(h_x=enc.h_x, f_x=enc.f_x, x_hats=x_hats)
 
     def encode(self, x: Float[Tensor, "batch d_model"]) -> EncodeOut:
-        h_pre = (
+        h_x = (
             einops.einsum(x, self.W_enc, "... d_model, d_model d_sae -> ... d_sae")
             + self.b_enc
         )
-        f_x = self.activation(h_pre)
-        return self.EncodeOut(pre_acts=h_pre, acts=f_x)
+        f_x = self.activation(h_x)
+        return self.EncodeOut(h_x=h_x, f_x=f_x)
 
     def decode(
         self,
         f_x: Float[Tensor, "batch d_sae"],
         *,
         prefixes: Int64[Tensor, " n_prefixes"] | None = None,
-    ) -> DecodeOutput:
+    ) -> Float[Tensor, "batch n_prefixes d_model"]:
         """
         Decode latent features to reconstructions.
 
@@ -399,7 +396,7 @@ class SparseAutoencoder(torch.nn.Module):
         x_hats = torch.cumsum(torch.stack(block_outputs, dim=-2), dim=-2)
 
         # (sam) This is clearly wrong. Needs to be cleaned up.
-        return self.DecodeOutput(pre_acts=None, acts=f_x, x_hats=x_hats)
+        return x_hats
 
     @torch.no_grad()
     def normalize_w_dec(self):

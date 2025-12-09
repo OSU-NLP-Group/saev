@@ -320,10 +320,12 @@ def train(
             sae.normalize_w_dec()
         # Forward passes and loss calculations.
         losses = []
+        fwds = []
         for sae, objective in zip(saes, objectives):
             # Objective handles the SAE forward pass internally
-            loss = objective(sae, acts_BD)
+            loss, fwd = objective(sae, acts_BD)
             losses.append(loss)
+            fwds.append(fwd)
 
         n_patches_seen += len(acts_BD)
 
@@ -372,17 +374,13 @@ def train(
                 assert batch_baseline_sse > 0, msg
                 batch_baseline_sse_value = batch_baseline_sse.item()
 
+                current_lr = all_param_groups[0]["lr"]
                 metrics = []
-                for i, (loss, sae, objective, group) in enumerate(
-                    zip(losses, saes, objectives, optimizer.param_groups)
+                for i, (loss, sae, objective, fwd) in enumerate(
+                    zip(losses, saes, objectives, fwds)
                 ):
-                    # Recompute f_x and x_hat for metrics (since we don't have them anymore)
-                    with torch.no_grad():
-                        f_x = sae.encode(acts_BD)
-                        x_hat = sae.decode(f_x)
-
                     # Explained variance: 1 - Var(x - x_hat) / Var(x)
-                    residual = acts_BD - x_hat[:, -1, :]
+                    residual = acts_BD - fwd.x_hat[:, -1, :]
                     batch_sse_sae_value = torch.sum(
                         (residual.to(torch.float64)) ** 2
                     ).item()
@@ -392,7 +390,7 @@ def train(
                     explained_var = 1 - residual.var() / acts_BD.var()
 
                     # Dead unit percentage: fraction of units that never activate
-                    dead_pct = ((f_x.abs() > 1e-12).sum(0) == 0).float().mean()
+                    dead_pct = ((fwd.f_x.abs() > 1e-12).sum(0) == 0).float().mean()
 
                     # Dictionary coherence: max |<w_i, w_j>| for i != j
                     W = sae.W_dec  # (d_sae, d_model)
@@ -406,7 +404,7 @@ def train(
                     metric = {
                         **loss.metrics(),
                         "progress/n_patches_seen": n_patches_seen,
-                        "progress/learning_rate": group["lr"],
+                        "progress/learning_rate": current_lr,
                         "metrics/explained_variance": explained_var.item(),
                         "metrics/dead_unit_pct": dead_pct.item(),
                         "metrics/dictionary_coherence": coherence.item(),
@@ -533,20 +531,20 @@ def evaluate(
     for batch in helpers.progress(dataloader, desc="eval", every=cfg.log_every):
         acts_BD = batch["act"].to(cfg.device, non_blocking=True)
         batch_size = acts_BD.shape[0]
-        acts_bd_f64 = acts_BD.to(torch.float64)
-        sum_sq += torch.sum(acts_bd_f64 * acts_bd_f64)
-        sum_vec += acts_bd_f64.sum(dim=0)
+        acts_BD_f64 = acts_BD.to(torch.float64)
+        sum_sq += torch.sum(acts_BD_f64 * acts_BD_f64)
+        sum_vec += acts_BD_f64.sum(dim=0)
         n_tokens += batch_size
         for i, (sae, objective) in enumerate(zip(saes, objectives)):
             # Objective now handles the forward pass internally
-            loss = objective(sae, acts_BD)
+            loss, fwd = objective(sae, acts_BD)
             # Get f_x for metrics
-            f_x_BS = sae.encode(acts_BD)
-            x_hat = sae.decode(f_x_BS)
-            residual = acts_BD - x_hat[:, -1, :]
+            residual = acts_BD - fwd.x_hat[:, -1, :]
             total_sse_sae[i] += torch.sum((residual.to(torch.float64)) ** 2)
-            n_fired[i] += einops.reduce(f_x_BS > 0, "batch d_sae -> d_sae", "sum").cpu()
-            values[i] += einops.reduce(f_x_BS, "batch d_sae -> d_sae", "sum").cpu()
+            n_fired[i] += einops.reduce(
+                fwd.f_x > 0, "batch d_sae -> d_sae", "sum"
+            ).cpu()
+            values[i] += einops.reduce(fwd.f_x, "batch d_sae -> d_sae", "sum").cpu()
             total_l0_sum[i] += loss.l0.cpu().item() * batch_size
             total_l1_sum[i] += loss.l1.cpu().item() * batch_size
             total_mse_sum[i] += loss.mse.cpu().item() * batch_size

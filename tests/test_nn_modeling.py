@@ -60,9 +60,9 @@ def sae_cfgs_comprehensive():
 def test_sae_shapes(cfg, batch):
     sae = modeling.SparseAutoencoder(cfg)
     x = torch.randn(batch, cfg.d_model)
-    x_hat, f = sae(x)
-    assert x_hat.shape == (batch, 1, cfg.d_model)
-    assert f.shape == (batch, cfg.d_sae)
+    out = sae(x)
+    assert out.x_hats.shape == (batch, 1, cfg.d_model)
+    assert out.f_x.shape == (batch, cfg.d_sae)
 
 
 hf_ckpts = [
@@ -87,11 +87,11 @@ def test_load_existing_checkpoint(repo_id, tmp_path):
 
     # Smoke-test shapes & numerics
     x = torch.randn(2, model.cfg.d_model)
-    x_hat, f_x = model(x)
-    assert x_hat.shape == x[:, None, :].shape
-    assert f_x.shape[1] == model.cfg.d_sae
+    out = model(x)
+    assert out.x_hats.shape == x[:, None, :].shape
+    assert out.f_x.shape[1] == model.cfg.d_sae
     # reconstruction shouldn’t be exactly identical, but should have finite values
-    assert torch.isfinite(x_hat).all()
+    assert torch.isfinite(out.x_hats).all()
 
 
 def test_dump_load_roundtrip_exhaustive(tmp_path):

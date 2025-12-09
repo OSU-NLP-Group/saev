@@ -114,7 +114,7 @@ def test_matryoshka_objective_new_api():
     x = torch.randn(8, 64)  # batch=8, d_model=64
 
     # Test new API
-    loss = objective(sae, x)
+    loss, _ = objective(sae, x)
 
     # Verify loss has expected attributes
     assert hasattr(loss, "mse")
@@ -170,7 +170,7 @@ def test_matryoshka_prefix_masking():
 
     # Create test data
     x = torch.randn(4, 64)  # batch=4, d_model=64
-    f_x = sae.encode(x).acts
+    f_x = sae.encode(x).f_x
 
     # Test that masking works correctly
     prefix_sizes = [8, 16, 32, 64, 128, 256]  # d_sae = 64*4 = 256
@@ -185,7 +185,7 @@ def test_matryoshka_prefix_masking():
         assert (masked_f_x[:, prefix_size:] == 0).all()
 
         # Check that decode doesn't crash
-        x_hat = sae.decode(masked_f_x).x_hats
+        x_hat = sae.decode(masked_f_x)
         assert x_hat[:, 0, :].shape == x.shape
         assert torch.isfinite(x_hat).all()
 
@@ -202,7 +202,7 @@ def test_objective_uses_standard_sae():
     x = torch.randn(4, 32)
 
     # Should work with standard SAE
-    matryoshka_loss = matryoshka_obj(sae, x)
+    matryoshka_loss, _ = matryoshka_obj(sae, x)
     assert isinstance(matryoshka_loss, objectives.MatryoshkaLoss)
 
 
@@ -217,7 +217,7 @@ def test_matryoshka_different_prefix_counts():
         obj_cfg = objectives.Matryoshka(n_prefixes=n_prefixes)
         objective = objectives.get_objective(obj_cfg)
 
-        loss = objective(sae, x)
+        loss, _ = objective(sae, x)
         assert torch.isfinite(loss.loss)
 
         # Check that prefix sampling returns correct number
@@ -234,7 +234,7 @@ def test_metrics_methods():
 
     # Test MatryoshkaLoss metrics
     matryoshka_obj = objectives.get_objective(objectives.Matryoshka())
-    matryoshka_loss = matryoshka_obj(sae, x)
+    matryoshka_loss, _ = matryoshka_obj(sae, x)
     metrics = matryoshka_loss.metrics()
 
     assert isinstance(metrics, dict)
@@ -259,7 +259,7 @@ def test_objectives_with_different_activations(cfg):
     # Test with both objectives
     matryoshka_obj = objectives.get_objective(objectives.Matryoshka(n_prefixes=3))
 
-    matryoshka_loss = matryoshka_obj(sae, x)
+    matryoshka_loss, _ = matryoshka_obj(sae, x)
     assert torch.isfinite(matryoshka_loss.loss)
 
 
@@ -273,12 +273,12 @@ def test_matryoshka_edge_cases():
 
     # Test with n_prefixes == d_sae
     obj = objectives.get_objective(objectives.Matryoshka(n_prefixes=8))
-    loss = obj(sae, x)
+    loss, _ = obj(sae, x)
     assert torch.isfinite(loss.loss)
 
     # Test with n_prefixes = 1 (should work like vanilla)
     obj_single = objectives.get_objective(objectives.Matryoshka(n_prefixes=1))
-    loss_single = obj_single(sae, x)
+    loss_single, _ = obj_single(sae, x)
     assert torch.isfinite(loss_single.loss)
 
 
@@ -292,7 +292,7 @@ def test_gradient_flow_through_matryoshka():
     x = torch.randn(4, 32, requires_grad=True)
 
     # Forward and backward
-    loss = obj(sae, x)
+    loss, _ = obj(sae, x)
     loss.loss.backward()
 
     # Check gradients exist for all parameters
@@ -312,7 +312,7 @@ def test_unified_decode_matryoshka():
     prefixes = torch.tensor([32, 64, 128])
 
     # Matryoshka decode
-    x_hats = sae.decode(f_x, prefixes=prefixes).x_hats
+    x_hats = sae.decode(f_x, prefixes=prefixes)
 
     assert x_hats.shape == (4, 3, 32)
     assert torch.isfinite(x_hats).all()
@@ -331,7 +331,7 @@ def test_decode_prefixes_device_handling():
     prefixes = torch.tensor([8, 16, 32])  # CPU tensor
 
     # Should handle CPU prefixes with CUDA model/data
-    x_hats = sae.decode(f_x, prefixes=prefixes).x_hats
+    x_hats = sae.decode(f_x, prefixes=prefixes)
 
     assert x_hats.device == f_x.device
     assert x_hats.shape == (3, 2, 16)
@@ -341,6 +341,6 @@ def test_decode_default_prefix_is_long_and_does_not_crash():
     cfg = saev.nn.SparseAutoencoderConfig(d_model=8, d_sae=8)
     sae = saev.nn.SparseAutoencoder(cfg)
     x = torch.randn(2, 8)
-    f = sae.encode(x).acts
-    out = sae.decode(f).x_hats  # should not raise
+    f = sae.encode(x).f_x
+    out = sae.decode(f)  # should not raise
     assert out.shape == (2, 1, 8)

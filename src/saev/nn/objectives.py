@@ -95,16 +95,10 @@ class MatryoshkaObjective(Objective):
         self.toks_since_active: Tensor | None = None
 
     def forward(
-        self,
-        sae: modeling.SparseAutoencoder,
-        x: Float[Tensor, "batch d_model"],
-        *,
-        enc: modeling.SparseAutoencoder.EncodeOut | None = None,
-    ) -> MatryoshkaLoss:
-        if enc is None:
-            enc = sae.encode(x)
-        f_x = enc.acts  # shape: (batch, d_sae)
-        b, d_sae = f_x.shape
+        self, sae: modeling.SparseAutoencoder, x: Float[Tensor, "batch d_model"]
+    ) -> tuple[MatryoshkaLoss, modeling.SparseAutoencoder.Output]:
+        enc = sae.encode(x)
+        bsz, d_sae = enc.f_x.shape
 
         dead_mask = None
         if self.training:
@@ -113,12 +107,12 @@ class MatryoshkaObjective(Objective):
                 or self.toks_since_active.shape[0] != d_sae
             ):
                 self.toks_since_active = torch.zeros(
-                    d_sae, device=f_x.device, dtype=torch.int64
+                    d_sae, device=enc.f_x.device, dtype=torch.int64
                 )
             tracker = self.toks_since_active
             n_tokens_in_batch = x.shape[0]
             with torch.no_grad():
-                active_mask = (f_x.abs() > 0).any(dim=0)
+                active_mask = (enc.f_x.abs() > 0).any(dim=0)
                 msg = f"Active mask shape {active_mask.shape} != {(d_sae,)}"
                 assert active_mask.shape == (d_sae,), msg
                 tracker[active_mask] = 0
@@ -128,15 +122,14 @@ class MatryoshkaObjective(Objective):
         # Sample prefix cuts
         prefixes = sample_prefixes(d_sae, self.cfg.n_prefixes)
 
-        # Use the new decode API with prefixes
-        dec = sae.decode(f_x, prefixes=prefixes)
-        sae_out = modeling.SparseAutoencoder.DecodeOutput(
-            pre_acts=enc.pre_acts, acts=f_x, x_hats=dec.x_hats
+        x_hats = sae.decode(enc.f_x, prefixes=prefixes)
+        sae_out = modeling.SparseAutoencoder.Output(
+            h_x=enc.h_x, f_x=enc.f_x, x_hats=x_hats
         )
 
         # Calculate losses
         mse_loss = mean_squared_err(
-            dec.x_hats,
+            x_hats,
             einops.repeat(
                 x, "b d_model -> b prefixes d_model", prefixes=self.cfg.n_prefixes
             ),
@@ -152,12 +145,15 @@ class MatryoshkaObjective(Objective):
 
         # Calculate sparsity metrics on full encoding
 
-        return MatryoshkaLoss(
-            mse=mse_loss,
-            sparsity=sae.activation.cfg.sparsity.loss(f_x),
-            l0=(f_x != 0).float().sum(axis=1).mean(axis=0),
-            l1=f_x.abs().sum(axis=1).mean(axis=0),
-            aux=aux_loss,
+        return (
+            MatryoshkaLoss(
+                mse=mse_loss,
+                sparsity=sae.activation.cfg.sparsity.loss(enc.f_x),
+                l0=(enc.f_x != 0).float().sum(axis=1).mean(axis=0),
+                l1=enc.f_x.abs().sum(axis=1).mean(axis=0),
+                aux=aux_loss,
+            ),
+            sae_out,
         )
 
 
