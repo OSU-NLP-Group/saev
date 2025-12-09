@@ -11,6 +11,7 @@ import beartype
 import einops
 import orjson
 import torch
+import tyro.conf
 from jaxtyping import Float, Int64, jaxtyped
 from torch import Tensor
 
@@ -24,7 +25,7 @@ SCHEMA_VERSION = 5
 class NoSparsity:
     """No explicit sparsity penalty (e.g. for TopK/BatchTopK where k controls sparsity)."""
 
-    kind: tp.Literal["no-sparsity"] = "no-sparsity"
+    key: tyro.conf.Suppress[tp.Literal["no-sparsity"]] = "no-sparsity"
 
     def loss(self, f_x: Float[Tensor, "batch d_sae"]) -> Float[Tensor, ""]:
         return torch.tensor(0.0)
@@ -33,7 +34,7 @@ class NoSparsity:
 @jaxtyped(typechecker=beartype.beartype)
 @dataclasses.dataclass(frozen=True)
 class L1Sparsity:
-    kind: tp.Literal["l1-sparsity"] = "l1-sparsity"
+    key: tyro.conf.Suppress[tp.Literal["l1-sparsity"]] = "l1-sparsity"
     coeff: float = 1e-4
 
     def loss(self, f_x: Float[Tensor, "batch d_sae"]) -> Float[Tensor, ""]:
@@ -49,15 +50,15 @@ Sparsity = NoSparsity | L1Sparsity
 class NoAux:
     """No auxiliary loss (e.g., for ReLU)."""
 
-    kind: tp.Literal["no-aux"] = "no-aux"
+    key: tyro.conf.Suppress[tp.Literal["no-aux"]] = "no-aux"
 
     def loss(
         self,
         *,
         sae: "SparseAutoencoder",
         x: Float[Tensor, "batch d_model"],
-        out: "SparseAutoencoder.SaeOutput",
-        dead_mask: Tensor | None,
+        out: "SparseAutoencoder.Output",
+        dead_mask: Float[Tensor, " d_sae"] | None,
     ) -> Float[Tensor, ""]:
         return torch.zeros((), device=x.device, dtype=x.dtype)
 
@@ -67,19 +68,26 @@ class NoAux:
 class AuxK:
     """AuxK auxiliary reconstruction loss for dead latents."""
 
-    kind: tp.Literal["auxk"] = "auxk"
+    key: tyro.conf.Suppress[tp.Literal["auxk"]] = "auxk"
     k_aux: int = 512
     alpha: float = 1 / 32
+    dead_threshold_tokens: int = 10_000_000
+    """Tokens without activation before a latent is considered dead."""
 
     def loss(
         self,
         *,
         sae: "SparseAutoencoder",
         x: Float[Tensor, "batch d_model"],
-        out: "SparseAutoencoder.DecodeOutput",
-        dead_mask: Float[Tensor, " d_sae"],
+        out: "SparseAutoencoder.Output",
+        dead_mask: Float[Tensor, " d_sae"] | None,
     ) -> Float[Tensor, ""]:
-        assert dead_mask is not None
+        if sae.training:
+            assert dead_mask is not None, "dead_mask required during training"
+        else:
+            assert dead_mask is None, "dead_mask must be None during eval"
+            return x.new_zeros(())
+
         x_hat = out.x_hats[:, -1, :]
         residual = (x - x_hat).detach()
         masked = out.h_x.masked_fill(~dead_mask, float("-inf"))
@@ -93,8 +101,11 @@ class AuxK:
         aux_acts.scatter_(-1, top_i, out.h_x.gather(-1, top_i))
 
         # Use full-prefix reconstruction (last prefix) to match main x_hat shape
-        aux_recon = sae.decode(aux_acts).x_hats[:, -1, :]
+        aux_recon = sae.decode(aux_acts)[:, -1, :]
         return self.alpha * (aux_recon - residual).pow(2).mean()
+
+
+Aux = AuxK | NoAux
 
 
 @beartype.beartype
@@ -102,19 +113,19 @@ class AuxK:
 class Relu:
     """Vanilla ReLU"""
 
-    kind: tp.Literal["relu"] = "relu"
+    key: tyro.conf.Suppress[tp.Literal["relu"]] = "relu"
     sparsity: Sparsity = L1Sparsity(coeff=4e-4)
-    aux: NoAux = NoAux()
+    aux: Aux = NoAux()
 
 
 @beartype.beartype
 @dataclasses.dataclass(frozen=True)
 class TopK:
-    kind: tp.Literal["top-k"] = "top-k"
+    key: tyro.conf.Suppress[tp.Literal["top-k"]] = "top-k"
     top_k: int = 32
     """How many values are allowed to be non-zero."""
     sparsity: Sparsity = NoSparsity()
-    aux: AuxK = AuxK()
+    aux: Aux = AuxK()
 
     def __post_init__(self):
         assert self.top_k > 0, "top_k must be a positive integer."
@@ -123,7 +134,7 @@ class TopK:
 @beartype.beartype
 @dataclasses.dataclass(frozen=True)
 class BatchTopK:
-    kind: tp.Literal["batch-top-k"] = "batch-top-k"
+    key: tyro.conf.Suppress[tp.Literal["batch-top-k"]] = "batch-top-k"
     top_k: int = 32
     """How many values are allowed to be non-zero per sample in the batch."""
     sparsity: Sparsity = NoSparsity()
