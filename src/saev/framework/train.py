@@ -14,6 +14,7 @@ Checklist for making sure your training doesn't suck:
 * [x] Track dead latents through training
 """
 
+import collections
 import dataclasses
 import logging
 import os
@@ -75,6 +76,8 @@ class Config:
     """Number of learning rate warmup steps."""
     grad_clip: float = 1.0
     """Maximum gradient norm across all SAE parameters."""
+    dead_threshold_tokens: int = 3_000_000
+    """Tokens without activation before a latent is considered dead."""
 
     # Logging
     track: bool = True
@@ -120,49 +123,58 @@ def make_saes(
     ##################
     # Datapoint init #
     ##################
-    if all(cfg.reinit_blend == 0 for cfg in cfgs):
+    if all(sae.cfg.reinit_blend == 0 for sae in saes):
         logger.info("No datapoint initialization necessary; skipping.")
         return torch.nn.ModuleList(saes), torch.nn.ModuleList(objectives), param_groups
 
     assert saes, "Need at least one SAE to initialize."
 
-    d_sae = saes[0].cfg.d_sae
-    assert d_sae > 0, "Need at least one sample for datapoint init."
+    n_samples = saes[0].cfg.d_sae
+    assert n_samples > 0, "Need at least one sample for datapoint init."
 
     msg = "All SAEs must have same .d_sae: {sae.cfg.d_sae for sae in saes}"
-    assert all(d_sae == sae.cfg.d_sae for sae in saes), msg
+    assert all(n_samples == sae.cfg.d_sae for sae in saes), msg
 
     if hasattr(dl, "n_samples"):
-        msg = f"Need {d_sae} samples for datapoint init; dataloader has {dl.n_samples}."
-        assert dl.n_samples >= d_sae, msg
+        msg = f"Need {n_samples} samples for datapoint init; dataloader has {dl.n_samples}."
+        assert dl.n_samples >= n_samples, msg
+
+    # Use at least 64 x 1024 samples to improve entropy
+    n_samples = max(n_samples, 65_536)
+    # If we have fewer than 64 x 1024 samples, use as many as you can.
+    n_samples = min(n_samples, dl.n_samples)
 
     with torch.no_grad():
         batches: list[Tensor] = []
         n_seen = 0
-        for batch in dl:
+        for batch in helpers.progress(dl, every=1, desc="re-init"):
             act = batch["act"]
             batches.append(act)
             n_seen += len(act)
-            if n_seen >= d_sae:
+            if n_seen >= n_samples:
                 break
 
-        msg = f"Datapoint init requested {d_sae} samples but saw {n_seen}."
-        assert n_seen >= d_sae, msg
+        msg = f"Datapoint init requested {n_samples} samples but saw {n_seen}."
+        assert n_seen >= n_samples, msg
 
-        acts = torch.cat(batches, dim=0)[:d_sae]
+        # Concatenate and shuffle.
+        acts = torch.cat(batches, dim=0)
+        acts = acts[torch.randperm(n_samples)]
+
         acts_mean = acts.mean(dim=0, keepdim=True)
-        zero_centered = acts - acts_mean
+
+        d_sae = saes[0].cfg.d_sae
+        zero_centered = acts[:d_sae] - acts_mean
 
         kaiming = torch.empty_like(zero_centered)
         torch.nn.init.kaiming_uniform_(kaiming)
-
-        idx = torch.randperm(d_sae)
 
         for sae in saes:
             blend = sae.cfg.reinit_blend
             msg = f"reinit_blend must be in [0, 1], got {blend}."
             assert 0.0 <= blend <= 1.0, msg
 
+            idx = torch.randperm(d_sae)
             enc_rows = blend * zero_centered[idx] + (1 - blend) * kaiming[idx]
             msg = f"enc_rows has shape {enc_rows.shape}; expected {(sae.cfg.d_sae, sae.cfg.d_model)}."
             assert enc_rows.shape == (sae.cfg.d_sae, sae.cfg.d_model), msg
@@ -172,6 +184,8 @@ def make_saes(
                 sae.W_dec.data.copy_(sae.W_enc.data.T)
             sae.normalize_w_dec()
 
+    mean_p = sum(sae.cfg.reinit_blend for sae in saes) / len(saes)
+    logger.info("Initialized %d SAEs with avg(p)=%.2f", len(saes), mean_p)
     return torch.nn.ModuleList(saes), torch.nn.ModuleList(objectives), param_groups
 
 
@@ -417,17 +431,18 @@ def train(
                     )
                 )
 
-        optimizer.step()
+        for opt in optimizers:
+            opt.step()
 
         # Update LR and sparsity coefficients.
-        for param_group, scheduler in zip(optimizer.param_groups, lr_schedulers):
+        for param_group, scheduler in zip(all_param_groups, lr_schedulers):
             param_group["lr"] = scheduler.step()
 
         # for objective, scheduler in zip(objectives, sparsity_schedulers):
         #     objective.sparsity_coeff = scheduler.step()
 
-        # Don't need these anymore.
-        optimizer.zero_grad()
+        for opt in optimizers:
+            opt.zero_grad()
 
         global_step += 1
 
@@ -496,6 +511,7 @@ def evaluate(
         raise ValueError("Configs are not parallelizeable: {cfgs}.")
 
     saes.eval()
+    objectives.eval()
 
     cfg = cfgs[0]
 
@@ -616,6 +632,27 @@ CANNOT_PARALLELIZE = set([
 
 
 @beartype.beartype
+def _parallel_key(cfg: Config) -> tuple[tuple[str, object], ...]:
+    """
+    Build a grouping key that ignores dataloader seeds but respects all other non-parallelizable fields.
+    """
+    d = dataclasses.asdict(cfg)
+
+    td = dict(d["train_data"])
+    td["seed"] = "IGNORED_FOR_PARALLEL"
+    d["train_data"] = td
+
+    vd = dict(d["val_data"])
+    vd["seed"] = "IGNORED_FOR_PARALLEL"
+    d["val_data"] = vd
+
+    return tuple(
+        (key, helpers.make_hashable(helpers.get(d, key)))
+        for key in sorted(CANNOT_PARALLELIZE)
+    )
+
+
+@beartype.beartype
 def split_cfgs(cfgs: list[Config]) -> list[list[Config]]:
     """
     Splits configs into groups that can be parallelized.
@@ -626,29 +663,36 @@ def split_cfgs(cfgs: list[Config]) -> list[list[Config]]:
     Returns:
         A list of lists, where the configs in each sublist do not differ in any keys that are in `CANNOT_PARALLELIZE`. This means that each sublist is a valid "parallel" set of configs for `train`.
     """
-    # Group configs by their values for CANNOT_PARALLELIZE keys
-    groups = {}
+    groups = collections.defaultdict(list)
     for cfg in cfgs:
-        dct = dataclasses.asdict(cfg)
+        key = _parallel_key(cfg)
+        groups[key].append(cfg)
 
-        # Create a key tuple from the values of CANNOT_PARALLELIZE keys
-        key_values = []
-        for key in sorted(CANNOT_PARALLELIZE):
-            key_values.append((key, helpers.make_hashable(helpers.get(dct, key))))
-        group_key = tuple(key_values)
+    return [
+        [
+            dataclasses.replace(
+                cfg,
+                train_data=dataclasses.replace(cfg.train_data, seed=cfg.seed),
+                val_data=dataclasses.replace(cfg.val_data, seed=cfg.seed),
+            )
+            for cfg in group
+        ]
+        for _, group in sorted(groups.items())
+    ]
 
-        if group_key not in groups:
-            groups[group_key] = []
-        groups[group_key].append(cfg)
 
-    # Convert groups dict to list of lists
-    return list(groups.values())
+@beartype.beartype
+def _split_by_cap(group: list[Config], cap: int) -> list[list[Config]]:
+    msg = "max_parallel must be > 0"
+    assert cap > 0, msg
+    return [group[start:end] for start, end in helpers.batched_idx(len(group), cap)]
 
 
 @beartype.beartype
 def main(
     cfg: tp.Annotated[Config, tyro.conf.arg(name="")],
     sweep: pathlib.Path | None = None,
+    max_parallel: int | None = None,
 ):
     """
     Train an SAE over activations, optionally running a parallel grid search over a set of hyperparameters.
@@ -656,6 +700,7 @@ def main(
     Args:
         cfg: Baseline config for training an SAE.
         sweep: Path to .py file defining the sweep parameters.
+        max_parallel: Maximum SAEs to train concurrently within a single worker.
     """
     log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
     logging.basicConfig(level=logging.INFO, format=log_format)
@@ -679,6 +724,16 @@ def main(
         cfgs = [cfg]
 
     cfgs = split_cfgs(cfgs)
+    # codex resume 019ac16a-dc07-78e3-82c7-e5c08a6c6f0c
+    if max_parallel:
+        cfgs = [
+            subgroup
+            for group in cfgs
+            for subgroup in [
+                group[start:end]
+                for start, end in helpers.batched_idx(len(group), max_parallel)
+            ]
+        ]
 
     logger.info("Running %d training jobs.", len(cfgs))
 
