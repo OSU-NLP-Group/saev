@@ -15,9 +15,241 @@ from jaxtyping import Float, Int64, jaxtyped
 from torch import Tensor
 
 from .. import __version__, helpers
-from . import activations
 
 SCHEMA_VERSION = 5
+
+
+@jaxtyped(typechecker=beartype.beartype)
+@dataclasses.dataclass(frozen=True)
+class NoSparsity:
+    """No explicit sparsity penalty (e.g. for TopK/BatchTopK where k controls sparsity)."""
+
+    kind: tp.Literal["no-sparsity"] = "no-sparsity"
+
+    def loss(self, f_x: Float[Tensor, "batch d_sae"]) -> Float[Tensor, ""]:
+        return torch.tensor(0.0)
+
+
+@jaxtyped(typechecker=beartype.beartype)
+@dataclasses.dataclass(frozen=True)
+class L1Sparsity:
+    kind: tp.Literal["l1-sparsity"] = "l1-sparsity"
+    coeff: float = 1e-4
+
+    def loss(self, f_x: Float[Tensor, "batch d_sae"]) -> Float[Tensor, ""]:
+        l1 = f_x.abs().sum(axis=1).mean(axis=0)
+        return l1 * self.coeff
+
+
+Sparsity = NoSparsity | L1Sparsity
+
+
+@jaxtyped(typechecker=beartype.beartype)
+@dataclasses.dataclass(frozen=True)
+class NoAux:
+    """No auxiliary loss (e.g., for ReLU)."""
+
+    kind: tp.Literal["no-aux"] = "no-aux"
+
+    def loss(
+        self,
+        *,
+        sae: "SparseAutoencoder",
+        x: Float[Tensor, "batch d_model"],
+        out: "SparseAutoencoder.SaeOutput",
+        dead_mask: Tensor | None,
+    ) -> Float[Tensor, ""]:
+        return torch.zeros((), device=x.device, dtype=x.dtype)
+
+
+@jaxtyped(typechecker=beartype.beartype)
+@dataclasses.dataclass(frozen=True)
+class AuxK:
+    """AuxK auxiliary reconstruction loss for dead latents."""
+
+    kind: tp.Literal["auxk"] = "auxk"
+    k_aux: int = 512
+    alpha: float = 1 / 32
+
+    def loss(
+        self,
+        *,
+        sae: "SparseAutoencoder",
+        x: Float[Tensor, "batch d_model"],
+        out: "SparseAutoencoder.DecodeOutput",
+        dead_mask: Float[Tensor, " d_sae"],
+    ) -> Float[Tensor, ""]:
+        assert dead_mask is not None
+        x_hat = out.x_hats[:, -1, :]
+        residual = (x - x_hat).detach()
+        masked = out.pre_acts.masked_fill(~dead_mask, float("-inf"))
+        n_dead = int(dead_mask.sum().item())
+        k_use = min(self.k_aux, n_dead)
+        if k_use == 0:
+            return residual.new_zeros(())
+
+        _, top_i = masked.topk(k_use, dim=-1)
+        aux_acts = torch.zeros_like(out.pre_acts)
+        aux_acts.scatter_(-1, top_i, out.pre_acts.gather(-1, top_i))
+
+        # Use full-prefix reconstruction (last prefix) to match main x_hat shape
+        aux_recon = sae.decode(aux_acts).x_hats[:, -1, :]
+        return self.alpha * (aux_recon - residual).pow(2).mean()
+
+
+@beartype.beartype
+@dataclasses.dataclass(frozen=True)
+class Relu:
+    """Vanilla ReLU"""
+
+    kind: tp.Literal["relu"] = "relu"
+    sparsity: Sparsity = L1Sparsity(coeff=4e-4)
+    aux: NoAux = NoAux()
+
+
+@beartype.beartype
+@dataclasses.dataclass(frozen=True)
+class TopK:
+    kind: tp.Literal["top-k"] = "top-k"
+    top_k: int = 32
+    """How many values are allowed to be non-zero."""
+    sparsity: Sparsity = NoSparsity()
+    aux: AuxK = AuxK()
+
+    def __post_init__(self):
+        assert self.top_k > 0, "top_k must be a positive integer."
+
+
+@beartype.beartype
+@dataclasses.dataclass(frozen=True)
+class BatchTopK:
+    kind: tp.Literal["batch-top-k"] = "batch-top-k"
+    top_k: int = 32
+    """How many values are allowed to be non-zero per sample in the batch."""
+    sparsity: Sparsity = NoSparsity()
+    momentum: float = 0.1
+    aux: AuxK = AuxK()
+
+    def __post_init__(self):
+        assert self.top_k > 0, "top_k must be a positive integer."
+
+
+ActivationConfig = Relu | TopK | BatchTopK
+Config = ActivationConfig
+_ACTIVATION_REGISTRY = {
+    cls.__name__: cls
+    for cls in (Relu, TopK, BatchTopK, AuxK, NoAux, L1Sparsity, NoSparsity)
+}
+
+
+@jaxtyped(typechecker=beartype.beartype)
+class ReluActivation(torch.nn.Module):
+    def __init__(self, cfg: Relu):
+        super().__init__()
+        self.cfg = cfg
+
+    def forward(self, x: Float[Tensor, "batch d_sae"]) -> Float[Tensor, "batch d_sae"]:
+        return torch.nn.functional.relu(x)
+
+
+@jaxtyped(typechecker=beartype.beartype)
+class TopKActivation(torch.nn.Module):
+    """
+    Top-K activation function. For use as activation function of sparse encoder.
+    """
+
+    def __init__(self, cfg: TopK):
+        super().__init__()
+        self.cfg = cfg
+
+    def forward(self, x: Float[Tensor, "batch d_sae"]) -> Float[Tensor, "batch d_sae"]:
+        """
+        Apply top-k activation to the input tensor.
+        """
+
+        bsz, d_sae = x.shape
+        k = min(self.cfg.top_k, d_sae)
+        _, idxs = torch.topk(x, k, dim=-1, sorted=False)
+        mask = torch.zeros_like(x).scatter(-1, idxs, 1.0)
+
+        return torch.mul(mask, x)
+
+
+@jaxtyped(typechecker=beartype.beartype)
+class BatchTopKActivation(torch.nn.Module):
+    """
+    BatchTopK activation and inference-time threshold for sparse autoencoders.
+
+    This module implements a BatchTopK nonlinearity that enforces a fixed sparsity budget across a batch, together with an inference-time approximation that replaces the batch-coupled operation with a simple elementwise threshold.
+
+    Training mode (model.train()):
+        Given pre-activation codes x with shape [batch, d_sae], the BatchTopK activation flattens the batch to shape [batch * d_sae], selects the largest (batch * top_k) entries by value, and sets all other entries to zero. This enforces an average of exactly `top_k` active features per example while allowing the "activation budget" to move between examples in the batch.
+
+        During training, we also estimate an inference threshold theta that approximates the effective cutoff induced by BatchTopK. For each batch, we compute the minimum positive activation that survives the BatchTopK mask and update an exponential moving average of this quantity. This running estimate plays the same role as BatchNorm running statistics: it is updated only in training mode and treated as fixed at inference.
+
+    Eval mode (model.eval()):
+        At inference time we do not apply a batch-coupled top-k, since that would make each example depend on the rest of the eval batch. Instead, we use the stored running threshold theta to define a JumpReLU nonlinearity:
+
+            y = x if x > theta else 0
+
+        applied elementwise and independently to each example. This preserves the approximate sparsity level learned during training, but makes the layer deterministic and sample-wise independent for evaluation, probing, and downstream use.
+
+    Inputs:
+        x: Tensor of shape [batch, d_sae] containing pre-activation codes.
+
+    Outputs:
+        Tensor of shape [batch, d_sae] with the same dtype and device as x, where either:
+            - in training mode: exactly (batch * top_k) entries are non-zero across the batch due to the BatchTopK mask, or
+            - in eval mode: entries are zeroed by an elementwise JumpReLU with the learned threshold theta.
+    """
+
+    def __init__(self, cfg: BatchTopK):
+        super().__init__()
+        self.cfg = cfg
+
+        self.register_buffer("threshold", torch.tensor(0.0))
+
+    def forward(self, x: Float[Tensor, "batch d_sae"]) -> Float[Tensor, "batch d_sae"]:
+        """
+        Apply top-k activation to each sample in the batch.
+        """
+
+        if not self.training:
+            if self.threshold <= 0:
+                return torch.where(x > 0, x, torch.zeros_like(x))
+
+            return torch.where(x > self.threshold, x, torch.zeros_like(x))
+
+        bsz, d_sae = x.shape
+        x_flat = x.flatten()
+
+        bsz, d_sae = x.shape
+        k = min(self.cfg.top_k * bsz, d_sae * bsz)
+        _, idxs = torch.topk(x_flat, k, sorted=False)
+        mask = torch.zeros_like(x_flat).scatter(-1, idxs, 1.0).reshape(x.shape)
+
+        x = torch.mul(mask, x)
+
+        with torch.no_grad():
+            pos = x[x > 0]
+            if pos.numel() >= 0:
+                self.threshold.mul_(1 - self.cfg.momentum).add_(
+                    self.cfg.momentum * pos.min()
+                )
+
+        return x
+
+
+@beartype.beartype
+def get_activation(cfg: ActivationConfig) -> torch.nn.Module:
+    if isinstance(cfg, Relu):
+        return ReluActivation(cfg)
+    elif isinstance(cfg, TopK):
+        return TopKActivation(cfg)
+    elif isinstance(cfg, BatchTopK):
+        return BatchTopKActivation(cfg)
+    else:
+        tp.assert_never(cfg)
 
 
 @beartype.beartype
@@ -30,7 +262,7 @@ class SparseAutoencoderConfig:
     """Size of x."""
     d_sae: int = 1024 * 16
     """Number of features in SAE latent space; size of f(x)."""
-    activation: activations.Config = activations.Relu()
+    activation: ActivationConfig = TopK()
     """Activation function."""
     ##################
     # INITIALIZATION #
@@ -52,6 +284,21 @@ class SparseAutoencoderConfig:
 class SparseAutoencoder(torch.nn.Module):
     """Sparse auto-encoder (SAE)"""
 
+    @jaxtyped(typechecker=beartype.beartype)
+    class EncodeOut(tp.NamedTuple):
+        """Outputs of encode: pre-activations and activated latents."""
+
+        pre_acts: Float[Tensor, "batch d_sae"]
+        acts: Float[Tensor, "batch d_sae"]
+
+    @jaxtyped(typechecker=beartype.beartype)
+    class DecodeOutput(tp.NamedTuple):
+        """Decoder outputs, optionally bundled with encode outputs for aux losses."""
+
+        pre_acts: Float[Tensor, "batch d_sae"] | None
+        acts: Float[Tensor, "batch d_sae"]
+        x_hats: Float[Tensor, "batch n_prefixes d_model"]
+
     def __init__(self, cfg: SparseAutoencoderConfig):
         super().__init__()
 
@@ -69,36 +316,37 @@ class SparseAutoencoder(torch.nn.Module):
         self.W_enc = torch.nn.Parameter(self.W_dec.data.T)
         self.b_enc = torch.nn.Parameter(torch.zeros(cfg.d_sae))
 
-        self.activation = activations.get_activation(cfg.activation)
+        self.activation = get_activation(cfg.activation)
 
     def forward(
         self, x: Float[Tensor, "batch d_model"]
-    ) -> tuple[Float[Tensor, "batch d_model"], Float[Tensor, "batch d_sae"]]:
+    ) -> tuple[Float[Tensor, "batch 1 d_model"], Float[Tensor, "batch d_sae"]]:
         """
         Given x, calculates the reconstructed x_hat and the intermediate activations f_x.
 
         Arguments:
             x: a batch of transformer activations.
         """
-        f_x = self.encode(x)
-        x_hat = self.decode(f_x)
+        enc = self.encode(x)
+        dec = self.decode(enc.acts)
 
-        return x_hat, f_x
+        # (sam) I also feel that this should not be a tuple, if encode/decode are not tuples.
+        return dec.x_hats, enc.acts
 
-    def encode(self, x: Float[Tensor, "batch d_model"]) -> Float[Tensor, "batch d_sae"]:
+    def encode(self, x: Float[Tensor, "batch d_model"]) -> EncodeOut:
         h_pre = (
             einops.einsum(x, self.W_enc, "... d_model, d_model d_sae -> ... d_sae")
             + self.b_enc
         )
         f_x = self.activation(h_pre)
-        return f_x
+        return self.EncodeOut(pre_acts=h_pre, acts=f_x)
 
     def decode(
         self,
         f_x: Float[Tensor, "batch d_sae"],
         *,
         prefixes: Int64[Tensor, " n_prefixes"] | None = None,
-    ) -> Float[Tensor, "batch n_prefixes d_model"]:
+    ) -> DecodeOutput:
         """
         Decode latent features to reconstructions.
 
@@ -150,7 +398,8 @@ class SparseAutoencoder(torch.nn.Module):
         # Cumulative sum to get prefix reconstructions
         x_hats = torch.cumsum(torch.stack(block_outputs, dim=-2), dim=-2)
 
-        return x_hats
+        # (sam) This is clearly wrong. Needs to be cleaned up.
+        return self.DecodeOutput(pre_acts=None, acts=f_x, x_hats=x_hats)
 
     @torch.no_grad()
     def normalize_w_dec(self):
@@ -233,7 +482,9 @@ def _deserialize_dataclass_payload(
     payload: dict[str, tp.Any], *, allow_legacy_nested: bool = False
 ):
     cls_name = payload["cls"]
-    activation_cls = getattr(activations, cls_name)
+    activation_cls = globals().get(cls_name)
+    msg = f"Unknown activation class '{cls_name}' in payload."
+    assert activation_cls is not None, msg
     params: dict[str, tp.Any] = {}
     for key, value in payload["params"].items():
         params[key] = _deserialize_value(
@@ -274,11 +525,11 @@ def _deserialize_value(
 @beartype.beartype
 def _deserialize_legacy_sparsity(
     payload: dict[str, tp.Any],
-) -> activations.Sparsity | None:
+) -> Sparsity | None:
     if not payload:
-        return activations.NoSparsity()
+        return NoSparsity()
     if set(payload.keys()) <= {"coeff"}:
-        return activations.L1Sparsity(**payload)
+        return L1Sparsity(**payload)
     return None
 
 
@@ -334,7 +585,7 @@ def load(fpath: pathlib.Path | str, *, device="cpu") -> SparseAutoencoder:
         # Legacy format - create SparseAutoencoderConfig with Relu activation
         header["d_model"] = header.pop("d_vit")
         cfg_kwargs = _normalize_cfg_kwargs(header)
-        cfg = SparseAutoencoderConfig(**cfg_kwargs, activation=activations.Relu())
+        cfg = SparseAutoencoderConfig(**cfg_kwargs, activation=Relu())
     elif header["schema"] == 1:
         # Schema version 1: A cautionary tale of poor version management
         #
@@ -352,7 +603,7 @@ def load(fpath: pathlib.Path | str, *, device="cpu") -> SparseAutoencoder:
 
         if cls_name in ["Relu", "TopK", "BatchTopK"]:
             # Format 1A: Old format where cls indicates the activation type
-            activation_cls = getattr(activations, cls_name)
+            activation_cls = globals()[cls_name]
             if cls_name in ["TopK", "BatchTopK"]:
                 activation = activation_cls(top_k=cfg_dict.get("top_k", 32))
             else:

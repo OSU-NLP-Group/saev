@@ -7,7 +7,7 @@ import pytest
 import torch
 
 import saev.nn
-from saev.nn import activations, objectives
+from saev.nn import modeling, objectives
 
 
 def test_mse_same():
@@ -121,6 +121,7 @@ def test_matryoshka_objective_new_api():
     assert hasattr(loss, "sparsity")
     assert hasattr(loss, "l0")
     assert hasattr(loss, "l1")
+    assert hasattr(loss, "aux")
     assert hasattr(loss, "loss")
 
     # Verify shapes
@@ -128,9 +129,11 @@ def test_matryoshka_objective_new_api():
     assert loss.sparsity.shape == torch.Size([])
     assert loss.l0.shape == torch.Size([])
     assert loss.l1.shape == torch.Size([])
+    assert loss.aux.shape == torch.Size([])
 
     # Verify loss is finite
     assert torch.isfinite(loss.loss)
+    assert torch.isclose(loss.aux, torch.tensor(0.0, device=loss.aux.device))
 
     # Test backward pass
     loss.loss.backward()
@@ -167,7 +170,7 @@ def test_matryoshka_prefix_masking():
 
     # Create test data
     x = torch.randn(4, 64)  # batch=4, d_model=64
-    f_x = sae.encode(x)
+    f_x = sae.encode(x).acts
 
     # Test that masking works correctly
     prefix_sizes = [8, 16, 32, 64, 128, 256]  # d_sae = 64*4 = 256
@@ -182,7 +185,7 @@ def test_matryoshka_prefix_masking():
         assert (masked_f_x[:, prefix_size:] == 0).all()
 
         # Check that decode doesn't crash
-        x_hat = sae.decode(masked_f_x)
+        x_hat = sae.decode(masked_f_x).x_hats
         assert x_hat[:, 0, :].shape == x.shape
         assert torch.isfinite(x_hat).all()
 
@@ -242,7 +245,9 @@ def test_metrics_methods():
     assert "sparsity" in metrics
 
 
-@pytest.mark.parametrize("cfg", [cls() for cls in tp.get_args(activations.Config)])
+@pytest.mark.parametrize(
+    "cfg", [cls() for cls in tp.get_args(modeling.ActivationConfig)]
+)
 def test_objectives_with_different_activations(cfg):
     """Test that objectives work with different activation functions."""
     from saev import nn
@@ -307,7 +312,7 @@ def test_unified_decode_matryoshka():
     prefixes = torch.tensor([32, 64, 128])
 
     # Matryoshka decode
-    x_hats = sae.decode(f_x, prefixes=prefixes)
+    x_hats = sae.decode(f_x, prefixes=prefixes).x_hats
 
     assert x_hats.shape == (4, 3, 32)
     assert torch.isfinite(x_hats).all()
@@ -326,7 +331,7 @@ def test_decode_prefixes_device_handling():
     prefixes = torch.tensor([8, 16, 32])  # CPU tensor
 
     # Should handle CPU prefixes with CUDA model/data
-    x_hats = sae.decode(f_x, prefixes=prefixes)
+    x_hats = sae.decode(f_x, prefixes=prefixes).x_hats
 
     assert x_hats.device == f_x.device
     assert x_hats.shape == (3, 2, 16)
@@ -336,6 +341,6 @@ def test_decode_default_prefix_is_long_and_does_not_crash():
     cfg = saev.nn.SparseAutoencoderConfig(d_model=8, d_sae=8)
     sae = saev.nn.SparseAutoencoder(cfg)
     x = torch.randn(2, 8)
-    f = sae.encode(x)
-    out = sae.decode(f)  # should not raise
+    f = sae.encode(x).acts
+    out = sae.decode(f).x_hats  # should not raise
     assert out.shape == (2, 1, 8)

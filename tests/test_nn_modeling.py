@@ -6,7 +6,7 @@ import pytest
 import torch
 from hypothesis import given, settings
 
-from saev.nn import activations, modeling
+from saev.nn import modeling
 
 
 def sae_cfgs():
@@ -23,12 +23,12 @@ def sae_cfgs():
 def sae_cfgs_comprehensive():
     """Comprehensive SAE config strategy for testing various combinations."""
     # Define activation strategies
-    relu_strategy = st.builds(activations.Relu)
+    relu_strategy = st.builds(modeling.Relu)
     topk_strategy = st.builds(
-        activations.TopK, top_k=st.sampled_from([8, 16, 32, 64, 128])
+        modeling.TopK, top_k=st.sampled_from([8, 16, 32, 64, 128])
     )
     batch_topk_strategy = st.builds(
-        activations.BatchTopK, top_k=st.sampled_from([8, 16, 32, 64, 128])
+        modeling.BatchTopK, top_k=st.sampled_from([8, 16, 32, 64, 128])
     )
 
     activation_strategy = st.one_of(relu_strategy, topk_strategy, batch_topk_strategy)
@@ -97,7 +97,7 @@ def test_load_existing_checkpoint(repo_id, tmp_path):
 def test_dump_load_roundtrip_exhaustive(tmp_path):
     """Test dump/load roundtrip for all combinations of activations and various configs."""
     # Test all activation types with different configurations
-    activation_cfgs = [cls() for cls in tp.get_args(activations.Config)]
+    activation_cfgs = [cls() for cls in tp.get_args(modeling.Config)]
 
     # Various SAE configurations - reduced set for faster testing
     sae_cfgs = [

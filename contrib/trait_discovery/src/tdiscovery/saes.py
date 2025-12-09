@@ -44,5 +44,5 @@ class SparseAutoencoderScorer(Scorer):
             Latent activations of shape (batch, d_sae)
         """
         with torch.no_grad():
-            latents = self.sae.encode(activations)
+            latents = self.sae.encode(activations).acts
         return latents

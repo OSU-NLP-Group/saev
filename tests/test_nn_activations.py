@@ -2,7 +2,7 @@ import hypothesis.strategies as st
 import torch
 from hypothesis import given, settings
 
-from saev.nn import activations
+from saev.nn import modeling as activations
 
 
 def topk_cfgs():
