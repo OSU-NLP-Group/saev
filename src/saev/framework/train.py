@@ -281,30 +281,41 @@ def train(
     if slurm_job_id:
         run.set_summary("slurm_job_id", slurm_job_id)
 
-    if cfg.optim == "adam":
-        optimizers = [torch.optim.Adam(param_groups, fused=True)]
-    elif cfg.optim == "muon":
-        all_params = [p for sae in saes for p in sae.parameters()]
-        muon_params = [p for p in all_params if p.ndim == 2]
-        assert muon_params
-        adam_params = [p for p in all_params if p.ndim != 2]
-        assert adam_params
+    grouped_pgs: list[list[dict[str, object]]] = []
+    optimizers: list[list[torch.optim.Optimizer]] = []
+    lr_schedulers: list[list[saev.utils.scheduling.WarmupCosine]] = []
 
-        optimizers = [
-            torch.optim.Muon(muon_params, lr=0.0),
-            torch.optim.Adam(adam_params, lr=0.0, fused=True),
+    for i, (sae, cfg, param_group) in enumerate(zip(saes, cfgs, param_groups)):
+        if cfg.optim == "adam":
+            opts = [torch.optim.Adam([param_group], fused=True)]
+        elif cfg.optim == "muon":
+            muon_params = [p for p in sae.parameters() if p.ndim == 2]
+            msg = f"Muon optimizer requires 2D params; SAE {i} has none."
+            assert muon_params, msg
+            adam_params = [p for p in sae.parameters() if p.ndim != 2]
+            msg = f"Adam optimizer requires non-2D params; SAE {i} has none."
+            assert adam_params, msg
+
+            opts = [
+                torch.optim.Muon(muon_params, lr=0.0),
+                torch.optim.Adam(adam_params, lr=0.0, fused=True),
+            ]
+        else:
+            tp.assert_never(cfg.optim)
+
+        pgs = [pg for opt in opts for pg in opt.param_groups]
+        scheds = [
+            saev.utils.scheduling.WarmupCosine(
+                0.0, cfg.n_lr_warmup, cfg.lr, len(dataloader), 0.0
+            )
+            for _ in pgs
         ]
-    else:
-        tp.assert_never(cfg.optim)
 
-    # One scheduler per param_group across all optimizers
-    all_param_groups = [pg for opt in optimizers for pg in opt.param_groups]
-    lr_schedulers = [
-        saev.utils.scheduling.WarmupCosine(
-            0.0, cfg.n_lr_warmup, cfg.lr, len(dataloader), 0.0
-        )
-        for _ in all_param_groups
-    ]
+        optimizers.append(opts)
+        grouped_pgs.append(pgs)
+        lr_schedulers.append(scheds)
+
+    param_groups = grouped_pgs
 
     saes.train()
     saes = saes.to(cfg.device)
@@ -374,11 +385,11 @@ def train(
                 assert batch_baseline_sse > 0, msg
                 batch_baseline_sse_value = batch_baseline_sse.item()
 
-                current_lr = all_param_groups[0]["lr"]
                 metrics = []
                 for i, (loss, sae, objective, fwd) in enumerate(
                     zip(losses, saes, objectives, fwds)
                 ):
+                    current_lr = param_groups[i][0]["lr"]
                     # Explained variance: 1 - Var(x - x_hat) / Var(x)
                     residual = acts_BD - fwd.x_hat[:, -1, :]
                     batch_sse_sae_value = torch.sum(
@@ -426,18 +437,21 @@ def train(
                     )
                 )
 
-        for opt in optimizers:
-            opt.step()
+        for opts in optimizers:
+            for opt in opts:
+                opt.step()
 
         # Update LR and sparsity coefficients.
-        for param_group, scheduler in zip(all_param_groups, lr_schedulers):
-            param_group["lr"] = scheduler.step()
+        for pgs, scheds in zip(param_groups, lr_schedulers):
+            for pg, sched in zip(pgs, scheds):
+                pg["lr"] = sched.step()
 
         # for objective, scheduler in zip(objectives, sparsity_schedulers):
         #     objective.sparsity_coeff = scheduler.step()
 
-        for opt in optimizers:
-            opt.zero_grad()
+        for opts in optimizers:
+            for opt in opts:
+                opt.zero_grad()
 
         global_step += 1
 
