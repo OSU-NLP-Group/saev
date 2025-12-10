@@ -71,8 +71,6 @@ class AuxK:
     key: tyro.conf.Suppress[tp.Literal["auxk"]] = "auxk"
     k_aux: int = 512
     alpha: float = 1 / 32
-    dead_threshold_tokens: int = 10_000_000
-    """Tokens without activation before a latent is considered dead."""
 
     def loss(
         self,

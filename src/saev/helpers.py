@@ -358,6 +358,10 @@ def make_hashable(x: object) -> Hashable:
     if isinstance(x, (bytearray, memoryview)):
         return bytes(x)
 
+    # Paths (have empty __slots__, so need special handling)
+    if isinstance(x, pathlib.PurePath):
+        return ("path", str(x))
+
     # Sequences
     if isinstance(x, tuple):
         return ("tuple", tuple(make_hashable(e) for e in x))

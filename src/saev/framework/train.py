@@ -76,8 +76,6 @@ class Config:
     """Number of learning rate warmup steps."""
     grad_clip: float = 1.0
     """Maximum gradient norm across all SAE parameters."""
-    dead_threshold_tokens: int = 3_000_000
-    """Tokens without activation before a latent is considered dead."""
 
     # Logging
     track: bool = True
@@ -281,6 +279,10 @@ def train(
     if slurm_job_id:
         run.set_summary("slurm_job_id", slurm_job_id)
 
+    # Build per-SAE bundles of optimizers/param_groups/schedulers so each config's LR and warmup drive both Muon and Adam param groups for that SAE. We reshape the flat param_groups into per-SAE lists because we need to:
+    #   (a) build schedulers with that SAE's cfg
+    #   (b) step/zero only that SAE's optimizers
+    #   (c) log that SAE's LR without fishing through a mixed flat list.
     grouped_pgs: list[list[dict[str, object]]] = []
     optimizers: list[list[torch.optim.Optimizer]] = []
     lr_schedulers: list[list[saev.utils.scheduling.WarmupCosine]] = []
@@ -391,7 +393,7 @@ def train(
                 ):
                     current_lr = param_groups[i][0]["lr"]
                     # Explained variance: 1 - Var(x - x_hat) / Var(x)
-                    residual = acts_BD - fwd.x_hat[:, -1, :]
+                    residual = acts_BD - fwd.x_hats[:, -1, :]
                     batch_sse_sae_value = torch.sum(
                         (residual.to(torch.float64)) ** 2
                     ).item()
@@ -413,7 +415,7 @@ def train(
                     avg_w_row_norm = sae.W_dec.norm(dim=1).mean()
 
                     metric = {
-                        **loss.metrics(),
+                        **{f"loss/{key}": val for key, val in loss.metrics().items()},
                         "progress/n_patches_seen": n_patches_seen,
                         "progress/learning_rate": current_lr,
                         "metrics/explained_variance": explained_var.item(),
@@ -553,7 +555,7 @@ def evaluate(
             # Objective now handles the forward pass internally
             loss, fwd = objective(sae, acts_BD)
             # Get f_x for metrics
-            residual = acts_BD - fwd.x_hat[:, -1, :]
+            residual = acts_BD - fwd.x_hats[:, -1, :]
             total_sse_sae[i] += torch.sum((residual.to(torch.float64)) ** 2)
             n_fired[i] += einops.reduce(
                 fwd.f_x > 0, "batch d_sae -> d_sae", "sum"

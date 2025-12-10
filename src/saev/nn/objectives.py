@@ -4,7 +4,7 @@ import typing as tp
 import beartype
 import einops
 import torch
-from jaxtyping import Float, Int64, jaxtyped
+from jaxtyping import Float, Int, Int64, jaxtyped
 from torch import Tensor
 
 from . import modeling
@@ -21,6 +21,8 @@ class Matryoshka:
 
     n_prefixes: int = 10
     """Number of random length prefixes to use for loss calculation."""
+    dead_threshold_tokens: int = 10_000_000
+    """Tokens without activation before a latent is considered dead."""
 
 
 ObjectiveConfig = Matryoshka
@@ -67,6 +69,8 @@ class MatryoshkaLoss(Loss):
     """Sum of L1 magnitudes of hidden activations for all prefix lengths."""
     aux: Float[Tensor, ""]
     """Auxiliary loss term (e.g., AuxK)."""
+    n_dead: Int[Tensor, ""]
+    """Number of dead latents (per aux loss threshold)."""
 
     @property
     def loss(self) -> Float[Tensor, ""]:
@@ -81,6 +85,7 @@ class MatryoshkaLoss(Loss):
             "l1": self.l1.item(),
             "sparsity": self.sparsity.item(),
             "aux": self.aux.item(),
+            "n_dead": self.n_dead,
         }
 
 
@@ -91,7 +96,6 @@ class MatryoshkaObjective(Objective):
     def __init__(self, cfg: Matryoshka):
         super().__init__()
         self.cfg = cfg
-        self.dead_threshold_tokens = 10_000_000
         self.toks_since_active: Tensor | None = None
 
     def forward(
@@ -100,24 +104,22 @@ class MatryoshkaObjective(Objective):
         enc = sae.encode(x)
         bsz, d_sae = enc.f_x.shape
 
-        dead_mask = None
         if self.training:
-            if (
-                self.toks_since_active is None
-                or self.toks_since_active.shape[0] != d_sae
-            ):
+            if self.toks_since_active is None:
                 self.toks_since_active = torch.zeros(
                     d_sae, device=enc.f_x.device, dtype=torch.int64
                 )
-            tracker = self.toks_since_active
-            n_tokens_in_batch = x.shape[0]
+
+            assert self.toks_since_active.shape == (d_sae,)
             with torch.no_grad():
                 active_mask = (enc.f_x.abs() > 0).any(dim=0)
                 msg = f"Active mask shape {active_mask.shape} != {(d_sae,)}"
                 assert active_mask.shape == (d_sae,), msg
-                tracker[active_mask] = 0
-                tracker[~active_mask] += n_tokens_in_batch
-                dead_mask = tracker >= self.dead_threshold_tokens
+                self.toks_since_active += bsz
+                self.toks_since_active[active_mask] = 0
+                dead_mask = self.toks_since_active >= self.cfg.dead_threshold_tokens
+        else:
+            dead_mask = None
 
         # Sample prefix cuts
         prefixes = sample_prefixes(d_sae, self.cfg.n_prefixes)
@@ -135,16 +137,12 @@ class MatryoshkaObjective(Objective):
             ),
         ).mean()
 
-        aux_cfg = getattr(sae.cfg.activation, "aux", modeling.NoAux())
-        aux_loss = aux_cfg.loss(
-            sae=sae,
-            x=x,
-            out=sae_out,
-            dead_mask=dead_mask,
+        aux_loss = sae.cfg.activation.aux.loss(
+            sae=sae, x=x, out=sae_out, dead_mask=dead_mask
         )
+        n_dead = dead_mask.sum() if dead_mask is not None else torch.tensor(0)
 
         # Calculate sparsity metrics on full encoding
-
         return (
             MatryoshkaLoss(
                 mse=mse_loss,
@@ -152,6 +150,7 @@ class MatryoshkaObjective(Objective):
                 l0=(enc.f_x != 0).float().sum(axis=1).mean(axis=0),
                 l1=enc.f_x.abs().sum(axis=1).mean(axis=0),
                 aux=aux_loss,
+                n_dead=n_dead,
             ),
             sae_out,
         )
