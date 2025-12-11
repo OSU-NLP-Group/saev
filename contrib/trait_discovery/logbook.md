@@ -1573,14 +1573,32 @@ ImageNet-1K and ADE20K, for layers 24/24:
 
 | SAE | Aux. Loss | L0 | MSE | Probe R | mAP | F1 | Cov@0.3 |
 |---|---|---|---|---|---|---|---|
-| ReLU | |  85.8 | 0.249 | 0.432 | 37.2 | 32.1 | 54.9 | 
-| TopK | | 
-| TopK | AuxK | 
+| ReLU | |  85.8 | 0.249 | 0.432 | 37.2 | 32.1 | 0.549 | 
+| TopK | | 16 | 0.297 | 0.460 | 36.8 | 31.8 | 0.516 |
+| TopK | AuxK | 64 | 0.207 | 0.479 | 38.9 | 34.0 | 0.576 |
 
-FishVista:
+FishVista for layers 24/24:
 
 | SAE | Aux. Loss | L0 | MSE | Probe R | mAP | F1 | Cov@0.3 |
 |---|---|---|---|---|---|---|---|
 | ReLU | | 571 | 0.035 | 0.416 | 56.0 | 50.8 | 0.8 |
-| TopK | | 
-| TopK | AuxK | 16 | 0.184 | 0.438 | 54.3 | F1 50.1 | 0.7 |
+| TopK | | 64 | 0.101 | 0.417 | 53.2 | 48.6 | 0.8 |
+| TopK | AuxK | 16 | 0.184 | 0.438 | 54.3 | 50.1 | 0.7 |
+
+And now the same for the best layer (listed).
+
+ImageNet-1K and ADE20K:
+
+| SAE | Aux. Loss | Layer | L0 | MSE | Probe R | mAP | F1 | Cov@0.3 |
+|---|---|---|---|---|---|---|---|---|
+| ReLU | | | 
+| TopK | | 24 | 16 | 0.297 | 0.460 | 36.8 | 31.8 | 0.516 |
+| TopK | AuxK | 24 | 64 | 0.207 | 0.479 | 38.9 | 34.0 | 0.576 |
+
+FishVista:
+
+| SAE | Aux. Loss | Layer | L0 | MSE | Probe R | mAP | F1 | Cov@0.3 |
+|---|---|---|---|---|---|---|---|---|
+| ReLU | | | 
+| TopK | | 20 | 64 | 0.113 | 0.424 | 54.3 | 51.3 | 0.8 |
+| TopK | AuxK | 24 | 16 | 0.184 | 0.438 | 54.3 | 50.1 | 0.7 |
