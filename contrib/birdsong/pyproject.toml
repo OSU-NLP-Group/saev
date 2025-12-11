@@ -1,0 +1,20 @@
+[project]
+name = "birdsong"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Samuel Stevens", email = "samuel.robert.stevens@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "opensoundscape>=0.12.1",
+    "torchaudio>=2.9.1",
+]
+
+[project.scripts]
+birdsong = "birdsong:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

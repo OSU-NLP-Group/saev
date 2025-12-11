@@ -11,7 +11,7 @@ from . import models
 
 
 @jaxtyped(typechecker=beartype.beartype)
-class Vit(torch.nn.Module, models.VisionTransformer):
+class Vit(torch.nn.Module, models.Transformer):
     family: str = "dinov2"
     patch_size: int = 14
 

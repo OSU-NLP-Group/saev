@@ -19,7 +19,7 @@ from . import models
 
 
 @jaxtyped(typechecker=beartype.beartype)
-class Vit(models.VisionTransformer, torch.nn.Module):
+class Vit(models.Transformer, torch.nn.Module):
     family: str = "fake-clip"
 
     def __init__(self, ckpt: str):

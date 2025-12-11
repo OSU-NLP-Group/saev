@@ -10,7 +10,7 @@ from . import models
 
 
 @jaxtyped(typechecker=beartype.beartype)
-class Vit(models.VisionTransformer, torch.nn.Module):
+class Vit(models.Transformer, torch.nn.Module):
     family: str = "clip"
 
     def __init__(self, ckpt: str):
@@ -48,7 +48,7 @@ class Vit(models.VisionTransformer, torch.nn.Module):
         import open_clip
 
         if (
-            isinstance(self.model, open_clip.transformer.VisionTransformer)
+            isinstance(self.model, open_clip.transformer.Transformer)
             and hasattr(self.model, "conv1")
             and isinstance(self.model.conv1, torch.nn.Conv2d)
         ):

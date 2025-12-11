@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 @jaxtyped(typechecker=beartype.beartype)
-class VisionTransformer(abc.ABC):
+class Transformer(abc.ABC):
     """Protocol defining the interface for all Vision Transformer models."""
 
     @property
@@ -65,11 +65,11 @@ class VisionTransformer(abc.ABC):
         """Run forward pass on batch of images."""
 
 
-_global_model_registry: dict[str, type[VisionTransformer]] = {}
+_global_model_registry: dict[str, type[Transformer]] = {}
 
 
 @beartype.beartype
-def load_model_cls(family: str) -> type[VisionTransformer]:
+def load_model_cls(family: str) -> type[Transformer]:
     """Load a ViT family class."""
     if family not in _global_model_registry:
         raise ValueError(f"Family '{family}' not found.")
@@ -78,7 +78,7 @@ def load_model_cls(family: str) -> type[VisionTransformer]:
 
 
 @beartype.beartype
-def register_family(cls: type[VisionTransformer]):
+def register_family(cls: type[Transformer]):
     """Register a new ViT family class."""
     if cls.family in _global_model_registry:
         logger.warning("Overwriting key '%s' in registry.", cls.family)

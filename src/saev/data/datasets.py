@@ -176,7 +176,50 @@ class FakeImgSeg(DatasetConfig):
         return pathlib.Path("fake-seg")
 
 
-Config = Imagenet | Cifar10 | ImgFolder | ImgSegFolder | FakeImg | FakeImgSeg
+@beartype.beartype
+@dataclasses.dataclass(frozen=True)
+class BirdClef2025(DatasetConfig):
+    """Configuration for BirdCLEF 2025 dataset, filtering to only bird species (Aves).
+
+    See https://www.kaggle.com/competitions/birdclef-2025/data for more information.
+    """
+
+    root: pathlib.Path = pathlib.Path(
+        "/fs/ess/PAS2136/samuelstevens/datasets/birdclef-2025"
+    )
+    """Root directory containing the BirdCLEF 2025 data."""
+    split: tp.Literal["train_audio", "train_soundscapes", "test_soundscapes"] = (
+        "train_audio"
+    )
+    """Which data split to use."""
+
+    @property
+    def n_examples(self) -> int:
+        """Number of bird audio samples in the dataset."""
+        import polars as pl
+
+        taxonomy = pl.read_csv(self.root / "taxonomy.csv", infer_schema_length=None)
+        taxonomy = taxonomy.with_columns(pl.col("primary_label").cast(pl.Utf8))
+        birds = taxonomy.filter(pl.col("class_name") == "Aves")
+        bird_labels = set(birds["primary_label"].to_list())
+
+        if self.split == "train_audio":
+            train = pl.read_csv(self.root / "train.csv", infer_schema_length=None)
+            train = train.with_columns(pl.col("primary_label").cast(pl.Utf8))
+            return len(train.filter(pl.col("primary_label").is_in(bird_labels)))
+        elif self.split == "train_soundscapes":
+            soundscapes_dpath = self.root / "train_soundscapes"
+            return sum(1 for f in soundscapes_dpath.iterdir() if f.suffix == ".ogg")
+        elif self.split == "test_soundscapes":
+            soundscapes_dpath = self.root / "test_soundscapes"
+            return sum(1 for f in soundscapes_dpath.iterdir() if f.suffix == ".ogg")
+        else:
+            tp.assert_never(self.split)
+
+
+Config = (
+    Imagenet | Cifar10 | ImgFolder | ImgSegFolder | FakeImg | FakeImgSeg | BirdClef2025
+)
 
 
 @beartype.beartype
@@ -236,6 +279,8 @@ def get_dataset(
             seg_transform=seg_transform,
             sample_transform=sample_transform,
         )
+    elif isinstance(cfg, BirdClef2025):
+        return BirdClef2025Dataset(cfg, sample_transform=sample_transform)
     else:
         tp.assert_never(cfg)
 
@@ -598,3 +643,92 @@ def is_img_seg_dataset(data_cfg: DatasetConfig) -> bool:
         True if this is an image segmentation dataset that should have labels.bin
     """
     return isinstance(data_cfg, (FakeImgSeg, ImgSegFolder))
+
+
+@beartype.beartype
+class BirdClef2025Dataset(torch.utils.data.Dataset):
+    """Dataset for BirdCLEF 2025 filtered to bird species only (class_name == 'Aves')."""
+
+    def __init__(
+        self,
+        cfg: BirdClef2025,
+        *,
+        sample_transform: Callable | None = None,
+    ):
+        import polars as pl
+
+        self.cfg = cfg
+        self.sample_transform = sample_transform
+
+        # Load taxonomy and filter to birds only
+        taxonomy = pl.read_csv(cfg.root / "taxonomy.csv", infer_schema_length=None)
+        taxonomy = taxonomy.with_columns(pl.col("primary_label").cast(pl.Utf8))
+        birds = taxonomy.filter(pl.col("class_name") == "Aves")
+        bird_labels = set(birds["primary_label"].to_list())
+
+        # Build label -> target mapping from bird species only
+        sorted_labels = sorted(bird_labels)
+        self.label_to_target = {label: i for i, label in enumerate(sorted_labels)}
+        self.target_to_label = {i: label for label, i in self.label_to_target.items()}
+
+        if cfg.split == "train_audio":
+            train = pl.read_csv(cfg.root / "train.csv", infer_schema_length=None)
+            train = train.with_columns(pl.col("primary_label").cast(pl.Utf8))
+            train_birds = train.filter(pl.col("primary_label").is_in(bird_labels))
+            self.samples = [
+                {"label": row["primary_label"], "filename": row["filename"]}
+                for row in train_birds.iter_rows(named=True)
+            ]
+        elif cfg.split == "train_soundscapes":
+            soundscapes_dpath = cfg.root / "train_soundscapes"
+            self.samples = [
+                {"label": None, "filename": f.name}
+                for f in sorted(soundscapes_dpath.iterdir())
+                if f.suffix == ".ogg"
+            ]
+        elif cfg.split == "test_soundscapes":
+            soundscapes_dpath = cfg.root / "test_soundscapes"
+            self.samples = [
+                {"label": None, "filename": f.name}
+                for f in sorted(soundscapes_dpath.iterdir())
+                if f.suffix == ".ogg"
+            ]
+        else:
+            tp.assert_never(cfg.split)
+
+    def __len__(self) -> int:
+        return len(self.samples)
+
+    def __getitem__(self, index: int) -> dict[str, object]:
+        import soundfile as sf
+
+        sample = self.samples[index]
+        label = sample["label"]
+        target = self.label_to_target[label] if label is not None else None
+
+        # Build audio path based on split
+        if self.cfg.split == "train_audio":
+            audio_fpath = self.cfg.root / "train_audio" / sample["filename"]
+        elif self.cfg.split == "train_soundscapes":
+            audio_fpath = self.cfg.root / "train_soundscapes" / sample["filename"]
+        elif self.cfg.split == "test_soundscapes":
+            audio_fpath = self.cfg.root / "test_soundscapes" / sample["filename"]
+        else:
+            tp.assert_never(self.cfg.split)
+
+        audio, sample_rate = sf.read(audio_fpath)
+        result: dict[str, object] = {
+            "index": index,
+            "target": target,
+            "label": label,
+            "audio": audio,
+            "sample_rate": sample_rate,
+        }
+        if self.sample_transform is not None:
+            result = self.sample_transform(result)
+        return result
+
+    @property
+    def n_classes(self) -> int:
+        """Number of bird species."""
+        return len(self.label_to_target)
