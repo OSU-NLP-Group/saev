@@ -335,7 +335,7 @@ def _(
 
 @app.cell
 def _(df, pl):
-    expected = 5 * 3
+    expected = 3 * 5
 
     df.group_by(
         pl.col("config/sae/activation/aux/key"),
@@ -685,6 +685,24 @@ def _(df, mo, pl):
 
 
     _(df)
+    return
+
+
+@app.cell
+def _(df, pl):
+
+    df.filter(pl.col('downstream/train/probe_r').is_not_null() & pl.col("is_pareto")).group_by(
+        pl.col("config/sae/activation/aux/key"),
+        pl.col("data_key"),
+        pl.col("config/val_data/layer"),
+    ).agg(pl.len().alias("count"), pl.col('id')).with_columns(
+        (pl.col("count") == 3).alias("done")
+    ).sort(
+        "data_key",
+        "config/val_data/layer",
+        "config/sae/activation/aux/key",
+        descending=[True, False, True],
+    )
     return
 
 

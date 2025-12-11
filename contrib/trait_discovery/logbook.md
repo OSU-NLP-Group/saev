@@ -1574,16 +1574,16 @@ ImageNet-1K and ADE20K, for layers 24/24:
 | SAE | Aux. Loss | L0 | MSE | Probe R | mAP | F1 | Cov@0.3 |
 |---|---|---|---|---|---|---|---|
 | ReLU | |  85.8 | 0.249 | 0.432 | 37.2 | 32.1 | 0.549 | 
-| TopK | | 16 | 0.297 | 0.460 | 36.8 | 31.8 | 0.516 |
-| TopK | AuxK | 64 | 0.207 | 0.479 | 38.9 | 34.0 | 0.576 |
+| TopK | | **16** | 0.297 | 0.460 | 36.8 | 31.8 | 0.516 |
+| TopK | AuxK | 64 | **0.207** | **0.479** | **38.9** | **34.0** | **0.576** |
 
 FishVista for layers 24/24:
 
 | SAE | Aux. Loss | L0 | MSE | Probe R | mAP | F1 | Cov@0.3 |
 |---|---|---|---|---|---|---|---|
-| ReLU | | 571 | 0.035 | 0.416 | 56.0 | 50.8 | 0.8 |
-| TopK | | 64 | 0.101 | 0.417 | 53.2 | 48.6 | 0.8 |
-| TopK | AuxK | 16 | 0.184 | 0.438 | 54.3 | 50.1 | 0.7 |
+| ReLU | | 571 | **0.035** | 0.416 | **56.0** | **50.8 **| **0.8** |
+| TopK | | 64 | 0.101 | 0.417 | 53.2 | 48.6 | **0.8** |
+| TopK | AuxK | **16** | 0.184 | **0.438** | 54.3 | 50.1 | 0.7 |
 
 And now the same for the best layer (listed).
 
@@ -1602,3 +1602,13 @@ FishVista:
 | ReLU | | | 
 | TopK | | 20 | 64 | 0.113 | 0.424 | 54.3 | 51.3 | 0.8 |
 | TopK | AuxK | 24 | 16 | 0.184 | 0.438 | 54.3 | 50.1 | 0.7 |
+
+# 12/11/2025
+
+Okay, it seems like TopK + AuxK is actually very strong on ImageNet-1K, while a litte weaker on FishVista.
+I bet that's because FishVista is very limited in the number of classes, rather than because FishVista is domain specific.
+So I'm going to to stick with TopK + AuxK, but I do want to sweep $k$ a bit more agressively though.
+I think 16, 32, 64, 128, 256 is probably better.
+256 is too large for ImageNet-1K probing (timeouts) but fine for FishVista.
+
+Thus, let's begin doing some visualizations for FishVista in combination with FishBase metadata.

@@ -87,9 +87,7 @@ def _(
         saev_run = saev.disk.Run(runs_root / wandb_run.id)
         row = {"id": wandb_run.id}
 
-        row.update(**{
-            f"summary/{key}": value for key, value in wandb_run.summary.items()
-        })
+        row.update(**{f"summary/{key}": value for key, value in wandb_run.summary.items()})
 
         try:
             row["summary/eval/freqs"] = load_freqs(wandb_run)
@@ -114,16 +112,12 @@ def _(
             print(f"Run {wandb_run.id} missing config section: {err}.")
             return None
 
-        row.update(**{
-            f"config/train_data/{key}": value for key, value in train_data.items()
-        })
-        row.update(**{
-            f"config/val_data/{key}": value for key, value in val_data.items()
-        })
+        row.update(
+            **{f"config/train_data/{key}": value for key, value in train_data.items()}
+        )
+        row.update(**{f"config/val_data/{key}": value for key, value in val_data.items()})
         row.update(**{f"config/sae/{key}": value for key, value in sae_cfg.items()})
-        row.update(**{
-            f"config/objective/{key}": value for key, value in obj_cfg.items()
-        })
+        row.update(**{f"config/objective/{key}": value for key, value in obj_cfg.items()})
 
         row.update(**{f"config/{key}": value for key, value in config.items()})
 
@@ -145,9 +139,7 @@ def _(
 
             split_label = get_probe_split_label(shards_dpath)
             if split_label is None:
-                print(
-                    f"Skipping shards {shard_id}: unknown split (run {wandb_run.id})."
-                )
+                print(f"Skipping shards {shard_id}: unknown split (run {wandb_run.id}).")
                 continue
 
             if split_label in split_map:
@@ -217,9 +209,7 @@ def _(
 
         # k = 16
         path = (
-            saev_run.inference
-            / val_shards
-            / f"probe1d_metrics__train-{train_shards}.npz"
+            saev_run.inference / val_shards / f"probe1d_metrics__train-{train_shards}.npz"
         )
         if path.is_file():
             with np.load(path) as fd:
@@ -244,14 +234,17 @@ def _(
 
         return row
 
+
     @beartype.beartype
     def _finalize_df(rows: list[dict[str, object]]):
         df = pl.DataFrame(rows, infer_schema_length=None)
 
-        activation_schema = pl.Struct([
-            pl.Field("sparsity", pl.Struct([pl.Field("coeff", pl.Float64)])),
-            pl.Field("top_k", pl.Int64),
-        ])
+        activation_schema = pl.Struct(
+            [
+                pl.Field("sparsity", pl.Struct([pl.Field("coeff", pl.Float64)])),
+                pl.Field("top_k", pl.Int64),
+            ]
+        )
 
         df = df.with_columns(
             pl.col("config/sae/activation").cast(
@@ -299,6 +292,7 @@ def _(
 
         return df
 
+
     @beartype.beartype
     def make_df_parallel(n_workers: int = 16):
         filters = {}
@@ -332,15 +326,16 @@ def _(
         assert rows, "No valid runs."
         return _finalize_df(rows)
 
+
     df = make_df_parallel()
     return (df,)
 
 
 @app.cell
 def _(df, pl):
-    df.filter(
-        pl.col("is_pareto"), pl.col("downstream/frac_w_neg").is_not_null()
-    ).select("id", "^downstream/.*$")
+    df.filter(pl.col("is_pareto"), pl.col("downstream/frac_w_neg").is_not_null()).select(
+        "id", "^downstream/.*$"
+    )
     return
 
 
@@ -364,9 +359,7 @@ def _(df, np, pl, plt):
 
         for i, y in enumerate(ys):
             ax.axhline(ks[i], color="tab:red", alpha=0.9, linewidth=0.1)
-            print(
-                f"k={ks[i]}:\trun {ids[i, y.argmin().item()]} -> {y.min().item():.4f}"
-            )
+            print(f"k={ks[i]}:\trun {ids[i, y.argmin().item()]} -> {y.min().item():.4f}")
 
         ax.set_xticks(np.arange(len(ks)) + 1, [f"$k$={k}" for k in ks])
         ax.set_yscale("log")
@@ -374,6 +367,7 @@ def _(df, np, pl, plt):
         ax.spines[["top", "right"]].set_visible(False)
 
         return fig
+
 
     _()
     return
@@ -475,9 +469,9 @@ def _(collections, df, itertools, mo, pl, plt, saev):
                     linestyle=linestyle,
                 )
 
-                if layer == 23:
-                    print(layer, data_key, blend, kind, len(ids))
-                    pareto_ckpts[(layer, data_key, blend, kind)].extend(ids)
+                # if layer in (2:
+                print(layer, data_key, blend, kind, len(ids))
+                pareto_ckpts[(layer, data_key, blend, kind)].extend(ids)
 
                 if kind == "topk":
                     print(xs, ys)
@@ -546,6 +540,7 @@ def _(collections, df, itertools, mo, pl, plt, saev):
 
         return mo.vstack([fig, dict(pareto_ckpts)])
 
+
     _(df)
     return
 
@@ -566,9 +561,7 @@ def _(df, pl):
         "config/sae/activation_kind",
         "summary/eval/l0",
         "summary/eval/normalized_mse",
-    ).filter(
-        (pl.col("config/val_data/layer") == 13) & (pl.col("data_key") != "IN1K/train")
-    )
+    ).filter((pl.col("config/val_data/layer") == 13) & (pl.col("data_key") != "IN1K/train"))
     return
 
 
@@ -660,6 +653,7 @@ def _(collections, df, mo, pl, plt, saev):
         )
 
         return mo.vstack([txt, fig])
+
 
     _(df)
     return
@@ -759,6 +753,7 @@ def _(collections, df, mo, pl, plt, saev):
 
         return mo.vstack([txt, fig])
 
+
     _(df)
     return
 
@@ -856,6 +851,7 @@ def _(collections, df, mo, pl, plt, saev):
         )
 
         return mo.vstack([txt, fig])
+
 
     _(df)
     return
@@ -963,6 +959,7 @@ def _(df, itertools, np, pl, plt, saev):
 
         return fig
 
+
     _(df)
     return
 
@@ -976,19 +973,43 @@ def _(df, mo, pl):
         dfs = []
 
         for data_key in ["FishVista (Img)", "IN1K/train"]:
+            print(
+                data_key,
+                df.filter(
+                    pl.col(col).is_not_null()
+                    & pl.col("is_pareto")
+                    & (pl.col("data_key") == data_key)
+                    # & (pl.col("config/val_data/layer") != 23)
+                ).with_columns(
+                    (
+                        pl.col("downstream/train/probe_r")
+                        == pl.col("downstream/train/probe_r").max()
+                    )
+                    .over(
+                        "config/sae/reinit_blend",
+                        "config/val_data/layer",
+                        "config/sae/activation_kind",
+                    )
+                    .alias("best_train_probe_r")
+                ),  # .select('best_train_probe_r').unique(),
+            )
             group = (
                 df.filter(
                     pl.col(col).is_not_null()
-                    # & pl.col("is_pareto")
-                    & (pl.col("config/val_data/layer") == 23)
+                    & pl.col("is_pareto")
                     & (pl.col("data_key") == data_key)
+                    & (pl.col("config/val_data/layer") != 23)
                 )
                 .with_columns(
                     (
                         pl.col("downstream/train/probe_r")
                         == pl.col("downstream/train/probe_r").max()
                     )
-                    .over("config/sae/reinit_blend", "config/sae/activation_kind")
+                    .over(
+                        "config/sae/activation_kind",
+                        "config/sae/reinit_blend",
+                        "config/val_data/layer",
+                    )
                     .alias("best_train_probe_r")
                 )
                 .filter(pl.col("best_train_probe_r"))
@@ -997,8 +1018,8 @@ def _(df, mo, pl):
                     "data_key",
                     "config/sae/activation_kind",
                     "config/sae/reinit_blend",
-                                    "summary/eval/l0",
-
+                    "config/val_data/layer",
+                    "summary/eval/l0",
                     "summary/eval/normalized_mse",
                     "downstream/train/probe_r",
                     "downstream/val/probe_r",
@@ -1012,6 +1033,7 @@ def _(df, mo, pl):
             dfs.append(group)
 
         return mo.vstack([mo.md("# Probe Results"), *dfs])
+
 
     _(df)
     return
@@ -1050,6 +1072,7 @@ def _(df, mo, pl):
 
         return mo.vstack([mo.md("# Dead Units"), *dfs])
 
+
     _(df)
     return
 
@@ -1073,6 +1096,7 @@ def _(Float, beartype, jaxtyped, json, np, os):
             raise RuntimeError(f"Wandb sucks: {err}") from err
 
         raise ValueError(f"freqs not found in run '{run.id}'")
+
 
     @jaxtyped(typechecker=beartype.beartype)
     def load_mean_values(run) -> Float[np.ndarray, " d_sae"]:
@@ -1105,9 +1129,7 @@ def _(base64, beartype, pickle, saev):
         )
 
         ckpt = next(
-            metadata[key]
-            for key in ("vit_ckpt", "model_ckpt", "ckpt")
-            if key in metadata
+            metadata[key] for key in ("vit_ckpt", "model_ckpt", "ckpt") if key in metadata
         )
 
         if family == "dinov2" and ckpt == "dinov2_vitb14_reg":
@@ -1131,6 +1153,7 @@ def _(base64, beartype, pickle, saev):
 
         print(f"Unknown model: {(family, ckpt)}")
         return ckpt
+
 
     @beartype.beartype
     def get_data_key(metadata: dict[str, object]) -> str | None:
