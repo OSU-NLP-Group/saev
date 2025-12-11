@@ -1547,3 +1547,40 @@ Let's try Muon as an optimizer.
 |          | FishVista  | Muon  |      |         |       |         |        |         |
 |          | IN1K/train | Adam  |      |         |       |         |        |         |
 |          | IN1K/train | Muon  |      |         |       |         |        |         |
+
+# 12/09/2025
+
+Notes from Jake on the fishbase metadata:
+
+> everything should just be empty when not present, 1 when present, and then have values for max/min depth, usual depth, ph, and dh. Depth/usual depth sometimes have a question mark as one of their values since that's the convention fishbase uses
+
+> Oh the only other small thing: sometimes ph/dh has a range given, other times a single number. When a single number is given it's just listed as both the min and the max for the ph/dh range on the spreadsheet
+
+
+Note: If n_dead > 0, then aux_loss should also be > 0.
+
+
+# 12/10/2025
+
+Based on some preliminary results, it seems like AuxK does in fact help with dead latents.
+Given that, I'd be pretty happy to try it out on fish, butterflies, beetles, and other downstream tasks.
+This means first taking a good fishvista checkpoint and looking at some features, some correlations, etc with the trait data.
+
+Quantitatively, both ADE20K and FishVista probe scores (mAP, probe R) are lower for AuxK instead of no auxiliary loss term.
+I want to get a comparison of ReLU vs TopK vs TopK + AuxK in terms of both quantitative scores and images (qualitative).
+
+ImageNet-1K and ADE20K, for layers 24/24:
+
+| SAE | Aux. Loss | L0 | MSE | Probe R | mAP | F1 | Cov@0.3 |
+|---|---|---|---|---|---|---|---|
+| ReLU | |  85.8 | 0.249 | 0.432 | 37.2 | 32.1 | 54.9 | 
+| TopK | | 
+| TopK | AuxK | 
+
+FishVista:
+
+| SAE | Aux. Loss | L0 | MSE | Probe R | mAP | F1 | Cov@0.3 |
+|---|---|---|---|---|---|---|---|
+| ReLU | | 571 | 0.035 | 0.416 | 56.0 | 50.8 | 0.8 |
+| TopK | | 
+| TopK | AuxK | 16 | 0.184 | 0.438 | 54.3 | F1 50.1 | 0.7 |
