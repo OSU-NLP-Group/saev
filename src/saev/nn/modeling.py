@@ -144,11 +144,6 @@ class BatchTopK:
 
 
 ActivationConfig = Relu | TopK | BatchTopK
-Config = ActivationConfig
-_ACTIVATION_REGISTRY = {
-    cls.__name__: cls
-    for cls in (Relu, TopK, BatchTopK, AuxK, NoAux, L1Sparsity, NoSparsity)
-}
 
 
 @jaxtyped(typechecker=beartype.beartype)

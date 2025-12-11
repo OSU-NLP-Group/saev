@@ -97,7 +97,7 @@ def test_load_existing_checkpoint(repo_id, tmp_path):
 def test_dump_load_roundtrip_exhaustive(tmp_path):
     """Test dump/load roundtrip for all combinations of activations and various configs."""
     # Test all activation types with different configurations
-    activation_cfgs = [cls() for cls in tp.get_args(modeling.Config)]
+    activation_cfgs = [cls() for cls in tp.get_args(modeling.ActivationConfig)]
 
     # Various SAE configurations - reduced set for faster testing
     sae_cfgs = [

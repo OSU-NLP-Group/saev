@@ -181,9 +181,8 @@ def worker_fn(cfg: Config):
     for batch in helpers.progress(dataloader_iter):
         # Get SAE activations (shared computation)
         vit_acts_bd = batch["act"].to(cfg.device)
-        # Here, p stands for prefixes
-        x_hat_bpd, f_x, *_ = sae(vit_acts_bd)
-        bsz, d_sae = f_x.shape
+        out = sae(vit_acts_bd)
+        bsz, d_sae = out.f_x.shape
 
         mask_b = torch.ones(bsz, dtype=torch.bool)
         if "token_labels" in batch:
@@ -194,12 +193,13 @@ def worker_fn(cfg: Config):
         n_tokens += n_batch_tokens
         if n_batch_tokens > 0:
             vit_masked_bd = vit_acts_bd[mask_b].to(torch.float64)
-            diff_bd = vit_masked_bd - x_hat_bpd[:, -1, :][mask_b].to(torch.float64)
+            diff_bd = vit_masked_bd - out.x_hats[:, -1, :][mask_b].to(torch.float64)
             reconstruction_sse += torch.sum(diff_bd * diff_bd)
             sum_sq += (vit_masked_bd * vit_masked_bd).sum()
             sum_vec_s += vit_masked_bd.sum(dim=0)
 
         # Update statistics
+        f_x = out.f_x
         distributions_nm[batch["example_idx"][mask_b], :] = f_x[mask_b, : cfg.n_dists]
         mean_values_s += einops.reduce(f_x[mask_b], "batch d_sae -> d_sae", "sum")
         sparsity_s += einops.reduce((f_x[mask_b] > 0), "batch d_sae -> d_sae", "sum")

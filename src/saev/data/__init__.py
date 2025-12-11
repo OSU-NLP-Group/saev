@@ -2,7 +2,7 @@ import dataclasses
 
 import beartype
 
-from . import clip, dinov2, dinov3, fake_clip, models, siglip
+from . import bird_mae, clip, dinov2, dinov3, fake_clip, models, siglip
 from .indexed import Config as IndexedConfig
 from .indexed import Dataset as IndexedDataset
 from .ordered import Config as OrderedConfig
@@ -28,6 +28,7 @@ models.register_family(clip.Vit)
 models.register_family(dinov2.Vit)
 models.register_family(dinov3.Vit)
 models.register_family(fake_clip.Vit)
+models.register_family(bird_mae.Transformer)
 
 
 @beartype.beartype

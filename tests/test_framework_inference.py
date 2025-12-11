@@ -32,7 +32,7 @@ def test_img_folder_inference():
             runs_root=runs_root,
             device="cpu",
             sae=saev.nn.SparseAutoencoderConfig(
-                d_model=md.d_model, d_sae=md.d_model * 8
+                d_model=md.d_model, d_sae=md.d_model * 8, reinit_blend=0.0
             ),
         )
         (run_id,) = saev.framework.train.worker_fn([train_cfg])

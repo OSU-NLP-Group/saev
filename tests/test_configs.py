@@ -615,19 +615,19 @@ def test_load_cfgs_union_dataclass_field_sweep():
 
     This is the pattern used in fishvista_train_topk.py.
     """
-    from saev.nn import activations
+    from saev.nn import modeling
 
     @beartype.beartype
     @dataclasses.dataclass(frozen=True)
     class ConfigWithActivation:
         """Mimics SparseAutoencoderConfig with union activation field."""
 
-        activation: activations.Config = activations.Relu()
+        activation: modeling.ActivationConfig = modeling.Relu()
         d_sae: int = 16384
 
     # The key difference from a broken implicit test: override already has TopK set
     # (simulating tyro parsing `sae.activation:topk`)
-    override = ConfigWithActivation(activation=activations.TopK(top_k=32))
+    override = ConfigWithActivation(activation=modeling.TopK(top_k=32))
     default = ConfigWithActivation()
 
     # Sweep dict provides only the parameter to update
@@ -643,7 +643,7 @@ def test_load_cfgs_union_dataclass_field_sweep():
     assert len(cfgs) == 3
 
     # All should remain TopK instances (not converted to something else)
-    assert all(isinstance(cfg.activation, activations.TopK) for cfg in cfgs), (
+    assert all(isinstance(cfg.activation, modeling.TopK) for cfg in cfgs), (
         f"Expected all TopK, got {[type(cfg.activation) for cfg in cfgs]}"
     )
 
