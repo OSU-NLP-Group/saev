@@ -25,6 +25,7 @@ def _():
 
     import saev.colors
     import saev.data.datasets
+
     return (
         Float,
         base64,
@@ -87,7 +88,9 @@ def _(
         saev_run = saev.disk.Run(runs_root / wandb_run.id)
         row = {"id": wandb_run.id}
 
-        row.update(**{f"summary/{key}": value for key, value in wandb_run.summary.items()})
+        row.update(**{
+            f"summary/{key}": value for key, value in wandb_run.summary.items()
+        })
 
         try:
             row["summary/eval/freqs"] = load_freqs(wandb_run)
@@ -112,12 +115,16 @@ def _(
             print(f"Run {wandb_run.id} missing config section: {err}.")
             return None
 
-        row.update(
-            **{f"config/train_data/{key}": value for key, value in train_data.items()}
-        )
-        row.update(**{f"config/val_data/{key}": value for key, value in val_data.items()})
+        row.update(**{
+            f"config/train_data/{key}": value for key, value in train_data.items()
+        })
+        row.update(**{
+            f"config/val_data/{key}": value for key, value in val_data.items()
+        })
         row.update(**{f"config/sae/{key}": value for key, value in sae_cfg.items()})
-        row.update(**{f"config/objective/{key}": value for key, value in obj_cfg.items()})
+        row.update(**{
+            f"config/objective/{key}": value for key, value in obj_cfg.items()
+        })
 
         row.update(**{f"config/{key}": value for key, value in config.items()})
 
@@ -139,7 +146,9 @@ def _(
 
             split_label = get_probe_split_label(shards_dpath)
             if split_label is None:
-                print(f"Skipping shards {shard_id}: unknown split (run {wandb_run.id}).")
+                print(
+                    f"Skipping shards {shard_id}: unknown split (run {wandb_run.id})."
+                )
                 continue
 
             if split_label in split_map:
@@ -209,7 +218,9 @@ def _(
 
         # k = 16
         path = (
-            saev_run.inference / val_shards / f"probe1d_metrics__train-{train_shards}.npz"
+            saev_run.inference
+            / val_shards
+            / f"probe1d_metrics__train-{train_shards}.npz"
         )
         if path.is_file():
             with np.load(path) as fd:
@@ -234,17 +245,14 @@ def _(
 
         return row
 
-
     @beartype.beartype
     def _finalize_df(rows: list[dict[str, object]]):
         df = pl.DataFrame(rows, infer_schema_length=None)
 
-        activation_schema = pl.Struct(
-            [
-                pl.Field("sparsity", pl.Struct([pl.Field("coeff", pl.Float64)])),
-                pl.Field("top_k", pl.Int64),
-            ]
-        )
+        activation_schema = pl.Struct([
+            pl.Field("sparsity", pl.Struct([pl.Field("coeff", pl.Float64)])),
+            pl.Field("top_k", pl.Int64),
+        ])
 
         df = df.with_columns(
             pl.col("config/sae/activation").cast(
@@ -292,7 +300,6 @@ def _(
 
         return df
 
-
     @beartype.beartype
     def make_df_parallel(n_workers: int = 16):
         filters = {}
@@ -326,16 +333,15 @@ def _(
         assert rows, "No valid runs."
         return _finalize_df(rows)
 
-
     df = make_df_parallel()
     return (df,)
 
 
 @app.cell
 def _(df, pl):
-    df.filter(pl.col("is_pareto"), pl.col("downstream/frac_w_neg").is_not_null()).select(
-        "id", "^downstream/.*$"
-    )
+    df.filter(
+        pl.col("is_pareto"), pl.col("downstream/frac_w_neg").is_not_null()
+    ).select("id", "^downstream/.*$")
     return
 
 
@@ -359,7 +365,9 @@ def _(df, np, pl, plt):
 
         for i, y in enumerate(ys):
             ax.axhline(ks[i], color="tab:red", alpha=0.9, linewidth=0.1)
-            print(f"k={ks[i]}:\trun {ids[i, y.argmin().item()]} -> {y.min().item():.4f}")
+            print(
+                f"k={ks[i]}:\trun {ids[i, y.argmin().item()]} -> {y.min().item():.4f}"
+            )
 
         ax.set_xticks(np.arange(len(ks)) + 1, [f"$k$={k}" for k in ks])
         ax.set_yscale("log")
@@ -367,7 +375,6 @@ def _(df, np, pl, plt):
         ax.spines[["top", "right"]].set_visible(False)
 
         return fig
-
 
     _()
     return
@@ -540,7 +547,6 @@ def _(collections, df, itertools, mo, pl, plt, saev):
 
         return mo.vstack([fig, dict(pareto_ckpts)])
 
-
     _(df)
     return
 
@@ -561,7 +567,9 @@ def _(df, pl):
         "config/sae/activation_kind",
         "summary/eval/l0",
         "summary/eval/normalized_mse",
-    ).filter((pl.col("config/val_data/layer") == 13) & (pl.col("data_key") != "IN1K/train"))
+    ).filter(
+        (pl.col("config/val_data/layer") == 13) & (pl.col("data_key") != "IN1K/train")
+    )
     return
 
 
@@ -653,7 +661,6 @@ def _(collections, df, mo, pl, plt, saev):
         )
 
         return mo.vstack([txt, fig])
-
 
     _(df)
     return
@@ -753,7 +760,6 @@ def _(collections, df, mo, pl, plt, saev):
 
         return mo.vstack([txt, fig])
 
-
     _(df)
     return
 
@@ -851,7 +857,6 @@ def _(collections, df, mo, pl, plt, saev):
         )
 
         return mo.vstack([txt, fig])
-
 
     _(df)
     return
@@ -959,7 +964,6 @@ def _(df, itertools, np, pl, plt, saev):
 
         return fig
 
-
     _(df)
     return
 
@@ -1034,7 +1038,6 @@ def _(df, mo, pl):
 
         return mo.vstack([mo.md("# Probe Results"), *dfs])
 
-
     _(df)
     return
 
@@ -1072,7 +1075,6 @@ def _(df, mo, pl):
 
         return mo.vstack([mo.md("# Dead Units"), *dfs])
 
-
     _(df)
     return
 
@@ -1097,7 +1099,6 @@ def _(Float, beartype, jaxtyped, json, np, os):
 
         raise ValueError(f"freqs not found in run '{run.id}'")
 
-
     @jaxtyped(typechecker=beartype.beartype)
     def load_mean_values(run) -> Float[np.ndarray, " d_sae"]:
         try:
@@ -1115,6 +1116,7 @@ def _(Float, beartype, jaxtyped, json, np, os):
             raise RuntimeError(f"Wandb sucks: {err}") from err
 
         raise ValueError(f"mean_values not found in run '{run.id}'")
+
     return load_freqs, load_mean_values
 
 
@@ -1129,7 +1131,9 @@ def _(base64, beartype, pickle, saev):
         )
 
         ckpt = next(
-            metadata[key] for key in ("vit_ckpt", "model_ckpt", "ckpt") if key in metadata
+            metadata[key]
+            for key in ("vit_ckpt", "model_ckpt", "ckpt")
+            if key in metadata
         )
 
         if family == "dinov2" and ckpt == "dinov2_vitb14_reg":
@@ -1154,7 +1158,6 @@ def _(base64, beartype, pickle, saev):
         print(f"Unknown model: {(family, ckpt)}")
         return ckpt
 
-
     @beartype.beartype
     def get_data_key(metadata: dict[str, object]) -> str | None:
         data_cfg = pickle.loads(base64.b64decode(metadata["data"].encode("utf8")))
@@ -1174,6 +1177,7 @@ def _(base64, beartype, pickle, saev):
 
         print(f"Unknown data: {data_cfg}")
         return None
+
     return get_data_key, get_model_key
 
 
@@ -1202,6 +1206,7 @@ def _(beartype, pathlib):
             probe_metric_fpaths.append(probe_metrics_fpath)
 
         return probe_metric_fpaths
+
     return (get_inference_probe_metric_fpaths,)
 
 
@@ -1226,6 +1231,7 @@ def _(beartype, pathlib, saev):
         if split_name in {"val", "validation"}:
             return "val"
         return None
+
     return (get_probe_split_label,)
 
 
@@ -1251,6 +1257,7 @@ def _(beartype, mo, np, pathlib, saev):
 
         prob = y.mean(axis=0)
         return -(prob * np.log(prob) + (1 - prob) * np.log(1 - prob))
+
     return (get_baseline_ce,)
 
 
@@ -1271,6 +1278,7 @@ def _(np):
             oldmostfreq = mostfrequent
 
         return mostfrequent, oldcounts
+
     return (mode,)
 
 

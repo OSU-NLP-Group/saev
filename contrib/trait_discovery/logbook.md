@@ -1581,7 +1581,7 @@ FishVista for layers 24/24:
 
 | SAE | Aux. Loss | L0 | MSE | Probe R | mAP | F1 | Cov@0.3 |
 |---|---|---|---|---|---|---|---|
-| ReLU | | 571 | **0.035** | 0.416 | **56.0** | **50.8 **| **0.8** |
+| ReLU | | 571 | **0.035** | 0.416 | **56.0** | **50.8**| **0.8** |
 | TopK | | 64 | 0.101 | 0.417 | 53.2 | 48.6 | **0.8** |
 | TopK | AuxK | **16** | 0.184 | **0.438** | 54.3 | 50.1 | 0.7 |
 
@@ -1612,3 +1612,18 @@ I think 16, 32, 64, 128, 256 is probably better.
 256 is too large for ImageNet-1K probing (timeouts) but fine for FishVista.
 
 Thus, let's begin doing some visualizations for FishVista in combination with FishBase metadata.
+
+1. Train another sweep on FishVista with more values of $k$.
+2. Look at some pretty pictures of FishVista, in combination with FishBase metadata.
+
+# 12/12/2025
+
+I want to start training TopK + AuxK on butterflies again.
+I think for ICML, we can simply include:
+
+- TopK + AuxK ablations and improvements
+- [maybe] Qualitative traits from butterflies?
+- [maybe] Qualitative traits from FishVista + FishBase? -> Maybe a better evaluation from FishVista + FishBase.
+- [maybe] Qualitative traits from birdsong?
+
+I'm not really sure what options can be added to the paper to make a sure thing at ICML.
