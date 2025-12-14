@@ -60,7 +60,7 @@ class Metadata:
         protocol: Protocol version.
     """
 
-    family: tp.Literal["clip", "siglip", "dinov2", "dinov3", "fake-clip"]
+    family: tp.Literal["bird-mae", "clip", "siglip", "dinov2", "dinov3", "fake-clip"]
     ckpt: str
     layers: tuple[int, ...]
     content_tokens_per_example: int
@@ -633,9 +633,9 @@ def worker_fn(
         model_instance, content_tokens_per_example, cls_token, layers
     )
 
-    img_tr, sample_tr = model_cls.make_transforms(ckpt, content_tokens_per_example)
+    data_tr, sample_tr = model_cls.make_transforms(ckpt, content_tokens_per_example)
 
-    seg_tr = None
+    mask_tr = None
     if datasets.is_img_seg_dataset(data):
         # For image segmentation datasets, create a transform that converts pixels to patches
         # Use make_resize with NEAREST interpolation for segmentation masks
@@ -655,14 +655,14 @@ def worker_fn(
                 bg_label=data.bg_label,
             )
 
-        seg_tr = seg_to_patches
+        mask_tr = seg_to_patches
 
     dataloader = get_dataloader(
         data,
         batch_size=batch_size,
         n_workers=n_workers,
-        img_tr=img_tr,
-        seg_tr=seg_tr,
+        data_tr=data_tr,
+        mask_tr=mask_tr,
         sample_tr=sample_tr,
     )
 
@@ -692,13 +692,13 @@ def worker_fn(
         # Calculate and write transformer activations.
         with torch.inference_mode():
             for batch in helpers.progress(dataloader, total=n_batches):
-                imgs = batch.get("image").to(device)
+                data = batch.get("data").to(device)
                 grid = batch.get("grid")
                 if grid is not None:
                     grid = grid.to(device)
-                    out, cache = model(imgs, grid=grid)
+                    out, cache = model(data, grid=grid)
                 else:
-                    out, cache = model(imgs)
+                    out, cache = model(data)
                 # cache has shape [batch size, n layers, n patches + 1, d model]
                 del out
 
@@ -732,8 +732,8 @@ def get_dataloader(
     *,
     batch_size: int,
     n_workers: int,
-    img_tr: Callable | None = None,
-    seg_tr: Callable | None = None,
+    data_tr: Callable | None = None,
+    mask_tr: Callable | None = None,
     sample_tr: Callable | None = None,
 ) -> torch.utils.data.DataLoader:
     """
@@ -743,15 +743,15 @@ def get_dataloader(
         data: Config for the dataset.
         batch_size: Batch size.
         n_workers: Number of dataloader workers.
-        img_tr: Image transform to be applied to each image.
-        seg_tr: Segmentation transform to be applied to masks.
-        sample_tr: Transform to be applied to sample dicts.
+        data_tr: Transform to be applied to each 'data' key (typically the raw data).
+        mask_tr: Transform to be applied to masks.
+        sample_tr: Transform to be applied to the entire sample dict.
 
     Returns:
-        A PyTorch Dataloader that yields dictionaries with `'image'` keys containing image batches, `'index'` keys containing original dataset indices and `'label'` keys containing label batches.
+        A PyTorch Dataloader that yields dictionaries with `'data'` keys containing data batches, `'index'` keys containing original dataset indices and `'label'` keys containing label batches.
     """
     dataset = datasets.get_dataset(
-        data, img_transform=img_tr, seg_transform=seg_tr, sample_transform=sample_tr
+        data, data_transform=data_tr, mask_transform=mask_tr, sample_transform=sample_tr
     )
 
     dataloader = torch.utils.data.DataLoader(

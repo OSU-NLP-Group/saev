@@ -13,7 +13,7 @@ import safetensors.torch
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from jaxtyping import Float, jaxtyped
+from jaxtyping import Bool, Float, jaxtyped
 from PIL import Image
 from torch import Tensor
 
@@ -40,7 +40,8 @@ class Config:
     init_values: float | None = None
     drop_rate: float = 0.0
     norm_layer_eps: float = 1e-6
-    global_pool: tp.Literal["mean", "cls"] = "mean"  # "mean", "cls", or None
+    global_pool: tp.Literal["mean", "cls"] = "mean"
+    final_norm: tp.Literal[None, "patch-norm", "cls-norm"] = None
 
     @property
     def n_patches_x(self):
@@ -400,7 +401,6 @@ class Encoder(nn.Module):
         self.pos_drop = nn.Dropout(p=cfg.drop_rate)
         self.norm = nn.LayerNorm(cfg.embed_dim, eps=cfg.norm_layer_eps)
         self.fc_norm = nn.LayerNorm(cfg.embed_dim, eps=cfg.norm_layer_eps)
-        self.global_pool = cfg.global_pool
 
         nn.init.trunc_normal_(self.cls_token, std=0.02)
         self.apply(self._init_weights)
@@ -420,50 +420,63 @@ class Encoder(nn.Module):
     def forward(
         self, input_values: Float[Tensor, "batch 1 512 128"]
     ) -> dict[str, Tensor]:
-        if input_values.ndim == 3:
-            input_values = input_values.unsqueeze(0)
 
-        B, C, X, Y = input_values.shape
-        assert X == self.cfg.img_size_x
-        assert Y == self.cfg.img_size_y
+        bsz, c, w, h = input_values.shape
+        assert c == 1
+        assert w == self.cfg.img_size_x
+        assert h == self.cfg.img_size_y
 
         x = self.patch_embed(input_values)  # [B, N_patches, D]
 
         x = x + self.pos_embed[:, 1:, :]
         cls_token = self.cls_token + self.pos_embed[:, :1, :]
-        cls_tokens = cls_token.expand(B, -1, -1)
+        cls_tokens = cls_token.expand(bsz, -1, -1)
         x = torch.cat((cls_tokens, x), dim=1)  # [B, 1+N_patches, D]
         x = self.pos_drop(x)
 
         for blk in self.blocks:
             x = blk(x)
 
-        tokens = x  # [B, 1+N, D]
-
-        if self.global_pool == "mean":
-            pooled = tokens[:, 1:, :].mean(dim=1)
+        if self.cfg.global_pool == "mean":
+            pooled = x[:, 1:, :].mean(dim=1)
             pooled = self.fc_norm(pooled)
-        elif self.global_pool == "cls":
-            x_norm = self.norm(tokens)
+        elif self.cfg.global_pool == "cls":
+            x_norm = self.norm(x)
             pooled = x_norm[:, 0]
         else:
-            raise ValueError(f"Invalid global_pool: {self.global_pool}")
+            tp.assert_never(self.cfg.global_pool)
 
-        return dict(pooled=pooled, tokens=tokens[:, 1:, :])
+        if self.cfg.final_norm is None:
+            pass
+        elif self.cfg.final_norm == "patch-norm":
+            x = self.norm(x)
+        elif self.cfg.final_norm == "cls-norm":
+            x = self.fc_norm(x)
+        else:
+            tp.assert_never(self.cfg.final_norm)
+
+        return dict(pooled=pooled, tokens=x[:, 1:, :])
 
 
 _PRETRAINED_CFGS = {
-    "Bird-MAE-Base": Config(depth=12, embed_dim=768, n_heads=12),
-    "Bird-MAE-Large": Config(depth=24, embed_dim=1024, n_heads=16),
-    "Bird-MAE-Huge": Config(depth=32, embed_dim=1280, n_heads=16),
+    "Bird-MAE-Base": Config(
+        depth=12, embed_dim=768, n_heads=12, final_norm="patch-norm"
+    ),
+    "Bird-MAE-Large": Config(
+        depth=24, embed_dim=1024, n_heads=16, final_norm="patch-norm"
+    ),
+    "Bird-MAE-Huge": Config(
+        depth=32, embed_dim=1280, n_heads=16, final_norm="patch-norm"
+    ),
 }
 
 
 @beartype.beartype
-def load(ckpt: str, device="cpu") -> Encoder:
+def load(ckpt: str, *, device="cpu", **kwargs) -> Encoder:
     if ckpt not in _PRETRAINED_CFGS:
         raise ValueError(f"Checkpoint '{ckpt}' not in {list(_PRETRAINED_CFGS)}.")
     cfg = _PRETRAINED_CFGS[ckpt]
+    cfg = dataclasses.replace(cfg, **kwargs)
 
     fpath = download_hf_file(ckpt)
     state_dict = safetensors.torch.load_file(fpath)
@@ -506,6 +519,64 @@ def download_hf_file(ckpt: str, *, force: bool = False) -> str:
 
 
 @jaxtyped(typechecker=beartype.beartype)
+def transform(
+    waveform: Float[np.ndarray, " samples"],
+) -> Float[Tensor, "channels time mels"]:
+    """
+    waveform: 1D tensor [samples]
+    returns: 3D tensor [1, 512, 128] as expected by Bird-MAE
+    """
+    import torchaudio.compliance.kaldi
+
+    BIRDMAE_MEAN = -7.2
+    BIRDMAE_STD = 4.43
+    SR = 32_000
+    CLIP_SEC = 5
+    TARGET_T = 512
+    N_MELS = 128
+
+    waveform = torch.from_numpy(waveform).to(torch.float32)
+    (n_samples,) = waveform.shape
+    # 1) pad/truncate to exactly 5 s
+    max_len = SR * CLIP_SEC
+    if n_samples < max_len:
+        pad = max_len - n_samples
+        waveform = F.pad(waveform, (0, pad))
+    else:
+        waveform = waveform[:max_len]
+
+    # 2) mean-center (per clip)
+    waveform = waveform - waveform.mean(dim=0, keepdim=True)
+
+    # 3) Kaldi fbank: [T, 128]
+    fb = torchaudio.compliance.kaldi.fbank(
+        waveform[None, :],
+        htk_compat=True,
+        sample_frequency=SR,
+        use_energy=False,
+        window_type="hanning",
+        num_mel_bins=N_MELS,
+        dither=0.0,
+        frame_shift=10.0,
+    )  # [T, 128]
+
+    # 4) pad to 512 frames with min value
+    t, _ = fb.shape
+    if t < TARGET_T:
+        diff = TARGET_T - t
+        min_val = fb.min()
+        fb = F.pad(fb, (0, 0, 0, diff), value=min_val.item())
+    elif t > TARGET_T:
+        fb = fb[:TARGET_T]
+
+    fb = (fb - BIRDMAE_MEAN) / (BIRDMAE_STD * 2.0)
+
+    assert fb.shape == (TARGET_T, N_MELS), fb.shape
+
+    return fb[None, ...]
+
+
+@jaxtyped(typechecker=beartype.beartype)
 class Transformer(nn.Module, models.Transformer):
     family: str = "bird-mae"
     patch_size: int = 16
@@ -522,18 +593,13 @@ class Transformer(nn.Module, models.Transformer):
         return self._ckpt
 
     def get_residuals(self) -> list[torch.nn.Module]:
-        return self.model.blocks
+        return [block.norm2 for block in self.model.blocks]
 
     def get_token_i(self, content_tokens_per_example: int) -> slice:
-        n_reg = self.model.cfg.n_storage_tokens
-        patches = torch.cat((
-            torch.tensor([0]),  # CLS token
-            torch.arange(n_reg + 1, n_reg + 1 + content_tokens_per_example),  # patches
-        ))
-        return patches
+        return slice(None, None, None)
 
     def forward(
-        self, batch: Float[Tensor, "batch n kernel"], **kwargs
+        self, batch: Float[Tensor, "batch 1 time mel"], **kwargs
     ) -> Float[Tensor, "batch patches dim"]:
         if kwargs:
             self.logger.info("Unused kwargs: %s", kwargs)
@@ -546,17 +612,8 @@ class Transformer(nn.Module, models.Transformer):
     def make_transforms(
         ckpt: str, n_patches_per_img: int
     ) -> tuple[Callable, Callable | None]:
-        """Create transforms for preprocessing: (img_transform, sample_transform | None)."""
-        img_transform = v2.Compose([
-            transforms.FlexResize(patch_size=16, n_patches=n_patches_per_img),
-            v2.ToImage(),
-            v2.ToDtype(torch.float32, scale=True),
-            v2.Normalize(mean=[0.4850, 0.4560, 0.4060], std=[0.2290, 0.2240, 0.2250]),
-        ])
-        sample_transform = transforms.Patchify(
-            patch_size=16, n_patches=n_patches_per_img
-        )
-        return img_transform, sample_transform
+        """Create transforms for preprocessing: (data_transform, dict_transform | None)."""
+        return transform, None
 
     @staticmethod
     def make_resize(
@@ -566,12 +623,81 @@ class Transformer(nn.Module, models.Transformer):
         scale: float = 1.0,
         resample: Image.Resampling = Image.LANCZOS,
     ) -> Callable[[Image.Image], Image.Image]:
-        """Create resize transform for visualization. Use resample=Image.NEAREST for segmentation masks."""
-        import functools
+        """Create resize transform for visualization."""
+        raise NotImplementedError("Bird-MAE uses audio spectrograms, not images.")
 
-        return functools.partial(
-            transforms.resize_to_patch_grid,
-            p=int(16 * scale),
-            n=n_patches_per_img,
-            resample=resample,
-        )
+
+# ============================================== #
+# Audio Filtering Based on SAE Patch Activations #
+# ============================================== #
+#
+# The transform() function converts a 5-second waveform (32kHz, 160,000 samples) into a
+# log-mel spectrogram of shape [1, 512, 128]:
+#   - 512 time frames (10ms frame shift, so 5.12 seconds)
+#   - 128 mel frequency bins
+#
+# Bird-MAE divides this spectrogram into 16x16 patches:
+#   - 32 time patches (512 / 16)
+#   - 8 mel patches (128 / 16)
+#   - 256 total content tokens
+#
+# Patch indexing follows row-major order from PatchEmbed.forward():
+#   - patch i -> time_patch = i // 8, mel_patch = i % 8
+#
+# Time Filtering
+# --------------
+# To clip audio to highlighted time regions:
+#   1. Identify patches with high activation (via threshold or top-k)
+#   2. Extract time patch indices: time_patches = activated_indices // 8
+#   3. Map to sample ranges:
+#      - Each time patch covers 16 frames x 320 samples/frame = 5,120 samples
+#      - Time patch t -> samples [t * 5120, (t+1) * 5120)
+#   4. Extract and concatenate those segments (or take convex hull)
+#
+# Frequency Filtering
+# -------------------
+# We cannot directly "remove frequencies" from a waveform. Instead:
+#   1. Compute STFT of the waveform
+#   2. Map activated mel patches to linear frequency bin ranges
+#      - Mel patch m covers mel bins [m*16, (m+1)*16)
+#      - Convert mel bin edges to Hz, then to FFT bin indices
+#   3. Zero out non-activated frequency bins in the STFT
+#   4. Inverse STFT to reconstruct the filtered waveform
+#
+# Mel-to-Hz conversion: hz = 700 * (10^(mel / 2595) - 1). The Kaldi fbank uses 128 mel bins spanning roughly 0-16kHz (Nyquist at 32kHz).
+
+
+@jaxtyped(typechecker=beartype.beartype)
+def filter_audio(
+    waveform: Float[np.ndarray, " samples"],
+    sample_rate: int,
+    patches: Bool[np.ndarray, " content_tokens_per_example"],
+    *,
+    mode: tp.Literal["time", "time+freq"] = "time",
+) -> Float[np.ndarray, " clipped"]:
+    """
+    Filter audio based on SAE patch activations over the log-mel spectrogram.
+
+    Given a waveform and the SAE activation values for each spectrogram patch, this function extracts audio segments corresponding to highly-activated patches.
+
+    Args:
+        waveform: Raw audio samples, shape [samples]. Should be 5 seconds at 32kHz.
+        sample_rate: Audio sample rate in Hz. Should be 32000 for Bird-MAE.
+        patches: Boolean SAE activation values per patch, shape [256].
+            Patches are indexed in row-major order: patch i corresponds to time_patch = i // 8, mel_patch = i % 8.
+        mode: Filtering mode.
+            - "time": Clip to time segments with high activations (preserves all frequencies).
+            - "time+freq": Clip time AND apply frequency masking via STFT.
+
+    Returns:
+        Filtered audio waveform as a 1D numpy array.
+
+    Example:
+        >>> waveform, sr = librosa.load(audio_path, sr=32000)
+        >>> mel = bird_mae.transform(waveform)  # [1, 512, 128]
+        >>> # ... run through SAE to get patch_activations [256] ...
+        >>> # ... covert SAE activations to bool with > 0 ...
+        >>> time_clip = bird_mae.filter_audio(waveform, sr, patches, mode="time")
+        >>> time_freq_clip = bird_mae.filter_audio(waveform, sr, patches, mode="time+freq")
+    """
+    raise NotImplementedError("TODO: implement")

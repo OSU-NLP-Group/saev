@@ -34,7 +34,9 @@ class Config:
     """Which dataset to use."""
     shards_root: pathlib.Path = pathlib.Path("$SAEV_SCRATCH/saev/shards/")
     """Where to write shards."""
-    family: tp.Literal["clip", "siglip", "dinov2", "dinov3", "fake-clip"] = "clip"
+    family: tp.Literal[
+        "bird-mae", "clip", "siglip", "dinov2", "dinov3", "fake-clip"
+    ] = "clip"
     """Which model family."""
     ckpt: str = "ViT-L-14/openai"
     """Specific model checkpoint."""

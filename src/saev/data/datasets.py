@@ -184,9 +184,7 @@ class BirdClef2025(DatasetConfig):
     See https://www.kaggle.com/competitions/birdclef-2025/data for more information.
     """
 
-    root: pathlib.Path = pathlib.Path(
-        "/fs/ess/PAS2136/samuelstevens/datasets/birdclef-2025"
-    )
+    root: pathlib.Path = pathlib.Path("data/birdclef-2025")
     """Root directory containing the BirdCLEF 2025 data."""
     split: tp.Literal["train_audio", "train_soundscapes", "test_soundscapes"] = (
         "train_audio"
@@ -226,41 +224,41 @@ Config = (
 def get_dataset(
     cfg: Config,
     *,
-    img_transform: Callable,
-    seg_transform: Callable | None = None,
+    data_transform: Callable,
+    mask_transform: Callable | None = None,
     sample_transform: Callable | None = None,
 ):
     """
     Gets the dataset for the current experiment; delegates construction to dataset-specific functions.
 
     Args:
-        cfg: Experiment config.
-        img_transform: Image transform to be applied to each image.
-        seg_transform: Segmentation transform to be applied to masks (for segmentation datasets).
-        sample_transform: Transform to be applied to each sample dict.
+        cfg: Config for the dataset.
+        data_tr: Transform to be applied to each 'data' key (typically the raw data).
+        mask_tr: Transform to be applied to masks.
+        dict_tr: Transform to be applied to the entire sample dict.
     Returns:
-        A dataset that has dictionaries with `'image'`, `'index'`, `'target'`, and `'label'` keys containing examples.
+        A dataset that has dictionaries with `'data'`, `'index'`, `'target'`, and `'label'` keys containing examples.
     """
     # TODO: Can we reduce duplication? Or is it nice to see that there is no magic here?
     if isinstance(cfg, Imagenet):
         return ImagenetDataset(
-            cfg, img_transform=img_transform, sample_transform=sample_transform
+            cfg, img_transform=data_transform, sample_transform=sample_transform
         )
     elif isinstance(cfg, Cifar10):
         return Cifar10Dataset(
-            cfg, img_transform=img_transform, sample_transform=sample_transform
+            cfg, img_transform=data_transform, sample_transform=sample_transform
         )
     elif isinstance(cfg, ImgSegFolder):
         return ImgSegFolderDataset(
             cfg,
-            img_transform=img_transform,
-            seg_transform=seg_transform,
+            img_transform=data_transform,
+            mask_transform=mask_transform,
             sample_transform=sample_transform,
         )
     elif isinstance(cfg, ImgFolder):
         ds = [
             ImgFolderDataset(
-                root, transform=img_transform, sample_transform=sample_transform
+                root, transform=data_transform, sample_transform=sample_transform
             )
             for root in glob.glob(str(cfg.root), recursive=True)
         ]
@@ -270,17 +268,19 @@ def get_dataset(
             return torch.utils.data.ConcatDataset(ds)
     elif isinstance(cfg, FakeImg):
         return FakeImgDataset(
-            cfg, img_transform=img_transform, sample_transform=sample_transform
+            cfg, img_transform=data_transform, sample_transform=sample_transform
         )
     elif isinstance(cfg, FakeImgSeg):
         return FakeImgSegDataset(
             cfg,
-            img_transform=img_transform,
-            seg_transform=seg_transform,
+            img_transform=data_transform,
+            mask_transform=mask_transform,
             sample_transform=sample_transform,
         )
     elif isinstance(cfg, BirdClef2025):
-        return BirdClef2025Dataset(cfg, sample_transform=sample_transform)
+        return BirdClef2025Dataset(
+            cfg, audio_transform=data_transform, sample_transform=sample_transform
+        )
     else:
         tp.assert_never(cfg)
 
@@ -429,7 +429,7 @@ class ImgSegFolderDataset(torch.utils.data.Dataset):
         cfg: ImgSegFolder,
         *,
         img_transform: Callable | None = None,
-        seg_transform: Callable | None = lambda x: None,
+        mask_transform: Callable | None = lambda x: None,
         sample_transform: Callable | None = None,
     ):
         self.logger = logging.getLogger("segfolder")
@@ -438,7 +438,7 @@ class ImgSegFolderDataset(torch.utils.data.Dataset):
         self.seg_dir = os.path.join(cfg.root, "annotations")
 
         self.img_transform = img_transform
-        self.seg_transform = seg_transform
+        self.mask_transform = mask_transform
         self.sample_transform = sample_transform
 
         # Check that we have the right path.
@@ -513,8 +513,8 @@ class ImgSegFolderDataset(torch.utils.data.Dataset):
         segmentation = Image.open(sample.pop("seg_path"))
 
         # Apply segmentation transform to get patch labels
-        if self.seg_transform is not None:
-            patch_labels = self.seg_transform(segmentation)
+        if self.mask_transform is not None:
+            patch_labels = self.mask_transform(segmentation)
             if patch_labels is not None:
                 sample["patch_labels"] = patch_labels
 
@@ -566,12 +566,12 @@ class FakeImgSegDataset(torch.utils.data.Dataset):
         cfg: FakeImgSeg,
         *,
         img_transform=None,
-        seg_transform=None,
+        mask_transform=None,
         sample_transform=None,
     ):
         self.cfg = cfg
         self.img_transform = img_transform
-        self.seg_transform = seg_transform
+        self.mask_transform = mask_transform
         self.sample_transform = sample_transform
 
     def __len__(self) -> int:
@@ -611,8 +611,8 @@ class FakeImgSegDataset(torch.utils.data.Dataset):
 
         # Apply segmentation transform to get patch labels
         patch_labels = None
-        if self.seg_transform is not None:
-            patch_labels = self.seg_transform(segmentation)
+        if self.mask_transform is not None:
+            patch_labels = self.mask_transform(segmentation)
 
         sample: dict[str, object] = {
             "image": img,
@@ -653,11 +653,14 @@ class BirdClef2025Dataset(torch.utils.data.Dataset):
         self,
         cfg: BirdClef2025,
         *,
-        sample_transform: Callable | None = None,
+        audio_transform=None,
+        mask_transform=None,
+        sample_transform=None,
     ):
         import polars as pl
 
         self.cfg = cfg
+        self.audio_transform = audio_transform
         self.sample_transform = sample_transform
 
         # Load taxonomy and filter to birds only
@@ -707,26 +710,22 @@ class BirdClef2025Dataset(torch.utils.data.Dataset):
         target = self.label_to_target[label] if label is not None else None
 
         # Build audio path based on split
-        if self.cfg.split == "train_audio":
-            audio_fpath = self.cfg.root / "train_audio" / sample["filename"]
-        elif self.cfg.split == "train_soundscapes":
-            audio_fpath = self.cfg.root / "train_soundscapes" / sample["filename"]
-        elif self.cfg.split == "test_soundscapes":
-            audio_fpath = self.cfg.root / "test_soundscapes" / sample["filename"]
-        else:
-            tp.assert_never(self.cfg.split)
-
+        audio_fpath = self.cfg.root / self.cfg.split / sample["filename"]
         audio, sample_rate = sf.read(audio_fpath)
-        result: dict[str, object] = {
+
+        if self.audio_transform is not None:
+            audio = self.audio_transform(audio)
+
+        sample = {
             "index": index,
             "target": target,
             "label": label,
-            "audio": audio,
+            "data": audio,
             "sample_rate": sample_rate,
         }
         if self.sample_transform is not None:
-            result = self.sample_transform(result)
-        return result
+            sample = self.sample_transform(sample)
+        return sample
 
     @property
     def n_classes(self) -> int:

@@ -530,7 +530,8 @@ def evaluate(
     dense_lim = 1e-2
 
     dataloader = saev.data.ShuffledDataLoader(cfg.val_data)
-    dataloader = saev.utils.scheduling.BatchLimiter(dataloader, cfg.n_val)
+    n_val = min(dataloader.n_samples, cfg.n_val)
+    dataloader = saev.utils.scheduling.BatchLimiter(dataloader, n_val)
 
     n_fired = torch.zeros((len(cfgs), saes[0].cfg.d_sae))
     values = torch.zeros((len(cfgs), saes[0].cfg.d_sae))

@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 @jaxtyped(typechecker=beartype.beartype)
 class Transformer(abc.ABC):
-    """Protocol defining the interface for all Vision Transformer models."""
+    """Protocol defining the interface for all Transformer models."""
 
     @property
     @abc.abstractmethod
@@ -35,15 +35,15 @@ class Transformer(abc.ABC):
     @staticmethod
     @abc.abstractmethod
     def make_transforms(
-        ckpt: str, n_patches_per_img: int
+        ckpt: str, content_tokens_per_example: int
     ) -> tuple[Callable, Callable | None]:
-        """Create transforms for preprocessing: (img_transform, sample_transform | None)."""
+        """Create transforms for preprocessing: (data_transform, dict_transform | None)."""
 
     @staticmethod
     @abc.abstractmethod
     def make_resize(
         ckpt: str,
-        n_patches_per_img: int,
+        content_tokens_per_example: int,
         *,
         scale: float = 1.0,
         resample: Image.Resampling = Image.LANCZOS,
@@ -70,7 +70,7 @@ _global_model_registry: dict[str, type[Transformer]] = {}
 
 @beartype.beartype
 def load_model_cls(family: str) -> type[Transformer]:
-    """Load a ViT family class."""
+    """Load a transformer family's class."""
     if family not in _global_model_registry:
         raise ValueError(f"Family '{family}' not found.")
 
@@ -79,7 +79,7 @@ def load_model_cls(family: str) -> type[Transformer]:
 
 @beartype.beartype
 def register_family(cls: type[Transformer]):
-    """Register a new ViT family class."""
+    """Register a new transformer family's class."""
     if cls.family in _global_model_registry:
         logger.warning("Overwriting key '%s' in registry.", cls.family)
     _global_model_registry[cls.family] = cls
