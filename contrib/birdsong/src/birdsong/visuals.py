@@ -10,13 +10,15 @@ import polars as pl
 import scipy.sparse
 import torch
 import tyro
-from jaxtyping import Float, Float32, jaxtyped
+from jaxtyping import Float32, jaxtyped
 from torch import Tensor
 
 import saev.data
+import saev.data.datasets as datasets
 import saev.disk
 import saev.helpers
 import saev.viz
+from saev.data import models
 
 log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
 logging.basicConfig(level=logging.INFO, format=log_format)
@@ -32,6 +34,8 @@ class Config:
     """Run directory."""
     shards: pathlib.Path = pathlib.Path("./shards/abcdef01")
     """Activations."""
+    top_k: int = 32
+    """Number of top examples per latent."""
 
     # Hardware
     device: str = "cuda" if torch.cuda.is_available() else "cpu"
@@ -47,8 +51,6 @@ class Config:
     """Latents to always include, no matter what."""
     n_latents: int = 400
     """Number of latents to save audio clips for."""
-    n_clips: int = 20
-    """Number of audio clips to generate per feature."""
     seed: int = 42
     """Random seed."""
 
@@ -56,9 +58,9 @@ class Config:
 @jaxtyped(typechecker=beartype.beartype)
 @dataclasses.dataclass(frozen=True)
 class Example:
-    waveform: Float32[np.ndarray, "1 time"]
-    sample_rate: float
-    tokens: Float[np.ndarray, " content_tokens_per_example"]
+    waveform: Float32[Tensor, " samples"]
+    sample_rate: int
+    tokens: Float32[Tensor, " content_tokens_per_example"]
     # Metadata
     idx: int
     target: int
@@ -78,7 +80,12 @@ def cli(cfg: tp.Annotated[Config, tyro.conf.arg(name="")]):
 
     try:
         run = saev.disk.Run(cfg.run)
-        d_sae = run.config["sae"]["d_sae"]
+        sae_cfg_obj = run.config.get("sae")
+        assert isinstance(sae_cfg_obj, dict), type(sae_cfg_obj)
+        sae_cfg = tp.cast(dict[str, object], sae_cfg_obj)
+        d_sae_obj = sae_cfg.get("d_sae")
+        assert isinstance(d_sae_obj, int), type(d_sae_obj)
+        d_sae = d_sae_obj
         token_acts = scipy.sparse.load_npz(
             run.inference / cfg.shards.name / "token_acts.npz"
         )
@@ -90,9 +97,10 @@ def cli(cfg: tp.Annotated[Config, tyro.conf.arg(name="")]):
 
     # Create indexed activations dataset for efficient patch retrieval
     md = saev.data.Metadata.load(cfg.shards)
-    transformer = saev.data.models.load_model_cls(md.family)(md.ckpt)
-    audio_cfg = md.make_data_cfg()
-    audio_ds = saev.data.datasets.get_dataset(audio_cfg)
+    data_transform, _ = models.load_model_cls(md.family).make_transforms(
+        md.ckpt, md.content_tokens_per_example
+    )
+    audio_ds = datasets.get_dataset(md.make_data_cfg())
 
     logger.info("Loaded data.")
 
@@ -134,7 +142,9 @@ def cli(cfg: tp.Annotated[Config, tyro.conf.arg(name="")]):
     random.shuffle(random_features)
     features += random_features[: cfg.n_latents]
 
-    topk_example_idx = np.stack(var_df.get_column("topk_example_idx").to_numpy())
+    topk_example_idx = np.asarray(
+        var_df.get_column("topk_example_idx").to_list(), dtype=np.int64
+    )
     assert topk_example_idx.shape == (d_sae, cfg.top_k)
     topk_example_idx = topk_example_idx[features]
     topk_token_idx = (
@@ -143,8 +153,6 @@ def cli(cfg: tp.Annotated[Config, tyro.conf.arg(name="")]):
     )
     assert topk_token_idx.max() < token_acts.shape[0]
     logger.info("Calculated top-k for each latent.")
-
-    patch_size = int(transformer.patch_size * cfg.img_scale)
 
     for f_i, f in enumerate(
         saev.helpers.progress(features, desc="saving clips", every=1)
@@ -165,9 +173,14 @@ def cli(cfg: tp.Annotated[Config, tyro.conf.arg(name="")]):
                 continue
             sample = audio_ds[example_idx]
 
+            waveform = sample["data"]
+            sample_rate = sample["sample_rate"]
+            waveform = torch.from_numpy(waveform).to(torch.float32)
+            token_values_p = torch.from_numpy(token_values_p).to(torch.float32)
+
             example = Example(
-                waveform=sample["audio"],
-                sample_rate=sample["sample_rate"],
+                waveform=waveform,
+                sample_rate=sample_rate,
                 tokens=token_values_p,
                 idx=example_idx,
                 target=sample["target"],
@@ -175,9 +188,6 @@ def cli(cfg: tp.Annotated[Config, tyro.conf.arg(name="")]):
             )
             examples.append(example)
             seen_example_idx.add(example_idx)
-
-        # How to scale values.
-        upper = token_values_kp.max().item()
 
         for j, example in enumerate(examples):
             # 1. Save original spectogram under {j}_spectogram.png
@@ -188,7 +198,7 @@ def cli(cfg: tp.Annotated[Config, tyro.conf.arg(name="")]):
             # Example of saving with highlights for a natural image
             #
             # img_with_highlights = saev.viz.add_highlights(
-            #     example.img, example.tokens, patch_size, upper=upper
+            #     example.img, example.token_values, patch_size, upper=upper
             # )
             # img_with_highlights.save(feature_dir / f"{j}_sae_img.png")
             pass
