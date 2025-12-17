@@ -198,7 +198,7 @@ def cli(cfg: tp.Annotated[Config, tyro.conf.arg(name="")]):
     )
     img_cfg = md.make_data_cfg()
     img_ds = saev.data.datasets.get_dataset(
-        img_cfg, img_transform=resize_tr, seg_transform=resize_tr
+        img_cfg, data_transform=resize_tr, mask_transform=resize_tr
     )
 
     logger.info("Loaded data.")

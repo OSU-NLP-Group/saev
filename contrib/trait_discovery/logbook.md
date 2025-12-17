@@ -1627,3 +1627,37 @@ I think for ICML, we can simply include:
 - [maybe] Qualitative traits from birdsong?
 
 I'm not really sure what options can be added to the paper to make a sure thing at ICML.
+
+# 12/15/2025
+
+Some feedback from GPT and Claude on the CVPR submission.
+
+- Need a discovery.
+    - "The paper does not yet demonstrate a real discovery workflow (novel hypothesis + follow-up validation) or quantify how often browsing surfaces genuinely new, non-trivial patterns."
+    - "The paper does not demonstrate that SAEs can surface genuinely novel, scientifically meaningful patterns."
+- Baselines are too weak. Need to try NMF, ICA, sparse PCA
+- Null baseline for probing, statistical tests/uncertainty (robustness)
+- FishVista pose/orientation/centering; can we add regularization?
+- mask-quality metrics (IoU/Dice or pointing game variants)
+- Unclear whether findings generalize to other vision models (CLIP, MAE, domain-specific models like BioCLIP), especially given the paper's positioning toward scientific foundation models.
+
+So:
+- Find 2 (3) qualitative examples of concepts not present in the label structure.
+- Other foundation models? BioCLIP 2 likely won't work because it lacks dense features, but maybe on the [CLS] token?
+
+Boring stuff:
+
+- Better baselines
+- Baselines, statistical robustness
+
+In progress:
+
+1. Downloading more FishBase data
+2. Downloading Heliconius images again, this time to /fs/ess
+
+What can I do?
+
+- Baselines?
+- More birdsong?
+- Writing?
+- 

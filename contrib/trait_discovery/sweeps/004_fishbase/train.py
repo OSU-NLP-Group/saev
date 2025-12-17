@@ -10,7 +10,8 @@ def make_cfgs() -> list[dict]:
     )
 
     cfgs = []
-    for lr in [1e-4, 3e-4, 1e-3]:
+    # for lr in [1e-4, 3e-4, 1e-3, 3e-3, 1e-2, 3e-2]:
+    for lr in [3e-3, 1e-2, 3e-2]:
         for layer in [13, 15, 17, 19, 21, 23]:
             for k in [16, 32, 64, 128, 256]:
                 cfgs.append({
