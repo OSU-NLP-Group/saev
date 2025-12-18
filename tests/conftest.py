@@ -22,6 +22,18 @@ def pytest_addoption(parser):
         default=None,
         help="Path to a checkpoint file for testing load functionality",
     )
+    parser.addoption(
+        "--fishvista-root",
+        action="store",
+        default=None,
+        help="Path to FishVista segfolder dataset for integration testing",
+    )
+    parser.addoption(
+        "--dinov3-ckpt",
+        action="store",
+        default=None,
+        help="Path to DINOv3 checkpoint for integration testing",
+    )
 
 
 def pytest_generate_tests(metafunc):
@@ -49,6 +61,30 @@ def shards_dir_with_token_labels(shards_dir):
         pytest.skip("--shards has no labels.bin")
 
     return shards_dir
+
+
+@pytest.fixture(scope="session")
+def fishvista_root(pytestconfig) -> pathlib.Path:
+    """Fixture for FishVista segfolder dataset path."""
+    path = pytestconfig.getoption("--fishvista-root")
+    if path is None:
+        pytest.skip("--fishvista-root not provided")
+    path = pathlib.Path(path)
+    if not path.exists():
+        pytest.skip(f"--fishvista-root path does not exist: {path}")
+    return path
+
+
+@pytest.fixture(scope="session")
+def dinov3_ckpt(pytestconfig) -> pathlib.Path:
+    """Fixture for DINOv3 checkpoint path."""
+    path = pytestconfig.getoption("--dinov3-ckpt")
+    if path is None:
+        pytest.skip("--dinov3-ckpt not provided")
+    path = pathlib.Path(path)
+    if not path.exists():
+        pytest.skip(f"--dinov3-ckpt path does not exist: {path}")
+    return path
 
 
 @beartype.beartype

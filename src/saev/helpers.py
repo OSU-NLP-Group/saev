@@ -490,7 +490,11 @@ def _csr_topk_axis0(
     counts = np.zeros(n_cols, dtype=np.int32)  # Current number of values per column
 
     # Process rows in batches
-    for start, end in batched_idx(n_rows, batch_size):
+    for start, end in progress(
+        batched_idx(n_rows, batch_size),
+        desc="rows",
+        every=math.ceil(n_rows / batch_size / 100),
+    ):
         batch_dense = arr[start:end].toarray()
 
         for local_row in range(batch_dense.shape[0]):

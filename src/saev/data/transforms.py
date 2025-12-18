@@ -77,7 +77,7 @@ def resize_to_patch_grid(
 
 @beartype.beartype
 class Patchify(nn.Module):
-    def __init__(self, patch_size: int, n_patches: int, key: str = "image"):
+    def __init__(self, patch_size: int, n_patches: int, key: str = "data"):
         super().__init__()
         self.patch_size = patch_size
         self.n_patches = n_patches

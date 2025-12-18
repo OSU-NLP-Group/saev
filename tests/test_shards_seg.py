@@ -341,3 +341,114 @@ def test_pixel_to_patch_labels_non_square():
 
     expected = torch.tensor([0, 1], dtype=torch.uint8)
     torch.testing.assert_close(patch_labels, expected)
+
+
+# DINOv3 + FishVista integration tests (require --fishvista-root and --dinov3-ckpt)
+
+
+def _make_small_fishvista(
+    fishvista_root: pathlib.Path, tmp_path: pathlib.Path, n: int = 4
+):
+    """Copy a small subset of FishVista to a temp directory for fast testing."""
+    import csv
+    import shutil
+
+    small_root = tmp_path / "small_fishvista"
+    (small_root / "images" / "training").mkdir(parents=True)
+    (small_root / "annotations" / "training").mkdir(parents=True)
+
+    # Read labels.csv to get stems
+    labels_fpath = fishvista_root / "labels.csv"
+    with open(labels_fpath) as fd:
+        reader = csv.DictReader(fd)
+        rows = list(reader)
+
+    # Copy first n images/masks and write subset labels.csv
+    copied_rows = []
+    for row in rows[:n]:
+        stem = row["stem"]
+
+        # Find and copy image (could be .jpg or .png)
+        img_dir = fishvista_root / "images" / "training"
+        for ext in [".jpg", ".jpeg", ".png"]:
+            src_img = img_dir / f"{stem}{ext}"
+            if src_img.exists():
+                shutil.copy2(
+                    src_img, small_root / "images" / "training" / f"{stem}{ext}"
+                )
+                break
+
+        # Copy mask
+        src_mask = fishvista_root / "annotations" / "training" / f"{stem}.png"
+        if src_mask.exists():
+            shutil.copy2(
+                src_mask, small_root / "annotations" / "training" / f"{stem}.png"
+            )
+            copied_rows.append(row)
+
+    # Write subset labels.csv
+    with open(small_root / "labels.csv", "w", newline="") as fd:
+        writer = csv.DictWriter(fd, fieldnames=rows[0].keys())
+        writer.writeheader()
+        writer.writerows(copied_rows)
+
+    return small_root, len(copied_rows)
+
+
+def test_dinov3_fishvista_shards(
+    fishvista_root: pathlib.Path, dinov3_ckpt: pathlib.Path, tmp_path: pathlib.Path
+):
+    """Test that DINOv3 patchify works with FishVista segfolder dataset.
+
+    This is an integration test that verifies:
+    1. DINOv3's FlexResize and Patchify transforms work correctly
+    2. The shard generation pipeline handles ImgSegFolder properly
+    3. labels.bin is generated with correct shape
+
+    Run with: pytest tests/test_shards_seg.py -v -k dinov3 --fishvista-root /path/to/fishvista --dinov3-ckpt /path/to/ckpt.pth
+    """
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    # Create small test dataset (4 images)
+    small_root, n_examples = _make_small_fishvista(fishvista_root, tmp_path, n=4)
+    data_cfg = datasets.ImgSegFolder(root=small_root, split="training")
+
+    with tmp_shards_root() as shards_root:
+        shards_dir = worker_fn(
+            family="dinov3",
+            ckpt=str(dinov3_ckpt),
+            content_tokens_per_example=256,  # 16x16 patches
+            cls_token=False,
+            d_model=384,  # ViT-S has 384 dim
+            layers=[11],  # Last layer of ViT-S (depth=12)
+            data=data_cfg,
+            batch_size=2,
+            n_workers=0,
+            max_tokens_per_shard=2_400_000,
+            shards_root=shards_root,
+            device=device,
+            pixel_agg=PixelAgg.PREFER_FG,
+        )
+
+        # Check metadata
+        from saev.data import Metadata
+
+        md = Metadata.load(shards_dir)
+        assert md.family == "dinov3"
+        assert md.d_model == 384
+        assert md.content_tokens_per_example == 256
+        assert md.n_examples == n_examples
+
+        # Check labels.bin was created
+        labels_fpath = shards_dir / "labels.bin"
+        assert labels_fpath.is_file(), "labels.bin should be created"
+
+        # Check labels.bin shape
+        labels = np.memmap(labels_fpath, mode="r", dtype=np.uint8).reshape(
+            n_examples, 256
+        )
+        assert labels.shape == (n_examples, 256)
+
+        # Check at least one shard file exists
+        shard_files = list(shards_dir.glob("acts*.bin"))
+        assert len(shard_files) > 0, "Should have at least one shard file"

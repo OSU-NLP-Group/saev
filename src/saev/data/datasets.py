@@ -119,8 +119,8 @@ class ImgSegFolder(DatasetConfig):
     """Where the class folders with images are stored."""
     split: tp.Literal["training", "validation"] = "training"
     """Data split."""
-    img_label_fname: str = "sceneCategories.txt"
-    """Image labels filename."""
+    labels_csv: str = "labels.csv"
+    """CSV file with columns: stem,label1,label2,... First column must be 'stem'."""
     bg_label: int = 0
     """Background label."""
 
@@ -224,7 +224,7 @@ Config = (
 def get_dataset(
     cfg: Config,
     *,
-    data_transform: Callable,
+    data_transform: Callable = None,
     mask_transform: Callable | None = None,
     sample_transform: Callable | None = None,
 ):
@@ -384,7 +384,7 @@ class ImgFolderDataset(torchvision.datasets.ImageFolder):
             index: Index
 
         Returns:
-            dict with keys 'image', 'index', 'target' and 'label'.
+            dict with keys 'data', 'index', 'target' and 'label'.
         """
         path, target = self.samples[index]
         image = self.loader(path)
@@ -394,7 +394,7 @@ class ImgFolderDataset(torchvision.datasets.ImageFolder):
             target = self.target_transform(target)
 
         sample = {
-            "image": image,
+            "data": image,
             "target": target,
             "label": self.classes[target],
             "index": index,
@@ -419,8 +419,8 @@ class ImgSegFolderDataset(torch.utils.data.Dataset):
     class Sample:
         img_path: str
         seg_path: str
-        label: str
-        target: int
+        labels: dict[str, str]
+        targets: dict[str, int]
 
     samples: list[Sample]
 
@@ -432,6 +432,8 @@ class ImgSegFolderDataset(torch.utils.data.Dataset):
         mask_transform: Callable | None = lambda x: None,
         sample_transform: Callable | None = None,
     ):
+        import csv
+
         self.logger = logging.getLogger("segfolder")
         self.cfg = cfg
         self.img_dir = os.path.join(cfg.root, "images")
@@ -480,37 +482,57 @@ class ImgSegFolderDataset(torch.utils.data.Dataset):
             if split_lookup[s] == cfg.split
         ]
 
-        # Load all the targets, classes and mappings
-        img_labels: dict[str, str] = {}
-        with open(os.path.join(cfg.root, cfg.img_label_fname)) as fd:
-            for line in fd.readlines():
-                stem, _, label = line.rpartition(" ")
-                img_labels[stem] = label
+        # Load labels from CSV: stem,label1,label2,...
+        labels_fpath = os.path.join(cfg.root, cfg.labels_csv)
+        if not os.path.isfile(labels_fpath):
+            raise FileNotFoundError(f"Labels CSV not found: '{labels_fpath}'")
 
-        label_set = sorted(set(img_labels.values()))
-        label_to_idx = {label: i for i, label in enumerate(label_set)}
+        stem_to_labels: dict[str, dict[str, str]] = {}
+        with open(labels_fpath, newline="") as fd:
+            reader = csv.DictReader(fd)
+            assert reader.fieldnames is not None
+            assert reader.fieldnames[0] == "stem", (
+                f"First column must be 'stem', got '{reader.fieldnames[0]}'"
+            )
+            label_cols = list(reader.fieldnames[1:])
+            for row in reader:
+                stem = row["stem"]
+                stem_to_labels[stem] = {col: row[col] for col in label_cols}
+
+        # Build label -> target mapping for each column
+        label_to_idx: dict[str, dict[str, int]] = {}
+        for col in label_cols:
+            unique_labels = sorted({labels[col] for labels in stem_to_labels.values()})
+            label_to_idx[col] = {label: i for i, label in enumerate(unique_labels)}
 
         self.samples = [
             self.Sample(
                 img_path,
                 base2seg[_stem(img_path)],
-                img_labels[_stem(img_path)],
-                label_to_idx[label],
+                stem_to_labels[_stem(img_path)],
+                {
+                    col: label_to_idx[col][stem_to_labels[_stem(img_path)][col]]
+                    for col in label_cols
+                },
             )
-            for img_path in (imgs)
+            for img_path in imgs
         ]
 
     def __getitem__(self, index: int) -> dict[str, object]:
-        # Convert to dict.
-        sample = dataclasses.asdict(self.samples[index])
+        sample_data = self.samples[index]
 
-        sample["image"] = self.loader(sample.pop("img_path"))
+        sample: dict[str, object] = {
+            "labels": sample_data.labels,
+            "targets": sample_data.targets,
+        }
+
+        sample["data"] = self.loader(sample_data.img_path)
         if self.img_transform is not None:
-            image = self.img_transform(sample.pop("image"))
-            if image is not None:
-                sample["image"] = image
+            data = self.img_transform(sample["data"])
+            if data is not None:
+                sample["data"] = data
 
-        segmentation = Image.open(sample.pop("seg_path"))
+        segmentation = Image.open(sample_data.seg_path)
 
         # Apply segmentation transform to get patch labels
         if self.mask_transform is not None:
