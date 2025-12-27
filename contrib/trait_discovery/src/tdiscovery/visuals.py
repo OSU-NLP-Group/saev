@@ -74,8 +74,6 @@ class Example:
     tokens: Float[np.ndarray, " content_tokens_per_example"]
     # Metadata
     idx: int
-    target: int
-    label: str
     extra: dict[str, object] = dataclasses.field(default_factory=dict)
 
 
@@ -290,12 +288,10 @@ def cli(cfg: tp.Annotated[Config, tyro.conf.arg(name="")]):
             sample = img_ds[example_idx]
 
             example = Example(
-                img=sample["image"],
+                img=sample["data"],
                 seg=sample.get("patch_labels", None),
                 tokens=token_values_p,
                 idx=example_idx,
-                target=sample["target"],
-                label=sample["label"],
             )
             examples.append(example)
             seen_example_idx.add(example_idx)
