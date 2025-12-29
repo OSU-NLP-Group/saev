@@ -280,7 +280,7 @@ def benchmark(
             results=[dataclasses.asdict(r) for r in results],
         )
         with open(out / "results.json", "wb") as fd:
-            saev.helpers.dump(payload, fd)
+            saev.helpers.jdump(payload, fd)
 
 
 @beartype.beartype

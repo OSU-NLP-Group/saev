@@ -28,9 +28,25 @@ def _(pathlib):
 
 @app.cell
 def _(mo, root):
+    def has_images(run_dir):
+        inference_dir = run_dir / "inference"
+
+        if not inference_dir.is_dir():
+            return False
+
+        for shards in inference_dir.iterdir():
+            if (inference_dir / shards / "images").is_dir():
+                return True
+
+        return False
+
     def make_ckpt_dropdown():
         try:
-            choices = sorted(path.name for path in root.iterdir())
+            choices = sorted(
+                path.name
+                for path in mo.status.progress_bar(list(root.iterdir()))
+                if has_images(path)
+            )
 
         except FileNotFoundError:
             choices = []
@@ -55,11 +71,14 @@ def _(ckpt_dropdown, root, saev):
 
 @app.cell
 def _(mo, run):
-    shards_dropdown = mo.ui.dropdown(
-        [dir.name for dir in run.inference.iterdir() if (dir / "images").is_dir()],
-        label="Shards",
-        searchable=True,
-    )
+    def _():
+        options = [
+            dir.name for dir in run.inference.iterdir() if (dir / "images").is_dir()
+        ]
+        default = options[0] if options else None
+        return mo.ui.dropdown(options, value=default, label="Shards", searchable=True)
+
+    shards_dropdown = _()
     return (shards_dropdown,)
 
 
@@ -122,7 +141,7 @@ def _(bisect, mo, run, shards_dropdown):
     ])
 
     def find_i(f: int):
-        return bisect.bisect_left(features, f)
+        return bisect.bisect_left(features, f) % len(features)
 
     mo.md(f"Found {len(features)} saved features.")
     return features, find_i
@@ -143,7 +162,11 @@ def _(features, mo, set_i):
 @app.cell
 def _(features, get_i, mo, set_i):
     feature_picker_slider = mo.ui.slider(
-        0, len(features), value=get_i(), on_change=lambda i: set_i(i), full_width=True
+        0,
+        len(features) - 1,
+        value=get_i(),
+        on_change=lambda i: set_i(i),
+        full_width=True,
     )
     return (feature_picker_slider,)
 

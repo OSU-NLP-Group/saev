@@ -275,20 +275,20 @@ def test_multilabel_missing_labels_csv_raises(tmp_path: pathlib.Path):
         ImgSegFolderDataset(cfg)
 
 
-# FishVista integration tests (require --fishvista-root argument)
+# SegFolder integration tests (require --segfolder argument)
 
 
-def test_fishvista_dataset_loads(fishvista_root: pathlib.Path):
-    """Test that FishVista segfolder dataset can be loaded."""
-    cfg = ImgSegFolder(root=fishvista_root, split="training")
+def test_segfolder_dataset_loads(segfolder_root: pathlib.Path):
+    """Test that SegFolder dataset can be loaded."""
+    cfg = ImgSegFolder(root=segfolder_root, split="training")
     ds = ImgSegFolderDataset(cfg)
 
     assert len(ds) > 0, "Dataset should have examples"
 
 
-def test_fishvista_dataset_iteration(fishvista_root: pathlib.Path):
-    """Test that we can iterate through FishVista samples."""
-    cfg = ImgSegFolder(root=fishvista_root, split="training")
+def test_segfolder_dataset_iteration(segfolder_root: pathlib.Path):
+    """Test that we can iterate through SegFolder samples."""
+    cfg = ImgSegFolder(root=segfolder_root, split="training")
     ds = ImgSegFolderDataset(cfg)
 
     n_samples = min(10, len(ds))
@@ -305,32 +305,9 @@ def test_fishvista_dataset_iteration(fishvista_root: pathlib.Path):
         assert sample["index"] == i
 
 
-def test_fishvista_has_expected_labels(fishvista_root: pathlib.Path):
-    """Test that FishVista has the expected label columns from FishBase integration."""
-    cfg = ImgSegFolder(root=fishvista_root, split="training")
-    ds = ImgSegFolderDataset(cfg)
-
-    sample = ds[0]
-    labels = sample["labels"]
-
-    expected_cols = {
-        "family",
-        "species",
-        "habitat",
-        "migration",
-        "marine",
-        "freshwater",
-        "brackish",
-    }
-    actual_cols = set(labels.keys())
-
-    missing = expected_cols - actual_cols
-    assert not missing, f"Missing expected label columns: {missing}"
-
-
-def test_fishvista_validation_split(fishvista_root: pathlib.Path):
+def test_segfolder_validation_split(segfolder_root: pathlib.Path):
     """Test that validation split also works."""
-    cfg = ImgSegFolder(root=fishvista_root, split="validation")
+    cfg = ImgSegFolder(root=segfolder_root, split="validation")
     ds = ImgSegFolderDataset(cfg)
 
     assert len(ds) > 0, "Validation split should have examples"

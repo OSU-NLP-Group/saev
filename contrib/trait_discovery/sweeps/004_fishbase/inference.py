@@ -4,8 +4,8 @@ def make_cfgs():
     cfgs = []
     run_root = "/fs/ess/PAS2136/samuelstevens/saev/runs"
 
-    dinov3_fishvista_train = "/fs/scratch/PAS2136/samuelstevens/saev/shards/5dcb2f75"
-    dinov3_fishvista_val = "/fs/scratch/PAS2136/samuelstevens/saev/shards/8692dfa9"
+    dinov3_fishvista_train = "/fs/scratch/PAS2136/samuelstevens/saev/shards/e65cf404"
+    dinov3_fishvista_val = "/fs/scratch/PAS2136/samuelstevens/saev/shards/b8a9ff56"
 
     fishvista_run_ids = {
         13: ["vjyiz6qo", "4j4cpxpj", "ltpubtmx", "xcqixn3v", "ut004yhy"],

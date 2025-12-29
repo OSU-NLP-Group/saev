@@ -1,3 +1,12 @@
+"""Tests for segmentation shard generation.
+
+To run DINOv3 + FishVista integration test:
+
+    uv run pytest tests/test_shards_seg.py -v -k dinov3 \
+      --fishvista-root /fs/scratch/PAS2136/samuelstevens/derived-datasets/fish-vista-segfolder2 \
+      --dinov3-ckpt /fs/ess/PAS2136/samuelstevens/models/dinov3/dinov3_vits16_pretrain_lvd1689m-08c60483.pth
+"""
+
 import contextlib
 import pathlib
 import tempfile
@@ -416,7 +425,7 @@ def test_dinov3_fishvista_shards(
     with tmp_shards_root() as shards_root:
         shards_dir = worker_fn(
             family="dinov3",
-            ckpt=str(dinov3_ckpt),
+            ckpt=dinov3_ckpt,
             content_tokens_per_example=256,  # 16x16 patches
             cls_token=False,
             d_model=384,  # ViT-S has 384 dim

@@ -1,4 +1,5 @@
 - Use `uv run SCRIPT.py` or `uv run python ARGS` to run python instead of Just plain `python`.
+- To submit jobs, use `launch.py` scripts (e.g., `uv run python scripts/launch.py SUBCOMMAND`). Nearly every part of this package has a launch.py entrypoint. Don't try to run modules directly with `-m`.
 - After making edits, run `uvx ruff format --preview .` to format the file, then run `uvx ruff check --fix .` to lint, then run `uvx ty check FILEPATH` to type check (`ty` is prerelease software, and typechecking often will have false positives). Only do this if you think you're finished, or if you can't figure out a bug. Maybe linting will make it obvious. Don't fix linting or typing errors in files you haven't modified.
 
 # Gather Context
@@ -84,3 +85,13 @@ The key for these suffixes:
 - c: Number of classes
 
 For example, an activation tensor with shape (batch, width, height d_vit) is `acts_bwhd`.
+
+# Scribe MCP Tool (Jupyter Notebooks)
+
+The scribe MCP tool runs notebooks in an isolated Python environment (`~/.local/share/uv/tools/scribe/`), separate from the project's uv environment.
+
+- **Installing packages**: Use `uv pip install --python /path/to/scribe/bin/python PACKAGES` from within a cell, then restart the kernel (shutdown + start new session) for imports to work.
+- **Installing saev**: Run `uv pip install --python ... -e /path/to/saev` to install the local package.
+- **Kernel hangs**: The kernel can freeze after displaying matplotlib figures. If outputs become empty, restart the session.
+- **Type conversions**: Convert numpy types to Python natives (e.g., `int(np.int64(...))`, `float(np.float32(...))`) before passing to beartype-decorated functions like `saev.viz.add_highlights`.
+- **Matplotlib figures**: Return `fig` as the last expression in a cell (not `plt.show()`). Example: `fig, ax = plt.subplots(); ax.plot(...); fig`

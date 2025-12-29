@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.15.0"
+__generated_with = "0.17.2"
 app = marimo.App(width="full")
 
 
@@ -45,7 +45,7 @@ def _():
 
 @app.cell
 def _(pathlib):
-    root = pathlib.Path("/fs/scratch/PAS2136/samuelstevens/datasets/fish-vista")
+    root = pathlib.Path("/fs/ess/PAS2136/samuelstevens/datasets/fish-vista")
     assert root.is_dir()
     return (root,)
 
@@ -185,7 +185,8 @@ def _(beartype, einops, nn, torch):
             self.key = key
 
         def forward(self, sample: dict[str, object]) -> dict[str, object]:
-            assert self.key in sample
+            msg = f"{self.key} not in {sorted(sample.keys())}."
+            assert self.key in sample, msg
             img = sample[self.key]
             c, h, w = img.shape
             p = self.patch_size
@@ -206,9 +207,11 @@ def _(beartype, einops, nn, torch):
 
 
 @app.cell
-def _(Image, Patchify, saev, torch, v2):
-    cfg = saev.data.images.SegFolder(
-        root="/fs/scratch/PAS2136/samuelstevens/datasets/fish-vista-segfolder",
+def _(Image, Patchify, pathlib, saev, torch, v2):
+    cfg = saev.data.datasets.ImgSegFolder(
+        root=pathlib.Path(
+            "/fs/scratch/PAS2136/samuelstevens/derived-datasets/fish-vista-segfolder"
+        ),
         img_label_fname="image_labels.txt",
     )
 
@@ -219,7 +222,7 @@ def _(Image, Patchify, saev, torch, v2):
         v2.Normalize(mean=[0.4850, 0.4560, 0.4060], std=[0.2290, 0.2240, 0.2250]),
     ])
 
-    seg_transform = v2.Compose([
+    mask_transform = v2.Compose([
         saev.data.transforms.FlexResize(
             patch_size=16, n_patches=640, resample=Image.NEAREST
         ),
@@ -227,13 +230,13 @@ def _(Image, Patchify, saev, torch, v2):
     ])
     sample_transform = v2.Compose([
         Patchify(patch_size=16, n_patches=640),
-        Patchify(patch_size=16, n_patches=640, key="segmentation"),
+        # Patchify(patch_size=16, n_patches=640, key=""),
     ])
 
-    dataset = saev.data.images.SegFolderDataset(
+    dataset = saev.data.datasets.ImgSegFolderDataset(
         cfg,
         img_transform=img_transform,
-        seg_transform=seg_transform,
+        mask_transform=mask_transform,
         sample_transform=sample_transform,
     )
     return (dataset,)
@@ -277,6 +280,7 @@ def _(torch):
         num_classes: int | None = None,
     ) -> torch.Tensor:  # [N]
         x = pixel_labels_nd.to(torch.long)
+        print(x.shape)
         N, _ = x.shape
         if num_classes is None:
             num_classes = int(x.max().item()) + 1
@@ -305,7 +309,7 @@ def _(
     patch_label_ignore_bg_bincount,
 ):
     def show_sample(sample: dict[str, object]):
-        pixel_labels_nd = sample["segmentation"]
+        pixel_labels_nd = sample["patch_labels"]
         mode_labels_n = pixel_labels_nd.mode(axis=1).values
         patch_labels_n = patch_label_ignore_bg_bincount(
             pixel_labels_nd, background_idx=0, num_classes=10
@@ -346,6 +350,18 @@ def _(
         ])
 
     show_sample(dataset[100])
+    return
+
+
+@app.cell
+def _(dataset):
+    dataset[100]
+    return
+
+
+@app.cell
+def _(dataset):
+    dataset.sample_transform
     return
 
 

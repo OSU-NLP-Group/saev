@@ -1660,4 +1660,44 @@ What can I do?
 - Baselines?
 - More birdsong?
 - Writing?
-- 
+
+# 12/17/2025
+
+From GPT
+
+> Can SAE features recover part-conditioned ecomorphological signals associated with habitat/locomotion (FishBase metadata) that are not present in the segmentation label set, and do these signals generalize across taxa? 
+
+I don't think "part-conditioned" is necessary.
+"Do these signals generalize across taxa" is a great point.
+
+Let's discuss our protocol
+
+
+Some notes from the ml-foundations meeting
+
+- withheld knowledge is a great way to test "discovery", better than our current protocol
+- look for features with inter- and intra-species variation; can we find features that group species that would not otherwise be grouped? same thing for genera and habitats
+- talk to josef about sexual dimorphism in birds
+- try k-sparse linear probes and decision trees
+- butterflies and hybrids are a great testbed for this!
+
+# 12/18/2025
+
+I think there are fundamental issues in my SST-GUI.
+Since SAM 2, there are lots and lots of language-driven segmentation models (SAM 3, MoonDream, Isaac 0.2, Gemini Flash).
+However, setting them up might be a hassle.
+It would be a nice task for Nathan, tbh.
+I'm going to train some SAEs on butterflies without any segmentation at first to see if it's okay with Matryoshka + TopK.
+If not, I will do some segmentation.
+
+For fish, I think my process is now:
+
+1. Train an shallow/interpretable image-level classifier on SAE features.
+2. Evaluate the chosen features for point-level interpretability.
+
+I trained a bunch of image-level classifiers. Now I need to summarize their results in a notebook. Then I can look at the highly prioritized features.
+
+# 12/19/2025
+
+- Why are all my coefficients negative? Does that mean they're NOT correlated?
+- Do my integer habitats match up with the strings? -> No, but I fixed it.

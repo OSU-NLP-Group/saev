@@ -22,10 +22,10 @@ This script:
 Input structure:
 - Images: /fs/scratch/PAS2136/samuelstevens/datasets/butterflies-imgfolder/images/{species}/{X}_{CAMID}_{view}.JPG
 - CSV: /fs/scratch/PAS2136/samuelstevens/datasets/butterflies-imgfolder/Heliconius_img_master.csv
-- Masks: Downloaded from HuggingFace to /fs/scratch/PAS2136/samuelstevens/datasets/cambridge-butterflies-sst
+- Masks: Downloaded from HuggingFace to /fs/scratch/PAS2136/samuelstevens/derived-datasets/cambridge-butterflies-sst
 
 Output structure (SegFolder format):
-- /fs/scratch/PAS2136/samuelstevens/datasets/butterflies-segfolder/
+- /fs/scratch/PAS2136/samuelstevens/derived-datasets/butterflies-segfolder/
   - images/training/{CAMID}_{view}.JPG
   - annotations/training/{CAMID}_{view}.png
   - image_labels.txt
@@ -56,20 +56,16 @@ logger = logging.getLogger("format_butterflies")
 @dataclasses.dataclass(frozen=True)
 class Config:
     imgfolder_path: pathlib.Path = pathlib.Path(
-        "/fs/scratch/PAS2136/samuelstevens/datasets/butterflies-imgfolder"
+        "/fs/ess/PAS2136/samuelstevens/datasets/butterflies-imgfolder"
     )
     """Path to butterfly images in ImageFolder format."""
-    hf_dataset_path: pathlib.Path = pathlib.Path(
-        "/fs/scratch/PAS2136/samuelstevens/datasets/cambridge-butterflies-sst"
-    )
-    """Path to download HuggingFace parquet dataset."""
     segfolder_path: pathlib.Path = pathlib.Path(
-        "/fs/scratch/PAS2136/samuelstevens/datasets/butterflies-segfolder"
+        "/fs/scratch/PAS2136/samuelstevens/derived-datasets/butterflies-segfolder"
     )
     """Output path for SegFolder format."""
     hf_dataset_name: str = "samuelstevens/cambridge-butterflies-sst"
     """HuggingFace dataset name."""
-    csv_fname: str = "Heliconius_img_master.csv"
+    csv_fpath: pathlib.Path = pathlib.Path("data/heliconius_img_master.csv")
     """CSV filename with image metadata."""
     img_label_fname: str = "image_labels.txt"
     """Output label filename."""
@@ -91,12 +87,6 @@ def download_parquet(cfg: Config) -> pl.DataFrame:
 
     # Convert to pandas then polars for easier processing
     df = pl.from_pandas(dataset.to_pandas())
-
-    # Save locally for future use
-    cfg.hf_dataset_path.mkdir(parents=True, exist_ok=True)
-    parquet_path = cfg.hf_dataset_path / "data.parquet"
-    df.write_parquet(parquet_path)
-    logger.info("Saved parquet to %s", parquet_path)
 
     return df
 
@@ -121,7 +111,7 @@ def copy_images_batch(
         actual_fname = f"{x_id}_{image_name}"
         found = False
 
-        for species_dir in (cfg.imgfolder_path / "images").iterdir():
+        for species_dir in (cfg.imgfolder_path).iterdir():
             if not species_dir.is_dir():
                 continue
             src_path = species_dir / actual_fname
@@ -218,16 +208,10 @@ def main(cfg: Config):
     (cfg.segfolder_path / "annotations" / "training").mkdir(parents=True, exist_ok=True)
 
     # Download or load parquet data
-    parquet_path = cfg.hf_dataset_path / "data.parquet"
-    if parquet_path.exists():
-        logger.info("Loading existing parquet from %s", parquet_path)
-        parquet_df = pl.read_parquet(parquet_path)
-    else:
-        parquet_df = download_parquet(cfg)
+    parquet_df = download_parquet(cfg)
 
     # Load CSV data
-    csv_path = cfg.imgfolder_path / cfg.csv_fname
-    csv_df = pl.read_csv(csv_path, infer_schema_length=None)
+    csv_df = pl.read_csv(cfg.csv_fpath, infer_schema_length=None)
     logger.info("Loaded CSV with %d rows", len(csv_df))
 
     # Process with thread pool

@@ -10,13 +10,14 @@ def _():
     import datetime
     import json
     import pathlib
+    import typing as tp
 
     import beartype
     import marimo as mo
     import matplotlib.pyplot as plt
 
     import saev.helpers
-    import typing as tp
+
     return beartype, dataclasses, datetime, json, mo, pathlib, plt, saev, tp
 
 
@@ -63,13 +64,11 @@ def _(beartype, dataclasses, datetime, json, pathlib, tp):
             return float(value)
         raise ValueError(f"invalid float value: {value}")
 
-
     @beartype.beartype
     @dataclasses.dataclass(frozen=True)
     class Event:
         timestamp: datetime.datetime
         name: str
-
 
     @beartype.beartype
     @dataclasses.dataclass(frozen=True)
@@ -129,7 +128,6 @@ def _(beartype, dataclasses, datetime, json, pathlib, tp):
             }
             return cls(**kwargs)
 
-
     @beartype.beartype
     @dataclasses.dataclass(frozen=True)
     class LoadCsrRamStart(Event):
@@ -151,7 +149,6 @@ def _(beartype, dataclasses, datetime, json, pathlib, tp):
                 fpath=payload["fpath"],
                 rss_gb=payload["rss_gb"],
             )
-
 
     @beartype.beartype
     @dataclasses.dataclass(frozen=True)
@@ -177,7 +174,6 @@ def _(beartype, dataclasses, datetime, json, pathlib, tp):
                 shape=tuple(payload["shape"]),
             )
 
-
     @beartype.beartype
     @dataclasses.dataclass(frozen=True)
     class LoadCsrVramStart(Event):
@@ -200,7 +196,6 @@ def _(beartype, dataclasses, datetime, json, pathlib, tp):
                 device=payload["device"],
             )
 
-
     @beartype.beartype
     @dataclasses.dataclass(frozen=True)
     class LoadCsrVramEnd(Event):
@@ -222,7 +217,6 @@ def _(beartype, dataclasses, datetime, json, pathlib, tp):
                 split=payload["split"],
                 device=payload["device"],
             )
-
 
     @beartype.beartype
     def load_event(line: str) -> Event:
@@ -253,7 +247,6 @@ def _(beartype, dataclasses, datetime, json, pathlib, tp):
         else:
             raise ValueError(f"Unexpected event '{event}'")
 
-
     @beartype.beartype
     def load_events(log_fpath: pathlib.Path) -> list[Event]:
         iters: list[ProbeIter] = []
@@ -273,73 +266,8 @@ def _(beartype, dataclasses, datetime, json, pathlib, tp):
 
                 iters.append(iter_item)
         return iters
+
     return ProbeIter, load_events
-
-
-@app.cell
-def _(ProbeIter, events, mo, plt, saev):
-    def _():
-        slabs = saev.helpers.batched_idx(151, 8)
-        fig, axes = plt.subplots(
-            nrows=len(slabs),
-            ncols=2,
-            dpi=200,
-            sharex=True,
-            figsize=(12, 4 * len(slabs)),
-            layout="constrained",
-        )
-
-        for slab, (ax1, ax2) in zip(mo.status.progress_bar(slabs), axes):
-            slab_iters = [
-                it for it in events if isinstance(it, ProbeIter) and it.slab == slab
-            ]
-
-            def attrs(attr: str) -> list:
-                return [getattr(it, attr) for it in slab_iters]
-
-            xs = [it.iter for it in slab_iters]
-
-            ax1.spines[["right", "top"]].set_visible(False)
-            ax1.set_yscale("log")
-            ax1.set_title(f"Metrics for Slab {slab}")
-
-            ax2.spines[["right", "top"]].set_visible(False)
-            ax2.set_title(f"Optim. for Slab {slab}")
-
-            if not xs:
-                continue
-
-            ax1.plot(xs, attrs("grad_max"), color="tab:blue", label="Max Grad.")
-            ax1.plot(xs, attrs("step_max"), color="tab:orange", label="Max Step")
-            ax1.plot(xs, attrs("loss_mean"), color="tab:green", label="Mean Loss")
-            ax1.plot(xs, attrs("loss_max"), color="tab:purple", label="Max Loss")
-            ax1.plot(xs, attrs("success_frac"), color="tab:brown", label="Success Frac.")
-
-            # n_nonzero_step_clipped = sum(it.step_clipped > 0 for it in slab_iters)
-
-            # if 0 < n_nonzero_step_clipped < 5:
-            #     ax1.scatter(
-            #         xs, attrs("step_clipped"), color="tab:red", label="Clipped Steps"
-            #     )
-
-            # if 5 <= n_nonzero_step_clipped:
-            #     ax1.plot(xs, attrs("step_clipped"), color="tab:red", label="Clipped Steps")
-
-            # AX 3
-            ax2.plot(xs, attrs("rho_mean"), color="tab:blue", label="Mean $\\rho$")
-            ax2.plot(xs, attrs("rho_min"), color="tab:orange", label="Min $\\rho$")
-            ax2.plot(xs, attrs("lambda_mean"), color="tab:green", label="Mean $\\lambda$")
-            ax2.set_yscale("symlog")
-
-            # Legends
-            ax1.legend()
-            ax2.legend()
-
-        return fig
-
-
-    _()
-    return
 
 
 @app.cell
@@ -394,6 +322,74 @@ def _(events, plt, saev):
 
         return fig
 
+    _()
+    return
+
+
+@app.cell
+def _(ProbeIter, events, mo, plt, saev):
+    def _():
+        slabs = saev.helpers.batched_idx(151, 8)
+        fig, axes = plt.subplots(
+            nrows=len(slabs),
+            ncols=2,
+            dpi=200,
+            sharex=True,
+            figsize=(12, 4 * len(slabs)),
+            layout="constrained",
+        )
+
+        for slab, (ax1, ax2) in zip(mo.status.progress_bar(slabs), axes):
+            slab_iters = [
+                it for it in events if isinstance(it, ProbeIter) and it.slab == slab
+            ]
+
+            def attrs(attr: str) -> list:
+                return [getattr(it, attr) for it in slab_iters]
+
+            xs = [it.iter for it in slab_iters]
+
+            ax1.spines[["right", "top"]].set_visible(False)
+            ax1.set_yscale("log")
+            ax1.set_title(f"Metrics for Slab {slab}")
+
+            ax2.spines[["right", "top"]].set_visible(False)
+            ax2.set_title(f"Optim. for Slab {slab}")
+
+            if not xs:
+                continue
+
+            ax1.plot(xs, attrs("grad_max"), color="tab:blue", label="Max Grad.")
+            ax1.plot(xs, attrs("step_max"), color="tab:orange", label="Max Step")
+            ax1.plot(xs, attrs("loss_mean"), color="tab:green", label="Mean Loss")
+            ax1.plot(xs, attrs("loss_max"), color="tab:purple", label="Max Loss")
+            ax1.plot(
+                xs, attrs("success_frac"), color="tab:brown", label="Success Frac."
+            )
+
+            # n_nonzero_step_clipped = sum(it.step_clipped > 0 for it in slab_iters)
+
+            # if 0 < n_nonzero_step_clipped < 5:
+            #     ax1.scatter(
+            #         xs, attrs("step_clipped"), color="tab:red", label="Clipped Steps"
+            #     )
+
+            # if 5 <= n_nonzero_step_clipped:
+            #     ax1.plot(xs, attrs("step_clipped"), color="tab:red", label="Clipped Steps")
+
+            # AX 3
+            ax2.plot(xs, attrs("rho_mean"), color="tab:blue", label="Mean $\\rho$")
+            ax2.plot(xs, attrs("rho_min"), color="tab:orange", label="Min $\\rho$")
+            ax2.plot(
+                xs, attrs("lambda_mean"), color="tab:green", label="Mean $\\lambda$"
+            )
+            ax2.set_yscale("symlog")
+
+            # Legends
+            ax1.legend()
+            ax2.legend()
+
+        return fig
 
     _()
     return

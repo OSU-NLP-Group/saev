@@ -1,5 +1,4 @@
 import librosa
-import numpy as np
 import pytest
 import torch
 import transformers
@@ -91,12 +90,12 @@ def waveform_5s():
     """5 seconds of audio at 32kHz with recognizable pattern."""
     n_samples = SR * 5  # 160,000
     # Use a simple ramp so we can verify which samples are extracted
-    return np.arange(n_samples, dtype=np.float32) / n_samples
+    return torch.arange(n_samples, dtype=torch.float32) / n_samples
 
 
-def _make_patches(time_indices: list[int]) -> np.ndarray:
+def _make_patches(time_indices: list[int]) -> torch.Tensor:
     """Create a boolean patch mask with all mel patches activated for given time indices."""
-    patches = np.zeros(N_PATCHES, dtype=bool)
+    patches = torch.zeros(N_PATCHES, dtype=torch.bool)
     for t in time_indices:
         patches[t * N_MEL_PATCHES : (t + 1) * N_MEL_PATCHES] = True
     return patches
@@ -109,7 +108,7 @@ def test_filter_audio_time_single_first_patch(waveform_5s):
 
     assert result.shape[0] == SAMPLES_PER_TIME_PATCH
     # First time patch should be first 5,120 samples
-    np.testing.assert_array_equal(result, waveform_5s[:SAMPLES_PER_TIME_PATCH])
+    assert torch.equal(result, waveform_5s[:SAMPLES_PER_TIME_PATCH])
 
 
 def test_filter_audio_time_single_middle_patch(waveform_5s):
@@ -120,7 +119,7 @@ def test_filter_audio_time_single_middle_patch(waveform_5s):
     assert result.shape[0] == SAMPLES_PER_TIME_PATCH
     start = 15 * SAMPLES_PER_TIME_PATCH
     end = 16 * SAMPLES_PER_TIME_PATCH
-    np.testing.assert_array_equal(result, waveform_5s[start:end])
+    assert torch.equal(result, waveform_5s[start:end])
 
 
 def test_filter_audio_time_single_last_patch(waveform_5s):
@@ -132,7 +131,7 @@ def test_filter_audio_time_single_last_patch(waveform_5s):
     # Last patch may be truncated to audio length
     expected = waveform_5s[start:]
     assert result.shape[0] == expected.shape[0]
-    np.testing.assert_array_equal(result, expected)
+    assert torch.equal(result, expected)
 
 
 def test_filter_audio_time_consecutive_patches(waveform_5s):
@@ -143,7 +142,7 @@ def test_filter_audio_time_consecutive_patches(waveform_5s):
     assert result.shape[0] == 2 * SAMPLES_PER_TIME_PATCH
     start = 10 * SAMPLES_PER_TIME_PATCH
     end = 12 * SAMPLES_PER_TIME_PATCH
-    np.testing.assert_array_equal(result, waveform_5s[start:end])
+    assert torch.equal(result, waveform_5s[start:end])
 
 
 def test_filter_audio_time_non_consecutive_patches(waveform_5s):
@@ -154,34 +153,34 @@ def test_filter_audio_time_non_consecutive_patches(waveform_5s):
     assert result.shape[0] == 2 * SAMPLES_PER_TIME_PATCH
     seg1 = waveform_5s[5 * SAMPLES_PER_TIME_PATCH : 6 * SAMPLES_PER_TIME_PATCH]
     seg2 = waveform_5s[20 * SAMPLES_PER_TIME_PATCH : 21 * SAMPLES_PER_TIME_PATCH]
-    expected = np.concatenate([seg1, seg2])
-    np.testing.assert_array_equal(result, expected)
+    expected = torch.cat([seg1, seg2], dim=0)
+    assert torch.equal(result, expected)
 
 
 def test_filter_audio_time_single_mel_patch_activates_full_time(waveform_5s):
     """Activate only one mel patch in a time slot, should still extract full time segment."""
-    patches = np.zeros(N_PATCHES, dtype=bool)
+    patches = torch.zeros(N_PATCHES, dtype=torch.bool)
     patches[10 * N_MEL_PATCHES + 3] = True  # time=10, mel=3
     result = bird_mae.filter_audio(waveform_5s, SR, patches, mode="time")
 
     assert result.shape[0] == SAMPLES_PER_TIME_PATCH
     start = 10 * SAMPLES_PER_TIME_PATCH
     end = 11 * SAMPLES_PER_TIME_PATCH
-    np.testing.assert_array_equal(result, waveform_5s[start:end])
+    assert torch.equal(result, waveform_5s[start:end])
 
 
 def test_filter_audio_time_all_patches(waveform_5s):
     """Activate all patches, expect full audio returned."""
-    patches = np.ones(N_PATCHES, dtype=bool)
+    patches = torch.ones(N_PATCHES, dtype=torch.bool)
     result = bird_mae.filter_audio(waveform_5s, SR, patches, mode="time")
 
     # Full audio, possibly truncated at 32 * 5120 = 163,840 but audio is 160,000
-    np.testing.assert_array_equal(result, waveform_5s)
+    assert torch.equal(result, waveform_5s)
 
 
 def test_filter_audio_time_no_patches(waveform_5s):
     """Activate no patches, expect empty array."""
-    patches = np.zeros(N_PATCHES, dtype=bool)
+    patches = torch.zeros(N_PATCHES, dtype=torch.bool)
     result = bird_mae.filter_audio(waveform_5s, SR, patches, mode="time")
 
     assert result.shape[0] == 0
@@ -194,5 +193,42 @@ def test_filter_audio_time_first_and_last_patches(waveform_5s):
 
     seg1 = waveform_5s[:SAMPLES_PER_TIME_PATCH]
     seg2 = waveform_5s[31 * SAMPLES_PER_TIME_PATCH :]
-    expected = np.concatenate([seg1, seg2])
-    np.testing.assert_array_equal(result, expected)
+    expected = torch.cat([seg1, seg2], dim=0)
+    assert torch.equal(result, expected)
+
+
+def test_filter_audio_time_freq_handles_non_aligned_length():
+    """time+freq should not error when waveform length is not hop-aligned."""
+    # Length chosen to be non-multiple of hop_length (320)
+    n_samples = SR * 5 + 123
+    waveform = torch.arange(n_samples, dtype=torch.float32) / n_samples
+    patches = _make_patches([0])  # activate first time patch
+
+    out = bird_mae.filter_audio(waveform, SR, patches, mode="time+freq")
+    assert isinstance(out, torch.Tensor)
+    assert out.numel() > 0
+
+
+def test_filter_audio_clips_to_5s_when_longer():
+    """filter_audio should truncate/pad to same 5s window as transform()."""
+    n_samples = SR * 7  # longer than 5s
+    waveform = torch.arange(n_samples, dtype=torch.float32) / n_samples
+    patches = _make_patches([0, 31])
+
+    out = bird_mae.filter_audio(waveform, SR, patches, mode="time")
+    # Patch 0 is full-length; patch 31 is truncated to remaining samples in the 5s window.
+    expected_tail = waveform[31 * SAMPLES_PER_TIME_PATCH : SR * 5]
+    assert out.numel() == SAMPLES_PER_TIME_PATCH + expected_tail.numel()
+    assert torch.equal(out[:SAMPLES_PER_TIME_PATCH], waveform[:SAMPLES_PER_TIME_PATCH])
+    assert torch.equal(out[SAMPLES_PER_TIME_PATCH:], expected_tail)
+
+
+def test_filter_audio_time_freq_handles_much_longer():
+    """time+freq should not error when waveform is much longer than 5s (clipped inside)."""
+    n_samples = SR * 10 + 77
+    waveform = torch.arange(n_samples, dtype=torch.float32) / n_samples
+    patches = _make_patches([0, 10, 20])
+
+    out = bird_mae.filter_audio(waveform, SR, patches, mode="time+freq")
+    assert isinstance(out, torch.Tensor)
+    assert out.numel() > 0

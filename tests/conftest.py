@@ -23,16 +23,22 @@ def pytest_addoption(parser):
         help="Path to a checkpoint file for testing load functionality",
     )
     parser.addoption(
-        "--fishvista-root",
+        "--segfolder",
         action="store",
         default=None,
-        help="Path to FishVista segfolder dataset for integration testing",
+        help="Path to a SegFolder dataset for integration testing",
     )
     parser.addoption(
         "--dinov3-ckpt",
         action="store",
         default=None,
         help="Path to DINOv3 checkpoint for integration testing",
+    )
+    parser.addoption(
+        "--imgfolder",
+        action="store",
+        default=None,
+        help="Path to an ImgFolder dataset for integration testing",
     )
 
 
@@ -64,14 +70,14 @@ def shards_dir_with_token_labels(shards_dir):
 
 
 @pytest.fixture(scope="session")
-def fishvista_root(pytestconfig) -> pathlib.Path:
-    """Fixture for FishVista segfolder dataset path."""
-    path = pytestconfig.getoption("--fishvista-root")
+def segfolder_root(pytestconfig) -> pathlib.Path:
+    """Fixture for SegFolder dataset path."""
+    path = pytestconfig.getoption("--segfolder")
     if path is None:
-        pytest.skip("--fishvista-root not provided")
+        pytest.skip("--segfolder not provided")
     path = pathlib.Path(path)
     if not path.exists():
-        pytest.skip(f"--fishvista-root path does not exist: {path}")
+        pytest.skip(f"--segfolder path does not exist: {path}")
     return path
 
 
@@ -84,6 +90,18 @@ def dinov3_ckpt(pytestconfig) -> pathlib.Path:
     path = pathlib.Path(path)
     if not path.exists():
         pytest.skip(f"--dinov3-ckpt path does not exist: {path}")
+    return path
+
+
+@pytest.fixture(scope="session")
+def imgfolder_root(pytestconfig) -> pathlib.Path:
+    """Fixture for ImgFolder dataset path."""
+    path = pytestconfig.getoption("--imgfolder")
+    if path is None:
+        pytest.skip("--imgfolder not provided")
+    path = pathlib.Path(path)
+    if not path.exists():
+        pytest.skip(f"--imgfolder path does not exist: {path}")
     return path
 
 

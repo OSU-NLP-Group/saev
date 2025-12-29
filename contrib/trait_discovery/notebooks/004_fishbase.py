@@ -27,7 +27,6 @@ def _():
 
     import saev.colors
     import saev.data.datasets
-
     return (
         Bool,
         Float,
@@ -70,22 +69,15 @@ def _(
     WANDB_USERNAME,
     beartype,
     concurrent,
-    get_baseline_ce,
+    get_cls_results,
     get_data_key,
-    get_inference_probe_metric_fpaths,
     get_model_key,
-    get_probe_split_label,
-    json,
     load_freqs,
     load_mean_values,
     mo,
-    mode,
-    np,
-    pathlib,
     pl,
     runs_root,
     saev,
-    shards_root,
     wandb,
 ):
     @beartype.beartype
@@ -93,9 +85,7 @@ def _(
         saev_run = saev.disk.Run(runs_root / wandb_run.id)
         row = {"id": wandb_run.id}
 
-        row.update(**{
-            f"summary/{key}": value for key, value in wandb_run.summary.items()
-        })
+        row.update(**{f"summary/{key}": value for key, value in wandb_run.summary.items()})
 
         try:
             row["summary/eval/freqs"] = load_freqs(wandb_run)
@@ -118,12 +108,10 @@ def _(
             print(f"Run {wandb_run.id} missing config section: {err}.")
             return None
 
-        row.update(**{
-            f"config/train_data/{key}": value for key, value in train_data.items()
-        })
-        row.update(**{
-            f"config/val_data/{key}": value for key, value in val_data.items()
-        })
+        row.update(
+            **{f"config/train_data/{key}": value for key, value in train_data.items()}
+        )
+        row.update(**{f"config/val_data/{key}": value for key, value in val_data.items()})
         row.update(**{f"config/{key}": value for key, value in config.items()})
 
         metadata = row.get("config/train_data/metadata")
@@ -132,115 +120,10 @@ def _(
         row["model_key"] = get_model_key(metadata)
         row["data_key"] = get_data_key(metadata)
 
-        split_map: dict[str, tuple[pathlib.Path, str, pathlib.Path]] = {}
-        for metrics_fpath in get_inference_probe_metric_fpaths(saev_run.run_dir):
-            shard_id = metrics_fpath.parent.name
-            shards_dpath = shards_root / shard_id
-
-            if not shards_dpath.exists():
-                print(f"Skipping {wandb_run.id}: shards dir {shards_dpath} missing.")
-                continue
-
-            split_label = get_probe_split_label(shards_dpath)
-            if split_label is None:
-                print(
-                    f"Skipping shards {shard_id}: unknown split (run {wandb_run.id})."
-                )
-                continue
-
-            if split_label in split_map:
-                print(f"Skipping {wandb_run.id}: duplicate {split_label} metrics.")
-                split_map = {}
-                break
-
-            split_map[split_label] = (metrics_fpath, shard_id, shards_dpath)
-
-        if not split_map:
-            print(f"Skipping {wandb_run.id}: no splits.")
-            return row
-
-        if "train" not in split_map:
-            print(f"Skipping {wandb_run.id}: missing train, got {split_map.keys()}.")
-            return row
-
-        if "val" not in split_map:
-            print(f"Skipping {wandb_run.id}: missing val, got {split_map.keys()}.")
-            return row
-
-        train_probe_metrics_fpath, train_shards, train_shards_dpath = split_map["train"]
-        val_probe_metrics_fpath, val_shards, val_shards_dpath = split_map["val"]
-
-        with np.load(train_probe_metrics_fpath) as fd:
-            train_loss = fd["loss"]
-            w = fd["weights"]
-
-        with np.load(val_probe_metrics_fpath) as fd:
-            val_loss = fd["loss"]
-
-        assert train_loss.ndim == 2
-        assert val_loss.ndim == 2
-        assert train_loss.shape == val_loss.shape
-
-        n_latents, n_classes = train_loss.shape
-
-        best_i = np.argmin(train_loss, axis=0)
-        train_ce = train_loss[best_i, np.arange(n_classes)].mean().item()
-        val_ce = val_loss[best_i, np.arange(n_classes)].mean().item()
-
-        row["downstream/frac_w_neg"] = (w < 0).mean().item()
-        row["downstream/frac_best_w_neg"] = (
-            (w[best_i, np.arange(n_classes)] < 0).mean().item()
-        )
-
-        train_base_ce = get_baseline_ce(train_shards_dpath).mean().item()
-        val_base_ce = get_baseline_ce(val_shards_dpath).mean().item()
-
-        row["downstream/train/probe_ce"] = train_ce
-        row["downstream/train/baseline_ce"] = train_base_ce
-        row["downstream/train/probe_r"] = 1 - train_ce / train_base_ce
-
-        row["downstream/val/probe_ce"] = val_ce
-        row["downstream/val/baseline_ce"] = val_base_ce
-        row["downstream/val/probe_r"] = 1 - val_ce / val_base_ce
-
-        path = saev_run.inference / train_shards / "metrics.json"
-        if path.is_file():
-            nmse = json.loads(path.read_text())["normalized_mse"]
-            row["downstream/train/normalized_mse"] = nmse
-
-        path = saev_run.inference / val_shards / "metrics.json"
-        if path.is_file():
-            nmse = json.loads(path.read_text())["normalized_mse"]
-            row["downstream/val/normalized_mse"] = nmse
-
-        # k = 16
-        path = (
-            saev_run.inference
-            / val_shards
-            / f"probe1d_metrics__train-{train_shards}.npz"
-        )
-        if path.is_file():
-            with np.load(path) as fd:
-                ap_c = fd["ap"]
-                prec_c = fd["precision"]
-                recall_c = fd["recall"]
-                f1_c = fd["f1"]
-                top_labels_dk = fd["top_labels"]
-
-            row["downstream/val/mean_ap"] = ap_c.mean().item()
-            row["downstream/val/mean_prec"] = prec_c.mean().item()
-            row["downstream/val/mean_recall"] = recall_c.mean().item()
-            row["downstream/val/mean_f1"] = f1_c.mean().item()
-            for tau in [0.3, 0.5, 0.7]:
-                row[f"downstream/val/cov_at_{tau}".replace(".", "_")] = (
-                    (ap_c > tau).mean().item()
-                )
-
-            for k in [16, 64, 256]:
-                _, count = mode(top_labels_dk[best_i, :k], axis=1)
-                row[f"downstream/val/mean_purity_at_{k}"] = (count / k).mean().item()
+        row.update(**get_cls_results(saev_run))
 
         return row
+
 
     @beartype.beartype
     def _finalize_df(rows: list[dict[str, object]]):
@@ -309,6 +192,7 @@ def _(
 
         return df
 
+
     @beartype.beartype
     def make_df_parallel(n_workers: int = 16):
         filters = {}
@@ -319,6 +203,8 @@ def _(
             wandb.Api().runs(path=f"{WANDB_USERNAME}/{WANDB_PROJECT}", filters=filters)
         )
         # runs = runs[:8]
+
+        runs = [wandb.Api().run(path=f"{WANDB_USERNAME}/{WANDB_PROJECT}/pdikj9bl")]
         if not runs:
             raise ValueError("No runs found.")
 
@@ -342,8 +228,15 @@ def _(
         assert rows, "No valid runs."
         return _finalize_df(rows)
 
+
     df = make_df_parallel()
     return (df,)
+
+
+@app.cell
+def _(df):
+    df.select("^downstream/*")
+    return
 
 
 @app.cell
@@ -396,7 +289,7 @@ def _(collections, df, mo, pl, plt, saev):
                 xs,
                 ys,
                 alpha=0.5,
-                label=f"DINOv3",
+                label="DINOv3",
                 color=saev.colors.BLUE_RGB01,
                 marker="o",
             )
@@ -428,6 +321,7 @@ def _(collections, df, mo, pl, plt, saev):
 
         return mo.vstack([fig, dict(pareto_ckpts)])
 
+
     _(df)
     return
 
@@ -440,6 +334,7 @@ def _(df, pl):
         & (pl.col("config/val_data/layer") == 17)
         & (pl.col("data_key") == "FishVista (Img)")
         & (pl.col("config/sae/activation/top_k") == 128)
+        & (pl.col("downstream/val/cls_results").is_not_null())
     )
     return
 
@@ -524,6 +419,7 @@ def _(df, pl, plt, saev):
 
         return fig
 
+
     _(df)
     return
 
@@ -576,7 +472,7 @@ def _(df, mo, pl, plt, saev):
                 xs,
                 ys,
                 alpha=0.5,
-                label=f"DINOv3",
+                label="DINOv3",
                 color=saev.colors.BLUE_RGB01,
                 marker="o",
             )
@@ -600,6 +496,7 @@ def _(df, mo, pl, plt, saev):
         # return fig
 
         return mo.vstack([fig])
+
 
     _(df)
     return
@@ -640,54 +537,56 @@ def _(pl):
             "contrib/trait_discovery/data/fishvista_fishbase.csv",
             null_values=["?"],
             # Order matters
-            schema=pl.Schema({
-                "genus": pl.String,
-                "species": pl.String,
-                "family": pl.String,
-                "demersal": pl.Float64,
-                "benthopelagic": pl.Float64,
-                "bathydemersal": pl.Float64,
-                "pelagic": pl.Float64,
-                "pelagic-neritic": pl.Float64,
-                "pelagic-oceanic": pl.Float64,
-                "reef-associated": pl.Float64,
-                "epipelagic": pl.Float64,
-                "mesopelagic": pl.Float64,
-                "bathypelagic": pl.Float64,
-                "abyssopelagic": pl.Float64,
-                "marine": pl.Float64,
-                "freshwater": pl.Float64,
-                "brackish": pl.Float64,
-                "anadromous": pl.Float64,
-                "catadromous": pl.Float64,
-                "amphidromous": pl.Float64,
-                "potamodromous": pl.Float64,
-                "limnodromous": pl.Float64,
-                "oceanodromous": pl.Float64,
-                "non-migratory": pl.Float64,
-                "min_depth_m": pl.Float64,
-                "max_depth_m": pl.Float64,
-                "usual_min_depth_m": pl.Float64,
-                "usual_max_depth_m": pl.Float64,
-                "min_ph": pl.Float64,
-                "max_ph": pl.Float64,
-                "min_dh": pl.Float64,
-                "max_dh": pl.Float64,
-                "url": pl.String,
-            }),
+            schema=pl.Schema(
+                {
+                    "genus": pl.String,
+                    "species": pl.String,
+                    "family": pl.String,
+                    "demersal": pl.Float64,
+                    "benthopelagic": pl.Float64,
+                    "bathydemersal": pl.Float64,
+                    "pelagic": pl.Float64,
+                    "pelagic-neritic": pl.Float64,
+                    "pelagic-oceanic": pl.Float64,
+                    "reef-associated": pl.Float64,
+                    "epipelagic": pl.Float64,
+                    "mesopelagic": pl.Float64,
+                    "bathypelagic": pl.Float64,
+                    "abyssopelagic": pl.Float64,
+                    "marine": pl.Float64,
+                    "freshwater": pl.Float64,
+                    "brackish": pl.Float64,
+                    "anadromous": pl.Float64,
+                    "catadromous": pl.Float64,
+                    "amphidromous": pl.Float64,
+                    "potamodromous": pl.Float64,
+                    "limnodromous": pl.Float64,
+                    "oceanodromous": pl.Float64,
+                    "non-migratory": pl.Float64,
+                    "min_depth_m": pl.Float64,
+                    "max_depth_m": pl.Float64,
+                    "usual_min_depth_m": pl.Float64,
+                    "usual_max_depth_m": pl.Float64,
+                    "min_ph": pl.Float64,
+                    "max_ph": pl.Float64,
+                    "min_dh": pl.Float64,
+                    "max_dh": pl.Float64,
+                    "url": pl.String,
+                }
+            ),
         )
         .with_columns(
-            pl.coalesce([
-                pl.when(pl.col(col) == 1.0).then(pl.lit(col)) for col in habitat_cols
-            ])
+            pl.coalesce(
+                [pl.when(pl.col(col) == 1.0).then(pl.lit(col)) for col in habitat_cols]
+            )
             .cast(HabitatEnum)
             .alias("habitat")
         )
         .drop(habitat_cols)
         .with_columns(
-            pl.coalesce([
-                pl.when(pl.col(col) == 1.0).then(pl.lit(col)) for col in migration_cols
-            ])
+            pl.coalesce(
+                [pl.when(pl.col(col) == 1.0).then(pl.lit(col)) for col in migration_cols]
+            )
             .cast(MigrationEnum)
             .alias("migration")
         )
@@ -729,7 +628,6 @@ def _(base64, dataclasses, pickle, pl, saev, shards_root):
             rows.append(dct)
 
         return pl.DataFrame(rows)
-
     return (load_fishvista_df,)
 
 
@@ -782,6 +680,7 @@ def _(
 
         return token_acts_csr, token_acts_csr.tocsc(), species_df, labels, habitats
 
+
     token_acts_csr, token_acts_csc, fishvista_df, body_parts, habitats = _()
     return body_parts, fishvista_df, habitats, token_acts_csr
 
@@ -808,7 +707,6 @@ def _(Bool, Float, beartype, jaxtyped, np, scipy):
         auc = (mean_rank_pos - (n_pos + 1) / 2) / n_neg
 
         return auc
-
     return
 
 
@@ -835,7 +733,6 @@ def _(Bool, Float, beartype, jaxtyped, np):
         labels_std = np.sqrt((labels_centered**2).sum())
 
         return cov / (acts_std * labels_std + 1e-10)
-
     return (fast_pearson,)
 
 
@@ -860,7 +757,6 @@ def _(Bool, Float, beartype, jaxtyped, np):
         log_or = np.log((freq_given_pos + eps) / (freq_given_neg + eps))
 
         return log_or
-
     return
 
 
@@ -891,12 +787,11 @@ def _(
         },
     ]
 
+
     def _():
         lookup = {
             key: val
-            for val, key in enumerate(
-                fishvista_df.get_column("habitat").dtype.categories
-            )
+            for val, key in enumerate(fishvista_df.get_column("habitat").dtype.categories)
         }
         parts = [
             "Background",
@@ -949,6 +844,7 @@ def _(
 
         return pl.DataFrame(rows)
 
+
     _()
     return
 
@@ -981,6 +877,7 @@ def _(body_parts, fast_pearson, habitats, itertools, mo, np, token_acts_csr):
 
         return scores
 
+
     scores = _()
     return (scores,)
 
@@ -998,31 +895,35 @@ def _(np, scores):
 def _(np, pl, scores):
     def _():
         rows = []
-        for p, part in enumerate([
-            "Background",
-            "Head",
-            "Eye",
-            "Dorsal fin",
-            "Pectoral fin",
-            "Pelvic fin",
-            "Anal fin",
-            "Caudal fin",
-            "Adipose fin",
-            "Barbel",
-        ]):
-            for h, habitat in enumerate([
-                "reef-associated",
-                "pelagic-oceanic",
-                "pelagic-neritic",
-                "bathypelagic",
-                "bathydemersal",
-                "benthopelagic",
-                "pelagic",
-                "epipelagic",
-                "mesopelagic",
-                "abyssopelagic",
-                "demersal",
-            ]):
+        for p, part in enumerate(
+            [
+                "Background",
+                "Head",
+                "Eye",
+                "Dorsal fin",
+                "Pectoral fin",
+                "Pelvic fin",
+                "Anal fin",
+                "Caudal fin",
+                "Adipose fin",
+                "Barbel",
+            ]
+        ):
+            for h, habitat in enumerate(
+                [
+                    "reef-associated",
+                    "pelagic-oceanic",
+                    "pelagic-neritic",
+                    "bathypelagic",
+                    "bathydemersal",
+                    "benthopelagic",
+                    "pelagic",
+                    "epipelagic",
+                    "mesopelagic",
+                    "abyssopelagic",
+                    "demersal",
+                ]
+            ):
                 best = np.abs(scores[:, p, h]).argmax().item()
                 score = scores[best, p, h]
                 row = {
@@ -1035,19 +936,8 @@ def _(np, pl, scores):
 
         return pl.DataFrame(rows)
 
+
     _()
-    return
-
-
-@app.cell
-def _(scores):
-    scores[2, 7, :]
-    return
-
-
-@app.cell
-def _(scores):
-    scores[59, 7, :]
     return
 
 
@@ -1081,6 +971,7 @@ def _(habitats, np, plt):
         ax.spines[["top", "right"]].set_visible(False)
         return fig
 
+
     _()
     return
 
@@ -1104,6 +995,7 @@ def _(Float, beartype, jaxtyped, json, np, os):
 
         raise ValueError(f"freqs not found in run '{run.id}'")
 
+
     @jaxtyped(typechecker=beartype.beartype)
     def load_mean_values(run) -> Float[np.ndarray, " d_sae"]:
         try:
@@ -1120,7 +1012,6 @@ def _(Float, beartype, jaxtyped, json, np, os):
             raise RuntimeError(f"Wandb sucks: {err}") from err
 
         raise ValueError(f"mean_values not found in run '{run.id}'")
-
     return load_freqs, load_mean_values
 
 
@@ -1135,9 +1026,7 @@ def _(base64, beartype, pickle, saev):
         )
 
         ckpt = next(
-            metadata[key]
-            for key in ("vit_ckpt", "model_ckpt", "ckpt")
-            if key in metadata
+            metadata[key] for key in ("vit_ckpt", "model_ckpt", "ckpt") if key in metadata
         )
 
         if family == "dinov2" and ckpt == "dinov2_vitb14_reg":
@@ -1162,6 +1051,7 @@ def _(base64, beartype, pickle, saev):
         print(f"Unknown model: {(family, ckpt)}")
         return ckpt
 
+
     @beartype.beartype
     def get_data_key(metadata: dict[str, object]) -> str | None:
         data_cfg = pickle.loads(base64.b64decode(metadata["data"].encode("utf8")))
@@ -1181,7 +1071,6 @@ def _(base64, beartype, pickle, saev):
 
         print(f"Unknown data: {data_cfg}")
         return None
-
     return get_data_key, get_model_key
 
 
@@ -1210,14 +1099,13 @@ def _(beartype, pathlib):
             probe_metric_fpaths.append(probe_metrics_fpath)
 
         return probe_metric_fpaths
-
     return (get_inference_probe_metric_fpaths,)
 
 
 @app.cell
 def _(beartype, pathlib, saev):
     @beartype.beartype
-    def get_probe_split_label(shards_dpath: pathlib.Path) -> str | None:
+    def get_shards_split_label(shards_dpath: pathlib.Path) -> str | None:
         try:
             metadata = saev.data.Metadata.load(shards_dpath)
         except Exception as err:
@@ -1235,8 +1123,226 @@ def _(beartype, pathlib, saev):
         if split_name in {"val", "validation"}:
             return "val"
         return None
+    return (get_shards_split_label,)
 
-    return (get_probe_split_label,)
+
+@app.cell
+def _(
+    beartype,
+    get_baseline_ce,
+    get_inference_probe_metric_fpaths,
+    get_shards_split_label,
+    json,
+    mode,
+    np,
+    pathlib,
+    row,
+    saev,
+    saev_run,
+    shards_root,
+    wandb_run,
+):
+    @beartype.beartype
+    def get_probe1d_results(run: saev.disk.Run) -> dict[str, float]:
+        split_map: dict[str, tuple[pathlib.Path, str, pathlib.Path]] = {}
+        for metrics_fpath in get_inference_probe_metric_fpaths(saev_run.run_dir):
+            shard_id = metrics_fpath.parent.name
+            shards_dpath = shards_root / shard_id
+
+            if not shards_dpath.exists():
+                print(f"Skipping {wandb_run.id}: shards dir {shards_dpath} missing.")
+                continue
+
+            split_label = get_shards_split_label(shards_dpath)
+            if split_label is None:
+                print(f"Skipping shards {shard_id}: unknown split (run {wandb_run.id}).")
+                continue
+
+            if split_label in split_map:
+                print(f"Skipping {wandb_run.id}: duplicate {split_label} metrics.")
+                split_map = {}
+                break
+
+            split_map[split_label] = (metrics_fpath, shard_id, shards_dpath)
+
+        if not split_map:
+            print(f"Skipping {wandb_run.id}: no splits.")
+            return row
+
+        if "train" not in split_map:
+            print(f"Skipping {wandb_run.id}: missing train, got {split_map.keys()}.")
+            return row
+
+        if "val" not in split_map:
+            print(f"Skipping {wandb_run.id}: missing val, got {split_map.keys()}.")
+            return row
+
+        if wandb_run.id == "pdikj9bl":
+            print(wandb_run.id, split_map)
+
+        train_probe_metrics_fpath, train_shards, train_shards_dpath = split_map["train"]
+        val_probe_metrics_fpath, val_shards, val_shards_dpath = split_map["val"]
+
+        with np.load(train_probe_metrics_fpath) as fd:
+            train_loss = fd["loss"]
+            w = fd["weights"]
+
+        with np.load(val_probe_metrics_fpath) as fd:
+            val_loss = fd["loss"]
+
+        assert train_loss.ndim == 2
+        assert val_loss.ndim == 2
+        assert train_loss.shape == val_loss.shape
+
+        n_latents, n_classes = train_loss.shape
+
+        best_i = np.argmin(train_loss, axis=0)
+        train_ce = train_loss[best_i, np.arange(n_classes)].mean().item()
+        val_ce = val_loss[best_i, np.arange(n_classes)].mean().item()
+
+        row["downstream/frac_w_neg"] = (w < 0).mean().item()
+        row["downstream/frac_best_w_neg"] = (
+            (w[best_i, np.arange(n_classes)] < 0).mean().item()
+        )
+
+        train_base_ce = get_baseline_ce(train_shards_dpath).mean().item()
+        val_base_ce = get_baseline_ce(val_shards_dpath).mean().item()
+
+        row["downstream/train/probe_ce"] = train_ce
+        row["downstream/train/baseline_ce"] = train_base_ce
+        row["downstream/train/probe_r"] = 1 - train_ce / train_base_ce
+
+        row["downstream/val/probe_ce"] = val_ce
+        row["downstream/val/baseline_ce"] = val_base_ce
+        row["downstream/val/probe_r"] = 1 - val_ce / val_base_ce
+
+        path = saev_run.inference / train_shards / "metrics.json"
+        if path.is_file():
+            nmse = json.loads(path.read_text())["normalized_mse"]
+            row["downstream/train/normalized_mse"] = nmse
+
+        path = saev_run.inference / val_shards / "metrics.json"
+        if path.is_file():
+            nmse = json.loads(path.read_text())["normalized_mse"]
+            row["downstream/val/normalized_mse"] = nmse
+
+        # k = 16
+        path = (
+            saev_run.inference / val_shards / f"probe1d_metrics__train-{train_shards}.npz"
+        )
+        if path.is_file():
+            with np.load(path) as fd:
+                ap_c = fd["ap"]
+                prec_c = fd["precision"]
+                recall_c = fd["recall"]
+                f1_c = fd["f1"]
+                top_labels_dk = fd["top_labels"]
+
+            row["downstream/val/mean_ap"] = ap_c.mean().item()
+            row["downstream/val/mean_prec"] = prec_c.mean().item()
+            row["downstream/val/mean_recall"] = recall_c.mean().item()
+            row["downstream/val/mean_f1"] = f1_c.mean().item()
+            for tau in [0.3, 0.5, 0.7]:
+                row[f"downstream/val/cov_at_{tau}".replace(".", "_")] = (
+                    (ap_c > tau).mean().item()
+                )
+
+            for k in [16, 64, 256]:
+                _, count = mode(top_labels_dk[best_i, :k], axis=1)
+                row[f"downstream/val/mean_purity_at_{k}"] = (count / k).mean().item()
+    return
+
+
+@app.cell
+def _(
+    beartype,
+    cloudpickle,
+    cls_fpath,
+    cls_results,
+    collections,
+    get_shards_split_label,
+    json,
+    pathlib,
+    saev,
+    shards_root,
+):
+    @beartype.beartype
+    def get_cls_results_fpaths(run: saev.disk.Run) -> dict[str, list[pathlib.Path]]:
+        if not run.inference.is_dir():
+            return {}
+
+        globbed = list(run.inference.glob("**/cls_*.pkl"))
+        if not globbed:
+            print(f"Skipping {run.run_id}: no cls_*.pkl files.")
+            return {}
+
+        cls_results_fpaths = collections.defaultdict(list)
+        for results_fpath in globbed:
+            shard_id = results_fpath.parent.name
+            shards_dpath = shards_root / shard_id
+
+            if not shards_dpath.exists():
+                print(f"Skipping {run.run_id}: shards dir {shards_dpath} missing.")
+                continue
+
+            split_label = get_shards_split_label(shards_dpath)
+            if split_label is None:
+                print(f"Skipping shards {shard_id}: unknown split (run {run.run_id}).")
+                continue
+
+            cls_results_fpaths[split_label].append(results_fpath)
+
+        return cls_results_fpaths
+
+
+    @beartype.beartype
+    def get_cls_results(run: saev.disk.Run) -> dict[str, float]:
+        row = {}
+        for split, results_fpaths in get_cls_results_fpaths(run).items():
+            for fpath in results_fpaths:
+                try:
+                    with open(fpath, "rb") as fd:
+                        header_line = fd.readline()
+                        header = json.loads(header_line.decode("utf8"))
+                        ckpt = cloudpickle.load(fd)
+                    k = header['cfg']['cls']['n_nonzero']
+                
+                    # {'cfg': {'run': '/fs/ess/PAS2136/samuelstevens/saev/runs/pdikj9bl', 'train_shards': '/fs/scratch/PAS2136/samuelstevens/saev/shards/e65cf404', 'test_shards': '/fs/scratch/PAS2136/samuelstevens/saev/shards/b8a9ff56', 'target_col': 'habitat', 'patch_agg': 'mean', 'cls': {'n_nonzero': 10}, 'debug': False, 'mem_gb': 80, 'slurm_acct': 'PAS2136', 'slurm_partition': 'preemptible-nextgen', 'n_hours': 1.0, 'log_to': '/users/PAS1576/samuelstevens/projects/saev/logs'}, 'test_acc': 0.6633986928104575, 'n_classes': 10}
+                except Exception as err:
+                    print(f"Failed to load {cls_fpath}: {err}")
+                    continue
+
+        return row
+
+        if cls_results:
+            row["downstream/val/cls_results"] = cls_results
+        # Load classification results from cls_*.pkl files
+        # This a bit of an issue because the probe results are in different inference folders. TODO: fix this.
+        cls_results = []
+    return (get_cls_results,)
+
+
+@app.cell
+def _():
+    {
+        "cfg": {
+            "run": "/fs/ess/PAS2136/samuelstevens/saev/runs/pdikj9bl",
+            "train_shards": "/fs/scratch/PAS2136/samuelstevens/saev/shards/e65cf404",
+            "test_shards": "/fs/scratch/PAS2136/samuelstevens/saev/shards/b8a9ff56",
+            "target_col": "habitat",
+            "patch_agg": "mean",
+            "cls": {"n_nonzero": 10},
+            "debug": False,
+            "mem_gb": 80,
+            "slurm_acct": "PAS2136",
+            "slurm_partition": "preemptible-nextgen",
+            "n_hours": 1.0,
+            "log_to": "/users/PAS1576/samuelstevens/projects/saev/logs",
+        },
+        "test_acc": 0.6633986928104575,
+        "n_classes": 10,
+    }
+    return
 
 
 @app.cell
@@ -1261,7 +1367,6 @@ def _(beartype, mo, np, pathlib, saev):
 
         prob = y.mean(axis=0)
         return -(prob * np.log(prob) + (1 - prob) * np.log(1 - prob))
-
     return (get_baseline_ce,)
 
 
@@ -1282,7 +1387,6 @@ def _(np):
             oldmostfreq = mostfrequent
 
         return mostfrequent, oldcounts
-
     return (mode,)
 
 

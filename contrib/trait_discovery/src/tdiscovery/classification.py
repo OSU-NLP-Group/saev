@@ -66,6 +66,58 @@ class PatchAgg(enum.Enum):
 
 @beartype.beartype
 @dataclasses.dataclass(frozen=True)
+class LabelGrouping:
+    """Defines a classification task by grouping labels.
+
+    If groups is empty, use original labels directly (no grouping).
+    If groups is non-empty, map original labels to group names.
+
+    Examples:
+        # No grouping - use original habitat labels
+        LabelGrouping(name="habitat", source_col="habitat", groups={})
+
+        # Binary grouping
+        LabelGrouping(
+            name="habitat_speed",
+            source_col="habitat",
+            groups={
+                "low": ["reef-associated", "demersal"],
+                "high": ["pelagic", "oceanic"],
+            }
+        )
+
+        # Ternary grouping
+        LabelGrouping(
+            name="depth_zone",
+            source_col="habitat",
+            groups={
+                "shallow": ["reef-associated"],
+                "mid": ["benthopelagic", "pelagic"],
+                "deep": ["bathypelagic"],
+            }
+        )
+
+        # ImgFolder class grouping (butterflies)
+        LabelGrouping(
+            name="mimic_pair",
+            source_col="class",
+            groups={
+                "melpomene": ["Heliconius melpomene", "Heliconius melpomene ssp. rosina"],
+                "erato": ["Heliconius erato"],
+            }
+        )
+    """
+
+    name: str
+    """Task name for output files."""
+    source_col: str
+    """Label column to read. Use 'class' for ImgFolder class names."""
+    groups: dict[str, list[str]] = dataclasses.field(default_factory=dict)
+    """Mapping from group name to list of original labels. Empty = no grouping."""
+
+
+@beartype.beartype
+@dataclasses.dataclass(frozen=True)
 class DecisionTree:
     """Decision tree classifier using sklearn's DecisionTreeClassifier."""
 
@@ -98,8 +150,10 @@ class TrainConfig:
     """Training shards directory."""
     test_shards: pathlib.Path = pathlib.Path("./shards/abcdef01")
     """Test shards directory."""
-    target_col: str = "habitat"
-    """Which label column to predict (e.g., 'habitat', 'family', 'species')."""
+    task: LabelGrouping = dataclasses.field(
+        default_factory=lambda: LabelGrouping(name="habitat", source_col="habitat")
+    )
+    """Classification task definition."""
     patch_agg: tyro.conf.EnumChoicesFromValues[PatchAgg] = PatchAgg.MAX
     """How to aggregate patch features to image features."""
     cls: DecisionTree | SparseLinear = SparseLinear()
@@ -122,39 +176,96 @@ class TrainConfig:
 @beartype.beartype
 def load_image_labels(
     shards_dpath: pathlib.Path,
-) -> tuple[list[str], dict[str, Int[np.ndarray, " n_images"]]]:
+) -> tuple[list[str], dict[str, list[str]]]:
     """
     Load image-level labels from the dataset stored in shards metadata.
+
+    Supports both ImgSegFolder (multiple label columns from CSV) and ImgFolder (class names from folder structure).
 
     Args:
         shards_dpath: Path to shards directory containing metadata.json.
 
     Returns:
-        Tuple of (label_columns, labels_dict) where labels_dict maps column name to array of integer targets with shape (n_images,).
+        Tuple of (label_columns, labels_dict) where labels_dict maps column name to list of string labels (one per image).
     """
     md = saev.data.Metadata.load(shards_dpath)
     data_cfg = md.make_data_cfg()
 
-    assert isinstance(data_cfg, saev.data.datasets.ImgSegFolder), (
-        f"Expected ImgSegFolder, got {type(data_cfg)}"
-    )
+    if isinstance(data_cfg, saev.data.datasets.ImgSegFolder):
+        ds = saev.data.datasets.ImgSegFolderDataset(
+            data_cfg, img_transform=None, mask_transform=None
+        )
+        if not ds.samples:
+            raise ValueError("Dataset has no samples")
 
-    # Create dataset just to access samples (no transforms needed)
-    ds = saev.data.datasets.ImgSegFolderDataset(
-        data_cfg, img_transform=None, mask_transform=None
-    )
+        label_cols = list(ds.samples[0].labels.keys())
+        labels: dict[str, list[str]] = {col: [] for col in label_cols}
+        for sample in ds.samples:
+            for col in label_cols:
+                labels[col].append(sample.labels[col])
 
-    # Extract label columns from first sample
-    if not ds.samples:
-        raise ValueError("Dataset has no samples")
-    label_cols = list(ds.samples[0].targets.keys())
+        return label_cols, labels
 
-    # Build arrays for each label column
-    labels: dict[str, Int[np.ndarray, " n_images"]] = {}
-    for col in label_cols:
-        labels[col] = np.array([s.targets[col] for s in ds.samples], dtype=np.int32)
+    elif isinstance(data_cfg, saev.data.datasets.ImgFolder):
+        ds = saev.data.datasets.get_dataset(data_cfg)
+        # ImgFolder has .classes and .targets
+        label_cols = ["class"]
+        class_labels = [ds.classes[t] for t in ds.targets]
+        return label_cols, {"class": class_labels}
 
-    return label_cols, labels
+    else:
+        raise ValueError(f"Unsupported dataset type: {type(data_cfg)}")
+
+
+@beartype.beartype
+def apply_grouping(
+    labels: list[str],
+    task: LabelGrouping,
+) -> tuple[Int[np.ndarray, " n"], list[str], np.ndarray]:
+    """
+    Apply label grouping to get integer targets.
+
+    Args:
+        labels: List of string labels (one per image).
+        task: Label grouping configuration.
+
+    Returns:
+        Tuple of (targets, class_names, mask) where:
+        - targets: Integer targets for each image (-1 if excluded)
+        - class_names: List of class names in order
+        - mask: Boolean mask of which images to include
+    """
+    n = len(labels)
+
+    if not task.groups:
+        # No grouping - use original labels
+        unique_labels = sorted(set(labels))
+        label_to_idx = {lbl: i for i, lbl in enumerate(unique_labels)}
+        targets = np.array([label_to_idx[lbl] for lbl in labels], dtype=np.int32)
+        mask = np.ones(n, dtype=bool)
+        return targets, unique_labels, mask
+
+    # Build reverse mapping: original_label -> group_name
+    label_to_group: dict[str, str] = {}
+    for group_name, group_labels in task.groups.items():
+        for lbl in group_labels:
+            assert lbl not in label_to_group, f"Label '{lbl}' in multiple groups"
+            label_to_group[lbl] = group_name
+
+    # Map to group names, filter out unlisted labels
+    group_names = sorted(task.groups.keys())
+    group_to_idx = {g: i for i, g in enumerate(group_names)}
+
+    targets = np.full(n, -1, dtype=np.int32)
+    mask = np.zeros(n, dtype=bool)
+
+    for i, lbl in enumerate(labels):
+        if lbl in label_to_group:
+            group = label_to_group[lbl]
+            targets[i] = group_to_idx[group]
+            mask[i] = True
+
+    return targets, group_names, mask
 
 
 @jaxtyped(typechecker=beartype.beartype)
@@ -251,10 +362,24 @@ def train_worker_fn(cfg: TrainConfig) -> int:
     test_label_cols, test_labels = load_image_labels(test_shards_dpath)
     logger.info("Test label columns: %s", test_label_cols)
 
-    msg = f"Target column '{cfg.target_col}' not in train labels: {train_label_cols}"
-    assert cfg.target_col in train_labels, msg
-    msg = f"Target column '{cfg.target_col}' not in test labels: {test_label_cols}"
-    assert cfg.target_col in test_labels, msg
+    source_col = cfg.task.source_col
+    msg = f"Source column '{source_col}' not in train labels: {train_label_cols}"
+    assert source_col in train_labels, msg
+    msg = f"Source column '{source_col}' not in test labels: {test_label_cols}"
+    assert source_col in test_labels, msg
+
+    # Apply grouping to get targets
+    train_targets, class_names, train_mask = apply_grouping(
+        train_labels[source_col], cfg.task
+    )
+    test_targets, _, test_mask = apply_grouping(test_labels[source_col], cfg.task)
+
+    n_classes = len(class_names)
+    logger.info("Task '%s': %d classes %s", cfg.task.name, n_classes, class_names)
+    logger.info(
+        "Train: %d/%d images after filtering", train_mask.sum(), len(train_mask)
+    )
+    logger.info("Test: %d/%d images after filtering", test_mask.sum(), len(test_mask))
 
     # Load SAE activations (sparse CSR)
     logger.info("Loading train SAE activations from %s...", train_token_acts_fpath)
@@ -280,23 +405,25 @@ def train_worker_fn(cfg: TrainConfig) -> int:
 
     # Aggregate patch features to image features
     logger.info("Aggregating train patches to images using %s...", cfg.patch_agg.value)
-    train_X = aggregate_to_images(
+    train_X_all = aggregate_to_images(
         train_acts_csr, train_md.n_examples, train_n_patches_per_image, cfg.patch_agg
     )
-    logger.info("Train features: shape=%s", train_X.shape)
+    logger.info("Train features (all): shape=%s", train_X_all.shape)
 
     logger.info("Aggregating test patches to images using %s...", cfg.patch_agg.value)
-    test_X = aggregate_to_images(
+    test_X_all = aggregate_to_images(
         test_acts_csr, test_md.n_examples, test_n_patches_per_image, cfg.patch_agg
     )
-    logger.info("Test features: shape=%s", test_X.shape)
+    logger.info("Test features (all): shape=%s", test_X_all.shape)
 
-    # Image-level labels (no expansion needed)
-    train_y = train_labels[cfg.target_col]
-    test_y = test_labels[cfg.target_col]
+    # Apply mask to filter images
+    train_X = train_X_all[train_mask]
+    train_y = train_targets[train_mask]
+    test_X = test_X_all[test_mask]
+    test_y = test_targets[test_mask]
 
-    n_classes = max(train_y.max(), test_y.max()) + 1
-    logger.info("Number of classes for '%s': %d", cfg.target_col, n_classes)
+    logger.info("Train features (filtered): shape=%s", train_X.shape)
+    logger.info("Test features (filtered): shape=%s", test_X.shape)
 
     # Train classifier
     if isinstance(cfg.cls, SparseLinear):
@@ -350,12 +477,13 @@ def train_worker_fn(cfg: TrainConfig) -> int:
         cls_str = f"depth{cfg.cls.max_depth}"
     out_fpath = (
         test_inference_dpath
-        / f"cls_{cfg.target_col}_{cfg.patch_agg.value}_{cls_str}.pkl"
+        / f"cls_{cfg.task.name}_{cfg.patch_agg.value}_{cls_str}.pkl"
     )
     header = {
         "cfg": dataclasses.asdict(cfg),
         "test_acc": float(test_acc),
         "n_classes": int(n_classes),
+        "class_names": class_names,
     }
     with open(out_fpath, "wb") as fd:
         saev.helpers.jdump(header, fd, option=orjson.OPT_APPEND_NEWLINE)
@@ -416,7 +544,6 @@ def train_cli(
         return 0
 
     import submitit
-    from submitit.core.utils import UncompletedJobError
 
     executor = submitit.SlurmExecutor(folder=base_cfg.log_to)
     n_cpus = max(8, base_cfg.mem_gb // 10)
@@ -438,20 +565,10 @@ def train_cli(
         logger.error("Failed to pickle job payload: %s", err)
         return 1
 
-    with executor.batch():
-        jobs = [executor.submit(train_worker_fn, c) for c in cfgs]
-
-    time.sleep(5.0)
-
-    for idx, job in enumerate(jobs, start=1):
-        logger.info("Job %d/%d: %s %s", idx, len(jobs), job.job_id, job.state)
-
-    for idx, job in enumerate(jobs, start=1):
-        try:
-            job.result()
-            logger.info("Job %d/%d finished.", idx, len(jobs))
-        except UncompletedJobError:
-            logger.warning("Job %s (%d) did not finish.", job.job_id, idx)
+    for idx, _ in saev.helpers.submit_job_array(
+        executor, train_worker_fn, cfgs, logger=logger
+    ):
+        logger.info("Job %d/%d finished.", idx + 1, len(cfgs))
 
     logger.info("Jobs done.")
     return 0
