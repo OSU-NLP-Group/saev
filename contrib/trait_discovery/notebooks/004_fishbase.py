@@ -27,6 +27,7 @@ def _():
 
     import saev.colors
     import saev.data.datasets
+
     return (
         Bool,
         Float,
@@ -85,7 +86,9 @@ def _(
         saev_run = saev.disk.Run(runs_root / wandb_run.id)
         row = {"id": wandb_run.id}
 
-        row.update(**{f"summary/{key}": value for key, value in wandb_run.summary.items()})
+        row.update(**{
+            f"summary/{key}": value for key, value in wandb_run.summary.items()
+        })
 
         try:
             row["summary/eval/freqs"] = load_freqs(wandb_run)
@@ -108,10 +111,12 @@ def _(
             print(f"Run {wandb_run.id} missing config section: {err}.")
             return None
 
-        row.update(
-            **{f"config/train_data/{key}": value for key, value in train_data.items()}
-        )
-        row.update(**{f"config/val_data/{key}": value for key, value in val_data.items()})
+        row.update(**{
+            f"config/train_data/{key}": value for key, value in train_data.items()
+        })
+        row.update(**{
+            f"config/val_data/{key}": value for key, value in val_data.items()
+        })
         row.update(**{f"config/{key}": value for key, value in config.items()})
 
         metadata = row.get("config/train_data/metadata")
@@ -123,7 +128,6 @@ def _(
         row.update(**get_cls_results(saev_run))
 
         return row
-
 
     @beartype.beartype
     def _finalize_df(rows: list[dict[str, object]]):
@@ -158,7 +162,8 @@ def _(
         )
 
         df = (
-            df.unnest("config/sae", "config/train_data/metadata", separator="/")
+            df
+            .unnest("config/sae", "config/train_data/metadata", separator="/")
             .unnest("config/sae/activation", separator="/")
             .unnest(
                 "config/sae/activation/aux",
@@ -191,7 +196,6 @@ def _(
         df = df.with_columns(pl.col("id").is_in(pareto_ids).alias("is_pareto"))
 
         return df
-
 
     @beartype.beartype
     def make_df_parallel(n_workers: int = 16):
@@ -227,7 +231,6 @@ def _(
 
         assert rows, "No valid runs."
         return _finalize_df(rows)
-
 
     df = make_df_parallel()
     return (df,)
@@ -320,7 +323,6 @@ def _(collections, df, mo, pl, plt, saev):
         # return fig
 
         return mo.vstack([fig, dict(pareto_ckpts)])
-
 
     _(df)
     return
@@ -419,7 +421,6 @@ def _(df, pl, plt, saev):
 
         return fig
 
-
     _(df)
     return
 
@@ -497,7 +498,6 @@ def _(df, mo, pl, plt, saev):
 
         return mo.vstack([fig])
 
-
     _(df)
     return
 
@@ -533,60 +533,61 @@ def _(pl):
     MigrationEnum = pl.Enum(migration_cols)
 
     fishbase_df = (
-        pl.read_csv(
+        pl
+        .read_csv(
             "contrib/trait_discovery/data/fishvista_fishbase.csv",
             null_values=["?"],
             # Order matters
-            schema=pl.Schema(
-                {
-                    "genus": pl.String,
-                    "species": pl.String,
-                    "family": pl.String,
-                    "demersal": pl.Float64,
-                    "benthopelagic": pl.Float64,
-                    "bathydemersal": pl.Float64,
-                    "pelagic": pl.Float64,
-                    "pelagic-neritic": pl.Float64,
-                    "pelagic-oceanic": pl.Float64,
-                    "reef-associated": pl.Float64,
-                    "epipelagic": pl.Float64,
-                    "mesopelagic": pl.Float64,
-                    "bathypelagic": pl.Float64,
-                    "abyssopelagic": pl.Float64,
-                    "marine": pl.Float64,
-                    "freshwater": pl.Float64,
-                    "brackish": pl.Float64,
-                    "anadromous": pl.Float64,
-                    "catadromous": pl.Float64,
-                    "amphidromous": pl.Float64,
-                    "potamodromous": pl.Float64,
-                    "limnodromous": pl.Float64,
-                    "oceanodromous": pl.Float64,
-                    "non-migratory": pl.Float64,
-                    "min_depth_m": pl.Float64,
-                    "max_depth_m": pl.Float64,
-                    "usual_min_depth_m": pl.Float64,
-                    "usual_max_depth_m": pl.Float64,
-                    "min_ph": pl.Float64,
-                    "max_ph": pl.Float64,
-                    "min_dh": pl.Float64,
-                    "max_dh": pl.Float64,
-                    "url": pl.String,
-                }
-            ),
+            schema=pl.Schema({
+                "genus": pl.String,
+                "species": pl.String,
+                "family": pl.String,
+                "demersal": pl.Float64,
+                "benthopelagic": pl.Float64,
+                "bathydemersal": pl.Float64,
+                "pelagic": pl.Float64,
+                "pelagic-neritic": pl.Float64,
+                "pelagic-oceanic": pl.Float64,
+                "reef-associated": pl.Float64,
+                "epipelagic": pl.Float64,
+                "mesopelagic": pl.Float64,
+                "bathypelagic": pl.Float64,
+                "abyssopelagic": pl.Float64,
+                "marine": pl.Float64,
+                "freshwater": pl.Float64,
+                "brackish": pl.Float64,
+                "anadromous": pl.Float64,
+                "catadromous": pl.Float64,
+                "amphidromous": pl.Float64,
+                "potamodromous": pl.Float64,
+                "limnodromous": pl.Float64,
+                "oceanodromous": pl.Float64,
+                "non-migratory": pl.Float64,
+                "min_depth_m": pl.Float64,
+                "max_depth_m": pl.Float64,
+                "usual_min_depth_m": pl.Float64,
+                "usual_max_depth_m": pl.Float64,
+                "min_ph": pl.Float64,
+                "max_ph": pl.Float64,
+                "min_dh": pl.Float64,
+                "max_dh": pl.Float64,
+                "url": pl.String,
+            }),
         )
         .with_columns(
-            pl.coalesce(
-                [pl.when(pl.col(col) == 1.0).then(pl.lit(col)) for col in habitat_cols]
-            )
+            pl
+            .coalesce([
+                pl.when(pl.col(col) == 1.0).then(pl.lit(col)) for col in habitat_cols
+            ])
             .cast(HabitatEnum)
             .alias("habitat")
         )
         .drop(habitat_cols)
         .with_columns(
-            pl.coalesce(
-                [pl.when(pl.col(col) == 1.0).then(pl.lit(col)) for col in migration_cols]
-            )
+            pl
+            .coalesce([
+                pl.when(pl.col(col) == 1.0).then(pl.lit(col)) for col in migration_cols
+            ])
             .cast(MigrationEnum)
             .alias("migration")
         )
@@ -628,6 +629,7 @@ def _(base64, dataclasses, pickle, pl, saev, shards_root):
             rows.append(dct)
 
         return pl.DataFrame(rows)
+
     return (load_fishvista_df,)
 
 
@@ -664,13 +666,15 @@ def _(
         )
         print(species_df.get_column("habitat").dtype.categories.to_list())
         habitats = (
-            species_df.get_column("habitat")
+            species_df
+            .get_column("habitat")
             .to_physical()
             .to_numpy()
             .repeat(md.content_tokens_per_example)
         )
         migration = (
-            species_df.get_column("migration")
+            species_df
+            .get_column("migration")
             .to_physical()
             .to_numpy()
             .repeat(md.content_tokens_per_example)
@@ -679,7 +683,6 @@ def _(
         assert (species_df.height * md.content_tokens_per_example,) == labels.shape
 
         return token_acts_csr, token_acts_csr.tocsc(), species_df, labels, habitats
-
 
     token_acts_csr, token_acts_csc, fishvista_df, body_parts, habitats = _()
     return body_parts, fishvista_df, habitats, token_acts_csr
@@ -707,6 +710,7 @@ def _(Bool, Float, beartype, jaxtyped, np, scipy):
         auc = (mean_rank_pos - (n_pos + 1) / 2) / n_neg
 
         return auc
+
     return
 
 
@@ -733,6 +737,7 @@ def _(Bool, Float, beartype, jaxtyped, np):
         labels_std = np.sqrt((labels_centered**2).sum())
 
         return cov / (acts_std * labels_std + 1e-10)
+
     return (fast_pearson,)
 
 
@@ -757,6 +762,7 @@ def _(Bool, Float, beartype, jaxtyped, np):
         log_or = np.log((freq_given_pos + eps) / (freq_given_neg + eps))
 
         return log_or
+
     return
 
 
@@ -787,11 +793,12 @@ def _(
         },
     ]
 
-
     def _():
         lookup = {
             key: val
-            for val, key in enumerate(fishvista_df.get_column("habitat").dtype.categories)
+            for val, key in enumerate(
+                fishvista_df.get_column("habitat").dtype.categories
+            )
         }
         parts = [
             "Background",
@@ -844,7 +851,6 @@ def _(
 
         return pl.DataFrame(rows)
 
-
     _()
     return
 
@@ -877,7 +883,6 @@ def _(body_parts, fast_pearson, habitats, itertools, mo, np, token_acts_csr):
 
         return scores
 
-
     scores = _()
     return (scores,)
 
@@ -895,35 +900,31 @@ def _(np, scores):
 def _(np, pl, scores):
     def _():
         rows = []
-        for p, part in enumerate(
-            [
-                "Background",
-                "Head",
-                "Eye",
-                "Dorsal fin",
-                "Pectoral fin",
-                "Pelvic fin",
-                "Anal fin",
-                "Caudal fin",
-                "Adipose fin",
-                "Barbel",
-            ]
-        ):
-            for h, habitat in enumerate(
-                [
-                    "reef-associated",
-                    "pelagic-oceanic",
-                    "pelagic-neritic",
-                    "bathypelagic",
-                    "bathydemersal",
-                    "benthopelagic",
-                    "pelagic",
-                    "epipelagic",
-                    "mesopelagic",
-                    "abyssopelagic",
-                    "demersal",
-                ]
-            ):
+        for p, part in enumerate([
+            "Background",
+            "Head",
+            "Eye",
+            "Dorsal fin",
+            "Pectoral fin",
+            "Pelvic fin",
+            "Anal fin",
+            "Caudal fin",
+            "Adipose fin",
+            "Barbel",
+        ]):
+            for h, habitat in enumerate([
+                "reef-associated",
+                "pelagic-oceanic",
+                "pelagic-neritic",
+                "bathypelagic",
+                "bathydemersal",
+                "benthopelagic",
+                "pelagic",
+                "epipelagic",
+                "mesopelagic",
+                "abyssopelagic",
+                "demersal",
+            ]):
                 best = np.abs(scores[:, p, h]).argmax().item()
                 score = scores[best, p, h]
                 row = {
@@ -935,7 +936,6 @@ def _(np, pl, scores):
                 rows.append(row)
 
         return pl.DataFrame(rows)
-
 
     _()
     return
@@ -971,7 +971,6 @@ def _(habitats, np, plt):
         ax.spines[["top", "right"]].set_visible(False)
         return fig
 
-
     _()
     return
 
@@ -995,7 +994,6 @@ def _(Float, beartype, jaxtyped, json, np, os):
 
         raise ValueError(f"freqs not found in run '{run.id}'")
 
-
     @jaxtyped(typechecker=beartype.beartype)
     def load_mean_values(run) -> Float[np.ndarray, " d_sae"]:
         try:
@@ -1012,6 +1010,7 @@ def _(Float, beartype, jaxtyped, json, np, os):
             raise RuntimeError(f"Wandb sucks: {err}") from err
 
         raise ValueError(f"mean_values not found in run '{run.id}'")
+
     return load_freqs, load_mean_values
 
 
@@ -1026,7 +1025,9 @@ def _(base64, beartype, pickle, saev):
         )
 
         ckpt = next(
-            metadata[key] for key in ("vit_ckpt", "model_ckpt", "ckpt") if key in metadata
+            metadata[key]
+            for key in ("vit_ckpt", "model_ckpt", "ckpt")
+            if key in metadata
         )
 
         if family == "dinov2" and ckpt == "dinov2_vitb14_reg":
@@ -1051,7 +1052,6 @@ def _(base64, beartype, pickle, saev):
         print(f"Unknown model: {(family, ckpt)}")
         return ckpt
 
-
     @beartype.beartype
     def get_data_key(metadata: dict[str, object]) -> str | None:
         data_cfg = pickle.loads(base64.b64decode(metadata["data"].encode("utf8")))
@@ -1071,6 +1071,7 @@ def _(base64, beartype, pickle, saev):
 
         print(f"Unknown data: {data_cfg}")
         return None
+
     return get_data_key, get_model_key
 
 
@@ -1099,6 +1100,7 @@ def _(beartype, pathlib):
             probe_metric_fpaths.append(probe_metrics_fpath)
 
         return probe_metric_fpaths
+
     return (get_inference_probe_metric_fpaths,)
 
 
@@ -1123,6 +1125,7 @@ def _(beartype, pathlib, saev):
         if split_name in {"val", "validation"}:
             return "val"
         return None
+
     return (get_shards_split_label,)
 
 
@@ -1155,7 +1158,9 @@ def _(
 
             split_label = get_shards_split_label(shards_dpath)
             if split_label is None:
-                print(f"Skipping shards {shard_id}: unknown split (run {wandb_run.id}).")
+                print(
+                    f"Skipping shards {shard_id}: unknown split (run {wandb_run.id})."
+                )
                 continue
 
             if split_label in split_map:
@@ -1228,7 +1233,9 @@ def _(
 
         # k = 16
         path = (
-            saev_run.inference / val_shards / f"probe1d_metrics__train-{train_shards}.npz"
+            saev_run.inference
+            / val_shards
+            / f"probe1d_metrics__train-{train_shards}.npz"
         )
         if path.is_file():
             with np.load(path) as fd:
@@ -1250,6 +1257,7 @@ def _(
             for k in [16, 64, 256]:
                 _, count = mode(top_labels_dk[best_i, :k], axis=1)
                 row[f"downstream/val/mean_purity_at_{k}"] = (count / k).mean().item()
+
     return
 
 
@@ -1294,7 +1302,6 @@ def _(
 
         return cls_results_fpaths
 
-
     @beartype.beartype
     def get_cls_results(run: saev.disk.Run) -> dict[str, float]:
         row = {}
@@ -1305,8 +1312,8 @@ def _(
                         header_line = fd.readline()
                         header = json.loads(header_line.decode("utf8"))
                         ckpt = cloudpickle.load(fd)
-                    k = header['cfg']['cls']['n_nonzero']
-                
+                    k = header["cfg"]["cls"]["n_nonzero"]
+
                     # {'cfg': {'run': '/fs/ess/PAS2136/samuelstevens/saev/runs/pdikj9bl', 'train_shards': '/fs/scratch/PAS2136/samuelstevens/saev/shards/e65cf404', 'test_shards': '/fs/scratch/PAS2136/samuelstevens/saev/shards/b8a9ff56', 'target_col': 'habitat', 'patch_agg': 'mean', 'cls': {'n_nonzero': 10}, 'debug': False, 'mem_gb': 80, 'slurm_acct': 'PAS2136', 'slurm_partition': 'preemptible-nextgen', 'n_hours': 1.0, 'log_to': '/users/PAS1576/samuelstevens/projects/saev/logs'}, 'test_acc': 0.6633986928104575, 'n_classes': 10}
                 except Exception as err:
                     print(f"Failed to load {cls_fpath}: {err}")
@@ -1319,6 +1326,7 @@ def _(
         # Load classification results from cls_*.pkl files
         # This a bit of an issue because the probe results are in different inference folders. TODO: fix this.
         cls_results = []
+
     return (get_cls_results,)
 
 
@@ -1367,6 +1375,7 @@ def _(beartype, mo, np, pathlib, saev):
 
         prob = y.mean(axis=0)
         return -(prob * np.log(prob) + (1 - prob) * np.log(1 - prob))
+
     return (get_baseline_ce,)
 
 
@@ -1387,6 +1396,7 @@ def _(np):
             oldmostfreq = mostfrequent
 
         return mostfrequent, oldcounts
+
     return (mode,)
 
 

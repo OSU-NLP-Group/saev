@@ -9,8 +9,6 @@ def _():
     import base64
     import collections
     import concurrent.futures
-    import dataclasses
-    import itertools
     import json
     import os.path
     import pathlib
@@ -22,12 +20,12 @@ def _():
     import matplotlib.pyplot as plt
     import numpy as np
     import polars as pl
-    import scipy.sparse
     import wandb
-    from jaxtyping import Bool, Float, jaxtyped
+    from jaxtyping import Float, jaxtyped
 
     import saev.colors
     import saev.data.datasets
+
     return (
         Float,
         base64,
@@ -91,7 +89,9 @@ def _(
 
         row = {"id": wandb_run.id}
 
-        row.update(**{f"summary/{key}": value for key, value in wandb_run.summary.items()})
+        row.update(**{
+            f"summary/{key}": value for key, value in wandb_run.summary.items()
+        })
 
         try:
             row["summary/eval/freqs"] = load_freqs(wandb_run)
@@ -114,10 +114,12 @@ def _(
             print(f"Run {wandb_run.id} missing config section: {err}.")
             return None
 
-        row.update(
-            **{f"config/train_data/{key}": value for key, value in train_data.items()}
-        )
-        row.update(**{f"config/val_data/{key}": value for key, value in val_data.items()})
+        row.update(**{
+            f"config/train_data/{key}": value for key, value in train_data.items()
+        })
+        row.update(**{
+            f"config/val_data/{key}": value for key, value in val_data.items()
+        })
         row.update(**{f"config/{key}": value for key, value in config.items()})
 
         metadata = row.get("config/train_data/metadata")
@@ -127,7 +129,6 @@ def _(
         row["data_key"] = get_data_key(metadata)
 
         return row, cls_results
-
 
     @beartype.beartype
     def _finalize_df(rows: list[dict[str, object]]):
@@ -162,7 +163,8 @@ def _(
         )
 
         df = (
-            df.unnest("config/sae", "config/train_data/metadata", separator="/")
+            df
+            .unnest("config/sae", "config/train_data/metadata", separator="/")
             .unnest("config/sae/activation", separator="/")
             .unnest(
                 "config/sae/activation/aux",
@@ -197,7 +199,6 @@ def _(
         df = df.with_columns(pl.col("id").is_in(pareto_ids).alias("is_pareto"))
 
         return df
-
 
     @beartype.beartype
     def make_df_parallel(n_workers: int = 16):
@@ -238,7 +239,6 @@ def _(
         assert rows, "No valid runs."
         return _finalize_df(rows)
 
-
     df = make_df_parallel()
     return (df,)
 
@@ -262,7 +262,6 @@ def _(Float, beartype, jaxtyped, json, np, os):
 
         raise ValueError(f"freqs not found in run '{run.id}'")
 
-
     @jaxtyped(typechecker=beartype.beartype)
     def load_mean_values(run) -> Float[np.ndarray, " d_sae"]:
         try:
@@ -279,6 +278,7 @@ def _(Float, beartype, jaxtyped, json, np, os):
             raise RuntimeError(f"Wandb sucks: {err}") from err
 
         raise ValueError(f"mean_values not found in run '{run.id}'")
+
     return load_freqs, load_mean_values
 
 
@@ -293,7 +293,9 @@ def _(base64, beartype, pickle, saev):
         )
 
         ckpt = next(
-            metadata[key] for key in ("vit_ckpt", "model_ckpt", "ckpt") if key in metadata
+            metadata[key]
+            for key in ("vit_ckpt", "model_ckpt", "ckpt")
+            if key in metadata
         )
 
         if family == "dinov2" and ckpt == "dinov2_vitb14_reg":
@@ -318,7 +320,6 @@ def _(base64, beartype, pickle, saev):
         print(f"Unknown model: {(family, ckpt)}")
         return ckpt
 
-
     @beartype.beartype
     def get_data_key(metadata: dict[str, object]) -> str | None:
         data_cfg = pickle.loads(base64.b64decode(metadata["data"].encode("utf8")))
@@ -338,6 +339,7 @@ def _(base64, beartype, pickle, saev):
 
         print(f"Unknown data: {data_cfg}")
         return None
+
     return get_data_key, get_model_key
 
 
@@ -362,6 +364,7 @@ def _(beartype, pathlib, saev):
         if split_name in {"val", "validation"}:
             return "val"
         return None
+
     return (get_shards_split_label,)
 
 
@@ -404,7 +407,6 @@ def _(
 
         return cls_results_fpaths
 
-
     @beartype.beartype
     def get_cls_results(run: saev.disk.Run) -> list[dict[str, object]]:
         results = []
@@ -423,6 +425,7 @@ def _(
                     continue
 
         return results
+
     return (get_cls_results,)
 
 
@@ -439,16 +442,17 @@ def _(df, mo, pl):
             & (pl.col("cls/cfg/cls/max_depth") == 7)
         )
 
-        clf = df.filter((pl.col("id") == "hfpct5ae")).get_column("cls/classifier").item()
+        clf = (
+            df.filter((pl.col("id") == "hfpct5ae")).get_column("cls/classifier").item()
+        )
 
-        return df.select("^cls/.*$").sort('cls/test_acc', descending=True), clf
-
+        return df.select("^cls/.*$").sort("cls/test_acc", descending=True), clf
 
     disp, clf = _(df)
 
     # top_latents = np.abs(clf.coef_).argsort(axis=1)[:, -8:]
 
-    mo.vstack([mo.md('# Sparse Classifiers'), disp, clf])
+    mo.vstack([mo.md("# Sparse Classifiers"), disp, clf])
     return (clf,)
 
 
@@ -462,7 +466,7 @@ def _(clf, np):
         print(" ".join(str(f) for f in sorted(set(feature.tolist())) if f >= 0))
         threshold = tree.threshold
         values = tree.value
-    
+
         node_depth = np.zeros(shape=n_nodes, dtype=np.int64)
         is_leaves = np.zeros(shape=n_nodes, dtype=bool)
         stack = [(0, 0)]  # start with the root node id (0) and its depth (0)
@@ -470,7 +474,7 @@ def _(clf, np):
             # `pop` ensures each node is only visited once
             node_id, depth = stack.pop()
             node_depth[node_id] = depth
-    
+
             # If the left and right child of a node is not the same we have a split
             # node
             is_split_node = children_left[node_id] != children_right[node_id]
@@ -481,7 +485,7 @@ def _(clf, np):
                 stack.append((children_right[node_id], depth + 1))
             else:
                 is_leaves[node_id] = True
-    
+
         print(
             "The binary tree structure has {n} nodes and has "
             "the following tree structure:\n".format(n=n_nodes)
@@ -490,7 +494,9 @@ def _(clf, np):
             if is_leaves[i]:
                 print(
                     "{space}node={node} is a leaf node with value={value}.".format(
-                        space=node_depth[i] * "\t", node=i, value=np.around(values[i], 3)
+                        space=node_depth[i] * "\t",
+                        node=i,
+                        value=np.around(values[i], 3),
                     )
                 )
             else:
@@ -507,7 +513,6 @@ def _(clf, np):
                         value=np.around(values[i], 3),
                     )
                 )
-
 
     print_tree(clf.tree_)
     return
@@ -532,7 +537,6 @@ def _(base64, df, pickle, saev, shards_root):
             mapping[sample.targets[col]] = sample.labels[col]
         return mapping
 
-
     habitats = get_idx_to_label(df, "habitat")
     return (habitats,)
 
@@ -544,7 +548,9 @@ def _(clf, habitats, top_latents):
         for h, habitat in sorted(habitats.items()):
             print(f"{habitat} ({h}) =", end="\n")
             for l, c in reversed(
-                list(zip(top_latents[h].tolist(), clf.coef_[h, top_latents[h]].tolist()))
+                list(
+                    zip(top_latents[h].tolist(), clf.coef_[h, top_latents[h]].tolist())
+                )
             ):
                 if c == 0:
                     break
@@ -553,7 +559,6 @@ def _(clf, habitats, top_latents):
                 print(f"\tLatent {l} x {c:.2g} +", end="\n")
 
             print(f"\t{clf.intercept_[h]:.2g}")
-
 
     _()
     return
@@ -606,7 +611,8 @@ def _(collections, df, mo, np, pl, plt, saev):
                     & (pl.col(x_col).is_not_null())
                 )
                 group = group.sort(by=x_col).with_columns(
-                    pl.col("cls/classifier")
+                    pl
+                    .col("cls/classifier")
                     .map_elements(
                         lambda clf: len(np.nonzero(clf.coef_)[0]), return_dtype=pl.Int32
                     )
@@ -649,7 +655,6 @@ def _(collections, df, mo, np, pl, plt, saev):
         # return fig
 
         return mo.vstack([fig, dict(pareto_ckpts)])
-
 
     _(df)
     return

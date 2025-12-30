@@ -144,9 +144,8 @@ def make_seg(
     patch_grid_h = h // patch_size
     patch_grid_w = w // patch_size
     patch_labels = (
-        saev.data.shards.pixel_to_patch_labels(
-            seg, n_patches, patch_size, pixel_agg, bg_label
-        )
+        saev.data.shards
+        .pixel_to_patch_labels(seg, n_patches, patch_size, pixel_agg, bg_label)
         .numpy()
         .reshape(patch_grid_h, patch_grid_w)
     )

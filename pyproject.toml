@@ -90,3 +90,6 @@ markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
 ]
+
+[tool.marimo.runtime]
+watcher_on_save = "autorun"

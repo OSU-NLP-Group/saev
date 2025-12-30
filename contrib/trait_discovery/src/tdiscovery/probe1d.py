@@ -547,7 +547,8 @@ class Sparse1DProbe(sklearn.base.BaseEstimator):
         base_intercept = torch.log(pi / (1 - pi))
 
         intercept = (
-            base_intercept.to(**self._dd)
+            base_intercept
+            .to(**self._dd)
             .view(1, -1)
             .expand(self.n_latents, -1)
             .contiguous()

@@ -261,7 +261,8 @@ def _(
         )
 
         df = df.with_columns(
-            pl.when(pl.col("config/sae/activation").struct.field("top_k").is_not_null())
+            pl
+            .when(pl.col("config/sae/activation").struct.field("top_k").is_not_null())
             .then(pl.lit("topk"))
             .otherwise(pl.lit("relu"))
             .alias("config/sae/activation_kind"),
@@ -698,7 +699,8 @@ def _(df, mo, pl):
 
         for optim in ["adam", "muon"]:
             group = (
-                df.filter(
+                df
+                .filter(
                     (pl.col("config/optim") == optim)
                     # & pl.col(col).is_not_null()
                     # & pl.col("is_pareto")
@@ -710,10 +712,12 @@ def _(df, mo, pl):
                 )
                 .agg(
                     pl.len().alias("n_trials"),
-                    pl.col("summary/metrics/dead_unit_pct")
+                    pl
+                    .col("summary/metrics/dead_unit_pct")
                     .mean()
                     .alias("train_mean_pct"),
-                    pl.col("summary/metrics/dead_unit_pct")
+                    pl
+                    .col("summary/metrics/dead_unit_pct")
                     .std()
                     .alias("train_std_pct"),
                     (pl.col("summary/eval/n_dead") / (1024 * 16) * 100)

@@ -91,7 +91,8 @@ class ButterfliesDataset(MetadataDataset):
         self.ds = saev.data.datasets.SegFolderDataset(self.seg_cfg)
 
         self.metadata = (
-            pl.read_csv(
+            pl
+            .read_csv(
                 os.path.join(self.cfg.root, "Heliconius_img_master.csv"),
                 infer_schema_length=None,
             )

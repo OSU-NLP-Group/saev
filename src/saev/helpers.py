@@ -224,6 +224,75 @@ def current_git_commit() -> str | None:
 
 
 @beartype.beartype
+def submit_job_array(
+    executor,
+    fn: tp.Callable,
+    args_list: list,
+    *,
+    logger: logging.Logger | None = None,
+    margin: float = 0.8,
+) -> Iterator[tuple[int, object]]:
+    """
+    Submit jobs in batches to respect Slurm's MaxArraySize limit.
+
+    Yields (index, result) tuples as jobs complete. Batches are submitted sequentially - each batch must complete before the next is submitted.
+
+    Args:
+        executor: A submitit executor (SlurmExecutor or LocalExecutor).
+        fn: Worker function to call for each config.
+        args_list: List of arguments to pass to fn.
+        logger: Optional logger for progress messages.
+        margin: Fraction of MaxArraySize to use (default 0.8).
+
+    Yields:
+        Tuples of (global_index, result) for successful jobs.
+        For failed jobs, yields (global_index, None) and logs a warning.
+
+    Example:
+        ```
+        executor = submitit.SlurmExecutor(folder="./logs")
+        executor.update_parameters(...)
+
+        for idx, result in submit_job_array(executor, worker_fn, configs):
+            print(f"Job {idx} returned {result}")
+        ```
+    """
+    from submitit.core.utils import UncompletedJobError
+
+    arr_size = int(get_slurm_max_array_size() * margin)
+    n_total = len(args_list)
+
+    for arr_start, arr_end in batched_idx(n_total, arr_size):
+        batch_args = args_list[arr_start:arr_end]
+
+        if logger:
+            logger.info(
+                "Submitting batch of %d jobs (%d-%d of %d).",
+                len(batch_args),
+                arr_start + 1,
+                arr_end,
+                n_total,
+            )
+
+        with executor.batch():
+            jobs = [executor.submit(fn, arg) for arg in batch_args]
+
+        time.sleep(5.0)
+
+        for i, job in enumerate(jobs):
+            global_idx = arr_start + i
+            try:
+                result = job.result()
+                yield global_idx, result
+            except UncompletedJobError:
+                if logger:
+                    logger.warning(
+                        "Job %s (%d) did not finish.", job.job_id, global_idx
+                    )
+                yield global_idx, None
+
+
+@beartype.beartype
 def get_slurm_max_array_size() -> int:
     """
     Get the MaxArraySize configuration from the current Slurm cluster.

@@ -291,7 +291,8 @@ def plot(results: pathlib.Path):
     alt.renderers.enable("png")
 
     df = (
-        pl.read_json(results)
+        pl
+        .read_json(results)
         .select("results")
         .explode("results")
         .unnest("results")
@@ -301,7 +302,8 @@ def plot(results: pathlib.Path):
     title = str(results.parent)
 
     band = (
-        alt.Chart(df)
+        alt
+        .Chart(df)
         .mark_errorband(extent="stdev")  # mean +/- 1 stddev
         .encode(
             alt.X("n_workers", type="quantitative"),
@@ -313,7 +315,8 @@ def plot(results: pathlib.Path):
     )
 
     line = (
-        alt.Chart(df, title=title)
+        alt
+        .Chart(df, title=title)
         .mark_line(point=True)
         .encode(
             alt.X("n_workers", type="quantitative"),

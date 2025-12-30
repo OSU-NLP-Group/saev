@@ -34,17 +34,14 @@ def sae_cfgs_comprehensive():
     activation_strategy = st.one_of(relu_strategy, topk_strategy, batch_topk_strategy)
 
     return st.builds(
-        lambda d_model,
-        expansion,
-        seed,
-        normalize_w_dec,
-        remove_parallel_grads,
-        activation: modeling.SparseAutoencoderConfig(
-            d_model=d_model,
-            d_sae=d_model * expansion,
-            normalize_w_dec=normalize_w_dec,
-            remove_parallel_grads=remove_parallel_grads,
-            activation=activation,
+        lambda d_model, expansion, seed, normalize_w_dec, remove_parallel_grads, activation: (
+            modeling.SparseAutoencoderConfig(
+                d_model=d_model,
+                d_sae=d_model * expansion,
+                normalize_w_dec=normalize_w_dec,
+                remove_parallel_grads=remove_parallel_grads,
+                activation=activation,
+            )
         ),
         d_model=st.sampled_from([256, 384, 512, 768, 1024]),
         expansion=st.sampled_from([2, 4, 8, 16, 32]),

@@ -7,7 +7,6 @@ from PIL import Image
 
 from saev.data.datasets import ImgFolder, get_dataset
 
-
 # ImgFolder integration tests (require --imgfolder argument)
 
 

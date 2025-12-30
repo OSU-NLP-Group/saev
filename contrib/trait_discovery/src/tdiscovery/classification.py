@@ -37,7 +37,6 @@ import dataclasses
 import enum
 import logging
 import pathlib
-import time
 import typing as tp
 
 import beartype

@@ -125,7 +125,8 @@ def worker_fn(cfg: Config):
     assert val_n_latents == n_latents, msg
 
     val_labels = (
-        np.memmap(
+        np
+        .memmap(
             val_labels_fpath,
             mode="r",
             dtype=np.uint8,

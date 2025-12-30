@@ -261,7 +261,8 @@ def _(
         )
 
         df = df.with_columns(
-            pl.when(pl.col("config/sae/activation").struct.field("top_k").is_not_null())
+            pl
+            .when(pl.col("config/sae/activation").struct.field("top_k").is_not_null())
             .then(pl.lit("topk"))
             .otherwise(pl.lit("relu"))
             .alias("config/sae/activation_kind"),
@@ -350,7 +351,8 @@ def _(df, np, pl, plt):
     def _():
         fig, ax = plt.subplots(figsize=(4.5, 3), dpi=300, layout="constrained")
         ks, ys, ids = (
-            df.filter(pl.col("config/sae/activation_kind") == "topk")
+            df
+            .filter(pl.col("config/sae/activation_kind") == "topk")
             .group_by(pl.col("config/sae/activation").struct.field("top_k"))
             .agg(pl.col("summary/eval/l0"), pl.col("id"))
             .sort(by="top_k")
@@ -705,7 +707,8 @@ def _(collections, df, mo, pl, plt, saev):
                     (pl.col("config/sae/activation_kind") == "relu")
                     & (pl.col("config/val_data/layer") == layer)
                     & (
-                        pl.col("config/sae/activation")
+                        pl
+                        .col("config/sae/activation")
                         .struct.field("sparsity")
                         .struct.field("coeff")
                         == lam
@@ -803,7 +806,8 @@ def _(collections, df, mo, pl, plt, saev):
                     (pl.col("config/sae/activation_kind") == "relu")
                     & (pl.col("config/val_data/layer") == layer)
                     & (
-                        pl.col("config/sae/activation")
+                        pl
+                        .col("config/sae/activation")
                         .struct.field("sparsity")
                         .struct.field("coeff")
                         == lam
@@ -998,7 +1002,8 @@ def _(df, mo, pl):
                 ),  # .select('best_train_probe_r').unique(),
             )
             group = (
-                df.filter(
+                df
+                .filter(
                     pl.col(col).is_not_null()
                     & pl.col("is_pareto")
                     & (pl.col("data_key") == data_key)
@@ -1052,7 +1057,8 @@ def _(df, mo, pl):
 
         for kind in ["relu", "topk"]:
             group = (
-                df.filter(
+                df
+                .filter(
                     (pl.col("config/sae/activation_kind") == kind)
                     & pl.col(col).is_not_null()
                     # & pl.col("is_pareto")
