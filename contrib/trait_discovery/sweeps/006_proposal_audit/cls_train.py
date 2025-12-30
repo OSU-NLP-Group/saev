@@ -1,11 +1,17 @@
 def make_cfgs():
     import os.path
 
-    from tdiscovery.classification import LabelGrouping, PatchAgg
+    from tdiscovery.classification import (
+        DecisionTree,
+        LabelGrouping,
+        PatchAgg,
+        SparseLinear,
+    )
 
     cfgs = []
     run_root = "/fs/ess/PAS2136/samuelstevens/saev/runs"
 
+    # FishVista segfolder2 shards (classification split with habitat labels).
     dinov3_fishvista_train = "/fs/scratch/PAS2136/samuelstevens/saev/shards/e65cf404"
     dinov3_fishvista_val = "/fs/scratch/PAS2136/samuelstevens/saev/shards/b8a9ff56"
 
@@ -125,11 +131,12 @@ def make_cfgs():
     ]
 
     C_values = [0.001, 0.01, 0.1]
+    max_depths = [2, 3, 5, 8, -1]
 
     for _layer, ids in fishvista_run_ids.items():
         for run_id in ids:
-            for C in C_values:
-                for task in fishvista_tasks:
+            for task in fishvista_tasks:
+                for C in C_values:
                     cfgs.append({
                         "run": os.path.join(run_root, run_id),
                         "train_shards": dinov3_fishvista_train,
@@ -140,7 +147,20 @@ def make_cfgs():
                             "source_col": task.source_col,
                             "groups": task.groups,
                         },
-                        "cls": {"C": C},
+                        "cls": SparseLinear(C=C),
+                    })
+                for max_depth in max_depths:
+                    cfgs.append({
+                        "run": os.path.join(run_root, run_id),
+                        "train_shards": dinov3_fishvista_train,
+                        "test_shards": dinov3_fishvista_val,
+                        "patch_agg": PatchAgg.MAX,
+                        "task": {
+                            "name": task.name,
+                            "source_col": task.source_col,
+                            "groups": task.groups,
+                        },
+                        "cls": DecisionTree(max_depth=max_depth),
                     })
 
     for _layer, ids in in1k_run_ids.items():
@@ -156,7 +176,20 @@ def make_cfgs():
                         "source_col": ade20k_task.source_col,
                         "groups": ade20k_task.groups,
                     },
-                    "cls": {"C": C},
+                    "cls": SparseLinear(C=C),
+                })
+            for max_depth in max_depths:
+                cfgs.append({
+                    "run": os.path.join(run_root, run_id),
+                    "train_shards": dinov3_ade20k_train,
+                    "test_shards": dinov3_ade20k_val,
+                    "patch_agg": PatchAgg.MAX,
+                    "task": {
+                        "name": ade20k_task.name,
+                        "source_col": ade20k_task.source_col,
+                        "groups": ade20k_task.groups,
+                    },
+                    "cls": DecisionTree(max_depth=max_depth),
                 })
 
     return cfgs
