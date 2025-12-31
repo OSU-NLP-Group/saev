@@ -312,6 +312,7 @@ def _(clf_df, mo, np, pl, plt, saev, scipy):
     def _(df: pl.DataFrame):
         x_col = "cls/n_nonzero"
         y_col = "cls/macro_f1"
+        k_col = "config/sae/activation/top_k"
 
         layers = [13, 15, 17, 19, 21, 23]
 
@@ -337,6 +338,7 @@ def _(clf_df, mo, np, pl, plt, saev, scipy):
             .select(
                 "config/val_data/layer",
                 "cls/cfg/cls/key",
+                k_col,
                 "cls/n_nonzero",
                 "cls/macro_f1",
                 "cls/test_acc",
@@ -346,11 +348,14 @@ def _(clf_df, mo, np, pl, plt, saev, scipy):
             .with_columns(pl.lit(random_chance).alias("random_chance"))
         )
 
-        # Define classifier styles
-        clf_styles = {
-            "sparse-linear": (saev.colors.BLUE_RGB01, "o", "SparseLinear"),
-            "decision-tree": (saev.colors.ORANGE_RGB01, "^", "DecisionTree"),
-        }
+        # Colormap based on log2(top_k)
+        all_k = filtered.get_column(k_col).to_numpy()
+        log2_k = np.log2(all_k)
+        k_min, k_max = log2_k.min(), log2_k.max()
+        cmap = plt.cm.plasma
+
+        # Define classifier markers
+        clf_markers = {"sparse-linear": "o", "decision-tree": "^"}
 
         # Global x range across all layers for sigmoid fit line
         global_x_min = filtered.get_column(x_col).min()
@@ -374,7 +379,7 @@ def _(clf_df, mo, np, pl, plt, saev, scipy):
             all_xs = layer_group.get_column(x_col).to_numpy()
             all_ys = layer_group.get_column(y_col).to_numpy()
 
-            for clf_key, (color, marker, label) in clf_styles.items():
+            for clf_key, marker in clf_markers.items():
                 group = filtered.filter(
                     (pl.col("config/val_data/layer") == layer)
                     & (pl.col("cls/cfg/cls/key") == clf_key)
@@ -385,15 +390,10 @@ def _(clf_df, mo, np, pl, plt, saev, scipy):
 
                 xs = group.get_column(x_col).to_numpy()
                 ys = group.get_column(y_col).to_numpy()
+                ks = group.get_column(k_col).to_numpy()
+                colors = cmap((np.log2(ks) - k_min) / (k_max - k_min))
 
-                ax.scatter(
-                    xs,
-                    ys,
-                    alpha=0.5,
-                    color=color,
-                    marker=marker,
-                    label=label,
-                )
+                ax.scatter(xs, ys, alpha=0.7, c=colors, marker=marker)
 
             # Fit sigmoid to all points (both classifiers)
             if len(all_xs) >= 4:
@@ -435,8 +435,15 @@ def _(clf_df, mo, np, pl, plt, saev, scipy):
             if i in (0, 3):
                 ax.set_ylabel("Macro F1")
 
-            if i == 2:
-                ax.legend()
+        # Add colorbar
+        sm = plt.cm.ScalarMappable(cmap=cmap, norm=plt.Normalize(k_min, k_max))
+        cbar = fig.colorbar(sm, ax=axes)
+        cbar.set_label("log2(k)")
+
+        # Add legend for marker shapes
+        axes[2].scatter([], [], marker="o", c="gray", alpha=0.5, label="SparseLinear")
+        axes[2].scatter([], [], marker="^", c="gray", alpha=0.5, label="DecisionTree")
+        axes[2].legend(loc="upper left")
 
         fig.suptitle("ADE20K Scene Classification (Top 50)")
         return mo.vstack([table, fig])
@@ -450,6 +457,7 @@ def _(clf_df, mo, np, pl, plt, saev, scipy):
     def _(df: pl.DataFrame):
         x_col = "cls/n_nonzero"
         y_col = "cls/macro_f1"
+        k_col = "config/sae/activation/top_k"
 
         layers = [13, 15, 17, 19, 21, 23]
 
@@ -475,6 +483,7 @@ def _(clf_df, mo, np, pl, plt, saev, scipy):
             .select(
                 "config/val_data/layer",
                 "cls/cfg/cls/key",
+                k_col,
                 "cls/n_nonzero",
                 "cls/macro_f1",
                 "cls/test_acc",
@@ -484,11 +493,14 @@ def _(clf_df, mo, np, pl, plt, saev, scipy):
             .with_columns(pl.lit(random_chance).alias("random_chance"))
         )
 
-        # Define classifier styles
-        clf_styles = {
-            "sparse-linear": (saev.colors.BLUE_RGB01, "o", "SparseLinear"),
-            "decision-tree": (saev.colors.ORANGE_RGB01, "^", "DecisionTree"),
-        }
+        # Colormap based on log2(top_k)
+        all_k = filtered.get_column(k_col).to_numpy()
+        log2_k = np.log2(all_k)
+        k_min, k_max = log2_k.min(), log2_k.max()
+        cmap = plt.cm.plasma
+
+        # Define classifier markers
+        clf_markers = {"sparse-linear": "o", "decision-tree": "^"}
 
         # Global x range across all layers for sigmoid fit line
         global_x_min = filtered.get_column(x_col).min()
@@ -516,7 +528,7 @@ def _(clf_df, mo, np, pl, plt, saev, scipy):
             all_xs = layer_group.get_column(x_col).to_numpy()
             all_ys = layer_group.get_column(y_col).to_numpy()
 
-            for clf_key, (color, marker, label) in clf_styles.items():
+            for clf_key, marker in clf_markers.items():
                 group = filtered.filter(
                     (pl.col("config/val_data/layer") == layer)
                     & (pl.col("cls/cfg/cls/key") == clf_key)
@@ -527,15 +539,10 @@ def _(clf_df, mo, np, pl, plt, saev, scipy):
 
                 xs = group.get_column(x_col).to_numpy()
                 ys = group.get_column(y_col).to_numpy()
+                ks = group.get_column(k_col).to_numpy()
+                colors = cmap((np.log2(ks) - k_min) / (k_max - k_min))
 
-                ax.scatter(
-                    xs,
-                    ys,
-                    alpha=0.5,
-                    color=color,
-                    marker=marker,
-                    label=label,
-                )
+                ax.scatter(xs, ys, alpha=0.7, c=colors, marker=marker)
 
             # Fit sigmoid to all points (both classifiers)
             if len(all_xs) >= 4:
@@ -577,8 +584,15 @@ def _(clf_df, mo, np, pl, plt, saev, scipy):
             if i in (0, 3):
                 ax.set_ylabel("Macro F1")
 
-            if i == 2:
-                ax.legend()
+        # Add colorbar
+        sm = plt.cm.ScalarMappable(cmap=cmap, norm=plt.Normalize(k_min, k_max))
+        cbar = fig.colorbar(sm, ax=axes)
+        cbar.set_label("log2(k)")
+
+        # Add legend for marker shapes
+        axes[2].scatter([], [], marker="o", c="gray", alpha=0.5, label="SparseLinear")
+        axes[2].scatter([], [], marker="^", c="gray", alpha=0.5, label="DecisionTree")
+        axes[2].legend(loc="upper left")
 
         fig.suptitle("FishVista Habitat")
         return mo.vstack([table, fig])

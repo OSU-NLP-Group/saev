@@ -1729,3 +1729,22 @@ Built 006_proposal_audit.py notebook to compare SparseLinear (L1-logistic) and D
 1. Habitat is harder to predict from visual features alone
 2. 10 habitat classes may require more discriminative features than 50 scene classes (counterintuitive but habitat distinctions may be subtler)
 3. FishVista SAEs may not have learned habitat-relevant features as well as ImageNet-trained SAEs learned scene-relevant features
+
+## TopK Sparsity (k) Does Not Affect Classification Accuracy
+
+Recolored scatter plots using plasma colormap based on log2(k) to investigate whether TopK sparsity affects classification performance.
+
+**Observation:** k in TopK doesn't strongly influence classification accuracy once you account for the number of non-zero features used by the classifier.
+
+- At any given x-position (# non-zero features), low-k SAEs (k=16-32) and high-k SAEs (k=128-256) achieve similar macro F1
+- All k values follow the same sigmoid curve - no vertical stratification by color
+- Pattern holds for both ADE20K (50 classes) and FishVista (10 classes)
+- Pattern holds for both SparseLinear and DecisionTree classifiers
+
+**Why this makes sense:**
+1. The classifier does its own feature selection on top of SAE activations
+2. What matters is whether the SAE learned discriminative features, not per-patch sparsity
+3. `# non-zero features` (x-axis) captures model complexity and drives performance
+4. k mainly affects computational cost and per-patch interpretability, not downstream classification
+
+**Takeaway:** For classification tasks, you can choose k based on other considerations (compute, interpretability) without sacrificing accuracy. The sigmoid saturation is determined by dataset/task difficulty, not SAE sparsity.

@@ -583,4 +583,12 @@ class EvalConfig:
 def eval_cli(
     cfg: tp.Annotated[EvalConfig, tyro.conf.arg(name="")],
     sweep: pathlib.Path | None = None,
-): ...
+):
+    """
+    Evaluate feature grounding using the audit stage of proposal-audit framework.
+
+    For each proposed feature, treat its patch-level activation as a score field and compute alignment to semantic segmentation masks using Average Precision (AP).
+
+    NOTE: For vectorized AP computation across all (feature x class) pairs, see tdiscovery.metrics.py lines 193-206. That implementation sorts by score, computes cumulative TP/precision/recall, then sums (precision * delta_recall) without any classifier training.
+    """
+    ...
