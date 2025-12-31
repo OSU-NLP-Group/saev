@@ -1701,3 +1701,31 @@ I trained a bunch of image-level classifiers. Now I need to summarize their resu
 
 - Why are all my coefficients negative? Does that mean they're NOT correlated?
 - Do my integer habitats match up with the strings? -> No, but I fixed it.
+
+# 12/30/2025
+
+Added context in docs/research/issues/proposal-audit.md, built the combined proposal audit sweep file (006_proposal_audit), and successfully submitted the jobs. Now working in contrib/trait_discovery/notebooks/006_proposal_audit.py; still need to add the univariate feature selection and the audit phase.
+
+## Proposal-Audit Classification Results
+
+Built 006_proposal_audit.py notebook to compare SparseLinear (L1-logistic) and DecisionTree classifiers on SAE features for scene/habitat prediction. Plotted macro F1 vs number of non-zero features with sigmoid fits.
+
+**ADE20K Scene Classification (Top 50 classes):**
+- Beautiful sigmoid curves with clear saturation around 0.7-0.8 macro F1
+- Performance plateaus after ~10^3 non-zero features
+- Both classifiers follow the same trend; DecisionTree just uses fewer features
+- Later layers (22/24, 24/24) achieve slightly higher saturation levels
+- Random chance baseline: 0.02 (1/50 classes)
+
+**FishVista Habitat (10 classes):**
+- Much noisier results, no clear saturation
+- Performance range is 0.05-0.35 macro F1 (much lower than ADE20K)
+- Sigmoid fit shows gentle upward trend that hasn't plateaued
+- DecisionTree clusters at very low n_nonzero (3-7 features) with poor performance
+- SparseLinear uses more features and performs better but still hasn't saturated
+- Random chance baseline: 0.1 (1/10 classes)
+
+**Key insight:** FishVista habitat prediction would likely benefit from using even more features - it's still in the rising phase of the curve. ADE20K scene classification has diminishing returns past ~1000 features. Possible explanations:
+1. Habitat is harder to predict from visual features alone
+2. 10 habitat classes may require more discriminative features than 50 scene classes (counterintuitive but habitat distinctions may be subtler)
+3. FishVista SAEs may not have learned habitat-relevant features as well as ImageNet-trained SAEs learned scene-relevant features

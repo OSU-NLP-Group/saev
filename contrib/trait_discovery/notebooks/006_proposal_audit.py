@@ -21,6 +21,7 @@ def _():
     import matplotlib.pyplot as plt
     import numpy as np
     import polars as pl
+    import scipy.optimize
     import sklearn.metrics
     import wandb
     from jaxtyping import Float, jaxtyped
@@ -44,6 +45,7 @@ def _():
         pl,
         plt,
         saev,
+        scipy,
         sklearn,
         wandb,
     )
@@ -306,12 +308,16 @@ def _(clf_df):
 
 
 @app.cell
-def _(clf_df, mo, pl, plt, saev):
+def _(clf_df, mo, np, pl, plt, saev, scipy):
     def _(df: pl.DataFrame):
         x_col = "cls/n_nonzero"
         y_col = "cls/macro_f1"
 
         layers = [13, 15, 17, 19, 21, 23]
+
+        # Sigmoid function on log-x scale: y = L / (1 + exp(-k*(log(x) - x0))) + b
+        def sigmoid(x, L, k, x0, b):
+            return L / (1 + np.exp(-k * (np.log(x) - x0))) + b
 
         # Filter to ADE20K scene_top50 task only
         filtered = df.filter(
@@ -327,7 +333,8 @@ def _(clf_df, mo, pl, plt, saev):
 
         # Table of individual points
         table = (
-            filtered.select(
+            filtered
+            .select(
                 "config/val_data/layer",
                 "cls/cfg/cls/key",
                 "cls/n_nonzero",
@@ -345,6 +352,11 @@ def _(clf_df, mo, pl, plt, saev):
             "decision-tree": (saev.colors.ORANGE_RGB01, "^", "DecisionTree"),
         }
 
+        # Global x range across all layers for sigmoid fit line
+        global_x_min = filtered.get_column(x_col).min()
+        global_x_max = filtered.get_column(x_col).max()
+        x_fit = np.geomspace(global_x_min, global_x_max, 100)
+
         fig, axes = plt.subplots(
             figsize=(8, 5),
             nrows=2,
@@ -357,6 +369,11 @@ def _(clf_df, mo, pl, plt, saev):
         axes = axes.reshape(-1)
 
         for i, (layer, ax) in enumerate(zip(layers, axes)):
+            # Get all points for this layer (both classifiers) for sigmoid fit
+            layer_group = filtered.filter(pl.col("config/val_data/layer") == layer)
+            all_xs = layer_group.get_column(x_col).to_numpy()
+            all_ys = layer_group.get_column(y_col).to_numpy()
+
             for clf_key, (color, marker, label) in clf_styles.items():
                 group = filtered.filter(
                     (pl.col("config/val_data/layer") == layer)
@@ -378,6 +395,26 @@ def _(clf_df, mo, pl, plt, saev):
                     label=label,
                 )
 
+            # Fit sigmoid to all points (both classifiers)
+            if len(all_xs) >= 4:
+                try:
+                    y_range = all_ys.max() - all_ys.min()
+                    p0 = [y_range, 1.0, np.log(np.median(all_xs)), all_ys.min()]
+                    bounds = ([0, 0.01, -10, 0], [1, 10, 20, 1])
+                    popt, _ = scipy.optimize.curve_fit(
+                        sigmoid, all_xs, all_ys, p0=p0, bounds=bounds, maxfev=5000
+                    )
+                    y_fit = sigmoid(x_fit, *popt)
+                    ax.plot(
+                        x_fit,
+                        y_fit,
+                        color=saev.colors.BLACK_RGB01,
+                        linestyle="--",
+                        alpha=0.5,
+                    )
+                except Exception:
+                    pass  # Skip if fit fails
+
             ax.axhline(
                 random_chance,
                 color="red",
@@ -389,6 +426,7 @@ def _(clf_df, mo, pl, plt, saev):
             ax.grid(True, linewidth=0.3, alpha=0.7)
             ax.spines[["right", "top"]].set_visible(False)
             ax.set_xscale("log")
+            ax.set_ylim(0, 1)
             ax.set_title(f"Layer {layer + 1}/24")
 
             if i in (3, 4, 5):
@@ -408,12 +446,16 @@ def _(clf_df, mo, pl, plt, saev):
 
 
 @app.cell
-def _(clf_df, mo, pl, plt, saev):
+def _(clf_df, mo, np, pl, plt, saev, scipy):
     def _(df: pl.DataFrame):
         x_col = "cls/n_nonzero"
         y_col = "cls/macro_f1"
 
         layers = [13, 15, 17, 19, 21, 23]
+
+        # Sigmoid function on log-x scale: y = L / (1 + exp(-k*(log(x) - x0))) + b
+        def sigmoid(x, L, k, x0, b):
+            return L / (1 + np.exp(-k * (np.log(x) - x0))) + b
 
         # Filter to FishVista habitat task only
         filtered = df.filter(
@@ -429,7 +471,8 @@ def _(clf_df, mo, pl, plt, saev):
 
         # Table of individual points
         table = (
-            filtered.select(
+            filtered
+            .select(
                 "config/val_data/layer",
                 "cls/cfg/cls/key",
                 "cls/n_nonzero",
@@ -447,6 +490,15 @@ def _(clf_df, mo, pl, plt, saev):
             "decision-tree": (saev.colors.ORANGE_RGB01, "^", "DecisionTree"),
         }
 
+        # Global x range across all layers for sigmoid fit line
+        global_x_min = filtered.get_column(x_col).min()
+        global_x_max = filtered.get_column(x_col).max()
+        x_fit = np.geomspace(global_x_min, global_x_max, 100)
+
+        # Y limit: round up to next 0.1
+        global_y_max = filtered.get_column(y_col).max()
+        y_lim_max = np.ceil(global_y_max * 10) / 10
+
         fig, axes = plt.subplots(
             figsize=(8, 5),
             nrows=2,
@@ -459,6 +511,11 @@ def _(clf_df, mo, pl, plt, saev):
         axes = axes.reshape(-1)
 
         for i, (layer, ax) in enumerate(zip(layers, axes)):
+            # Get all points for this layer (both classifiers) for sigmoid fit
+            layer_group = filtered.filter(pl.col("config/val_data/layer") == layer)
+            all_xs = layer_group.get_column(x_col).to_numpy()
+            all_ys = layer_group.get_column(y_col).to_numpy()
+
             for clf_key, (color, marker, label) in clf_styles.items():
                 group = filtered.filter(
                     (pl.col("config/val_data/layer") == layer)
@@ -480,6 +537,26 @@ def _(clf_df, mo, pl, plt, saev):
                     label=label,
                 )
 
+            # Fit sigmoid to all points (both classifiers)
+            if len(all_xs) >= 4:
+                try:
+                    y_range = all_ys.max() - all_ys.min()
+                    p0 = [y_range, 1.0, np.log(np.median(all_xs)), all_ys.min()]
+                    bounds = ([0, 0.01, -10, 0], [1, 10, 20, 1])
+                    popt, _ = scipy.optimize.curve_fit(
+                        sigmoid, all_xs, all_ys, p0=p0, bounds=bounds, maxfev=5000
+                    )
+                    y_fit = sigmoid(x_fit, *popt)
+                    ax.plot(
+                        x_fit,
+                        y_fit,
+                        color=saev.colors.BLACK_RGB01,
+                        linestyle="--",
+                        alpha=0.5,
+                    )
+                except Exception:
+                    pass  # Skip if fit fails
+
             ax.axhline(
                 random_chance,
                 color="red",
@@ -491,6 +568,7 @@ def _(clf_df, mo, pl, plt, saev):
             ax.grid(True, linewidth=0.3, alpha=0.7)
             ax.spines[["right", "top"]].set_visible(False)
             ax.set_xscale("log")
+            ax.set_ylim(0, y_lim_max)
             ax.set_title(f"Layer {layer + 1}/24")
 
             if i in (3, 4, 5):
