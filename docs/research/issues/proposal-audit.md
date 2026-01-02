@@ -101,3 +101,135 @@ All libraries (SAE variants and non-SAE baselines such as raw units, PCA, NMF, c
 - For FishVista, identify the audit segmentation labels and dataset; segfolder2 appears to live at `/fs/scratch/PAS2136/samuelstevens/derived-datasets/fish-vista-segfolder2`.
 - Confirm whether the results table should include both ImageNet-trained and ADE20K-trained SAE runs from `contrib/trait_discovery/sweeps/003_auxk/probe1d_metrics.py` for ADE20K evaluation.
 - If ADE20K shards lack the `scene` label column, create a `format_ade20k.py` script to re-format the raw ADE20K dataset to match segfolder conventions.
+
+## Implementation Plan for `eval_cli`
+
+### Overview
+
+The audit stage evaluates whether classifier-selected features are "grounded" in semantic segmentation concepts. For each proposed feature, we treat its patch-level activation as a score field and compute AP against each segmentation class, then take the max AP across classes. Features with max AP >= tau are considered grounded.
+
+### Data Flow
+
+```
+Inputs:
+  - Trained classifier checkpoints (from train_cli): cls_{task}_{agg}_{cls_params}.pkl
+  - SAE patch-level activations: token_acts.npz (sparse CSR, shape: n_patches x d_sae)
+  - Segmentation labels: labels.bin (uint8 memmap, shape: n_images x patches_per_image)
+
+Outputs:
+  - Per-feature AP scores: ap_s.npy (shape: d_sae)
+  - Best class per feature: best_class_s.npy (shape: d_sae, dtype: int)
+  - Yield@B metrics for B in {3, 10, 30, 100, 300, 1000}
+  - Feature rankings from classifier weights
+```
+
+### EvalConfig Fields
+
+```python
+@dataclasses.dataclass(frozen=True)
+class EvalConfig:
+    cls_checkpoint: pathlib.Path
+    """Path to trained classifier checkpoint from train_cli."""
+    test_shards: pathlib.Path
+    """Test shards directory with token_acts.npz and labels.bin."""
+    run: pathlib.Path
+    """SAE run directory for loading SAE activations."""
+    tau: float = 0.3
+    """Grounding threshold: feature is grounded if best-class AP >= tau."""
+    budgets: tuple[int, ...] = (3, 10, 30, 100, 300, 1000)
+    """Browsing budgets for Yield@B computation."""
+```
+
+### Algorithm
+
+1. **Load classifier checkpoint** and extract feature rankings:
+   - SparseLinear: importance_j = sum_c |W_cj|, rank by descending importance
+   - DecisionTree: importance_j = feature_importances_, rank by descending importance
+
+2. **Load patch-level data**:
+   - SAE activations: scipy.sparse.load_npz(token_acts.npz) -> shape (n_patches, d_sae)
+   - Segmentation labels: np.memmap(labels.bin) -> shape (n_images, patches_per_image)
+
+3. **Compute best-class AP for each SAE latent** (training-free):
+   - For each latent j in {0, ..., d_sae-1}:
+     - Extract activation scores: acts_n = token_acts[:, j].toarray().flatten()
+     - For each segmentation class c:
+       - Binary labels: labels_c_n = (seg_labels.flatten() == c).astype(float)
+       - Compute AP(acts_n, labels_c_n) using vectorized implementation
+     - best_ap_j = max over c of AP
+   - This can be vectorized: compute AP for all (latent, class) pairs simultaneously
+
+4. **Vectorized AP computation** (adapted from `tdiscovery/metrics.py` lines 193-206):
+   ```python
+   # For a single latent j, compute AP against all classes simultaneously
+   acts_n = token_acts[:, j].toarray().flatten()  # (n_patches,)
+   sort_idx = np.argsort(acts_n)[::-1]  # descending
+   labels_sorted_nc = seg_labels_one_hot[sort_idx]  # (n_patches, n_seg_classes)
+
+   tp_nc = labels_sorted_nc.cumsum(axis=0)
+   ranks = np.arange(1, n_patches + 1, dtype=np.float32).reshape(-1, 1)
+   precision_nc = tp_nc / ranks
+   n_pos_c = seg_labels_one_hot.sum(axis=0)
+   recall_nc = tp_nc / np.clip(n_pos_c, 1.0, None)
+   recall_shift_nc = np.concatenate([np.zeros((1, n_seg_classes)), recall_nc[:-1]], axis=0)
+   delta_recall_nc = recall_nc - recall_shift_nc
+   ap_c = (precision_nc * delta_recall_nc).sum(axis=0)
+   best_ap_j = ap_c.max()
+   ```
+
+5. **Compute Yield@B**:
+   - For each budget B:
+     - Select top-B features by classifier importance ranking
+     - grounded_count = sum(best_ap[top_B_indices] >= tau)
+     - Yield@B = grounded_count / B
+
+6. **Compute AUC_B** (area under Yield-vs-Budget curve):
+   - Simple sum: AUC_B = sum(Yield@B for B in budgets)
+
+### Memory Considerations
+
+- SAE activations are sparse (CSR), so memory is manageable
+- Segmentation labels are uint8, one per patch
+- For FishVista: 10 segmentation classes, ~4k images, 256 patches/image = ~1M patches
+- For ADE20K: 150 segmentation classes, varies by split
+
+### Batching Strategy
+
+To avoid memory issues when computing AP for all (latent x seg_class) pairs:
+
+1. **Batch over latents**: Process L latents at a time (e.g., L=1000)
+2. **Batch over images** (optional): If labels don't fit in memory, process image batches
+
+### Output Files
+
+Save to `{run.inference}/{test_shards.name}/`:
+- `audit_ap_s.npy`: Best-class AP for each SAE latent
+- `audit_best_class_s.npy`: Which seg class gave best AP
+- `audit_metrics.json`: Yield@B values, AUC_B, tau, budgets used
+- `audit_feature_ranks.npy`: Feature indices sorted by classifier importance
+
+### Self-Review Notes
+
+**Issues to address:**
+
+1. **EvalConfig is incomplete**: Need to add `slurm_acct`, `slurm_partition`, `n_hours`, `log_to`, `mem_gb`, `debug` fields for Slurm execution (copy from TrainConfig).
+
+2. **Classifier checkpoint loading**: The checkpoint format from `train_cli` is JSON header + pickle. Need to handle both `SparseLinear` (LogisticRegression with `.coef_`) and `DecisionTree` (`.feature_importances_`).
+
+3. **Feature ranking from DecisionTree**: `feature_importances_` only gives non-zero values for features actually used in splits. For unused features, importance is 0. Need to decide: rank all 0-importance features arbitrarily, or exclude them from Yield@B?
+
+4. **Segmentation labels location**: RESOLVED - `labels.bin` is already stored in the shards directory (verified: 1071872 bytes = 4187 images x 256 patches for FishVista train).
+
+5. **Background class handling**: Segmentation class 0 is background. Should we include background in AP computation? Probably not - exclude class 0 from the seg classes used for audit.
+
+6. **Sparse column extraction**: `token_acts[:, j].toarray()` for sparse CSR is slow because CSR is row-major. Consider:
+   - Converting to CSC format for column access
+   - Or iterating over rows and accumulating (but this loses the vectorized AP benefit)
+
+7. **Tie-breaking in rankings**: When multiple features have equal importance (common for DecisionTree), need deterministic tie-breaking (e.g., by feature index).
+
+8. **Validation of classifier-shard compatibility**: The classifier was trained on specific shards. Need to verify that the test_shards used for audit match the test_shards used in training.
+
+**Potential simplification:**
+
+Since we only need AP for the top-B features (max B=1000), we could skip computing AP for all 16k+ SAE latents and instead only compute AP for the ranked top-1000 features. This would be much faster and more memory-efficient.
