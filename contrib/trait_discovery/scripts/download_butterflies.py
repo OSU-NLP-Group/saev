@@ -2,250 +2,287 @@
 # requires-python = ">=3.12"
 # dependencies = [
 #     "beartype",
-#     "pandas",
-#     "requests",
-#     "tqdm",
 #     "tyro",
+#     "datasets",
+#     "pillow",
+#     "tqdm",
 # ]
 # ///
+"""
+Download HuggingFace dataset and convert to ImgSegFolder format.
 
-# Built on Michelle's download script: https://huggingface.co/datasets/imageomics/Comparison-Subset-Jiggins/blob/977a934e1eef18f6b6152da430ac83ba6f7bd30f/download_jiggins_subset.py with modification of David's redo loop: https://github.com/Imageomics/data-fwg/blob/anomaly-data-challenge/HDR-anomaly-data-challenge/notebooks/download_images.ipynb and expanded logging and file checks. Further added checksum calculation for all downloaded images at end.
+ImgSegFolder format:
+- root/images/{split}/ - RGB images
+- root/annotations/{split}/ - segmentation masks (PNG, same stem as image)
+- root/labels.csv - CSV with columns: stem,label1,label2,...
 
-# Script to download Jiggins images from any of the master CSV files. Generates Checksum file for all images downloaded (<master filename>_checksums.csv). Logs image downloads and failures in json files (<master filename>_log.json & <master filename>_error_log.json). Logs record numbers and response codes as strings, not int64.
+Example usage:
+    uv run python contrib/trait_discovery/scripts/download_butterflies.py
+    uv run python contrib/trait_discovery/scripts/download_butterflies.py --help
+"""
 
+import concurrent.futures
 import csv
 import dataclasses
-import hashlib
-import json
-import os
-import shutil
-import sys
-import time
+import io
+import logging
+import pathlib
 
 import beartype
-import pandas as pd
-import requests
 import tqdm
 import tyro
+from PIL import Image
 
-EXPECTED_COLS = [
-    "CAMID",
-    "X",
-    "Image_name",
-    "file_url",
-    "Taxonomic_Name",
-    "record_number",
-    "Dataset",
-]
+log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
+logging.basicConfig(level=logging.INFO, format=log_format)
+logger = logging.getLogger("download_butterflies")
 
-REDO_CODE_LIST = [429, 500, 502, 503, 504]
-
-# Reset to appropriate index if download gets interrupted.
-STARTING_INDEX = 0
+IMAGE_COL_ALIASES = ("image", "img", "photo", "picture")
+MASK_COL_ALIASES = ("mask", "segmentation", "seg", "annotation")
 
 
 @beartype.beartype
 @dataclasses.dataclass(frozen=True)
 class Config:
-    csv: str
-    """Path to CSV file with urls."""
-    output: str
-    """Directory to write images to."""
+    hf_dataset_name: str = "samuelstevens/cambridge-segfolder"
+    """HuggingFace dataset name."""
+    output_dpath: pathlib.Path = pathlib.Path(
+        "/fs/scratch/PAS2136/samuelstevens/derived-datasets/cambridge-segfolder"
+    )
+    """Output path for ImgSegFolder format."""
+    split: str = "train"
+    """HuggingFace dataset split to download."""
+    target_split: str = "training"
+    """Target split name for ImgSegFolder (training or validation)."""
+    image_col: str = "image"
+    """Column name for images in HF dataset."""
+    mask_col: str = "mask"
+    """Column name for masks in HF dataset."""
+    label_cols: tuple[str, ...] = ("subspecies",)
+    """Label column names (become columns in labels.csv after stem)."""
+    stem_col: str | None = "stem"
+    """Column for stem names. If None, uses index-based naming."""
+    n_threads: int = 16
+    """Number of concurrent threads."""
+    job_size: int = 256
+    """Batch size for parallel processing."""
 
 
 @beartype.beartype
-def md5_checksum(file_path):
-    hash_md5 = hashlib.md5()
-    with open(file_path, "rb") as f:
-        for chunk in iter(lambda: f.read(4096), b""):
-            hash_md5.update(chunk)
-    return hash_md5.hexdigest()
+def setup_directories(cfg: Config):
+    """Create output directory structure."""
+    (cfg.output_dpath / "images" / cfg.target_split).mkdir(parents=True, exist_ok=True)
+    (cfg.output_dpath / "annotations" / cfg.target_split).mkdir(
+        parents=True, exist_ok=True
+    )
 
 
 @beartype.beartype
-def get_checksums(input_directory, output_filepath):
-    with open(output_filepath, "w", newline="") as csvfile:
-        writer = csv.writer(csvfile)
-        writer.writerow(["filepath", "filename", "md5"])
-        for root, dirs, files in os.walk(input_directory):
-            n_files = len(files)
-            for name in tqdm.tqdm(files, total=n_files, desc="MD5ing"):
-                file_path = os.path.join(root, name)
-                checksum = md5_checksum(file_path)
-                writer.writerow([file_path, name, checksum])
-        print(f"Checksums written to {output_filepath}")
+def download_dataset(cfg: Config):
+    """Download dataset from HuggingFace."""
+    import datasets
+
+    logger.info("Downloading dataset from HuggingFace: %s", cfg.hf_dataset_name)
+    return datasets.load_dataset(cfg.hf_dataset_name, split=cfg.split)
 
 
 @beartype.beartype
-def log_response(
-    log_data: dict,
-    index: int,
-    image,
-    url,
-    record_number,
-    dataset,
-    cam_id,
-    response_code,
-) -> dict[object, object]:
-    # log status
-    log_entry = {}
-    log_entry["Image"] = image
-    log_entry["file_url"] = url
-    log_entry["record_number"] = str(record_number)  # int64 has problems sometimes
-    log_entry["dataset"] = dataset
-    log_entry["CAMID"] = cam_id
-    log_entry["Response_status"] = str(response_code)
-    log_data[index] = log_entry
-
-    return log_data
+def find_column(dataset_cols: set[str], primary: str, aliases: tuple[str, ...]) -> str:
+    """Find a column by name, trying aliases if primary not found."""
+    if primary in dataset_cols:
+        return primary
+    for alias in aliases:
+        if alias in dataset_cols:
+            logger.info("Using '%s' instead of '%s' for column", alias, primary)
+            return alias
+    available = ", ".join(sorted(dataset_cols))
+    raise ValueError(f"Column '{primary}' not found. Available: {available}")
 
 
 @beartype.beartype
-def update_log(log, index, filepath):
-    # save logs
-    with open(filepath, "a") as log_file:
-        json.dump(log[index], log_file, indent=4)
-        log_file.write("\n")
+def extract_pil_image(data) -> Image.Image:
+    """Extract PIL Image from various HF dataset formats."""
+    # Case 1: Already a PIL Image
+    if isinstance(data, Image.Image):
+        return data
+
+    # Case 2: Dict with 'bytes' key (common in parquet storage)
+    if isinstance(data, dict) and "bytes" in data:
+        return Image.open(io.BytesIO(data["bytes"]))
+
+    # Case 3: Dict with 'path' key (file reference)
+    if isinstance(data, dict) and "path" in data:
+        return Image.open(data["path"])
+
+    # Case 4: Raw bytes
+    if isinstance(data, bytes):
+        return Image.open(io.BytesIO(data))
+
+    raise ValueError(f"Unknown image format: {type(data)}")
 
 
 @beartype.beartype
-def download_images(jiggins_data, image_folder, log_filepath, error_log_filepath):
-    log_data = {}
-    log_errors = {}
+def batched_idx(total: int, batch_size: int):
+    """Generate batch indices for parallel processing."""
+    for start in range(0, total, batch_size):
+        end = min(start + batch_size, total)
+        yield start, end
 
-    for i in tqdm.tqdm(range(0, len(jiggins_data))):
-        # species will really be <Genus> <species> ssp. <subspecies>, where subspecies indicated
-        species = jiggins_data["Taxonomic_Name"][i]
-        image_name = (
-            jiggins_data["X"][i].astype(str) + "_" + jiggins_data["Image_name"][i]
-        )
-        record_number = jiggins_data["record_number"][i]
 
-        # download the image from url if not already downloaded
-        # Will attempt to download everything in CSV (image_name is unique: <X>_<Image_name>), unless download restarted
-        if not os.path.exists(f"{image_folder}/{species}/{image_name}"):
-            # get image from url
-            url = jiggins_data["file_url"][i]
-            dataset = jiggins_data["Dataset"][i]
-            cam_id = jiggins_data["CAMID"][i]
+@beartype.beartype
+def write_labels_csv(cfg: Config, dataset) -> dict[int, str]:
+    """Write labels.csv and return index-to-stem mapping."""
+    labels_fpath = cfg.output_dpath / "labels.csv"
 
-            # download the image
-            redo = True
-            max_redos = 2
-            while redo and max_redos > 0:
-                try:
-                    response = requests.get(url, stream=True)
-                except Exception as e:
-                    redo = True
-                    max_redos -= 1
-                    if max_redos <= 0:
-                        log_errors = log_response(
-                            log_errors,
-                            index=i,
-                            image=species + "/" + image_name,
-                            url=url,
-                            record_number=record_number,
-                            dataset=dataset,
-                            cam_id=cam_id,
-                            response_code=str(e),
-                        )
-                        update_log(log=log_errors, index=i, filepath=error_log_filepath)
+    # Determine actual column names
+    dataset_cols = set(dataset.column_names)
 
-                if response.status_code == 200:
-                    redo = False
-                    # log status
-                    log_data = log_response(
-                        log_data,
-                        index=i,
-                        image=species + "/" + image_name,
-                        url=url,
-                        record_number=record_number,
-                        dataset=dataset,
-                        cam_id=cam_id,
-                        response_code=response.status_code,
-                    )
-                    update_log(log=log_data, index=i, filepath=log_filepath)
+    # Build stem mapping and collect labels (skip duplicate stems)
+    idx_to_stem: dict[int, str] = {}
+    seen_stems: set[str] = set()
+    rows: list[list[str]] = []
 
-                    # create the species appropriate folder if necessary
-                    if not os.path.exists(f"{image_folder}/{species}"):
-                        os.makedirs(f"{image_folder}/{species}", exist_ok=False)
-
-                    # save image to appropriate folder
-                    with open(
-                        f"{image_folder}/{species}/{image_name}", "wb"
-                    ) as out_file:
-                        shutil.copyfileobj(response.raw, out_file)
-
-                # check for too many requests
-                elif response.status_code in REDO_CODE_LIST:
-                    redo = True
-                    max_redos -= 1
-                    if max_redos <= 0:
-                        log_errors = log_response(
-                            log_errors,
-                            index=i,
-                            image=species + "/" + image_name,
-                            url=url,
-                            record_number=record_number,
-                            dataset=dataset,
-                            cam_id=cam_id,
-                            response_code=response.status_code,
-                        )
-                        update_log(log=log_errors, index=i, filepath=error_log_filepath)
-
-                    else:
-                        time.sleep(1)
-                else:  # other fail, eg. 404
-                    redo = False
-                    log_errors = log_response(
-                        log_errors,
-                        index=i,
-                        image=species + "/" + image_name,
-                        url=url,
-                        record_number=record_number,
-                        dataset=dataset,
-                        cam_id=cam_id,
-                        response_code=response.status_code,
-                    )
-                    update_log(log=log_errors, index=i, filepath=error_log_filepath)
-
-            del response
-
+    for i, row in enumerate(tqdm.tqdm(dataset, desc="Building labels")):
+        # Generate stem (either from column or index-based)
+        if cfg.stem_col and cfg.stem_col in row:
+            stem = pathlib.Path(str(row[cfg.stem_col])).stem
         else:
-            if i > STARTING_INDEX:
-                # No need to print if download is restarted due to interruption (set STARTING_INDEX accordingly).
-                print(
-                    f"duplicate image: {jiggins_data['X']}, {jiggins_data['Image_name']}, from record {record_number}"
-                )
+            stem = f"{i:08d}"
+
+        idx_to_stem[i] = stem
+
+        # Skip duplicate stems in labels.csv (first one wins)
+        if stem in seen_stems:
+            continue
+        seen_stems.add(stem)
+
+        # Collect labels for this stem
+        label_values = [stem]
+        for col in cfg.label_cols:
+            assert col in dataset_cols, f"Label column '{col}' not in dataset."
+            label_values.append(str(row[col]))
+        rows.append(label_values)
+
+    # Write CSV
+    header = ["stem"] + list(cfg.label_cols)
+    with open(labels_fpath, "w", newline="") as fd:
+        writer = csv.writer(fd)
+        writer.writerow(header)
+        writer.writerows(rows)
+
+    logger.info(
+        "Wrote %d labels to %s (%d duplicates skipped)",
+        len(rows),
+        labels_fpath,
+        len(dataset) - len(rows),
+    )
+    return idx_to_stem
+
+
+@beartype.beartype
+def write_batch(
+    cfg: Config,
+    dataset,
+    idx_to_stem: dict[int, str],
+    image_col: str,
+    mask_col: str,
+    start: int,
+    end: int,
+) -> tuple[int, int]:
+    """Write a batch of images and masks. Returns (n_success, n_skip)."""
+    n_success = 0
+    n_skip = 0
+
+    for i in range(start, end):
+        row = dataset[i]
+        stem = idx_to_stem[i]
+
+        img_fpath = cfg.output_dpath / "images" / cfg.target_split / f"{stem}.jpg"
+        mask_fpath = cfg.output_dpath / "annotations" / cfg.target_split / f"{stem}.png"
+
+        # Skip if both exist (resumability)
+        if img_fpath.exists() and mask_fpath.exists():
+            n_skip += 1
+            continue
+
+        try:
+            # Extract and save image
+            if not img_fpath.exists():
+                img = extract_pil_image(row[image_col])
+                img = img.convert("RGB")
+                img.save(img_fpath)
+
+            # Extract and save mask
+            if not mask_fpath.exists():
+                mask = extract_pil_image(row[mask_col])
+                mask.save(mask_fpath)
+
+            n_success += 1
+        except Exception as e:
+            logger.warning("Failed to process %s: %s", stem, e)
+
+    return n_success, n_skip
 
 
 @beartype.beartype
 def main(cfg: Config):
-    # log file location (folder of source CSV)
-    log_filepath = cfg.csv.split(".")[0] + "_log.json"
-    error_log_filepath = cfg.csv.split(".")[0] + "_error_log.json"
+    """Main function to download and convert HF dataset to ImgSegFolder format."""
+    logger.info("Starting dataset conversion from %s", cfg.hf_dataset_name)
+    assert cfg.target_split in ("training", "validation"), (
+        f"Invalid target_split: {cfg.target_split}"
+    )
 
-    # load csv
-    jiggins_data = pd.read_csv(cfg.csv, low_memory=False)
+    # 1. Create output directory structure
+    setup_directories(cfg)
 
-    # Check for required columns
-    missing_cols = []
-    for col in EXPECTED_COLS:
-        if col not in list(jiggins_data.columns):
-            missing_cols.append(col)
-    if len(missing_cols) > 0:
-        sys.exit(f"The CSV is missing column(s): {missing_cols}")
+    # 2. Download dataset from HuggingFace
+    dataset = download_dataset(cfg)
+    logger.info("Downloaded %d examples", len(dataset))
 
-    # dowload images from urls
-    download_images(jiggins_data, cfg.output, log_filepath, error_log_filepath)
+    # 3. Validate columns
+    dataset_cols = set(dataset.column_names)
+    image_col = find_column(dataset_cols, cfg.image_col, IMAGE_COL_ALIASES)
+    mask_col = find_column(dataset_cols, cfg.mask_col, MASK_COL_ALIASES)
+    logger.info("Using image_col='%s', mask_col='%s'", image_col, mask_col)
 
-    # generate checksums and save CSV to same folder as CSV used for download
-    checksum_path = cfg.csv.split(".")[0] + "_checksums.csv"
-    get_checksums(cfg.output, checksum_path)
+    # 4. Write labels.csv and get stem mapping
+    idx_to_stem = write_labels_csv(cfg, dataset)
 
-    print(f"Images downloaded from {cfg.csv} to {cfg.output}.")
-    print(
-        f"Checksums recorded in {checksum_path} and download logs are in {log_filepath} and {error_log_filepath}."
+    # 5. Write images and masks in parallel
+    total_success = 0
+    total_skip = 0
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=cfg.n_threads) as pool:
+        futures = []
+        for start, end in batched_idx(len(dataset), cfg.job_size):
+            futures.append(
+                pool.submit(
+                    write_batch,
+                    cfg,
+                    dataset,
+                    idx_to_stem,
+                    image_col,
+                    mask_col,
+                    start,
+                    end,
+                )
+            )
+
+        for future in tqdm.tqdm(
+            concurrent.futures.as_completed(futures), total=len(futures), desc="Writing"
+        ):
+            if exc := future.exception():
+                logger.warning("Job failed: %s", exc)
+            else:
+                n_success, n_skip = future.result()
+                total_success += n_success
+                total_skip += n_skip
+
+    logger.info(
+        "Conversion complete! %d written, %d skipped. Output at %s",
+        total_success,
+        total_skip,
+        cfg.output_dpath,
     )
 
 
