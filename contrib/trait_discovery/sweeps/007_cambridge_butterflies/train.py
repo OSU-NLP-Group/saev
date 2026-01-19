@@ -4,9 +4,9 @@ def make_cfgs() -> list[dict]:
 
     # Cambridge butterfly shards with different patch counts (DINOv3 ViT-L-16, layers 21 and 23, prefer-fg)
     shards = {
-        256: "/fs/scratch/PAS2136/samuelstevens/saev/shards/592615d0",
-        384: "/fs/scratch/PAS2136/samuelstevens/saev/shards/bf629dcb",
-        512: "/fs/scratch/PAS2136/samuelstevens/saev/shards/efbdb4d2",
+        # 256: "/fs/scratch/PAS2136/samuelstevens/saev/shards/592615d0",
+        # 384: "/fs/scratch/PAS2136/samuelstevens/saev/shards/bf629dcb",
+        # 512: "/fs/scratch/PAS2136/samuelstevens/saev/shards/efbdb4d2",
         640: "/fs/scratch/PAS2136/samuelstevens/saev/shards/69e6d6fd",
     }
 
@@ -16,7 +16,10 @@ def make_cfgs() -> list[dict]:
             for k in [16, 32, 64, 128, 256]:
                 for lr in [1e-4, 3e-4, 1e-3, 3e-3, 1e-2, 3e-2]:
                     cfgs.append({
-                        "tag": f"cambridge-butterflies-{n_patches}p",
+                        "tags": [f"cambridge-butterflies-{n_patches}p", "cardinal"],
+                        "slurm_acct": "PAS2136",
+                        "slurm_partition": "nextgen",
+                        "n_hours": 12,
                         "lr": lr,
                         "n_lr_warmup": 500,
                         "n_sparsity_warmup": n_train // batch_size,
@@ -35,11 +38,13 @@ def make_cfgs() -> list[dict]:
                             "shards": shards_dpath,
                             "min_buffer_fill": 0.2,
                             "ignore_labels": [0],
+                            "use_tmpdir": True,
                         },
                         "val_data": {
                             "layer": layer,
                             "shards": shards_dpath,
                             "ignore_labels": [0],
+                            "use_tmpdir": True,
                         },
                     })
     return cfgs

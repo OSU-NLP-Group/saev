@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.17.2"
+__generated_with = "0.18.4"
 app = marimo.App(width="full")
 
 
@@ -16,7 +16,7 @@ def _():
     from jaxtyping import Float, jaxtyped
 
     import saev.disk
-
+    import saev.data
     return Float, beartype, bisect, jaxtyped, mo, np, pathlib, pl, saev
 
 
@@ -112,7 +112,6 @@ def _(pl):
         }
 
         return obs, target2fields
-
     return
 
 
@@ -124,6 +123,32 @@ def _(pl, run, shards_dropdown):
     # )
     sae_var = pl.read_parquet(run.inference / shards_dropdown.value / "var.parquet")
     return (sae_var,)
+
+
+@app.cell
+def _(pathlib, saev, shards_dropdown):
+    # Load dataset to get filenames for each example index
+    import glob
+    import os
+
+    shards_path = (
+        pathlib.Path("/fs/scratch/PAS2136/samuelstevens/saev/shards")
+        / shards_dropdown.value
+    )
+    md = saev.data.Metadata.load(shards_path)
+    img_cfg = md.make_data_cfg()
+
+    # Use the same image loading approach as the dataset class
+    img_dir = str(img_cfg.root / "images" / img_cfg.split)
+    img_files = sorted(glob.glob(os.path.join(img_dir, "*")))
+
+    def _stem(fpath: str) -> str:
+        fname = os.path.basename(fpath)
+        stem, _ = os.path.splitext(fname)
+        return stem
+
+    img_stems = [_stem(path) for path in img_files]
+    return (img_stems,)
 
 
 @app.cell
@@ -196,7 +221,6 @@ def _(features, get_i, mo, sae_var):
         return mo.md(
             f"Feature {f} ({get_i()}/{len(features)}; {get_i() / len(features) * 100:.1f}%) | Frequency: {10 ** feature['log10_freq'] * 100:.5f}% of inputs | Mean Value: {10 ** feature['log10_value']:.3f}"
         )
-
     return (display_info,)
 
 
@@ -212,12 +236,10 @@ def _(
     next_button,
     prev_button,
 ):
-    mo.md(
-        f"""
+    mo.md(f"""
     {mo.hstack([prev_button, next_button, display_info(features[get_i()])], justify="start")}
     {mo.hstack([feature_picker_slider, feature_picker_text, feature_picker_button], align="center")}
-    """
-    )
+    """)
     return
 
 
@@ -263,6 +285,7 @@ def _(
 
 @app.cell
 def _(
+    img_stems,
     mo,
     run,
     sae_var,
@@ -317,18 +340,29 @@ def _(
                 else mo.md(f"*Missing SAE segmentation {i}*")
             )
 
-        feature = sae_var.row(feature, named=True)
-        # metadata = img_obs.row(feature["top_img_i"][i], named=True)
+        # Deduplicate example indices the same way visuals.py does
+        raw_topk = sae_var.row(feature, named=True)["topk_example_idx"]
+        seen = set()
+        deduped_idx = []
+        for idx in raw_topk:
+            if idx not in seen:
+                deduped_idx.append(idx)
+                seen.add(idx)
+
+        example_idx = deduped_idx[i] if i < len(deduped_idx) else -1
+        stem = (
+            img_stems[example_idx]
+            if 0 <= example_idx < len(img_stems)
+            else f"idx={example_idx}"
+        )
 
         return mo.vstack(
             [
                 mo.hstack(imgs),
-                # mo.md(metadata["Taxonomic_Name"]),
-                # mo.md(metadata["Image_name"]),
+                mo.md(f"`{stem}`"),
             ],
             align="center",
         )
-
     return (show_img,)
 
 

@@ -1706,45 +1706,106 @@ I trained a bunch of image-level classifiers. Now I need to summarize their resu
 
 Added context in docs/research/issues/proposal-audit.md, built the combined proposal audit sweep file (006_proposal_audit), and successfully submitted the jobs. Now working in contrib/trait_discovery/notebooks/006_proposal_audit.py; still need to add the univariate feature selection and the audit phase.
 
-## Proposal-Audit Classification Results
-
 Built 006_proposal_audit.py notebook to compare SparseLinear (L1-logistic) and DecisionTree classifiers on SAE features for scene/habitat prediction. Plotted macro F1 vs number of non-zero features with sigmoid fits.
 
-**ADE20K Scene Classification (Top 50 classes):**
-- Beautiful sigmoid curves with clear saturation around 0.7-0.8 macro F1
-- Performance plateaus after ~10^3 non-zero features
-- Both classifiers follow the same trend; DecisionTree just uses fewer features
-- Later layers (22/24, 24/24) achieve slightly higher saturation levels
-- Random chance baseline: 0.02 (1/50 classes)
+ADE20K Scene Classification (Top 50 classes):
 
-**FishVista Habitat (10 classes):**
-- Much noisier results, no clear saturation
-- Performance range is 0.05-0.35 macro F1 (much lower than ADE20K)
-- Sigmoid fit shows gentle upward trend that hasn't plateaued
-- DecisionTree clusters at very low n_nonzero (3-7 features) with poor performance
-- SparseLinear uses more features and performs better but still hasn't saturated
-- Random chance baseline: 0.1 (1/10 classes)
+- clear sigmoid curves with clear saturation around 0.7-0.8 macro F1
+- performance plateaus after ~10^3 non-zero features
+- both classifiers follow the same trend; decisiontree just uses fewer features
+- later layers (22/24, 24/24) achieve slightly higher saturation levels
+- random chance baseline: 0.02 (1/50 classes)
 
-**Key insight:** FishVista habitat prediction would likely benefit from using even more features - it's still in the rising phase of the curve. ADE20K scene classification has diminishing returns past ~1000 features. Possible explanations:
+FishVista Habitat (10 classes):
+
+- much noisier results, no clear saturation
+- performance range is 0.05-0.35 macro f1 (much lower than ade20k)
+- sigmoid fit shows gentle upward trend that hasn't plateaued
+- decisiontree clusters at very low n_nonzero (3-7 features) with poor performance
+- sparselinear uses more features and performs better but still hasn't saturated
+- random chance baseline: 0.1 (1/10 classes)
+
+Key insight: FishVista habitat prediction would likely benefit from using even more features - it's still in the rising phase of the curve. ADE20K scene classification has diminishing returns past ~1000 features.
+
+Possible explanations:
+
 1. Habitat is harder to predict from visual features alone
 2. 10 habitat classes may require more discriminative features than 50 scene classes (counterintuitive but habitat distinctions may be subtler)
 3. FishVista SAEs may not have learned habitat-relevant features as well as ImageNet-trained SAEs learned scene-relevant features
 
-## TopK Sparsity (k) Does Not Affect Classification Accuracy
+TopK Sparsity (k) Does Not Affect Classification Accuracy
 
-Recolored scatter plots using plasma colormap based on log2(k) to investigate whether TopK sparsity affects classification performance.
-
-**Observation:** k in TopK doesn't strongly influence classification accuracy once you account for the number of non-zero features used by the classifier.
+k in TopK doesn't strongly influence classification accuracy once you account for the number of non-zero features used by the classifier.
 
 - At any given x-position (# non-zero features), low-k SAEs (k=16-32) and high-k SAEs (k=128-256) achieve similar macro F1
 - All k values follow the same sigmoid curve - no vertical stratification by color
 - Pattern holds for both ADE20K (50 classes) and FishVista (10 classes)
 - Pattern holds for both SparseLinear and DecisionTree classifiers
 
-**Why this makes sense:**
 1. The classifier does its own feature selection on top of SAE activations
 2. What matters is whether the SAE learned discriminative features, not per-patch sparsity
 3. `# non-zero features` (x-axis) captures model complexity and drives performance
 4. k mainly affects computational cost and per-patch interpretability, not downstream classification
 
-**Takeaway:** For classification tasks, you can choose k based on other considerations (compute, interpretability) without sacrificing accuracy. The sigmoid saturation is determined by dataset/task difficulty, not SAE sparsity.
+# 01/02/2026
+
+We use AP for the FishVista features, but we actually want purity, or just straight precision. We don't expect the features to activate on all caudal fins, just those of caudal fins for high-speed cruisers.
+
+In comparison, we do expect features used in ADE20K to have high IoU or mAP: we think a "sand" feature is useful for all scenes, not just beaches.
+
+Some ideas for potential improvements for feature selection:
+
+1. Ensemble feature selection: Take intersection/union of top features from multiple classifier types (decision tree + sparse linear). Decision trees find grounded features at low budgets; sparse linear captures more diversity at high budgets.
+
+2. Feature frequency weighting: Weight candidate features by their activation frequency across training images. Hypothesis 5 suggests sparser SAEs yield more grounded features - could mimic this by down-weighting features that fire too frequently.
+
+3. Hierarchical selection: First select features for coarse category groupings (e.g., indoor vs outdoor for ADE20K, pelagic vs demersal for FishVista), then refine within groups. Could leverage decision tree's interpretable splits.
+
+4. Layer-ensemble: Train classifiers on each layer's SAE features separately, then ensemble the selected features. Later layers may capture different aspects than earlier layers.
+
+# 01/14/2026
+
+Meeting with Zach Steffensmeier (School of Environment and Natural Resources, OSU, https://steflab.weebly.com) about freshwater fish and trait discovery.
+
+Darters - the "Darwin's finches of fish". ~200 species that look very similar but have subtle variation. Interesting parallel: a group in China is genetically dissimilar to US darters but has converged to look nearly identical due to shared physics of water flow. This is exactly the kind of convergent evolution signal SAE features might detect - visual similarity despite genetic distance.
+
+Fish ecomorphology - mouth shape and body shape are strongly correlated with habitat:
+- Body shape -> swimming behavior (flow dynamics are universal physics)
+- Mouth position -> feeding strategy (superior mouth = surface feeder, inferior = bottom feeder)
+- This is similar to our FishVista habitat work but with more mechanistic grounding
+
+Freshwater microhabitats - riffles, mid-stream, stream margins, etc. More fine-grained than our current 10-class FishVista habitat labels.
+
+Data:
+
+1. EPA electrofishing (since 1987):  potentially millions of fish images. Zach has EOB collaborator who might provide access. Should also check Tanya can help us get access; might add to ToL-200M.
+2. Ohio freshwater fish:  ~170 species. Zach will send metadata including river size and non-visual traits. We likely have images from BioClip 2 ToL-200M training data.
+3. USGS ecology data: Braden and Aly (I think) have used this. Rich metadata source for non-visual traits.
+4. Pocket Macros: app for family-level dichotomous keys for aquatic invertebrates (beetles, etc.). Potential extension beyond fish. (https://www.macroinvertebrates.org/key)
+
+Research Directions:
+
+Dichotomous key generation: could we automatically learn a decision tree from SAE features that produces a dichotomous key for Ohio freshwater fish? This is a direct application of our decision tree classifiers but for species ID rather than habitat. The 170 Ohio species is tractable. Can we build robust dichotomous keys, error-resistant, probabilistic, etc trees?
+
+Non-visual trait prediction (the most exciting idea):
+1. Correlate non-visual traits (reproduction style, diet, river size preference) with SAE visual features
+2. For species with unknown non-visual traits, predict from SAE features
+3. This is "trait discovery" in the truest sense, using visual features to infer hidden biology
+
+Index of Biotic Integrity (IBI) - fish community composition as a proxy for stream quality. Cheaper than daily water sampling. Could SAE features on fish images predict IBI scores? This would be a compelling real-world application (https://www.osc.edu/ywsi_project_ohios_watersheds/sampling/ibi).
+
+Also freshwater mussels? (https://mbd.osu.edu/collections/invertebrates/databases)
+
+Connections:
+
+- FishVista habitat prediction (12/30) is a warm-up for this richer trait prediction
+- Convergent evolution in darters tests whether SAE features capture functional (physics-driven) vs phylogenetic similarity
+- Decision tree feature selection (12/30) directly applies to dichotomous key generation
+- "Withheld knowledge" evaluation (ml-foundations notes) - Zach's non-visual traits are perfect for this
+
+Next steps:
+
+- [ ] Check BioClip/ToL-200M for Ohio fish species
+- [ ] Receive Zach's Ohio fish metadata with non-visual traits
+- [ ] Prototype: predict one non-visual trait (e.g., mouth position -> feeding strategy) from SAE features
+- [ ] Explore IBI prediction as applied use case
