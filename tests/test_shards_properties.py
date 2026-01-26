@@ -81,11 +81,11 @@ def test_dataloader_batches():
     batch = next(iter(dataloader))
 
     assert isinstance(batch, dict)
-    assert "image" in batch
+    assert "data" in batch
     assert "index" in batch
 
     torch.testing.assert_close(batch["index"], torch.arange(8))
-    assert batch["image"].shape == (8, 3, 224, 224)
+    assert batch["data"].shape == (8, 3, 224, 224)
 
 
 @pytest.mark.slow
@@ -133,7 +133,7 @@ def test_shard_writer_and_dataset_e2e():
         i = 0
         for b, batch in zip(range(4), dataloader):
             # Don't care about the forward pass.
-            out, cache = vit(batch["image"])
+            out, cache = vit(batch["data"])
             del out
 
             writer.write_batch(cache, i)

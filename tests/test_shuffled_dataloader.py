@@ -3,7 +3,6 @@ import contextlib
 import dataclasses
 import gc
 import json
-import os
 import pathlib
 import queue
 import tempfile
@@ -16,7 +15,7 @@ import torch
 import torch.multiprocessing as mp
 
 import saev.data
-from saev.data import ShuffledConfig, ShuffledDataLoader, datasets, shards
+from saev.data import ShuffledConfig, ShuffledDataLoader, datasets
 
 mp.set_start_method("spawn", force=True)
 
