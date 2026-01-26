@@ -13,6 +13,7 @@ import math
 import os
 import pathlib
 import pickle
+import stat
 import typing as tp
 from collections.abc import Callable, Sequence
 
@@ -568,6 +569,64 @@ class ShardInfo:
 
     def __iter__(self):
         yield from self.shards
+
+    def validate(self, shards_dir: pathlib.Path | str) -> None:
+        shards_dir = pathlib.Path(shards_dir)
+        assert disk.is_shards_dir(shards_dir)
+
+        missing_fpaths: list[str] = []
+        empty_fpaths: list[str] = []
+        unreadable_fpaths: list[str] = []
+        not_file_fpaths: list[str] = []
+
+        for shard in self.shards:
+            shard_fpath = shards_dir / shard.name
+            abs_fpath = shard_fpath.resolve()
+
+            try:
+                st = shard_fpath.stat()
+            except FileNotFoundError:
+                missing_fpaths.append(str(abs_fpath))
+                continue
+            except (PermissionError, OSError):
+                unreadable_fpaths.append(str(abs_fpath))
+                continue
+
+            if not stat.S_ISREG(st.st_mode):
+                not_file_fpaths.append(str(abs_fpath))
+                continue
+            if st.st_size == 0:
+                empty_fpaths.append(str(abs_fpath))
+
+        if not (missing_fpaths or empty_fpaths or unreadable_fpaths or not_file_fpaths):
+            return
+
+        shards_dir_fpath = shards_dir.resolve()
+        lines = [f"Shard validation failed in '{shards_dir_fpath}':", ""]
+
+        if missing_fpaths:
+            lines.append(f"Missing files ({len(missing_fpaths)}):")
+            lines.extend(f"  - {fpath}" for fpath in missing_fpaths)
+            lines.append("")
+
+        if empty_fpaths:
+            lines.append(f"Empty files ({len(empty_fpaths)}):")
+            lines.extend(f"  - {fpath}" for fpath in empty_fpaths)
+            lines.append("")
+
+        if unreadable_fpaths:
+            lines.append(f"Unreadable files ({len(unreadable_fpaths)}):")
+            lines.extend(f"  - {fpath}" for fpath in unreadable_fpaths)
+            lines.append("")
+
+        if not_file_fpaths:
+            lines.append(f"Not regular files ({len(not_file_fpaths)}):")
+            lines.extend(f"  - {fpath}" for fpath in not_file_fpaths)
+
+        if lines[-1] == "":
+            lines.pop()
+
+        raise FileNotFoundError("\n".join(lines))
 
 
 @beartype.beartype

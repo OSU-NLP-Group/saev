@@ -306,9 +306,9 @@ class ImagenetDataset(torch.utils.data.Dataset):
         sample = self.hf_dataset[i]
         sample["index"] = i
 
-        sample["image"] = sample["image"].convert("RGB")
+        sample["data"] = sample.pop("image").convert("RGB")
         if self.img_transform:
-            sample["image"] = self.img_transform(sample["image"])
+            sample["data"] = self.img_transform(sample["data"])
         sample["target"] = sample.pop("label")
         sample["label"] = self.labels[sample["target"]]
 
@@ -342,9 +342,9 @@ class Cifar10Dataset(torch.utils.data.Dataset):
         sample = self.hf_dataset[i]
         sample["index"] = i
 
-        sample["image"] = sample.pop("img").convert("RGB")
+        sample["data"] = sample.pop("img").convert("RGB")
         if self.img_transform:
-            sample["image"] = self.img_transform(sample["image"])
+            sample["data"] = self.img_transform(sample["data"])
         sample["target"] = sample.pop("label")
         sample["label"] = self.labels[sample["target"]]
 
@@ -565,7 +565,7 @@ class FakeImgDataset(torch.utils.data.Dataset):
         if self.img_transform is not None:
             img = self.img_transform(img)
 
-        sample = {"image": img, "index": i, "target": 0, "label": "dummy"}
+        sample = {"data": img, "index": i, "target": 0, "label": "dummy"}
         if self.sample_transform is not None:
             sample = self.sample_transform(sample)
 
@@ -637,7 +637,7 @@ class FakeImgSegDataset(torch.utils.data.Dataset):
             patch_labels = self.mask_transform(segmentation)
 
         sample: dict[str, object] = {
-            "image": img,
+            "data": img,
             "index": i,
             "target": 0,
             "label": "dummy",

@@ -116,57 +116,36 @@ def test_no_child_leak(cfg):
 
 
 @pytest.mark.slow
-@pytest.mark.xfail(reason="Not implemented.")
-def test_missing_shard_file_not_detected_at_init(tmp_path):
-    """Test that missing shard files are NOT detected at initialization. This exposes the validation gap."""
+def test_missing_shard_file_detected_at_init():
+    """Test that missing shard files are detected at initialization."""
+    # Use small max_tokens_per_shard to force multiple shards
+    # Each image has 17 tokens (16 patches + 1 CLS), so with 2 images per shard we get 34 patches per shard
+    max_tokens_per_shard = 34  # This will create ~5 shards for 10 images
     with pytest.helpers.tmp_shards_root() as shards_root:
-        # Create a small dataset with multiple shards
-        n_examples = 10
-        d_model = 128
-        content_tokens_per_example = 16
-        layers = [0]
-
-        # Use small max_tokens_per_shard to force multiple shards
-        # Each image has 17 tokens (16 patches + 1 CLS), so with 2 images per shard we get 34 patches per shard
-        max_tokens_per_shard = 34  # This will create ~5 shards for 10 images
-
         # Generate the activation shards
-        shards_dir = shards.worker_fn(
-            family="clip",
-            ckpt="hf-hub:hf-internal-testing/tiny-open-clip-model",
-            content_tokens_per_example=content_tokens_per_example,
-            cls_token=True,
-            shards_root=shards_root,
-            d_model=d_model,
-            layers=layers,
+        shards_dir = pytest.helpers.write_shards(
+            shards_root,
             max_tokens_per_shard=max_tokens_per_shard,
-            batch_size=2,
-            data=datasets.FakeImg(n_examples=n_examples),
-            n_workers=0,
-            device="cpu",
+            data=datasets.FakeImg(n_examples=10),
         )
 
-        # Get the actual shard directory
-        metadata = shards.Metadata.load(shards_dir)
-        shard_root = os.path.join(str(tmp_path), metadata.hash)
-
         # Verify we have multiple shards
-        shard_files = [f for f in os.listdir(shard_root) if f.endswith(".bin")]
+        shard_files = [f for f in shards_dir.iterdir() if f.suffix == ".bin"]
         assert len(shard_files) > 1, f"Expected multiple shards, got {len(shard_files)}"
 
         # Delete one of the middle shard files (not the first one)
         missing_shard = "acts000001.bin"
-        missing_file_path = os.path.join(shard_root, missing_shard)
-        assert os.path.exists(missing_file_path), (
+        missing_file_path = shards_dir / missing_shard
+        assert missing_file_path.exists(), (
             f"Shard file {missing_shard} should exist before deletion"
         )
-        os.remove(missing_file_path)
-        assert not os.path.exists(missing_file_path), (
+        missing_file_path.unlink()
+        assert not missing_file_path.exists(), (
             f"Shard file {missing_shard} should be deleted"
         )
 
         # Verify shards.json still lists the deleted file
-        with open(os.path.join(shard_root, "shards.json")) as fd:
+        with open(shards_dir / "shards.json") as fd:
             shards_data = json.load(fd)
         shard_names = [s["name"] for s in shards_data]
         assert missing_shard in shard_names, (
@@ -175,9 +154,7 @@ def test_missing_shard_file_not_detected_at_init(tmp_path):
 
         # Create shuffled dataloader. This should raise an error at initialization because missing files should be detected early
         with pytest.raises(FileNotFoundError):
-            cfg = ShuffledConfig(
-                shard_root=shard_root, tokens="content", layer=layers[0]
-            )
+            cfg = ShuffledConfig(shards=shards_dir, tokens="content", layer=0)
             ShuffledDataLoader(cfg)
 
 

@@ -140,15 +140,24 @@ def test_validate_unreadable_file(make_shards_dir):
         )
 
     shards_dir_dpath = make_shards_dir(unreadable_shards=[0])
+
+    # On POSIX, stat() doesn't require read permission - it reads the inode.
+    # chmod 0 blocks open() but not stat(). Skip if stat() still works.
+    unreadable_fpath = shards_dir_dpath / "acts000000.bin"
+    try:
+        unreadable_fpath.stat()
+        pytest.skip("stat() still works on chmod 0 files on this system")
+    except (PermissionError, OSError):
+        pass  # stat() fails as expected, continue with test
+
     shard_info = shards.ShardInfo.load(shards_dir_dpath)
 
     with pytest.raises(FileNotFoundError) as excinfo:
         shard_info.validate(shards_dir_dpath)
 
-    unreadable_fpath = (shards_dir_dpath / "acts000000.bin").resolve()
     msg = str(excinfo.value)
     assert "Unreadable files (1):" in msg
-    assert str(unreadable_fpath) in msg
+    assert str(unreadable_fpath.resolve()) in msg
 
 
 def test_validate_directory_instead_of_file(make_shards_dir):

@@ -64,12 +64,9 @@ class Dataset(torch.utils.data.Dataset):
 
         self.md = shards.Metadata.load(self.cfg.shards)
 
-        # Validate shard files exist
+        # Validate shard files exist and are non-empty
         shard_info = shards.ShardInfo.load(self.cfg.shards)
-        for shard in shard_info:
-            shard_path = os.path.join(self.cfg.shards, shard.name)
-            if not os.path.exists(shard_path):
-                raise FileNotFoundError(f"Shard file not found: {shard_path}")
+        shard_info.validate(self.cfg.shards)
 
         # Check if labels.bin exists
         labels_path = os.path.join(self.cfg.shards, "labels.bin")
