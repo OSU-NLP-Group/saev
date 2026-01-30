@@ -1,7 +1,14 @@
-def make_cfgs():
-    import os.path
+"""
+Sweep file for visual generation jobs for Cambridge butterfly SAE checkpoints.
 
-    cfgs = []
+Usage:
+    uv run python contrib/trait_discovery/scripts/launch.py visuals \
+        --sweep contrib/trait_discovery/sweeps/007_cambridge_butterflies/visuals.py \
+        --slurm-acct PAS2136 --slurm-partition nextgen --n-hours 2
+"""
+
+
+def make_cfgs() -> list[dict]:
     run_root = "/fs/ess/PAS2136/samuelstevens/saev/runs"
 
     # Cambridge butterfly shards (DINOv3 ViT-L-16, prefer-fg)
@@ -18,8 +25,8 @@ def make_cfgs():
         640: "/fs/scratch/PAS2136/samuelstevens/saev/shards/71ba8292",
     }
 
-    # Pareto-optimal run IDs by (n_patches, layer) from notebook
-    # v1.0 runs
+    # Pareto-optimal run IDs by (n_patches, layer, version)
+    # v1.0 runs (Pareto-optimal from notebook)
     run_ids_v10 = {
         (256, 21): ["v04m3tc9", "0wxbpz03", "1s86of18", "eubhjiy8", "jdjm31hy"],
         (256, 23): ["42op32o2", "feq16pxe", "knzgya5p", "vhi2238u"],
@@ -38,20 +45,33 @@ def make_cfgs():
         (640, 23): ["7cmnd5ib", "ez4ntgik", "ujj22ci0", "ey7aqcqi", "cqwk6eoo"],
     }
 
-    # v1.0 configs
-    for (n_patches, layer), ids in run_ids_v10.items():
-        for run_id in ids:
-            cfgs.append({
-                "run": os.path.join(run_root, run_id),
-                "data": {"shards": shards_v10[n_patches], "layer": layer},
-            })
+    # First 30 latents + 10 random
+    latents = list(range(30))
+
+    cfgs = []
+
+    # v1.0 configs (commented out - already done)
+    # for (n_patches, _layer), ids in run_ids_v10.items():
+    #     for run_id in ids:
+    #         cfgs.append({
+    #             "run": f"{run_root}/{run_id}",
+    #             "shards": shards_v10[n_patches],
+    #             "latents": latents,
+    #             "n_latents": 10,
+    #             "ignore_labels": [0],
+    #             "device": "cuda",
+    #         })
 
     # v1.2 configs
-    for (n_patches, layer), ids in run_ids_v12.items():
+    for (n_patches, _layer), ids in run_ids_v12.items():
         for run_id in ids:
             cfgs.append({
-                "run": os.path.join(run_root, run_id),
-                "data": {"shards": shards_v12[n_patches], "layer": layer},
+                "run": f"{run_root}/{run_id}",
+                "shards": shards_v12[n_patches],
+                "latents": latents,
+                "n_latents": 10,
+                "ignore_labels": [0],
+                "device": "cuda",
             })
 
     return cfgs
