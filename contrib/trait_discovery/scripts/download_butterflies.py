@@ -46,6 +46,8 @@ MASK_COL_ALIASES = ("mask", "segmentation", "seg", "annotation")
 class Config:
     hf_dataset_name: str = "samuelstevens/cambridge-segfolder"
     """HuggingFace dataset name."""
+    revision: str = "v1.2"
+    """HuggingFace dataset revision (branch, tag, or commit hash)"""
     output_dpath: pathlib.Path = pathlib.Path(
         "/fs/scratch/PAS2136/samuelstevens/derived-datasets/cambridge-segfolder"
     )
@@ -82,8 +84,14 @@ def download_dataset(cfg: Config):
     """Download dataset from HuggingFace."""
     import datasets
 
-    logger.info("Downloading dataset from HuggingFace: %s", cfg.hf_dataset_name)
-    return datasets.load_dataset(cfg.hf_dataset_name, split=cfg.split)
+    logger.info(
+        "Downloading dataset from HuggingFace: %s (revision=%s)",
+        cfg.hf_dataset_name,
+        cfg.revision,
+    )
+    return datasets.load_dataset(
+        cfg.hf_dataset_name, split=cfg.split, revision=cfg.revision
+    )
 
 
 @beartype.beartype
