@@ -444,6 +444,7 @@ def _normalize_cfg_kwargs(cfg_dict: dict[str, tp.Any]) -> dict[str, tp.Any]:
     cfg = dict(cfg_dict)
     # Backwards compatibility
     cfg.pop("n_reinit_samples", None)
+    cfg.pop("seed", None)
     if "exp_factor" in cfg and "d_sae" not in cfg:
         exp_factor = cfg.pop("exp_factor")
         d_model = cfg.get("d_model")

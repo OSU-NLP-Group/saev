@@ -204,6 +204,30 @@ def test_load_local_checkpoint(request):
         print(f"Top-k value: {model.cfg.activation.top_k}")
 
 
+schema4_ckpt = "/fs/ess/PAS2136/samuelstevens/saev/runs/3zih0tpa/checkpoint/sae.pt"
+
+
+def test_load_schema4_with_seed(tmp_path):
+    """Schema-4 checkpoints contain 'seed' in cfg which is not a SparseAutoencoderConfig field. The loader must strip it."""
+    import json
+    import pathlib
+
+    fpath = pathlib.Path(schema4_ckpt)
+    if not fpath.exists():
+        pytest.skip(f"Schema-4 checkpoint not available at {fpath}")
+
+    # Verify the checkpoint actually has the seed key (test precondition).
+    with open(fpath, "rb") as fd:
+        header = json.loads(fd.readline())
+    assert header["schema"] == 4
+    assert "seed" in header["cfg"], "Test precondition: checkpoint must contain 'seed'"
+
+    # This is the actual test: loading should succeed, not raise TypeError.
+    sae = modeling.load(fpath)
+    assert isinstance(sae, modeling.SparseAutoencoder)
+    assert sae.cfg.d_model == header["cfg"]["d_model"]
+
+
 def test_remove_parallel_grads_handles_non_normalized_rows():
     cfg = modeling.SparseAutoencoderConfig(
         d_model=4, d_sae=4, normalize_w_dec=False, remove_parallel_grads=True
