@@ -13,13 +13,43 @@ Details are below.
 
 First, download an SAE checkpoint from the [Huggingface collection](https://huggingface.co/collections/osunlp/sae-v-67ab8c4fdf179d117db28195).
 
-For instance, you can choose the SAE trained on OpenAI's CLIP ViT-B/16 with ImageNet-1K activations [here](https://huggingface.co/osunlp/SAE_CLIP_24K_ViT-B-16_IN1K).
+### Single-checkpoint repos
+
+Some repos (CLIP, BioCLIP, DINOv2) contain a single `sae.pt` at the root. For instance, the SAE trained on OpenAI's CLIP ViT-B/16 with ImageNet-1K activations is [here](https://huggingface.co/osunlp/SAE_CLIP_24K_ViT-B-16_IN1K).
 
 You can use `wget` if you want:
 
 ```sh
 wget https://huggingface.co/osunlp/SAE_CLIP_24K_ViT-B-16_IN1K/resolve/main/sae.pt
 ```
+
+### Multi-checkpoint repos
+
+The DINOv3 repos contain multiple checkpoints organized by layer and sparsity level. Each repo has a `manifest.jsonl` with metadata (layer, L0, MSE) for every checkpoint, so you can pick the right one programmatically.
+
+Download a specific checkpoint:
+
+```python
+from huggingface_hub import hf_hub_download
+
+# Pick a specific layer and run ID from the repo's README or manifest.jsonl
+path = hf_hub_download("osunlp/SAE_DINOv3_ViT-L-16_IN1K", "layer_23/lnleoyf6/sae.pt")
+```
+
+Download all checkpoints in a repo:
+
+```python
+from huggingface_hub import snapshot_download
+
+snapshot_download("osunlp/SAE_DINOv3_ViT-L-16_IN1K")
+```
+
+Available DINOv3 repos:
+
+- [osunlp/SAE_DINOv3_ViT-S-16_IN1K](https://huggingface.co/osunlp/SAE_DINOv3_ViT-S-16_IN1K) (layers 6-11)
+- [osunlp/SAE_DINOv3_ViT-B-16_IN1K](https://huggingface.co/osunlp/SAE_DINOv3_ViT-B-16_IN1K) (layers 6-11)
+- [osunlp/SAE_DINOv3_ViT-L-16_IN1K](https://huggingface.co/osunlp/SAE_DINOv3_ViT-L-16_IN1K) (layers 13-23)
+- [osunlp/SAE_DINOv3_TopK_ViT-L-16_IN1K](https://huggingface.co/osunlp/SAE_DINOv3_TopK_ViT-L-16_IN1K) (layers 13-23)
 
 ## Get the Code
 
