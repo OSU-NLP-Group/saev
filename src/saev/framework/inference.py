@@ -1,13 +1,15 @@
 """
-Script for dumping image-level activations in a single pass over the dataset.
+Script for dumping SAE inference artifacts in a single pass over the dataset.
 
-Dumps 5 files:
+Default mode writes 5 files:
 
 1. mean_values.pt
 2. sparsity.pt
 3. distributions.pt
 4. token_acts.npz
 5. metrics.json
+
+If save=False, only metrics.json is written.
 
 metrics.json contains some individual metrics that are useful for reporting:
 
@@ -58,6 +60,8 @@ class Config:
     # Control flags
     force_recompute: bool = False
     """Force recomputation even if files exist."""
+    save: bool = True
+    """Whether to write token_acts/statistics files. If False, only metrics.json is written."""
 
     # Hardware
     device: str = "cuda"
@@ -111,18 +115,25 @@ def need_compute(cfg: Config) -> tuple[bool, str, Filepaths]:
     run = disk.Run(cfg.run)
     md = Metadata.load(cfg.data.shards)
     fpaths = Filepaths.from_run(run, md)
-    missing = [fpath for fpath in fpaths if not fpath.exists()]
+
+    if cfg.save:
+        required = list(fpaths)
+        mode = "full artifacts"
+    else:
+        required = [fpaths.metrics]
+        mode = "metrics only"
+    missing = [fpath for fpath in required if not fpath.exists()]
 
     if not cfg.force_recompute and not missing:
-        reason = "Found all files."
+        reason = f"Found all required files ({mode})."
         return False, reason, fpaths
 
     if cfg.force_recompute:
-        reason = "Force recompute flag set; computing activations."
+        reason = f"Force recompute flag set; computing {mode}."
         return True, reason, fpaths
 
     missing_msg = ", ".join(str(f) for f in missing)
-    return True, f"Missing files {missing_msg}; computing activations.", fpaths
+    return True, f"Missing files {missing_msg}; computing {mode}.", fpaths
 
 
 @beartype.beartype
@@ -144,11 +155,14 @@ def worker_fn(cfg: Config):
     assert cfg.data.tokens == "content"
     sae = nn.load(run.ckpt).to(cfg.device)
 
-    sparsity_s = torch.zeros((sae.cfg.d_sae,), device=cfg.device)
-    mean_values_s = torch.zeros((sae.cfg.d_sae,), device=cfg.device)
-
-    # Initialize image-level activations
-    token_acts_blocks = []
+    if cfg.save:
+        sparsity_s = torch.zeros((sae.cfg.d_sae,), device=cfg.device)
+        mean_values_s = torch.zeros((sae.cfg.d_sae,), device=cfg.device)
+        token_acts_blocks: list[scipy.sparse.csr_array] = []
+    else:
+        sparsity_s = None
+        mean_values_s = None
+        token_acts_blocks = None
 
     batch_size = (
         cfg.data.batch_size
@@ -159,9 +173,12 @@ def worker_fn(cfg: Config):
         dataclasses.replace(cfg.data, batch_size=batch_size),
     )
 
-    distributions_nm = torch.zeros(
-        (dataloader.n_samples, cfg.n_dists), device=cfg.device
-    )
+    if cfg.save:
+        distributions_nm = torch.zeros(
+            (dataloader.n_samples, cfg.n_dists), device=cfg.device
+        )
+    else:
+        distributions_nm = None
     ignore = torch.tensor(cfg.ignore_labels)
 
     # float64 accumulators keep NMSE numerics stable when evaluating Q - |S|^2 / N.
@@ -172,7 +189,8 @@ def worker_fn(cfg: Config):
 
     logger.info("Loaded SAE and data.")
 
-    prev_i = -1
+    if cfg.save:
+        prev_i = -1
 
     dataloader_iter = tp.cast(
         collections.abc.Iterable[dict[str, torch.Tensor]], dataloader
@@ -198,6 +216,14 @@ def worker_fn(cfg: Config):
             sum_sq += (vit_masked_bd * vit_masked_bd).sum()
             sum_vec_s += vit_masked_bd.sum(dim=0)
 
+        if not cfg.save:
+            continue
+
+        assert distributions_nm is not None
+        assert mean_values_s is not None
+        assert sparsity_s is not None
+        assert token_acts_blocks is not None
+
         # Update statistics
         f_x = out.f_x
         distributions_nm[batch["example_idx"][mask_b], :] = f_x[mask_b, : cfg.n_dists]
@@ -220,18 +246,24 @@ def worker_fn(cfg: Config):
         token_acts_blocks.append(scipy.sparse.csr_array(f_x.cpu().numpy()))
         prev_i = batch_idx[-1].item()
 
-    # Finalize statistics
-    mean_values_s /= sparsity_s
-    sparsity_s /= dataloader.n_samples
+    if cfg.save:
+        assert mean_values_s is not None
+        assert sparsity_s is not None
+        assert token_acts_blocks is not None
+        assert distributions_nm is not None
 
-    # Sparse CSR array
-    token_acts = scipy.sparse.vstack(token_acts_blocks, format="csr")
-    scipy.sparse.save_npz(fpaths.token_acts, token_acts)
+        # Finalize statistics
+        mean_values_s /= sparsity_s
+        sparsity_s /= dataloader.n_samples
 
-    # Statistics
-    torch.save(mean_values_s.cpu(), fpaths.mean_values)
-    torch.save(sparsity_s.cpu(), fpaths.sparsity)
-    torch.save(distributions_nm.cpu(), fpaths.distributions)
+        # Sparse CSR array
+        token_acts = scipy.sparse.vstack(token_acts_blocks, format="csr")
+        scipy.sparse.save_npz(fpaths.token_acts, token_acts)
+
+        # Statistics
+        torch.save(mean_values_s.cpu(), fpaths.mean_values)
+        torch.save(sparsity_s.cpu(), fpaths.sparsity)
+        torch.save(distributions_nm.cpu(), fpaths.distributions)
 
     # Metrics
     sse_sae = reconstruction_sse.item()
