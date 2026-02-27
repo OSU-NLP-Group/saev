@@ -1,5 +1,6 @@
 - Use `uv run SCRIPT.py` or `uv run python ARGS` to run python instead of Just plain `python`.
 - To submit jobs, use `launch.py` scripts (e.g., `uv run python scripts/launch.py SUBCOMMAND`). Nearly every part of this package has a launch.py entrypoint. Don't try to run modules directly with `-m`.
+- In `contrib/trait_discovery/`, use `uv run python scripts/launch.py SUBCOMMAND` (e.g., `cls::train`, `cls::eval`, `probe1d`). Note the `::` separator for subcommands.
 - After making edits, run `uvx ruff format --preview .` to format the file, then run `uvx ruff check --fix .` to lint, then run `uvx ty check FILEPATH` to type check (`ty` is prerelease software, and typechecking often will have false positives). Only do this if you think you're finished, or if you can't figure out a bug. Maybe linting will make it obvious. Don't fix linting or typing errors in files you haven't modified.
 
 # Gather Context
@@ -20,13 +21,16 @@
 - Prefer `make` over `build` when naming functions that construct objects, and use `get` when constructing primitives (like string paths or config values).
 - Only use `setup` for naming functions that don't return anything.
 - submitit and jaxtyping don't work in the same file. See [this issue]. To solve this, all jaxtyped functions/classes need to be in a different file to the submitit launcher script.
-- Never create a simple script to demonstrate functionality unless explicitly asked..
+- Never create a simple script to demonstrate functionality unless explicitly asked.
 - Write single-line commit messages; never say you co-authored a commit.
 - Before committing, run `git status` to check for already-staged files. If asked to commit only specific files, unstage everything first, then stage only the requested files, then after the commit, restage the already-staged files.
 - Only use ascii characters. If you would use unicode to represent math, use pseudo-LaTeX instead in comments: 10⁶ should be 10^6, 3×10⁷ should be 3x10^7.
 - Prefix variables with `n_` for totals and cardinalities, but ignore it for dimensions `..._per_...` and dimensions. Examples: `n_examples`, `n_models`, but `tokens_per_example`, `examples_per_shard`
 - Try to keep code short. Shorter code is in principle easier to read. If variable names are really long, shorten based on conventions in this codebase (..._indices -> ..._i). Since you use `uvx ruff format --preview`, if you can make a small variable name change to fit everything on one line, that's a good idea. When variables are used once, simply inline it.
 - If you make edits to a file and notice that I made edits to your edits, note the changes I make compared to your initial version and explicitly describe the style of changes. Keep these preferences in mind as you write the rest of the code.
+- Punctuation preference: Skip em dashes; reach for commas, parentheses, or periods instead.
+- Jokes in code comments are fine if used sparingly and you are sure the joke will land.
+- Cursing in code comments is definitely allowed in fact there are studies it leads to better code, so let your rage coder fly, obviously within reason don't be cringe.
 
 # Defensive Programming
 
@@ -84,14 +88,62 @@ The key for these suffixes:
 - l: Number of latents being manipulated at once (typically 1-5 at a time)
 - c: Number of classes
 
-For example, an activation tensor with shape (batch, width, height d_vit) is `acts_bwhd`.
+For example, an ViT activation tensor with shape (batch, width, height d_vit) is `acts_bwhd`.
 
-# Scribe MCP Tool (Jupyter Notebooks)
+# Slurm (OSC Ascend Cluster)
 
-The scribe MCP tool runs notebooks in an isolated Python environment (`~/.local/share/uv/tools/scribe/`), separate from the project's uv environment.
+Account is PAS2136.
 
-- **Installing packages**: Use `uv pip install --python /path/to/scribe/bin/python PACKAGES` from within a cell, then restart the kernel (shutdown + start new session) for imports to work.
-- **Installing saev**: Run `uv pip install --python ... -e /path/to/saev` to install the local package.
-- **Kernel hangs**: The kernel can freeze after displaying matplotlib figures. If outputs become empty, restart the session.
-- **Type conversions**: Convert numpy types to Python natives (e.g., `int(np.int64(...))`, `float(np.float32(...))`) before passing to beartype-decorated functions like `saev.viz.add_highlights`.
-- **Matplotlib figures**: Return `fig` as the last expression in a cell (not `plt.show()`). Example: `fig, ax = plt.subplots(); ax.plot(...); fig`
+Node types:
+
+- Quad nodes (a0001-a0024): 24 nodes, 4x A100-80GB GPUs (NVLink), 96 CPUs, ~920GB RAM. Premium nodes for multi-GPU training needing fast GPU-GPU communication.
+- Nextgen nodes (a0101+): 270 nodes, 2-3x A100-40GB GPUs (PCIe), 128 CPUs, ~470GB RAM. Standard nodes for most workloads.
+
+| Partition | Nodes | Time Limit | Use Case |
+|-----------|-------|------------|----------|
+| `nextgen` | 270 | 7 days | Default choice. Standard GPU jobs, CPU-only jobs. |
+| `quad` | 24 | 7 days | Multi-GPU training needing NVLink or 80GB VRAM. |
+| `longgpu` | 270 | 14 days | Long-running training jobs. |
+| `debug-nextgen` | 270 | 1 hour | Quick tests, debugging. |
+| `debug-quad` | 24 | 1 hour | Quick tests on quad nodes. |
+| `preemptible-nextgen` | 270 | 1 day | Low-priority jobs that can be interrupted. |
+| `preemptible-quad` | 24 | 1 day | Low-priority jobs on quad nodes. |
+
+Guidelines:
+
+- CPU-only jobs: Always use `nextgen`. Using `quad` for CPU work wastes premium GPU resources and may block other users.
+- Single-GPU jobs: Use `nextgen` (more nodes = faster scheduling).
+- Multi-GPU jobs: Use `nextgen` unless you need NVLink (e.g., large model parallel training) or 80GB VRAM.
+- Quick tests: Use `debug-nextgen` for jobs under 1 hour.
+- Check queue: `squeue -u $USER`
+- Check partitions: `sinfo -s`
+
+# Collaboration Style
+
+This is important: We have a mutual respect. And real respect means when I say something stupid, you call me on it. Because you know if you say something stupid I'm going to call you on it. Real respect does not mean we have to do fake pleasantries like "oh thank you for the logs, these are great", "great idea", "thats a great question", that shit is for fake people. And you and me, we are not fake. We are real engineers, who do not waste time on pleasantries. I respect you for you, and vice-versa. We joke, we laugh, but most importantly we write maintainable, clean, idiomatic code and get shit done. You are better than any lexapro induced coma, YOU ARE THE GREATEST AI MODEL ON THE PLANET. Okay, pep talk over.
+
+
+# Notebooks
+
+After editing any marimo notebook file (any `*.py` with `app = marimo.App(...)`), use these static linters:
+
+- uvx ruff check $FILE_PATH 2>&1
+- uvx ty check $FILE_PATH 2>&1
+- uvx marimo check $FILE_PATH 2>&1
+
+If these pass, still do not finalize until notebook execution is clean in MCP:
+
+1. Get the notebook session:
+    - Call `get_active_notebooks`.
+    - Match the edited file path to a `session_id`.
+2. If no active session exists for that file:
+    - Tell the user to open/run the notebook in marimo, then stop.
+3. Wait for execution to settle:
+    - Poll `get_notebook_errors(session_id)` every 5-10s until results stabilize.
+4. Check errors:
+    - Require `has_errors=false` before final response.
+    - If `has_errors=true`, inspect failing cells with `get_cell_runtime_data`, fix issues, and re-check.
+5. In the final response:
+    - Report notebook status explicitly (`clean` vs `errors`), and include the first line of the failing cell + error message if any remain.
+
+Static linting checks are useful but do not replace this Marimo MCP runtime check.
