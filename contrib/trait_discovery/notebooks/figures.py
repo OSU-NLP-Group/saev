@@ -10,22 +10,45 @@ def _(mo):
     # Figures for "Towards Open-Ended Visual Scientific Discovery with Sparse Autoencoders"
 
     This notebook hardcodes run ids for reproducible figures.
+
+    ## Coding Style For This Notebook
+
+    - Use `RunSpec` + `load_df(specs)` as the single data-loading interface.
+    - Define run IDs inside each figure function/cell (local scope), not as global dicts.
+    - Keep each figure self-contained:
+      - create `specs: list[RunSpec]`
+      - call `load_df(specs)`
+      - make the plot
+      - save figure artifacts (`.pdf`, `.csv`) to a fixed output path.
+    - Do not create notebook-global loop variables like `method`; keep iteration inside figure functions.
+    - Add short provenance comments next to run IDs (sweep file, tag, or paper figure reference) when relevant.
+    - Prefer explicit, reproducible constants over dynamic discovery for publication figures.
+
+    ## Typical Pattern
+
+    1. Write `plot_<figure_name>()`.
+    2. Inside it, define `specs = [RunSpec(...), ...]`.
+    3. `df, skipped = load_df(specs)`.
+    4. Plot from `df`, then write `csv_df` and save both `pdf` and `csv`.
     """)
     return
 
 
 @app.cell
 def _():
+    import dataclasses
     import json
     import pathlib
+    import typing as tp
 
+    import beartype
     import marimo as mo
     import matplotlib.pyplot as plt
     import polars as pl
     import wandb
 
     import saev.colors
-    return json, mo, pathlib, pl, plt, saev, wandb
+    return beartype, dataclasses, json, mo, pathlib, pl, plt, saev, tp, wandb
 
 
 @app.cell
@@ -37,93 +60,35 @@ def _():
         "saev": "/fs/ess/PAS2136/samuelstevens/saev/runs",
         "tdiscovery": "/fs/ess/PAS2136/samuelstevens/tdiscovery/saev/runs",
     }
+    return BASELINES_PROJECT, NMSE_SHARD, RUNS_ROOT_BY_PROJECT, SAE_PROJECT
 
-    SAE_FRONTIER_RUN_IDS = {
-        "sae_relu": [
-            "o1p9wl76",  # l0=4.6951, mse_per_dim=1637.764365
-            "4mlqkei5",  # l0=12.5161, mse_per_dim=1534.299025
-            # "afyydka9",  # l0=15.8899, mse_per_dim=1476.179415
-            "wrnz7h7h",  # l0=17.2249, mse_per_dim=1447.692099
-            "xayzq0hf",  # l0=28.8599, mse_per_dim=1241.725317
-            "0pdum8cq",  # l0=64.1767, mse_per_dim=669.398748
-            "t1na9yxo",  # l0=95.4205, mse_per_dim=434.158730
-            "extl56w1",  # l0=159.2812, mse_per_dim=395.304504
-            "6iom0amk",  # l0=264.1799, mse_per_dim=390.610977
-            "i1ujcsi6",  # l0=379.2087, mse_per_dim=304.383475
-            # "ho86h0gp",  # l0=443.6865, mse_per_dim=278.592489
-            "as770651",  # l0=446.2740, mse_per_dim=272.134337
-            "yt2roil5",  # l0=1459.4689, mse_per_dim=89.008199
-            "dt1y8m94",  # l0=1747.1838, mse_per_dim=0.952541
-        ],
-        "matryoshka_relu": [
-            "lnleoyf6",  # l0=0.0000, mse_per_dim=1832.850685
-            "ibt2fgta",  # l0=1.0016, mse_per_dim=1760.521387
-            "6l12fjm9",  # l0=1.9635, mse_per_dim=1714.864075
-            "5mv59srt",  # l0=2.9002, mse_per_dim=1679.079346
-            # "rfic94if",  # l0=3.2941, mse_per_dim=1548.449883
-            "t1vh0qy1",  # l0=3.3380, mse_per_dim=1547.279089
-            "mccrm7u8",  # l0=6.5307, mse_per_dim=1083.430236
-            "t88ez13w",  # l0=7.9325, mse_per_dim=993.290721
-            # "fxcpfysr",  # l0=9.3983, mse_per_dim=991.013977
-            "kd2pd8rs",  # l0=83.0466, mse_per_dim=757.653901
-            "9drbwvhg",  # l0=164.6356, mse_per_dim=402.543121
-            # "09srbijj",  # l0=165.9475, mse_per_dim=399.818371
-            "1qynjykb",  # l0=214.8222, mse_per_dim=379.635062
-            "0pz90ly4",  # l0=801.8717, mse_per_dim=81.512418
-            # "ybm0jqi4",  # l0=827.4175, mse_per_dim=73.074294
-            # "kn0f5a3v",  # l0=931.4901, mse_per_dim=29.285765
-            "2pdk23cz",  # l0=940.7733, mse_per_dim=26.932229
-            "9fn4l6rf",  # l0=1574.4723, mse_per_dim=8.880592
-        ],
-        "matryoshka_topk": [
-            # Source: contrib/trait_discovery/sweeps/003_auxk/probe1d.py, in1k_run_ids[23].
-            # AuxK-only subset for layer 23 (top_k in {16, 64, 256}).
-            # main.tex Figure 2 (fig:mse-l0) uses final-layer DINOv3 ViT-L/16 activations, which is config layer=23.
-            "flqkcam7",  # top_k=16, auxk
-            "s3pqewz1",  # top_k=64, auxk
-            "l8hooa3r",  # top_k=256, auxk
-        ],
-    }
 
-    BASELINE_RUN_IDS = {
-        "kmeans": [
-            "myy5btgw",
-        ],
-        "pca": [
-            "qmbo5jxw",
-            "kwh4twl0",
-            "za1xuhhn",
-            "a1x1laxm",
-            "unu6dbfb",
-            "dzv7ha4u",
-        ],
-        "semi_nmf": [
-            "lm51bf37",
-            "em7hzdw0",
-            "cmf1j0gd",
-            "q6qtn8f6",
-            "rv1wfbws",
-            "k9sot7dd",
-        ],
-    }
-    return (
-        BASELINES_PROJECT,
-        BASELINE_RUN_IDS,
-        NMSE_SHARD,
-        RUNS_ROOT_BY_PROJECT,
-        SAE_FRONTIER_RUN_IDS,
-        SAE_PROJECT,
-    )
+@app.cell
+def _(beartype, dataclasses, tp):
+    @beartype.beartype
+    @dataclasses.dataclass(frozen=True)
+    class RunSpec:
+        """Source specification for one method line in a figure."""
+
+        method: str
+        """What method we're using to do dictionary learning."""
+        run_ids: list[str]
+        """List of wandb run ids."""
+        project: tp.Literal['saev', 'tdiscovery'] = "saev"
+        """Wandb project (`saev` or `tdiscovery`)."""
+        l0_key: str | int | float = "eval/l0"
+        """How to compute L0. Allowed patterns: `eval/<summary_key>` (for W&B summary keys like `eval/l0`), `config/<config_key>` (for top-level config keys like `config/k`), or a numeric constant (for fixed baselines like `1.0`)."""
+    return (RunSpec,)
 
 
 @app.cell
 def _(
     BASELINES_PROJECT,
-    BASELINE_RUN_IDS,
     NMSE_SHARD,
     RUNS_ROOT_BY_PROJECT,
-    SAE_FRONTIER_RUN_IDS,
+    RunSpec,
     SAE_PROJECT,
+    beartype,
     json,
     pathlib,
     pl,
@@ -131,16 +96,17 @@ def _(
 ):
     api = wandb.Api()
 
-
+    @beartype.beartype
     def get_metrics_fpath(run_id: str, project: str) -> pathlib.Path:
         runs_root = pathlib.Path(RUNS_ROOT_BY_PROJECT[project])
         return runs_root / run_id / "inference" / NMSE_SHARD / "metrics.json"
 
-
+    @beartype.beartype
     def get_disk_metrics(run_id: str, project: str) -> dict[str, float] | None:
         metrics_fpath = get_metrics_fpath(run_id, project)
         if not metrics_fpath.exists():
             return None
+
         with open(metrics_fpath) as fd:
             metrics = json.load(fd)
 
@@ -165,71 +131,159 @@ def _(
             "mse_per_dim": float(metrics["mse_per_dim"]),
         }
 
+    @beartype.beartype
+    def get_l0(run: wandb.apis.public.Run, l0_key: str | int | float) -> float | None:
+        if isinstance(l0_key, int | float) and not isinstance(l0_key, bool):
+            return float(l0_key)
 
-    rows: list[dict[str, object]] = []
-    skipped_run_ids: list[str] = []
+        if not isinstance(l0_key, str):
+            return None
 
-    for method, run_ids in SAE_FRONTIER_RUN_IDS.items():
-        for run_id in run_ids:
-            run = api.run(f"{SAE_PROJECT}/{run_id}")
-            disk_metrics = get_disk_metrics(run_id, "saev")
-            if disk_metrics is None:
-                skipped_run_ids.append(run_id)
-                continue
-            rows.append(
-                {
+        if l0_key.startswith("config/"):
+            config_key = l0_key.removeprefix("config/")
+            if "/" in config_key:
+                return None
+            value = run.config.get(config_key)
+        else:
+            value = run.summary.get(l0_key)
+            if value is None:
+                value = run.config.get(l0_key)
+
+        if isinstance(value, int | float) and not isinstance(value, bool):
+            return float(value)
+        return None
+
+    @beartype.beartype
+    def load_df(specs: list[RunSpec]) -> tuple[pl.DataFrame, list[str]]:
+        rows: list[dict[str, object]] = []
+        skipped_run_ids: list[str] = []
+
+        for spec in specs:
+            run_project = SAE_PROJECT if spec.project == "saev" else BASELINES_PROJECT
+            for run_id in spec.run_ids:
+                disk_metrics = get_disk_metrics(run_id, spec.project)
+                if disk_metrics is None:
+                    skipped_run_ids.append(run_id)
+                    continue
+
+                run = api.run(f"{run_project}/{run_id}")
+                l0 = get_l0(run, spec.l0_key)
+                if l0 is None:
+                    skipped_run_ids.append(run_id)
+                    continue
+
+                layer = run.config.get("train_data", {}).get("layer")
+                if not isinstance(layer, int):
+                    skipped_run_ids.append(run_id)
+                    continue
+
+                rows.append({
                     "id": run.id,
-                    "method": method,
-                    "l0": float(run.summary["eval/l0"]),
-                    "mse_per_dim": disk_metrics["mse_per_dim"],
-                    "nmse": disk_metrics["nmse"],
-                    "layer": int(run.config["train_data"]["layer"]),
-                }
-            )
-
-    for method, run_ids in BASELINE_RUN_IDS.items():
-        for run_id in run_ids:
-            run = api.run(f"{BASELINES_PROJECT}/{run_id}")
-            disk_metrics = get_disk_metrics(run_id, "tdiscovery")
-            if disk_metrics is None:
-                skipped_run_ids.append(run_id)
-                continue
-            if method == "kmeans":
-                l0 = 1.0
-            else:
-                l0 = float(run.config["k"])
-
-            rows.append(
-                {
-                    "id": run.id,
-                    "method": method,
+                    "method": spec.method,
                     "l0": l0,
                     "mse_per_dim": disk_metrics["mse_per_dim"],
                     "nmse": disk_metrics["nmse"],
-                    "layer": int(run.config["train_data"]["layer"]),
-                }
+                    "layer": layer,
+                })
+
+        if not rows:
+            return (
+                pl.DataFrame(
+                    schema={
+                        "id": pl.String,
+                        "method": pl.String,
+                        "l0": pl.Float64,
+                        "mse_per_dim": pl.Float64,
+                        "nmse": pl.Float64,
+                        "layer": pl.Int64,
+                    }
+                ),
+                skipped_run_ids,
             )
 
-    df = pl.DataFrame(rows).sort("method", "l0")
-    df
-    return df, skipped_run_ids
+        return pl.DataFrame(rows).sort("method", "l0"), skipped_run_ids
+    return (load_df,)
 
 
 @app.cell
-def _(df, mo, skipped_run_ids: list[str]):
-    msg = f"Loaded {df.height} runs from disk metrics only (no wandb metric fallback)."
-    if skipped_run_ids:
-        msg = (
-            msg
-            + f" Skipped {len(skipped_run_ids)} runs with missing/old metrics schema: {', '.join(skipped_run_ids)}."
-        )
-    mo.md(msg)
-    return
+def _(RunSpec, load_df, mo, pl, plt, saev):
+    def plot_mse_l0_tradeoff():
+        specs = [
+            RunSpec(
+                "sae_relu",
+                [
+                    "o1p9wl76",
+                    "4mlqkei5",
+                    "wrnz7h7h",
+                    "xayzq0hf",
+                    "0pdum8cq",
+                    "t1na9yxo",
+                    "extl56w1",
+                    "6iom0amk",
+                    "i1ujcsi6",
+                    "as770651",
+                    "yt2roil5",
+                    "dt1y8m94",
+                ],
+            ),
+            RunSpec(
+                "matryoshka_relu",
+                [
+                    "lnleoyf6",
+                    "ibt2fgta",
+                    "6l12fjm9",
+                    "5mv59srt",
+                    "t1vh0qy1",
+                    "mccrm7u8",
+                    "t88ez13w",
+                    "kd2pd8rs",
+                    "9drbwvhg",
+                    "1qynjykb",
+                    "0pz90ly4",
+                    "2pdk23cz",
+                    "9fn4l6rf",
+                ],
+            ),
+            RunSpec(
+                "matryoshka_topk",
+                # Source: contrib/trait_discovery/sweeps/003_auxk/probe1d.py, in1k_run_ids[23].
+                # AuxK-only subset for layer 23 (top_k in {16, 64, 256}).
+                ["flqkcam7", "s3pqewz1", "l8hooa3r"],
+            ),
+            RunSpec("kmeans", ["myy5btgw"], project="tdiscovery", l0_key=1.0),
+            RunSpec(
+                "pca",
+                [
+                    "qmbo5jxw",
+                    "kwh4twl0",
+                    "za1xuhhn",
+                    "a1x1laxm",
+                    "unu6dbfb",
+                    "dzv7ha4u",
+                ],
+                project="tdiscovery",
+                l0_key="config/k",
+            ),
+            RunSpec(
+                "semi_nmf",
+                [
+                    "lm51bf37",
+                    "em7hzdw0",
+                    "cmf1j0gd",
+                    "q6qtn8f6",
+                    "rv1wfbws",
+                    "k9sot7dd",
+                ],
+                project="tdiscovery",
+                l0_key="config/k",
+            ),
+        ]
+        df, skipped_run_ids = load_df(specs)
+        msg = f"Loaded {df.height} runs from disk metrics only (no wandb metric fallback)."
+        if skipped_run_ids:
+            msg += f" Skipped {len(skipped_run_ids)} runs with missing metrics/l0: {', '.join(skipped_run_ids)}."
+        mo.output.append(mo.md(msg))
 
-
-@app.cell
-def _(df, pl, plt, saev):
-    def plot_mse_l0_tradeoff(df):
         fig, ax = plt.subplots(figsize=(5.5, 3.5), dpi=300, layout="constrained")
         alpha = 0.7
         xticks = [1, 4, 16, 64, 256, 1024]
@@ -327,19 +381,20 @@ def _(df, pl, plt, saev):
         ax.grid(True, linewidth=0.3, alpha=0.7)
         ax.spines[["right", "top"]].set_visible(False)
         ax.legend(frameon=True, ncol=1)
+
         csv_df = (
-            pl.concat(csv_parts)
+            pl
+            .concat(csv_parts)
             .sort("method", "l0")
             .select("id", "layer", "method", "l0", "mse_per_dim", "nmse")
         )
-
         out_prefix = "contrib/trait_discovery/docs/assets/dinov3_vitl16_in1k_baselines"
         fig.savefig(f"{out_prefix}.pdf")
         csv_df.write_csv(f"{out_prefix}.csv")
+
         return fig
 
-
-    plot_mse_l0_tradeoff(df)
+    plot_mse_l0_tradeoff()
     return
 
 
