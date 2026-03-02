@@ -552,13 +552,12 @@ def train_cli(
     import submitit
 
     executor = submitit.SlurmExecutor(folder=base_cfg.log_to)
-    n_cpus = max(8, base_cfg.mem_gb // 10)
     executor.update_parameters(
         time=int(base_cfg.n_hours * 60),
         partition=base_cfg.slurm_partition,
         gpus_per_node=0,  # CPU only for OMP
         ntasks_per_node=1,
-        cpus_per_task=n_cpus,
+        mem=f"{base_cfg.mem_gb}GB",
         stderr_to_stdout=True,
         account=base_cfg.slurm_acct,
     )
@@ -980,13 +979,12 @@ def eval_cli(
     import submitit
 
     executor = submitit.SlurmExecutor(folder=base_cfg.log_to)
-    n_cpus = max(8, base_cfg.mem_gb // 10)
     executor.update_parameters(
         time=int(base_cfg.n_hours * 60),
         partition=base_cfg.slurm_partition,
         gpus_per_node=0,
         ntasks_per_node=1,
-        cpus_per_task=n_cpus,
+        mem=f"{base_cfg.mem_gb}GB",
         stderr_to_stdout=True,
         account=base_cfg.slurm_acct,
     )

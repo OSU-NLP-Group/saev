@@ -752,19 +752,12 @@ def main(
     if cfg.slurm_acct:
         executor = submitit.SlurmExecutor(folder=cfg.log_to)
 
-        n_cpus = max(cfg.train_data.n_threads, cfg.val_data.n_threads) + 4
-        if cfg.mem_gb // 10 > n_cpus:
-            logger.info(
-                "Using %d CPUs instead of %d to get more RAM.", cfg.mem_gb // 10, n_cpus
-            )
-            n_cpus = cfg.mem_gb // 10
-
         executor.update_parameters(
             time=int(cfg.n_hours * 60),
             partition=cfg.slurm_partition,
             gpus_per_node=1,
             ntasks_per_node=1,
-            cpus_per_task=n_cpus,
+            mem=f"{cfg.mem_gb}GB",
             stderr_to_stdout=True,
             account=cfg.slurm_acct,
         )
