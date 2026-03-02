@@ -228,6 +228,93 @@ def test_load_schema4_with_seed(tmp_path):
     assert sae.cfg.d_model == header["cfg"]["d_model"]
 
 
+# -- Regression tests for W_enc / W_dec shared-storage bug --
+#
+# Without .clone() in __init__, W_enc = Parameter(W_dec.data.T) creates a
+# transposed view sharing the same storage. .to("cuda") breaks the sharing so
+# training is fine, but load_state_dict on CPU preserves it, corrupting one
+# weight matrix when the other is written. These six tests pin that fix.
+
+
+def _make_sae_and_loaded(cfg):
+    """Build an SAE, perturb W_enc away from W_dec.T, dump, reload."""
+    import tempfile
+
+    sae = modeling.SparseAutoencoder(cfg)
+    with torch.no_grad():
+        sae.W_enc.add_(torch.randn_like(sae.W_enc) * 0.1)
+    with tempfile.TemporaryDirectory() as tmp:
+        ckpt = f"{tmp}/sae.pt"
+        modeling.dump(ckpt, sae)
+        loaded = modeling.load(ckpt)
+    return sae, loaded
+
+
+@settings(deadline=None)
+@given(cfg=sae_cfgs())
+def test_dump_load_state_dict_identical(cfg):
+    """Dumped -> loaded SAE has identical state_dict tensors."""
+    sae, loaded = _make_sae_and_loaded(cfg)
+    for k, v in sae.state_dict().items():
+        torch.testing.assert_close(v, loaded.state_dict()[k])
+
+
+@settings(deadline=None)
+@given(cfg=sae_cfgs(), batch=st.integers(min_value=1, max_value=4))
+def test_dump_load_forward_identical(cfg, batch):
+    """Dumped -> loaded SAE produces identical forward pass."""
+    sae, loaded = _make_sae_and_loaded(cfg)
+    x = torch.randn(batch, cfg.d_model)
+    sae.eval()
+    loaded.eval()
+    with torch.no_grad():
+        torch.testing.assert_close(sae(x).x_hats, loaded(x).x_hats)
+
+
+@settings(deadline=None)
+@given(cfg=sae_cfgs())
+def test_init_mutate_w_dec_preserves_w_enc(cfg):
+    """Mutating W_dec on a fresh SAE doesn't corrupt W_enc."""
+    sae = modeling.SparseAutoencoder(cfg)
+    w_enc_before = sae.W_enc.data.clone()
+    with torch.no_grad():
+        sae.W_dec.add_(1.0)
+    torch.testing.assert_close(sae.W_enc.data, w_enc_before)
+
+
+@settings(deadline=None)
+@given(cfg=sae_cfgs())
+def test_loaded_mutate_w_dec_preserves_w_enc(cfg):
+    """Mutating W_dec on a loaded SAE doesn't corrupt W_enc."""
+    _sae, loaded = _make_sae_and_loaded(cfg)
+    w_enc_before = loaded.W_enc.data.clone()
+    with torch.no_grad():
+        loaded.W_dec.add_(1.0)
+    torch.testing.assert_close(loaded.W_enc.data, w_enc_before)
+
+
+@settings(deadline=None)
+@given(cfg=sae_cfgs())
+def test_init_mutate_w_enc_preserves_w_dec(cfg):
+    """Mutating W_enc on a fresh SAE doesn't corrupt W_dec."""
+    sae = modeling.SparseAutoencoder(cfg)
+    w_dec_before = sae.W_dec.data.clone()
+    with torch.no_grad():
+        sae.W_enc.add_(1.0)
+    torch.testing.assert_close(sae.W_dec.data, w_dec_before)
+
+
+@settings(deadline=None)
+@given(cfg=sae_cfgs())
+def test_loaded_mutate_w_enc_preserves_w_dec(cfg):
+    """Mutating W_enc on a loaded SAE doesn't corrupt W_dec."""
+    _sae, loaded = _make_sae_and_loaded(cfg)
+    w_dec_before = loaded.W_dec.data.clone()
+    with torch.no_grad():
+        loaded.W_enc.add_(1.0)
+    torch.testing.assert_close(loaded.W_dec.data, w_dec_before)
+
+
 def test_remove_parallel_grads_handles_non_normalized_rows():
     cfg = modeling.SparseAutoencoderConfig(
         d_model=4, d_sae=4, normalize_w_dec=False, remove_parallel_grads=True
