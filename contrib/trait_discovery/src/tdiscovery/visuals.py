@@ -3,8 +3,11 @@
 import dataclasses
 import logging
 import math
+import os
 import pathlib
 import random
+import sys
+import time
 import typing as tp
 
 import beartype
@@ -17,6 +20,7 @@ from jaxtyping import Float, jaxtyped
 from PIL import Image
 from torch import Tensor
 
+import saev.configs
 import saev.data
 import saev.disk
 import saev.helpers
@@ -43,6 +47,8 @@ class Config:
     """Which patch labels to ignore when calculating summarized image activations."""
     palette: pathlib.Path | None = None
     """Path to a palette .txt file."""
+    save_seg: bool = True
+    """Whether to render segmentation maps."""
 
     # Hardware
     device: str = "cuda" if torch.cuda.is_available() else "cpu"
@@ -64,6 +70,18 @@ class Config:
     """Number of top images to visualize per feature."""
     seed: int = 42
     """Random seed."""
+
+    # Slurm
+    slurm_acct: str = ""
+    """Slurm account string. Empty means to not use Slurm."""
+    slurm_partition: str = ""
+    """Slurm partition."""
+    n_hours: float = 2.0
+    """Slurm job length in hours."""
+    mem_gb: int = 80
+    """Node memory in GB."""
+    log_to: str = os.path.join(".", "logs")
+    """Where to log Slurm job stdout/stderr."""
 
 
 @jaxtyped(typechecker=beartype.beartype)
@@ -169,14 +187,11 @@ def safe_load(path: pathlib.Path) -> Tensor:
 
 @beartype.beartype
 @torch.inference_mode()
-def cli(cfg: tp.Annotated[Config, tyro.conf.arg(name="")]):
+def worker_fn(cfg: Config):
     """Generate visual outputs for particular latents."""
 
     try:
         run = saev.disk.Run(cfg.run)
-        # MASSIVE HACK
-        # d_sae = run.config["k"]
-        d_sae = run.config["sae"]["d_sae"]
         token_acts = scipy.sparse.load_npz(
             run.inference / cfg.shards.name / "token_acts.npz"
         )
@@ -186,6 +201,11 @@ def cli(cfg: tp.Annotated[Config, tyro.conf.arg(name="")]):
     except FileNotFoundError as err:
         logger.error("Required activation files not found: %s. Run inference.py", err)
         return
+    d_sae = token_acts.shape[1]
+    msg = f"mean_values has {mean_values_s.numel()} entries, expected {d_sae}"
+    assert mean_values_s.numel() == d_sae, msg
+    msg = f"sparsity has {sparsity_s.numel()} entries, expected {d_sae}"
+    assert sparsity_s.numel() == d_sae, msg
 
     # Create indexed activations dataset for efficient patch retrieval
     md = saev.data.Metadata.load(cfg.shards)
@@ -254,16 +274,18 @@ def cli(cfg: tp.Annotated[Config, tyro.conf.arg(name="")]):
     assert topk_token_idx.max() < token_acts.shape[0]
     logger.info("Calculated top-k for each latent.")
 
-    if cfg.palette is None:
-        import glasbey
+    if cfg.save_seg:
+        if cfg.palette is None:
+            import glasbey
 
-        palette = [
-            tuple(rgb) for rgb in glasbey.create_palette(palette_size=256, as_hex=False)
-        ]
-    else:
-        palette = saev.viz.load_palette(cfg.palette)
+            palette = [
+                tuple(rgb)
+                for rgb in glasbey.create_palette(palette_size=256, as_hex=False)
+            ]
+        else:
+            palette = saev.viz.load_palette(cfg.palette)
 
-    logger.info("Generated palette with %d colors.", len(palette))
+        logger.info("Generated palette with %d colors.", len(palette))
 
     patch_size = int(vit.patch_size * cfg.img_scale)
 
@@ -299,15 +321,28 @@ def cli(cfg: tp.Annotated[Config, tyro.conf.arg(name="")]):
         upper = token_values_kp.max().item()
 
         for j, example in enumerate(examples):
+            # Compute tokens to display, zeroing out ignored labels if specified
+            display_tokens = example.tokens.copy()
+            if cfg.ignore_labels and example.seg is not None:
+                patch_labels = saev.data.shards.pixel_to_patch_labels(
+                    example.seg,
+                    md.content_tokens_per_example,
+                    patch_size,
+                    md.pixel_agg,
+                    img_ds.cfg.bg_label,
+                ).numpy()
+                for label in cfg.ignore_labels:
+                    display_tokens[patch_labels == label] = 0.0
+
             # 1. Save original image under {j}_img.png
             example.img.save(feature_dir / f"{j}_img.png")
             # 2. Save SAE highlighted image under {j}_sae_img.png
             img_with_highlights = saev.viz.add_highlights(
-                example.img, example.tokens, patch_size, upper=upper
+                example.img, display_tokens, patch_size, upper=upper
             )
             img_with_highlights.save(feature_dir / f"{j}_sae_img.png")
 
-            if example.seg is not None:
+            if cfg.save_seg and example.seg is not None:
                 # 3. Save original segmentation under {j}_seg.png
                 seg = make_seg(
                     example.seg,
@@ -321,6 +356,87 @@ def cli(cfg: tp.Annotated[Config, tyro.conf.arg(name="")]):
 
                 # 4. Save SAE highlighted segmentation under {j}_sae_seg.png
                 seg_with_highlights = saev.viz.add_highlights(
-                    seg, example.tokens, patch_size, upper=upper
+                    seg, display_tokens, patch_size, upper=upper
                 )
                 seg_with_highlights.save(feature_dir / f"{j}_sae_seg.png")
+
+
+@beartype.beartype
+def cli(
+    cfg: tp.Annotated[Config, tyro.conf.arg(name="")],
+    sweep: pathlib.Path | None = None,
+):
+    """
+    Generate visual outputs for SAE latents, optionally using a sweep file to submit many jobs.
+
+    Args:
+        cfg: Baseline config for visual generation.
+        sweep: Path to .py file defining the sweep parameters.
+    """
+    if sweep is not None:
+        sweep_dcts = saev.configs.load_sweep(sweep)
+        if not sweep_dcts:
+            logger.error("No valid sweeps found in '%s'.", sweep)
+            sys.exit(1)
+
+        cfgs, errs = saev.configs.load_cfgs(
+            cfg, default=Config(), sweep_dcts=sweep_dcts
+        )
+
+        if errs:
+            for err in errs:
+                logger.warning("Error in config: %s", err)
+            return
+    else:
+        cfgs = [cfg]
+
+    logger.info("Generated %d visual configs.", len(cfgs))
+
+    assert all(c.slurm_acct == cfgs[0].slurm_acct for c in cfgs)
+    cfg = cfgs[0]
+
+    if not cfg.slurm_acct:
+        for i, cfg_item in enumerate(cfgs, start=1):
+            logger.info("Running config %d/%d locally.", i, len(cfgs))
+            worker_fn(cfg_item)
+        logger.info("Jobs done.")
+        return
+
+    import submitit
+    from submitit.core.utils import UncompletedJobError
+
+    executor = submitit.SlurmExecutor(folder=cfg.log_to)
+
+    n_cpus = 8
+    if cfg.mem_gb // 10 > n_cpus:
+        logger.info(
+            "Using %d CPUs instead of %d to get more RAM.", cfg.mem_gb // 10, n_cpus
+        )
+        n_cpus = cfg.mem_gb // 10
+
+    executor.update_parameters(
+        time=int(cfg.n_hours * 60),
+        partition=cfg.slurm_partition,
+        gpus_per_node=1,
+        ntasks_per_node=1,
+        cpus_per_task=n_cpus,
+        stderr_to_stdout=True,
+        account=cfg.slurm_acct,
+    )
+
+    with executor.batch():
+        jobs = [executor.submit(worker_fn, c) for c in cfgs]
+
+    time.sleep(5.0)
+
+    for i, job in enumerate(jobs, start=1):
+        logger.info("Job %d/%d: %s %s", i, len(jobs), job.job_id, job.state)
+
+    for i, job in enumerate(jobs, start=1):
+        try:
+            job.result()
+            logger.info("Job %d/%d finished.", i, len(jobs))
+        except UncompletedJobError:
+            logger.warning("Job %s (%d) did not finish.", job.job_id, i)
+
+    logger.info("Jobs done.")

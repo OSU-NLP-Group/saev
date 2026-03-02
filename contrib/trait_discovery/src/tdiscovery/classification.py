@@ -582,14 +582,19 @@ def train_cli(
 @beartype.beartype
 @dataclasses.dataclass(frozen=True)
 class EvalConfig:
-    """Configuration for audit stage of proposal-audit framework."""
+    """Configuration for audit stage of proposal-audit framework.
 
-    cls_checkpoint: pathlib.Path = pathlib.Path("./cls_checkpoint.pkl")
-    """Path to trained classifier checkpoint from train_cli."""
-    test_shards: pathlib.Path = pathlib.Path("./shards/abcdef01")
-    """Test shards directory with labels.bin for segmentation labels."""
+    Evaluates multiple classifiers on the same SAE run, computing AP only for the union of top-B features across all classifiers. This amortizes the expensive AP computation across many classifiers.
+    """
+
     run: pathlib.Path = pathlib.Path("./runs/abcdefg")
     """SAE run directory for loading SAE activations."""
+    test_shards: pathlib.Path = pathlib.Path("./shards/abcdef01")
+    """Test shards directory with labels.bin for segmentation labels."""
+    cls_checkpoints: tuple[pathlib.Path, ...] = ()
+    """Paths to trained classifier checkpoints from train_cli."""
+    max_budget: int = 1000
+    """Maximum budget for feature selection. Union of top-max_budget from each classifier."""
     tau: float = 0.3
     """Grounding threshold: feature is grounded if best-class AP >= tau."""
     budgets: tuple[int, ...] = (3, 10, 30, 100, 300, 1000)
@@ -598,10 +603,6 @@ class EvalConfig:
     """Segmentation label IDs to ignore (e.g., background=0, void=255)."""
     seed: int = 42
     """Random seed for bootstrap and permutation null."""
-    latent_batch_size: int = 100
-    """Number of latents to process at once for AP computation."""
-    class_batch_size: int = 50
-    """Number of segmentation classes to process at once."""
 
     debug: bool = False
     """Debug logging."""
@@ -735,9 +736,92 @@ def compute_ap_for_latent(
     return ap_c.astype(np.float32)
 
 
+@jaxtyped(typechecker=beartype.beartype)
+def compute_ap_batched(
+    acts_nb: Float[np.ndarray, "n_patches batch"],
+    labels_one_hot_nc: Float[np.ndarray, "n_patches n_seg_classes"],
+    n_pos_c: Float[np.ndarray, " n_seg_classes"],
+) -> Float[np.ndarray, "batch n_seg_classes"]:
+    """
+    Compute AP for a batch of latents against all segmentation classes.
+
+    Uses the standard (non-tie-aware) AP formula for speed. For continuous activations, ties are rare so the difference is negligible.
+
+    Args:
+        acts_nb: Activation scores (n_patches, batch_size).
+        labels_one_hot_nc: One-hot encoded segmentation labels (n_patches, n_seg_classes).
+        n_pos_c: Number of positive samples per class.
+
+    Returns:
+        AP scores (batch_size, n_seg_classes).
+    """
+    n_patches, batch_size = acts_nb.shape
+    n_classes = labels_one_hot_nc.shape[1]
+
+    # Pre-compute constants
+    ranks_n1 = np.arange(1, n_patches + 1, dtype=np.float32).reshape(-1, 1)
+    n_pos_safe_c = np.clip(n_pos_c, a_min=1.0, a_max=None)
+    pos_class_mask_c = n_pos_c > 0
+
+    # Sort indices for each latent (descending order)
+    sort_idx_nb = np.argsort(-acts_nb, axis=0)
+
+    # Process each latent in the batch
+    ap_bc = np.zeros((batch_size, n_classes), dtype=np.float32)
+
+    for b in range(batch_size):
+        # Reorder labels by this latent's sort order
+        labels_sorted_nc = labels_one_hot_nc[sort_idx_nb[:, b]]
+
+        # Cumulative true positives at each rank
+        tp_nc = labels_sorted_nc.cumsum(axis=0)
+
+        # Precision at each rank
+        precision_nc = tp_nc / ranks_n1
+
+        # Recall at each rank
+        recall_nc = tp_nc / n_pos_safe_c
+
+        # Delta recall (change in recall at each position)
+        recall_shift_nc = np.concatenate(
+            [np.zeros((1, n_classes), dtype=np.float32), recall_nc[:-1]], axis=0
+        )
+        delta_recall_nc = recall_nc - recall_shift_nc
+
+        # AP = sum of precision * delta_recall
+        ap_bc[b] = (precision_nc * delta_recall_nc).sum(axis=0)
+
+    # Zero out AP for classes with no positives
+    ap_bc[:, ~pos_class_mask_c] = 0.0
+
+    return ap_bc
+
+
+@beartype.beartype
+def load_classifier_checkpoint(
+    fpath: pathlib.Path, logger: logging.Logger
+) -> tuple[object, str, Int[np.ndarray, " d_sae"], Float[np.ndarray, " d_sae"]]:
+    """Load a classifier checkpoint and extract its feature ranking."""
+    with open(fpath, "rb") as fd:
+        header_line = fd.readline()
+        header = orjson.loads(header_line)
+        payload = cloudpickle.load(fd)
+
+    classifier = payload["classifier"]
+    cls_cfg = header["cfg"]["cls"]
+    cls_type = cls_cfg["key"]
+
+    ranked_i, importance = extract_feature_ranking(classifier, cls_type)
+    logger.debug("Loaded %s from %s", cls_type, fpath.name)
+    return classifier, cls_type, ranked_i, importance
+
+
 @beartype.beartype
 def eval_worker_fn(cfg: EvalConfig) -> int:
-    """Main evaluation worker function for audit stage."""
+    """Evaluate multiple classifiers on the same SAE run.
+
+    Computes AP only for the union of top-max_budget features across all classifiers, then evaluates Yield@B for each classifier.
+    """
     log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
     level = logging.DEBUG if cfg.debug else logging.INFO
     logging.basicConfig(level=level, format=log_format, force=True)
@@ -745,8 +829,10 @@ def eval_worker_fn(cfg: EvalConfig) -> int:
     logger.info("Started eval_worker_fn().")
 
     # Validate paths
-    msg = f"Classifier checkpoint {cfg.cls_checkpoint} does not exist."
-    assert cfg.cls_checkpoint.exists(), msg
+    assert cfg.cls_checkpoints, "No classifier checkpoints provided."
+    for ckpt in cfg.cls_checkpoints:
+        msg = f"Classifier checkpoint {ckpt} does not exist."
+        assert ckpt.exists(), msg
 
     test_shards_dpath = cfg.test_shards
     msg = f"Test shards directory {test_shards_dpath} does not exist."
@@ -765,28 +851,36 @@ def eval_worker_fn(cfg: EvalConfig) -> int:
     msg = f"Test labels missing: '{test_labels_fpath}'."
     assert test_labels_fpath.exists(), msg
 
-    # Load classifier checkpoint
-    logger.info("Loading classifier checkpoint from %s...", cfg.cls_checkpoint)
-    with open(cfg.cls_checkpoint, "rb") as fd:
-        header_line = fd.readline()
-        header = orjson.loads(header_line)
-        payload = cloudpickle.load(fd)
+    # Load all classifier checkpoints and extract rankings
+    logger.info("Loading %d classifier checkpoints...", len(cfg.cls_checkpoints))
+    classifiers: list[tuple[pathlib.Path, str, np.ndarray, np.ndarray]] = []
+    for ckpt in cfg.cls_checkpoints:
+        _, cls_type, ranked_i, importance = load_classifier_checkpoint(ckpt, logger)
+        classifiers.append((ckpt, cls_type, ranked_i, importance))
 
-    classifier = payload["classifier"]
-    cls_cfg = header["cfg"]["cls"]
-    cls_type = cls_cfg["key"]
-    logger.info("Loaded %s classifier.", cls_type)
+    d_sae = len(classifiers[0][2])
+    for ckpt, _, ranked_i, _ in classifiers:
+        msg = f"Classifier {ckpt} has different d_sae: {len(ranked_i)} != {d_sae}"
+        assert len(ranked_i) == d_sae, msg
 
-    # Extract feature ranking
-    ranked_i, importance = extract_feature_ranking(classifier, cls_type)
-    d_sae = len(importance)
-    n_nonzero = (importance > 0).sum()
-    logger.info("Feature ranking: d_sae=%d, n_nonzero_importance=%d", d_sae, n_nonzero)
+    # Compute union of top-max_budget features across all classifiers
+    feature_union: set[int] = set()
+    for _, _, ranked_i, _ in classifiers:
+        feature_union.update(ranked_i[: cfg.max_budget].tolist())
+    features_to_eval = sorted(feature_union)
+    n_features = len(features_to_eval)
+    logger.info(
+        "Union of top-%d features: %d unique (%.1f%% of d_sae=%d)",
+        cfg.max_budget,
+        n_features,
+        100.0 * n_features / d_sae,
+        d_sae,
+    )
 
     # Validate budgets
     for b in cfg.budgets:
-        msg = f"Budget {b} exceeds d_sae={d_sae}."
-        assert b <= d_sae, msg
+        msg = f"Budget {b} exceeds max_budget={cfg.max_budget}."
+        assert b <= cfg.max_budget, msg
 
     # Load metadata
     test_md = saev.data.Metadata.load(test_shards_dpath)
@@ -857,73 +951,91 @@ def eval_worker_fn(cfg: EvalConfig) -> int:
     # Convert to CSC for efficient column access
     logger.info("Converting to CSC format for column access...")
     token_acts_csc = token_acts_csr.tocsc()
+    logger.info("CSC conversion done.")
 
-    # Compute best-class AP for each latent (batched)
-    logger.info(
-        "Computing AP for %d latents in batches of %d...", d_sae, cfg.latent_batch_size
-    )
-    best_ap_s = np.zeros(d_sae, dtype=np.float32)
-    best_class_s = np.zeros(d_sae, dtype=np.int32)
+    # Compute best-class AP only for features in the union (batched for speed)
+    best_ap_s = np.full(d_sae, np.nan, dtype=np.float32)
+    best_class_s = np.full(d_sae, -1, dtype=np.int32)
 
-    for latent_start in range(0, d_sae, cfg.latent_batch_size):
-        latent_end = min(latent_start + cfg.latent_batch_size, d_sae)
+    batch_size = 64
+    features_list = list(features_to_eval)
+    batches = list(saev.helpers.batched_idx(n_features, batch_size))
 
-        for j in range(latent_start, latent_end):
-            # Extract column j from CSC (efficient)
-            acts_n = token_acts_csc[:, j].toarray().flatten().astype(np.float32)
+    for start, end in saev.helpers.progress(batches, every=1, desc="batches"):
+        batch_features = features_list[start:end]
 
-            # Compute AP against all seg classes
-            ap_c = compute_ap_for_latent(acts_n, labels_one_hot_nc, n_pos_c)
+        # Extract batch of columns from sparse matrix
+        acts_nb = token_acts_csc[:, batch_features].toarray().astype(np.float32)
 
-            # Best class
-            best_idx = int(np.argmax(ap_c))
-            best_ap_s[j] = ap_c[best_idx]
+        # Compute AP for all latents in batch
+        ap_bc = compute_ap_batched(acts_nb, labels_one_hot_nc, n_pos_c)
+
+        # Store best AP and class for each latent
+        for i, j in enumerate(batch_features):
+            best_idx = int(np.argmax(ap_bc[i]))
+            best_ap_s[j] = ap_bc[i, best_idx]
             best_class_s[j] = all_seg_classes[best_idx]
 
-        if (latent_end % 1000 == 0) or (latent_end == d_sae):
-            logger.info("Processed %d/%d latents.", latent_end, d_sae)
-
+    computed_aps = best_ap_s[~np.isnan(best_ap_s)]
     logger.info(
-        "AP stats: mean=%.4f, min=%.4f, max=%.4f",
-        best_ap_s.mean(),
-        best_ap_s.min(),
-        best_ap_s.max(),
+        "AP stats (n=%d): mean=%.4f, min=%.4f, max=%.4f",
+        len(computed_aps),
+        computed_aps.mean(),
+        computed_aps.min(),
+        computed_aps.max(),
     )
 
-    # Compute Yield@B for each budget
-    yield_at_b = {}
-    for b in cfg.budgets:
-        top_b_indices = ranked_i[:b]
-        top_b_ap = best_ap_s[top_b_indices]
-        grounded_count = (top_b_ap >= cfg.tau).sum()
-        yield_b = grounded_count / b
-        yield_at_b[b] = float(yield_b)
-        logger.info("Yield@%d: %.4f (%d/%d grounded)", b, yield_b, grounded_count, b)
-
-    # Compute AUC_B (sum of yields)
-    auc_b = sum(yield_at_b.values())
-    logger.info("AUC_B: %.4f", auc_b)
-
-    # Save outputs
+    # Save shared AP results for this run
     np.save(test_inference_dpath / "audit_ap_s.npy", best_ap_s)
     np.save(test_inference_dpath / "audit_best_class_s.npy", best_class_s)
-    np.save(test_inference_dpath / "audit_feature_ranks.npy", ranked_i)
+    logger.info("Saved AP results to %s", test_inference_dpath)
 
-    metrics = {
-        "tau": cfg.tau,
-        "budgets": list(cfg.budgets),
-        "yield_at_b": yield_at_b,
-        "auc_b": auc_b,
-        "n_seg_classes": n_seg_classes,
-        "ignore_label_ids": list(cfg.ignore_label_ids),
-        "d_sae": d_sae,
-        "n_nonzero_importance": int(n_nonzero),
-        "cls_checkpoint": str(cfg.cls_checkpoint),
-    }
-    metrics_fpath = test_inference_dpath / "audit_metrics.json"
-    with open(metrics_fpath, "wb") as fd:
-        saev.helpers.jdump(metrics, fd)
-    logger.info("Saved metrics to %s", metrics_fpath)
+    # Evaluate each classifier
+    all_results = []
+    for ckpt, cls_type, ranked_i, importance in classifiers:
+        n_nonzero = (importance > 0).sum()
+
+        # Compute Yield@B for each budget
+        yield_at_b = {}
+        for b in cfg.budgets:
+            top_b_i = ranked_i[:b]
+            top_b_ap = best_ap_s[top_b_i]
+            # Features outside union have NaN AP; treat as not grounded
+            grounded_count = int(np.nansum(top_b_ap >= cfg.tau))
+            yield_b = grounded_count / b
+            yield_at_b[b] = float(yield_b)
+
+        auc_b = sum(yield_at_b.values()) / len(yield_at_b)
+
+        result = {
+            "cls_checkpoint": str(ckpt),
+            "cls_type": cls_type,
+            "n_nonzero_importance": int(n_nonzero),
+            "tau": cfg.tau,
+            "budgets": list(cfg.budgets),
+            "yield_at_b": {str(k): v for k, v in yield_at_b.items()},
+            "auc_b": auc_b,
+        }
+        all_results.append(result)
+        logger.info("%s: AUC_B=%.4f", ckpt.name, auc_b)
+
+    # Save per-classifier results
+    results_fpath = test_inference_dpath / "audit_results.json"
+    with open(results_fpath, "wb") as fd:
+        saev.helpers.jdump(
+            {
+                "run": str(cfg.run),
+                "test_shards": str(cfg.test_shards),
+                "max_budget": cfg.max_budget,
+                "n_features_evaluated": n_features,
+                "n_seg_classes": n_seg_classes,
+                "ignore_label_ids": list(cfg.ignore_label_ids),
+                "d_sae": d_sae,
+                "classifiers": all_results,
+            },
+            fd,
+        )
+    logger.info("Saved %d classifier results to %s", len(all_results), results_fpath)
 
     return 0
 

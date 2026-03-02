@@ -25,10 +25,11 @@ import saev.disk
 import saev.helpers
 import saev.utils.scheduling
 from saev.framework.inference import Filepaths
+from saev.metrics import Metrics
 
 log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
 
-BaselineMethod = tp.Literal["kmeans", "pca"]
+BaselineMethod = tp.Literal["kmeans", "pca", "semi-nmf"]
 
 BASELINE_SCHEMA_VERSION = 1
 
@@ -41,6 +42,16 @@ def _baseline_ckpt(run: saev.disk.Run) -> pathlib.Path:
     # Note: SAE runs always materialize `checkpoint/sae.pt`. Baseline runs reuse the same directory layout but write their weights to `checkpoint/baseline.pt` so it's not confusing.
 
     return run.ckpt.parent / BASELINE_CKPT_NAME
+
+
+@jaxtyped(typechecker=beartype.beartype)
+def _pos_part(x: Float[Tensor, "..."]) -> Float[Tensor, "..."]:
+    return (x.abs() + x) * 0.5
+
+
+@jaxtyped(typechecker=beartype.beartype)
+def _neg_part(x: Float[Tensor, "..."]) -> Float[Tensor, "..."]:
+    return (x.abs() - x) * 0.5
 
 
 @jaxtyped(typechecker=beartype.beartype)
@@ -269,6 +280,188 @@ class MiniBatchPCA(torch.nn.Module):
         return centered @ self.components_.T
 
 
+@jaxtyped(typechecker=beartype.beartype)
+class MiniBatchSemiNMF(torch.nn.Module):
+    """Mini-batch Semi-NMF estimator with non-negative codes and unconstrained dictionary."""
+
+    method = "semi-nmf"
+
+    def __init__(
+        self,
+        n_concepts: int,
+        device: str = "cuda",
+        z_iters: int = 10,
+        encode_iters: int = 300,
+        batch_size: int = 16384,
+        ridge: float = 1e-6,
+        eps: float = 1e-8,
+        forget_factor: float = 0.7,
+        d_update_every: int = 10,
+    ):
+        super().__init__()
+        assert n_concepts > 0, "n_concepts must be positive"
+        assert z_iters >= 0, "z_iters must be non-negative"
+        assert encode_iters >= 0, "encode_iters must be non-negative"
+        assert batch_size > 0, "batch_size must be positive"
+        assert ridge >= 0.0, "ridge must be non-negative"
+        assert eps > 0.0, "eps must be positive"
+        assert 0.0 <= forget_factor < 1.0, "forget_factor must be in [0, 1)"
+        assert d_update_every > 0, "d_update_every must be positive"
+
+        self.n_concepts = n_concepts
+        self.device = torch.device(device)
+        self.z_iters = z_iters
+        self.encode_iters = encode_iters
+        self.batch_size = batch_size
+        self.ridge = float(ridge)
+        self.eps = float(eps)
+        self.forget_factor = float(forget_factor)
+        self.d_update_every = d_update_every
+
+        self.D_: Tensor | None = None
+        self.n_features_in_: int | None = None
+        self.n_samples_seen_: int = 0
+        self.n_steps_: int = 0
+        self.ZtZ_acc_: Tensor | None = None
+        self.ZtA_acc_: Tensor | None = None
+        self.last_batch_recon_mse_: float | None = None
+        self.last_batch_nmse_: float | None = None
+        self._ddt_: Tensor | None = None
+        self._ddt_pos_: Tensor | None = None
+        self._ddt_neg_: Tensor | None = None
+        self._ddt_reg_inv_: Tensor | None = None
+
+    def partial_fit(self, batch: Float[Tensor, "batch d_model"]) -> tp.Self:
+        assert batch.ndim == 2, f"batch must be 2D, got {batch.shape}"
+        if batch.shape[0] == 0:
+            return self
+
+        acts = batch.to(self.device, dtype=torch.float32)
+        n_batch, n_features = acts.shape
+
+        if self.n_features_in_ is None:
+            self._initialize_dictionary(n_features)
+        else:
+            msg = f"Expected {self.n_features_in_} features, got {n_features}"
+            assert n_features == self.n_features_in_, msg
+
+        z = self._encode(acts, self.z_iters)
+        self._update_last_batch_metrics(acts, z)
+
+        zt = z.mT
+        ztz = zt @ z
+        zta = zt @ acts
+
+        assert self.ZtZ_acc_ is not None
+        assert self.ZtA_acc_ is not None
+        forget = self.forget_factor
+        self.ZtZ_acc_ = forget * self.ZtZ_acc_ + (1.0 - forget) * ztz
+        self.ZtA_acc_ = forget * self.ZtA_acc_ + (1.0 - forget) * zta
+
+        self.n_samples_seen_ += int(n_batch)
+        self.n_steps_ += 1
+
+        if self.n_steps_ % self.d_update_every == 0:
+            self._update_dictionary_from_accumulators()
+
+        return self
+
+    def transform(
+        self, batch: Float[Tensor, "batch d_model"], *, n_iters: int | None = None
+    ) -> Float[Tensor, "batch k"]:
+        assert self.D_ is not None, "MiniBatchSemiNMF has not been fitted"
+        assert batch.ndim == 2, f"batch must be 2D, got {batch.shape}"
+        acts = batch.to(self.device, dtype=torch.float32)
+        n_iters = self.encode_iters if n_iters is None else n_iters
+        assert n_iters >= 0, "n_iters must be non-negative"
+        return self._encode(acts, n_iters)
+
+    def _initialize_dictionary(self, n_features: int) -> None:
+        assert self.n_features_in_ is None, "Dictionary already initialized"
+        D = torch.randn(
+            self.n_concepts, n_features, device=self.device, dtype=torch.float32
+        )
+        self.D_ = D
+        self.n_features_in_ = n_features
+        self.ZtZ_acc_ = torch.zeros(
+            (self.n_concepts, self.n_concepts), device=self.device, dtype=torch.float32
+        )
+        self.ZtA_acc_ = torch.zeros(
+            (self.n_concepts, n_features), device=self.device, dtype=torch.float32
+        )
+        self._refresh_cache()
+
+    def _update_dictionary_from_accumulators(self) -> None:
+        assert self.ZtZ_acc_ is not None
+        assert self.ZtA_acc_ is not None
+        eye = torch.eye(self.n_concepts, device=self.device, dtype=self.ZtZ_acc_.dtype)
+        reg = self.ZtZ_acc_ + self.ridge * eye
+        self.D_ = torch.linalg.solve(reg, self.ZtA_acc_)
+        self._refresh_cache()
+
+    def _refresh_cache(self) -> None:
+        assert self.D_ is not None
+        ddt = self.D_ @ self.D_.mT
+        self._ddt_ = ddt
+        self._ddt_pos_ = _pos_part(ddt)
+        self._ddt_neg_ = _neg_part(ddt)
+        eye = torch.eye(self.n_concepts, device=ddt.device, dtype=ddt.dtype)
+        self._ddt_reg_inv_ = torch.linalg.solve(ddt + self.eps * eye, eye)
+
+    def _ensure_cache(self) -> None:
+        if (
+            self._ddt_pos_ is None
+            or self._ddt_neg_ is None
+            or self._ddt_reg_inv_ is None
+        ):
+            self._refresh_cache()
+
+    def _encode(self, acts: Tensor, n_iters: int) -> Tensor:
+        assert self.D_ is not None
+        self._ensure_cache()
+        assert self._ddt_pos_ is not None
+        assert self._ddt_neg_ is not None
+        assert self._ddt_reg_inv_ is not None
+
+        z = acts @ self.D_.mT @ self._ddt_reg_inv_
+        z = z.clamp_min(self.eps)
+        if n_iters == 0:
+            return z
+
+        atd = acts @ self.D_.mT
+        atd_pos = _pos_part(atd)
+        atd_neg = _neg_part(atd)
+        ddt_pos = self._ddt_pos_
+        ddt_neg = self._ddt_neg_
+
+        for _ in range(n_iters):
+            numerator = atd_pos + z @ ddt_neg
+            denominator = atd_neg + z @ ddt_pos + self.eps
+            z = z * torch.sqrt(numerator / denominator)
+
+        return z
+
+    def _update_last_batch_metrics(self, acts: Tensor, z: Tensor) -> None:
+        assert self.D_ is not None
+        n_batch = acts.shape[0]
+        recon = z @ self.D_
+        diff = (acts - recon).to(torch.float64)
+        recon_sse = diff.pow(2).sum().item()
+        self.last_batch_recon_mse_ = recon_sse / n_batch
+
+        acts64 = acts.to(torch.float64)
+        sum_sq = (acts64 * acts64).sum().item()
+        sum_vec = acts64.sum(dim=0)
+        sum_vec_sq = torch.dot(sum_vec, sum_vec).item()
+        sse_baseline = sum_sq - sum_vec_sq / n_batch
+        msg = (
+            f"Baseline variance is non-positive (sse_baseline={sse_baseline:.6e});"
+            " cannot compute normalized MSE."
+        )
+        assert sse_baseline > 0.0, msg
+        self.last_batch_nmse_ = recon_sse / sse_baseline
+
+
 @beartype.beartype
 @dataclasses.dataclass(frozen=True)
 class TrainConfig:
@@ -279,6 +472,12 @@ class TrainConfig:
     n_val: int = 10_000_000
     k: int = 1024 * 16
     collapse_tol: float = 0.5
+    z_iters: int = 10
+    encode_iters: int = 300
+    ridge: float = 1e-6
+    eps: float = 1e-8
+    forget_factor: float = 0.7
+    d_update_every: int = 10
     device: tp.Literal["cuda", "cpu"] = "cuda"
     seed: int = 42
     runs_root: pathlib.Path = pathlib.Path("./tdiscovery/runs")
@@ -300,8 +499,14 @@ class InferenceConfig:
     data: saev.data.OrderedConfig = saev.data.OrderedConfig()
     """Data configuration"""
     device: tp.Literal["cuda", "cpu"] = "cuda"
+    seed: int = 42
+    """Random seed."""
     n_dists: int = 25
     """Number of latent dimensions to snapshot for distributions."""
+    n_iters: int = 300
+    """Number of multiplicative update iterations during Semi-NMF inference."""
+    save: bool = True
+    """Whether to write token_acts/statistics files. If False, only metrics.json is written."""
     force: bool = False
     slurm_acct: str = ""
     slurm_partition: str = ""
@@ -350,6 +555,31 @@ def _materialize_model(
         model.total_variance_ = state["total_variance"]
         model.last_batch_recon_error_ = state["last_batch_recon_error"]
         model.last_batch_var_ratio_ = state["last_batch_var_ratio"]
+        return model
+    elif method == "semi-nmf":
+        D = state["D"]
+        n_concepts, n_features_in = D.shape
+        msg = f"n_features_in mismatch: {state['n_features_in']} vs {n_features_in}"
+        assert state["n_features_in"] == n_features_in, msg
+
+        model = MiniBatchSemiNMF(
+            n_concepts=n_concepts,
+            device=device,
+            z_iters=state["z_iters"],
+            encode_iters=state["encode_iters"],
+            batch_size=state["batch_size"],
+            ridge=state["ridge"],
+            eps=state["eps"],
+            forget_factor=state["forget_factor"],
+            d_update_every=state["d_update_every"],
+        )
+        model.D_ = D.to(device)
+        model.n_features_in_ = n_features_in
+        model.n_samples_seen_ = state["n_samples_seen"]
+        model.n_steps_ = state["n_steps"]
+        model.last_batch_recon_mse_ = state["last_batch_recon_mse"]
+        model.last_batch_nmse_ = state["last_batch_nmse"]
+        model._refresh_cache()
         return model
     else:
         tp.assert_never(method)
@@ -401,6 +631,25 @@ def _serialize_model_state(model: torch.nn.Module) -> dict[str, tp.Any]:
             "last_batch_recon_error": model.last_batch_recon_error_,
             "last_batch_var_ratio": model.last_batch_var_ratio_,
         }
+    if isinstance(model, MiniBatchSemiNMF):
+        assert model.D_ is not None, "D_ missing"
+        assert model.n_features_in_ is not None, "n_features_in_ missing"
+        return {
+            "D": model.D_.cpu(),
+            "n_features_in": model.n_features_in_,
+            "n_samples_seen": model.n_samples_seen_,
+            "n_steps": model.n_steps_,
+            "n_concepts": model.n_concepts,
+            "z_iters": model.z_iters,
+            "encode_iters": model.encode_iters,
+            "batch_size": model.batch_size,
+            "ridge": model.ridge,
+            "eps": model.eps,
+            "forget_factor": model.forget_factor,
+            "d_update_every": model.d_update_every,
+            "last_batch_recon_mse": model.last_batch_recon_mse_,
+            "last_batch_nmse": model.last_batch_nmse_,
+        }
     raise TypeError(f"Unsupported baseline model type: {type(model).__name__}")
 
 
@@ -438,6 +687,12 @@ def get_training_metrics(model: torch.nn.Module, n_samples: int) -> dict[str, fl
         return {
             "train/recon_mse": model.last_batch_recon_error_ or 0.0,
             "train/var_ratio": model.last_batch_var_ratio_ or 0.0,
+            "train/n_samples": n_samples,
+        }
+    if isinstance(model, MiniBatchSemiNMF):
+        return {
+            "train/recon_mse": model.last_batch_recon_mse_ or 0.0,
+            "train/nmse": model.last_batch_nmse_ or 0.0,
             "train/n_samples": n_samples,
         }
     tp.assert_never(model)
@@ -543,6 +798,56 @@ def eval_pca(cfg: TrainConfig, model: MiniBatchPCA) -> dict[str, float]:
 
 
 @beartype.beartype
+def eval_semi_nmf(cfg: TrainConfig, model: MiniBatchSemiNMF) -> dict[str, float]:
+    if cfg.n_val <= 0:
+        return {}
+
+    assert model.D_ is not None, "D_ missing for Semi-NMF eval"
+
+    dataloader = saev.data.ShuffledDataLoader(cfg.val_data)
+    loader_like = tp.cast(saev.utils.scheduling.DataLoaderLike, dataloader)
+    limit = min(cfg.n_val, dataloader.n_samples)
+    limiter = saev.utils.scheduling.BatchLimiter(loader_like, limit)
+
+    reconstruction_sse = torch.zeros((), dtype=torch.float64, device=model.device)
+    sum_sq = torch.zeros((), dtype=torch.float64, device=model.device)
+    sum_vec_d = torch.zeros(
+        (model.D_.shape[1],), dtype=torch.float64, device=model.device
+    )
+    n_samples = 0
+
+    for batch in saev.helpers.progress(limiter, desc="semi-nmf-eval", every=20):
+        acts = batch["act"].to(model.device, non_blocking=True)
+        codes = model.transform(acts)
+        recon = codes @ model.D_
+        diff = (acts - recon).to(torch.float64)
+        reconstruction_sse += diff.pow(2).sum()
+
+        acts64 = acts.to(torch.float64)
+        sum_sq += (acts64 * acts64).sum()
+        sum_vec_d += acts64.sum(dim=0)
+        n_samples += acts.shape[0]
+
+    if n_samples == 0:
+        return {}
+
+    sum_vec_sq = torch.dot(sum_vec_d, sum_vec_d).item()
+    sse_baseline = sum_sq.item() - sum_vec_sq / n_samples
+    msg = (
+        f"Baseline variance is non-positive (sse_baseline={sse_baseline:.6e});"
+        " cannot compute normalized MSE."
+    )
+    assert sse_baseline > 0.0, msg
+
+    mse = reconstruction_sse.item() / n_samples
+    nmse = reconstruction_sse.item() / sse_baseline
+    return {
+        "eval/recon_mse": mse,
+        "eval/nmse": nmse,
+    }
+
+
+@beartype.beartype
 def train_worker_fn(cfg: TrainConfig):
     level = logging.DEBUG if cfg.debug else logging.INFO
     logging.basicConfig(level=level, format=log_format, force=True)
@@ -559,6 +864,18 @@ def train_worker_fn(cfg: TrainConfig):
         model = MiniBatchKMeans(k=cfg.k, device=cfg.device)
     elif cfg.method == "pca":
         model = MiniBatchPCA(n_components=cfg.k, device=cfg.device)
+    elif cfg.method == "semi-nmf":
+        model = MiniBatchSemiNMF(
+            n_concepts=cfg.k,
+            device=cfg.device,
+            z_iters=cfg.z_iters,
+            encode_iters=cfg.encode_iters,
+            batch_size=cfg.train_data.batch_size,
+            ridge=cfg.ridge,
+            eps=cfg.eps,
+            forget_factor=cfg.forget_factor,
+            d_update_every=cfg.d_update_every,
+        )
     else:
         tp.assert_never(cfg.method)
 
@@ -593,6 +910,10 @@ def train_worker_fn(cfg: TrainConfig):
         elapsed,
     )
 
+    if isinstance(model, MiniBatchSemiNMF) and model.n_steps_ > 0:
+        if model.n_steps_ % model.d_update_every != 0:
+            model._update_dictionary_from_accumulators()
+
     if cfg.method == "kmeans":
         assert isinstance(model, MiniBatchKMeans)
         assert model.cluster_centers_ is not None
@@ -602,6 +923,9 @@ def train_worker_fn(cfg: TrainConfig):
     elif cfg.method == "pca":
         assert isinstance(model, MiniBatchPCA)
         eval_metrics = eval_pca(cfg, model)
+    elif cfg.method == "semi-nmf":
+        assert isinstance(model, MiniBatchSemiNMF)
+        eval_metrics = eval_semi_nmf(cfg, model)
     else:
         tp.assert_never(cfg.method)
 
@@ -632,16 +956,27 @@ def _prepare_inference_artifacts(
     md = saev.data.Metadata.load(cfg.data.shards)
 
     fpaths = Filepaths.from_run(run, md)
-    missing = [fpath for fpath in fpaths if not fpath.exists()]
+    if cfg.save:
+        required = list(fpaths)
+        mode = "full artifacts"
+    else:
+        required = [fpaths.metrics]
+        mode = "metrics only"
+
+    missing = [fpath for fpath in required if not fpath.exists()]
     if not cfg.force and not missing:
-        logger.info("Found all baseline inference artifacts; skipping.")
+        logger.info("Found all required files (%s); skipping.", mode)
         return None
 
     if cfg.force:
-        logger.info("Force flag set; recomputing baseline inference.")
+        logger.info("Force flag set; recomputing baseline inference (%s).", mode)
     else:
         missing_msg = ", ".join(str(fpath) for fpath in missing)
-        logger.info("Missing files %s; recomputing baseline inference.", missing_msg)
+        logger.info(
+            "Missing files %s; recomputing baseline inference (%s).",
+            missing_msg,
+            mode,
+        )
 
     batch_size = (
         cfg.data.batch_size
@@ -677,8 +1012,10 @@ def _run_kmeans_inference(cfg: InferenceConfig, model: MiniBatchKMeans):
     device = model.cluster_centers_.device
     mean_values_c = torch.zeros((k,), device=device)
     sparsity_c = torch.zeros((k,), device=device)
-    distributions_nm = torch.zeros((dl.n_samples, cfg.n_dists), dtype=torch.float32)
-
+    if cfg.save:
+        distributions_nm = torch.zeros((dl.n_samples, cfg.n_dists), dtype=torch.float32)
+    else:
+        distributions_nm = torch.zeros((0, 0), dtype=torch.float32)
     rows: list[Tensor] = []
     cols: list[Tensor] = []
     vals: list[Tensor] = []
@@ -693,84 +1030,94 @@ def _run_kmeans_inference(cfg: InferenceConfig, model: MiniBatchKMeans):
         acts = batch["act"].to(device)
         distances = torch.cdist(acts, model.cluster_centers_)
         min_dist, assignments = distances.min(dim=1)
-        scores = 1.0 / (1.0 + min_dist)
+        if cfg.save:
+            scores = 1.0 / (1.0 + min_dist)
 
-        assignments_cpu = assignments.to("cpu")
-        scores_cpu = scores.to("cpu")
+            assignments_cpu = assignments.to("cpu")
+            scores_cpu = scores.to("cpu")
 
-        counts = torch.bincount(assignments_cpu, minlength=k).to(
-            device=sparsity_c.device, dtype=sparsity_c.dtype
-        )
-        sparsity_c += counts
-        mean_values_c.index_add_(0, assignments, scores)
+            counts = torch.bincount(assignments_cpu, minlength=k).to(
+                device=sparsity_c.device, dtype=sparsity_c.dtype
+            )
+            sparsity_c += counts
+            mean_values_c.index_add_(0, assignments, scores)
 
-        batch_idx = (
-            batch["example_idx"] * md.content_tokens_per_example + batch["token_idx"]
-        )
-        assert batch_idx[0].item() == prev_i + 1
-        assert (torch.sort(batch_idx).values == batch_idx).all()
-        assert (torch.arange(batch_idx[0], batch_idx[-1] + 1) == batch_idx).all()
-        prev_i = batch_idx[-1].item()
+            batch_idx = (
+                batch["example_idx"] * md.content_tokens_per_example
+                + batch["token_idx"]
+            )
+            assert batch_idx[0].item() == prev_i + 1
+            assert (torch.sort(batch_idx).values == batch_idx).all()
+            assert (torch.arange(batch_idx[0], batch_idx[-1] + 1) == batch_idx).all()
+            prev_i = batch_idx[-1].item()
 
-        rows.append(batch_idx)
-        cols.append(assignments_cpu)
-        vals.append(scores_cpu)
+            rows.append(batch_idx)
+            cols.append(assignments_cpu)
+            vals.append(scores_cpu)
 
-        if cfg.n_dists > 0:
-            limited = assignments_cpu < cfg.n_dists
-            if limited.any():
-                row_sel = batch["example_idx"][limited]
-                col_sel = assignments_cpu[limited]
-                distributions_nm[row_sel, col_sel] = scores_cpu[limited]
+            if cfg.n_dists > 0:
+                limited = assignments_cpu < cfg.n_dists
+                if limited.any():
+                    row_sel = batch["example_idx"][limited]
+                    col_sel = assignments_cpu[limited]
+                    distributions_nm[row_sel, col_sel] = scores_cpu[limited]
 
         min_dist_sq = min_dist.pow(2).to(torch.float64)
         reconstruction_sse += min_dist_sq.sum()
         acts64 = acts.to(torch.float64)
         sum_sq += (acts64 * acts64).sum()
         sum_vec_d += acts64.sum(dim=0)
-        n_tokens += batch_idx.shape[0]
+        n_tokens += acts.shape[0]
 
     assert n_tokens == dl.n_samples
     assert n_tokens > 0
 
-    mean_values_c /= sparsity_c
-    sparsity_c /= dl.n_samples
+    if cfg.save:
+        mean_values_c /= sparsity_c
+        sparsity_c /= dl.n_samples
 
-    row_idx = torch.cat(rows).numpy()
-    col_idx = torch.cat(cols).numpy()
-    data = torch.cat(vals).numpy()
-    token_acts = scipy.sparse.csr_matrix(
-        (data, (row_idx, col_idx)), shape=(dl.n_samples, k)
-    )
-    scipy.sparse.save_npz(fpaths.token_acts, token_acts)
+        row_idx = torch.cat(rows).numpy()
+        col_idx = torch.cat(cols).numpy()
+        data = torch.cat(vals).numpy()
+        token_acts = scipy.sparse.csr_matrix(
+            (data, (row_idx, col_idx)), shape=(dl.n_samples, k)
+        )
+        scipy.sparse.save_npz(fpaths.token_acts, token_acts)
 
-    torch.save(mean_values_c.cpu(), fpaths.mean_values)
-    torch.save(sparsity_c.cpu(), fpaths.sparsity)
-    torch.save(distributions_nm.cpu(), fpaths.distributions)
+        torch.save(mean_values_c.cpu(), fpaths.mean_values)
+        torch.save(sparsity_c.cpu(), fpaths.sparsity)
+        torch.save(distributions_nm.cpu(), fpaths.distributions)
 
-    sse_sae = reconstruction_sse.item()
+    sse_recon = reconstruction_sse.item()
     sum_sq_item = sum_sq.item()
     sum_vec_sq = torch.dot(sum_vec_d, sum_vec_d).item()
     sse_baseline = sum_sq_item - sum_vec_sq / n_tokens
     msg = f"Baseline variance is non-positive (sse_baseline={sse_baseline:.6e}); cannot compute normalized MSE."
     assert sse_baseline > 0.0, msg
-    metrics = {
-        "normalized_mse": sse_sae / sse_baseline,
-        "sse_sae": sse_sae,
-        "sse_baseline": sse_baseline,
-    }
+    n_elements = n_tokens * d_model
+    msg = f"Invalid n_elements={n_elements} from n_tokens={n_tokens}, d_model={d_model}"
+    assert n_elements > 0, msg
+    metrics = Metrics.from_accumulators(
+        sse_recon=sse_recon,
+        sse_baseline=sse_baseline,
+        n_tokens=n_tokens,
+        d_model=d_model,
+    ).to_dict()
 
     with open(fpaths.metrics, "wb") as fd:
         saev.helpers.jdump(metrics, fd, option=orjson.OPT_INDENT_2)
 
-    logger.info(
-        "Wrote baseline inference artifacts: %s, %s, %s, %s, %s",
-        fpaths.token_acts,
-        fpaths.mean_values,
-        fpaths.sparsity,
-        fpaths.distributions,
-        fpaths.metrics,
-    )
+    if cfg.save:
+        logger.info(
+            "Wrote baseline inference artifacts: %s, %s, %s, %s, %s",
+            fpaths.token_acts,
+            fpaths.mean_values,
+            fpaths.sparsity,
+            fpaths.distributions,
+            fpaths.metrics,
+        )
+    else:
+        logger.info("Wrote baseline inference metrics: %s", fpaths.metrics)
 
 
 @beartype.beartype
@@ -790,9 +1137,12 @@ def _run_pca_inference(cfg: InferenceConfig, model: MiniBatchPCA):
     device = model.components_.device
     mean_values_c = torch.zeros((n_components,), device=device)
     sparsity_c = torch.zeros_like(mean_values_c)
-    distributions_nm = torch.zeros((dl.n_samples, cfg.n_dists), dtype=torch.float32)
-
+    if cfg.save:
+        distributions_nm = torch.zeros((dl.n_samples, cfg.n_dists), dtype=torch.float32)
+    else:
+        distributions_nm = torch.zeros((0, 0), dtype=torch.float32)
     token_acts_blocks: list[scipy.sparse.csr_matrix] = []
+    prev_i = -1
     reconstruction_sse = torch.zeros((), dtype=torch.float64, device=device)
     sum_sq = torch.zeros((), dtype=torch.float64, device=device)
     sum_vec_d = torch.zeros(
@@ -800,16 +1150,15 @@ def _run_pca_inference(cfg: InferenceConfig, model: MiniBatchPCA):
     )
     n_tokens = 0
 
-    prev_i = -1
-
     for batch in saev.helpers.progress(dl, desc="pca-inference", every=1):
         acts = batch["act"].to(device)
         scores = model.transform(acts)
         scores = scores.to(torch.float32)
 
-        nnz_counts = (scores != 0).to(mean_values_c.dtype).sum(dim=0)
-        sparsity_c += nnz_counts
-        mean_values_c += scores.sum(dim=0).to(mean_values_c.dtype)
+        if cfg.save:
+            nnz_counts = (scores != 0).to(mean_values_c.dtype).sum(dim=0)
+            sparsity_c += nnz_counts
+            mean_values_c += scores.sum(dim=0).to(mean_values_c.dtype)
 
         recon = scores @ model.components_ + model.mean_
         diff = (acts - recon).to(torch.float64)
@@ -820,37 +1169,42 @@ def _run_pca_inference(cfg: InferenceConfig, model: MiniBatchPCA):
         sum_vec_d += acts64.sum(dim=0)
         n_tokens += acts.shape[0]
 
-        batch_idx = (
-            batch["example_idx"] * md.content_tokens_per_example + batch["token_idx"]
-        )
-        assert batch_idx[0].item() == prev_i + 1
-        assert (torch.sort(batch_idx).values == batch_idx).all()
-        assert (torch.arange(batch_idx[0], batch_idx[-1] + 1) == batch_idx).all()
-        prev_i = batch_idx[-1].item()
+        if cfg.save:
+            batch_idx = (
+                batch["example_idx"] * md.content_tokens_per_example
+                + batch["token_idx"]
+            )
+            assert batch_idx[0].item() == prev_i + 1
+            assert (torch.sort(batch_idx).values == batch_idx).all()
+            assert (torch.arange(batch_idx[0], batch_idx[-1] + 1) == batch_idx).all()
+            prev_i = batch_idx[-1].item()
 
-        lim = min(cfg.n_dists, scores.shape[1])
-        if lim > 0:
-            distributions_nm[batch_idx, :lim] = scores[:, :lim].cpu()
+            lim = min(cfg.n_dists, scores.shape[1])
+            if lim > 0:
+                distributions_nm[batch_idx, :lim] = scores[:, :lim].cpu()
 
-        token_acts_blocks.append(scipy.sparse.csr_matrix(scores.cpu().numpy()))
+            token_acts_blocks.append(scipy.sparse.csr_matrix(scores.cpu().numpy()))
 
     if n_tokens == 0:
         logger.warning("No tokens processed during PCA inference.")
         return
 
-    nonzero = sparsity_c > 0
-    mean_values_c[nonzero] = mean_values_c[nonzero] / sparsity_c[nonzero].clamp_min(1.0)
-    mean_values_c[~nonzero] = 0.0
-    sparsity_c /= dl.n_samples
+    if cfg.save:
+        nonzero = sparsity_c > 0
+        mean_values_c[nonzero] = mean_values_c[nonzero] / sparsity_c[nonzero].clamp_min(
+            1.0
+        )
+        mean_values_c[~nonzero] = 0.0
+        sparsity_c /= dl.n_samples
 
-    token_acts = scipy.sparse.vstack(token_acts_blocks, format="csr")
-    scipy.sparse.save_npz(fpaths.token_acts, token_acts)
+        token_acts = scipy.sparse.vstack(token_acts_blocks, format="csr")
+        scipy.sparse.save_npz(fpaths.token_acts, token_acts)
 
-    torch.save(mean_values_c.cpu(), fpaths.mean_values)
-    torch.save(sparsity_c.cpu(), fpaths.sparsity)
-    torch.save(distributions_nm.cpu(), fpaths.distributions)
+        torch.save(mean_values_c.cpu(), fpaths.mean_values)
+        torch.save(sparsity_c.cpu(), fpaths.sparsity)
+        torch.save(distributions_nm.cpu(), fpaths.distributions)
 
-    sse_sae = reconstruction_sse.item()
+    sse_recon = reconstruction_sse.item()
     sum_sq_item = sum_sq.item()
     sum_vec_sq = torch.dot(sum_vec_d, sum_vec_d).item()
     sse_baseline = sum_sq_item - sum_vec_sq / n_tokens
@@ -859,30 +1213,155 @@ def _run_pca_inference(cfg: InferenceConfig, model: MiniBatchPCA):
         " cannot compute normalized MSE."
     )
     assert sse_baseline > 0.0, msg
-    metrics = {
-        "normalized_mse": sse_sae / sse_baseline,
-        "sse_sae": sse_sae,
-        "sse_baseline": sse_baseline,
-        "n_components": n_components,
-    }
+    n_elements = n_tokens * d_model
+    msg = f"Invalid n_elements={n_elements} from n_tokens={n_tokens}, d_model={d_model}"
+    assert n_elements > 0, msg
+    metrics = Metrics.from_accumulators(
+        sse_recon=sse_recon,
+        sse_baseline=sse_baseline,
+        n_tokens=n_tokens,
+        d_model=d_model,
+    ).to_dict()
+    metrics["n_components"] = n_components
 
     with open(fpaths.metrics, "wb") as fd:
         saev.helpers.jdump(metrics, fd, option=orjson.OPT_INDENT_2)
 
-    logger.info(
-        "Wrote PCA baseline inference artifacts: %s, %s, %s, %s, %s",
-        fpaths.token_acts,
-        fpaths.mean_values,
-        fpaths.sparsity,
-        fpaths.distributions,
-        fpaths.metrics,
+    if cfg.save:
+        logger.info(
+            "Wrote PCA baseline inference artifacts: %s, %s, %s, %s, %s",
+            fpaths.token_acts,
+            fpaths.mean_values,
+            fpaths.sparsity,
+            fpaths.distributions,
+            fpaths.metrics,
+        )
+    else:
+        logger.info("Wrote PCA baseline inference metrics: %s", fpaths.metrics)
+
+
+@beartype.beartype
+def _run_semi_nmf_inference(cfg: InferenceConfig, model: MiniBatchSemiNMF):
+    logger = logging.getLogger("inference")
+    md = saev.data.Metadata.load(cfg.data.shards)
+
+    assert model.D_ is not None
+    n_concepts, d_model = model.D_.shape
+
+    artifacts = _prepare_inference_artifacts(cfg)
+    if artifacts is None:
+        return
+    dl, fpaths = artifacts
+
+    device = model.D_.device
+    mean_values_c = torch.zeros((n_concepts,), device=device)
+    sparsity_c = torch.zeros_like(mean_values_c)
+    if cfg.save:
+        distributions_nm = torch.zeros((dl.n_samples, cfg.n_dists), dtype=torch.float32)
+    else:
+        distributions_nm = torch.zeros((0, 0), dtype=torch.float32)
+    token_acts_blocks: list[scipy.sparse.csr_matrix] = []
+    prev_i = -1
+    reconstruction_sse = torch.zeros((), dtype=torch.float64, device=device)
+    sum_sq = torch.zeros((), dtype=torch.float64, device=device)
+    sum_vec_d = torch.zeros((d_model,), dtype=torch.float64, device=device)
+    n_tokens = 0
+
+    for batch in saev.helpers.progress(dl, desc="semi-nmf-inference", every=1):
+        acts = batch["act"].to(device)
+        codes = model.transform(acts, n_iters=cfg.n_iters)
+        codes = codes.to(torch.float32)
+
+        if cfg.save:
+            nnz_counts = (codes != 0).to(mean_values_c.dtype).sum(dim=0)
+            sparsity_c += nnz_counts
+            mean_values_c += codes.sum(dim=0).to(mean_values_c.dtype)
+
+        recon = codes @ model.D_
+        diff = (acts - recon).to(torch.float64)
+        reconstruction_sse += diff.pow(2).sum()
+
+        acts64 = acts.to(torch.float64)
+        sum_sq += (acts64 * acts64).sum()
+        sum_vec_d += acts64.sum(dim=0)
+        n_tokens += acts.shape[0]
+
+        if cfg.save:
+            batch_idx = (
+                batch["example_idx"] * md.content_tokens_per_example
+                + batch["token_idx"]
+            )
+            assert batch_idx[0].item() == prev_i + 1
+            assert (torch.sort(batch_idx).values == batch_idx).all()
+            assert (torch.arange(batch_idx[0], batch_idx[-1] + 1) == batch_idx).all()
+            prev_i = batch_idx[-1].item()
+
+            lim = min(cfg.n_dists, codes.shape[1])
+            if lim > 0:
+                distributions_nm[batch_idx, :lim] = codes[:, :lim].cpu()
+
+            token_acts_blocks.append(scipy.sparse.csr_matrix(codes.cpu().numpy()))
+
+    if n_tokens == 0:
+        logger.warning("No tokens processed during Semi-NMF inference.")
+        return
+
+    if cfg.save:
+        nonzero = sparsity_c > 0
+        mean_values_c[nonzero] = mean_values_c[nonzero] / sparsity_c[nonzero].clamp_min(
+            1.0
+        )
+        mean_values_c[~nonzero] = 0.0
+        sparsity_c /= dl.n_samples
+
+        token_acts = scipy.sparse.vstack(token_acts_blocks, format="csr")
+        scipy.sparse.save_npz(fpaths.token_acts, token_acts)
+
+        torch.save(mean_values_c.cpu(), fpaths.mean_values)
+        torch.save(sparsity_c.cpu(), fpaths.sparsity)
+        torch.save(distributions_nm.cpu(), fpaths.distributions)
+
+    sse_recon = reconstruction_sse.item()
+    sum_sq_item = sum_sq.item()
+    sum_vec_sq = torch.dot(sum_vec_d, sum_vec_d).item()
+    sse_baseline = sum_sq_item - sum_vec_sq / n_tokens
+    msg = (
+        f"Baseline variance is non-positive (sse_baseline={sse_baseline:.6e});"
+        " cannot compute normalized MSE."
     )
+    assert sse_baseline > 0.0, msg
+    n_elements = n_tokens * d_model
+    msg = f"Invalid n_elements={n_elements} from n_tokens={n_tokens}, d_model={d_model}"
+    assert n_elements > 0, msg
+    metrics = Metrics.from_accumulators(
+        sse_recon=sse_recon,
+        sse_baseline=sse_baseline,
+        n_tokens=n_tokens,
+        d_model=d_model,
+    ).to_dict()
+    metrics["n_concepts"] = n_concepts
+
+    with open(fpaths.metrics, "wb") as fd:
+        saev.helpers.jdump(metrics, fd, option=orjson.OPT_INDENT_2)
+
+    if cfg.save:
+        logger.info(
+            "Wrote Semi-NMF baseline inference artifacts: %s, %s, %s, %s, %s",
+            fpaths.token_acts,
+            fpaths.mean_values,
+            fpaths.sparsity,
+            fpaths.distributions,
+            fpaths.metrics,
+        )
+    else:
+        logger.info("Wrote Semi-NMF baseline inference metrics: %s", fpaths.metrics)
 
 
 @beartype.beartype
 @torch.inference_mode()
 def inference_worker_fn(cfg: InferenceConfig):
     logging.basicConfig(level=logging.INFO, format=log_format)
+    torch.manual_seed(cfg.seed)
 
     model = load(saev.disk.Run(cfg.run), device=cfg.device)
 
@@ -890,6 +1369,8 @@ def inference_worker_fn(cfg: InferenceConfig):
         _run_kmeans_inference(cfg, model)
     elif isinstance(model, MiniBatchPCA):
         _run_pca_inference(cfg, model)
+    elif isinstance(model, MiniBatchSemiNMF):
+        _run_semi_nmf_inference(cfg, model)
     else:
         tp.assert_never(model)
 
