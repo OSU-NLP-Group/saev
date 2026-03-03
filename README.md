@@ -18,7 +18,7 @@ Training sparse autoencoders (SAEs) on vision transformers (ViTs), implemented i
 This framework was developed for a series of projects leveraging SAEs with vision models.
 
 - [Feb 2025] [Interpretable and Testable Vision Features via Sparse Autoencoders](https://arxiv.org/abs/2502.06755)
-- [Nov 2025] [Towards Open-Ended Visual Scientific Discovery with Sparse Autoencoders]()
+- [Nov 2025] [Towards Open-Ended Visual Scientific Discovery with Sparse Autoencoders](https://arxiv.org/abs/2511.17735)
 
 Trained SAE checkpoints are available at:
 
