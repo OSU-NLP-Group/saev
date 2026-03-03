@@ -61,7 +61,16 @@ class Metadata:
         protocol: Protocol version.
     """
 
-    family: tp.Literal["bird-mae", "clip", "siglip", "dinov2", "dinov3", "fake-clip"]
+    family: tp.Literal[
+        "bird-mae",
+        "clip",
+        "dinov2",
+        "dinov3",
+        "fake-clip",
+        "pe-core",
+        "pe-spatial",
+        "siglip",
+    ]
     ckpt: str
     layers: tuple[int, ...]
     content_tokens_per_example: int

@@ -35,7 +35,14 @@ class Config:
     shards_root: pathlib.Path = pathlib.Path("$SAEV_SCRATCH/saev/shards/")
     """Where to write shards."""
     family: tp.Literal[
-        "bird-mae", "clip", "siglip", "dinov2", "dinov3", "fake-clip"
+        "bird-mae",
+        "clip",
+        "dinov2",
+        "dinov3",
+        "fake-clip",
+        "pe-core",
+        "pe-spatial",
+        "siglip",
     ] = "clip"
     """Which model family."""
     ckpt: str = "ViT-L-14/openai"
