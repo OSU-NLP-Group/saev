@@ -11,11 +11,7 @@ Default mode writes 5 files:
 
 If save=False, only metrics.json is written.
 
-metrics.json contains some individual metrics that are useful for reporting:
-
-* normalized_mse (float): reconstruction sum squared SAE error / reconstruction sum squared mean baseline error
-* sse_sae (float): reconstruction sum squared SAE error, which is ((x - x_hat) ** 2).sum() to get a scalar where x_hat is the output of SAE(x).
-* sse_baseline (float): reconstruction sum squared mean baseline error, which is ((x - x_bar) ** 2).sum(dim=0) to get a scalar where x_bar is the mean vector of all x.
+metrics.json is serialized from `saev.metrics.Metrics`.
 """
 
 import collections.abc
@@ -36,6 +32,7 @@ import tyro
 
 from saev import configs, disk, helpers, nn
 from saev.data import Metadata, OrderedConfig, OrderedDataLoader
+from saev.metrics import Metrics
 
 log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
 logging.basicConfig(level=logging.INFO, format=log_format)
@@ -207,7 +204,7 @@ def worker_fn(cfg: Config):
             # Segmentation datasets
             mask_b = torch.isin(batch["token_labels"], ignore, invert=True)
 
-        n_batch_tokens = mask_b.sum().item()
+        n_batch_tokens = int(mask_b.sum().item())
         n_tokens += n_batch_tokens
         if n_batch_tokens > 0:
             vit_masked_bd = vit_acts_bd[mask_b].to(torch.float64)
@@ -266,7 +263,9 @@ def worker_fn(cfg: Config):
         torch.save(distributions_nm.cpu(), fpaths.distributions)
 
     # Metrics
-    sse_sae = reconstruction_sse.item()
+    msg = "Inference dataloader yielded zero valid tokens; cannot compute metrics."
+    assert n_tokens > 0, msg
+    sse_recon = reconstruction_sse.item()
     sum_sq_item = sum_sq.item()
     sum_vec_s_sq = torch.dot(sum_vec_s, sum_vec_s).item()
     sse_baseline = sum_sq_item - sum_vec_s_sq / n_tokens
@@ -275,14 +274,15 @@ def worker_fn(cfg: Config):
             f"Baseline variance is non-positive (sse_baseline={sse_baseline:.6e}); cannot compute normalized MSE."
         )
 
-    metrics = {
-        "normalized_mse": sse_sae / sse_baseline,
-        "sse_sae": sse_sae,
-        "sse_baseline": sse_baseline,
-    }
+    metrics = Metrics.from_accumulators(
+        sse_recon=sse_recon,
+        sse_baseline=sse_baseline,
+        n_tokens=n_tokens,
+        d_model=sae.cfg.d_model,
+    )
 
     with open(fpaths.metrics, "wb") as fd:
-        helpers.jdump(metrics, fd, option=orjson.OPT_INDENT_2)
+        helpers.jdump(metrics.to_dict(), fd, option=orjson.OPT_INDENT_2)
 
 
 @beartype.beartype
