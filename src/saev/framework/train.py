@@ -82,8 +82,8 @@ class Config:
     """Whether to track with WandB."""
     wandb_project: str = "saev"
     """WandB project name."""
-    tag: str = ""
-    """Tag to add to WandB run."""
+    tags: tuple[str, ...] = ()
+    """Tags to add to WandB run."""
     log_every: int = 25
     """How often to log to WandB."""
     runs_root: pathlib.Path = pathlib.Path("$SAEV_NFS/saev/runs")
@@ -262,7 +262,7 @@ def train(
     )
 
     mode = "online" if cfg.track else "disabled"
-    tags = [cfg.tag] if cfg.tag else []
+    tags = list(cfg.tags)
 
     # Add metadata to configs for WandB logging
     metadata_dict = dataclasses.asdict(dataloader.metadata)
@@ -628,7 +628,7 @@ CANNOT_PARALLELIZE = set([
     "n_val",
     "track",
     "wandb_project",
-    "tag",
+    "tags",
     "log_every",
     "runs_root",
     "device",
@@ -753,6 +753,7 @@ def main(
         executor = submitit.SlurmExecutor(folder=cfg.log_to)
 
         executor.update_parameters(
+            job_name="sae-train",
             time=int(cfg.n_hours * 60),
             partition=cfg.slurm_partition,
             gpus_per_node=1,
