@@ -60,7 +60,7 @@ class Config:
     """Column name for images in HF dataset."""
     mask_col: str = "mask"
     """Column name for masks in HF dataset."""
-    label_cols: tuple[str, ...] = ("subspecies",)
+    label_cols: tuple[str, ...] = ("subspecies", "view")
     """Label column names (become columns in labels.csv after stem)."""
     stem_col: str | None = "stem"
     """Column for stem names. If None, uses index-based naming."""
@@ -169,10 +169,16 @@ def write_labels_csv(cfg: Config, dataset) -> dict[int, str]:
         for col in cfg.label_cols:
             assert col in dataset_cols, f"Label column '{col}' not in dataset."
             label_values.append(str(row[col]))
+
+        # Derive subspecies_view compound column (e.g., "lativitta_dorsal")
+        subspecies = str(row.get("subspecies", ""))
+        view = str(row.get("view", "unknown"))
+        label_values.append(f"{subspecies}_{view}")
+
         rows.append(label_values)
 
     # Write CSV
-    header = ["stem"] + list(cfg.label_cols)
+    header = ["stem"] + list(cfg.label_cols) + ["subspecies_view"]
     with open(labels_fpath, "w", newline="") as fd:
         writer = csv.writer(fd)
         writer.writerow(header)

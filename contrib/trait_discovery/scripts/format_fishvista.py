@@ -122,15 +122,18 @@ def _get_valid_stems(cfg: Config) -> set[str]:
     # FishVista: "Genus species" -> genus="genus", species="species"
     # FishBase has separate genus/species columns with just the epithet
     seg_df = seg_df.with_columns([
-        pl.col("filename")
+        pl
+        .col("filename")
         .map_elements(lambda f: pathlib.Path(f).stem, return_dtype=pl.Utf8)
         .alias("stem"),
-        pl.col("standardized_species")
+        pl
+        .col("standardized_species")
         .str.split(" ")
         .list.first()
         .str.to_lowercase()
         .alias("genus"),
-        pl.col("standardized_species")
+        pl
+        .col("standardized_species")
         .str.split(" ")
         .list.last()
         .str.to_lowercase()
@@ -187,7 +190,8 @@ def _get_valid_stems(cfg: Config) -> set[str]:
     # Add environment columns
     for env_col in ("marine", "freshwater", "brackish"):
         fb_df = fb_df.with_columns(
-            pl.when(pl.col(env_col) == 1.0)
+            pl
+            .when(pl.col(env_col) == 1.0)
             .then(pl.lit("yes"))
             .otherwise(pl.lit("no"))
             .alias(env_col)
@@ -268,7 +272,8 @@ def _cp_img(cfg: Config, split: str, start: int, end: int):
     seg_df = pl.read_csv(cfg.fv_root / f"classification_{split}.csv")
 
     for fname, clsname in (
-        seg_df.select("filename", "standardized_species")
+        seg_df
+        .select("filename", "standardized_species")
         .slice(start, end - start)
         .iter_rows()
     ):
