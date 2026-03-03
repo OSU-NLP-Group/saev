@@ -316,8 +316,8 @@ class SparseAutoencoder(torch.nn.Module):
 
         self.normalize_w_dec()
 
-        # Initialize W_enc to the transpose of W_dec.
-        self.W_enc = torch.nn.Parameter(self.W_dec.data.T)
+        # Initialize W_enc to the transpose of W_dec. .clone() is critical: without it, W_enc is a transposed VIEW sharing storage with W_dec. That means load_state_dict overwrites W_dec when it loads W_enc.
+        self.W_enc = torch.nn.Parameter(self.W_dec.data.T.clone())
         self.b_enc = torch.nn.Parameter(torch.zeros(cfg.d_sae))
 
         self.activation = get_activation(cfg.activation)
@@ -488,7 +488,11 @@ def _deserialize_dataclass_payload(
     msg = f"Unknown activation class '{cls_name}' in payload."
     assert activation_cls is not None, msg
     params: dict[str, tp.Any] = {}
-    for key, value in payload["params"].items():
+    for key_raw, value in payload["params"].items():
+        key = "key" if key_raw == "kind" else key_raw
+        if key in params:
+            msg = f"Duplicate key '{key}' after legacy normalization for class '{cls_name}'."
+            assert False, msg
         params[key] = _deserialize_value(
             value, field_name=key, allow_legacy_nested=allow_legacy_nested
         )
@@ -616,8 +620,9 @@ def load(fpath: pathlib.Path | str, *, device="cpu") -> SparseAutoencoder:
             # Format 1B: Newer format with activation as dict
             if "activation" in cfg_dict:
                 activation_info = cfg_dict["activation"]
-                activation_cls = globals()[activation_info["cls"]]
-                activation = activation_cls(**activation_info["params"])
+                activation = _deserialize_dataclass_payload(
+                    activation_info, allow_legacy_nested=True
+                )
                 cfg_dict["activation"] = activation
             cfg_kwargs = _normalize_cfg_kwargs(cfg_dict)
             cfg = SparseAutoencoderConfig(**cfg_kwargs)
