@@ -4,11 +4,10 @@ __pycache__/
 .venv/
 *.egg-info/
 
-wandb/
 artifacts/
-checkpoints/
 logs/
 .aider*
+.wandb/
 .env
 .DS_Store
 tmp/

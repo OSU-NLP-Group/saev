@@ -884,7 +884,9 @@ def train_worker_fn(cfg: TrainConfig):
         cfg_dict["train_data"]["metadata"] = dataclasses.asdict(train_metadata)
     tags = [cfg.tag] if cfg.tag else []
     mode = "online" if cfg.track else "disabled"
-    run = wandb.init(project=cfg.wandb_project, config=cfg_dict, mode=mode, tags=tags)
+    run = wandb.init(
+        project=cfg.wandb_project, config=cfg_dict, mode=mode, tags=tags, dir=".wandb"
+    )
 
     n_samples = 0
     t_start = time.perf_counter()
