@@ -1,12 +1,14 @@
 # src/saev/data/shuffled.py
 # TODO: read https://docs.pytorch.org/tutorials/intermediate/pinmem_nonblock.html
 import collections.abc
+import concurrent.futures
 import dataclasses
 import logging
 import math
 import os
 import pathlib
 import queue
+import shutil
 import threading
 import time
 import traceback
@@ -64,6 +66,55 @@ class Config:
     """Whether the dataloader process should log debug messages."""
     log_every_s: float = 30.0
     """How frequently the dataloader process should log (debug) performance messages."""
+    use_tmpdir: bool = False
+    """If True and $TMPDIR is set, copy shards to local storage before training to avoid Infiniband congestion."""
+
+
+@beartype.beartype
+def _copy_shards_to_tmpdir(
+    src_dpath: pathlib.Path, logger: logging.Logger
+) -> pathlib.Path:
+    """Copy shard directory to $TMPDIR for local I/O. Returns new path."""
+    tmpdir = os.environ.get("TMPDIR")
+    if not tmpdir:
+        logger.warning("use_tmpdir=True but $TMPDIR not set; using original path")
+        return src_dpath
+
+    # Use job ID prefix to avoid clobbering between array jobs on same node
+    # Path must end in saev/shards/<hash> for is_shards_dir() validation
+    job_id = os.environ.get("SLURM_JOB_ID", "nojob")
+    dst_dpath = pathlib.Path(tmpdir) / job_id / "saev" / "shards" / src_dpath.name
+
+    # Check if already copied (for train/val reuse)
+    marker = dst_dpath / ".copy_complete"
+    if marker.exists():
+        logger.info(f"Reusing existing TMPDIR copy: {dst_dpath}")
+        return dst_dpath
+
+    # Create destination directory
+    dst_dpath.mkdir(parents=True, exist_ok=True)
+
+    # Get list of files to copy
+    files = [f for f in src_dpath.iterdir() if f.is_file()]
+    total_size = sum(f.stat().st_size for f in files)
+    logger.info(
+        f"Copying {len(files)} files ({total_size / 1e9:.1f} GB) to TMPDIR: {dst_dpath}"
+    )
+
+    # Copy files in parallel
+    def copy_file(src: pathlib.Path) -> None:
+        dst = dst_dpath / src.name
+        shutil.copy2(src, dst)
+
+    n_workers = min(8, len(files))
+    with concurrent.futures.ThreadPoolExecutor(max_workers=n_workers) as pool:
+        list(pool.map(copy_file, files))
+
+    # Write marker to indicate copy is complete
+    marker.touch()
+    logger.info(f"Finished copying shards to {dst_dpath}")
+
+    return dst_dpath
 
 
 @beartype.beartype
@@ -82,6 +133,7 @@ def _io_worker(
     worker_id: int,
     cfg: Config,
     md: shards.Metadata,
+    shards_path: pathlib.Path,
     work_queue: queue.Queue[int | None],
     reservoir: buffers.ReservoirBuffer,
     stop_event: threading.Event,
@@ -106,7 +158,7 @@ def _io_worker(
     )
 
     layer_i = md.layers.index(cfg.layer)
-    shard_info = shards.ShardInfo.load(cfg.shards)
+    shard_info = shards.ShardInfo.load(shards_path)
 
     # Pre-conditions
     assert cfg.tokens == "content"
@@ -138,7 +190,7 @@ def _io_worker(
 
             ex_i_offset = shard_i * md.examples_per_shard
 
-            acts_fpath = os.path.join(cfg.shards, fname)
+            acts_fpath = shards_path / fname
             mmap = np.memmap(
                 acts_fpath, mode="r", dtype=np.float32, shape=md.shard_shape
             )
@@ -243,6 +295,7 @@ def _io_worker(
 def _manager_main(
     cfg: Config,
     metadata: shards.Metadata,
+    shards_path: pathlib.Path,
     reservoir: buffers.ReservoirBuffer,
     stop_event: Event,
     err_queue: Queue[tuple[str, str]],
@@ -293,6 +346,7 @@ def _manager_main(
                 i,
                 cfg,
                 metadata,
+                shards_path,
                 work_queue,
                 reservoir,
                 thread_stop_event,
@@ -351,10 +405,16 @@ class DataLoader:
         if not os.path.isdir(self.cfg.shards):
             raise RuntimeError(f"Activations are not saved at '{self.cfg.shards}'.")
 
+        # Copy to TMPDIR if requested, otherwise use original path
+        if self.cfg.use_tmpdir:
+            self._shards_path = _copy_shards_to_tmpdir(self.cfg.shards, self.logger)
+        else:
+            self._shards_path = self.cfg.shards
+
         if self.cfg.scale_norm:
             raise NotImplementedError("scale_norm not implemented.")
 
-        self.metadata = shards.Metadata.load(self.cfg.shards)
+        self.metadata = shards.Metadata.load(self._shards_path)
 
         # Validate shard files exist and are non-empty
         shard_info = shards.ShardInfo.load(self._shards_path)
@@ -365,7 +425,7 @@ class DataLoader:
         # Check if labels.bin exists for filtering
         self.labels_mmap = None
         if self.cfg.ignore_labels:
-            labels_path = os.path.join(self.cfg.shards, "labels.bin")
+            labels_path = os.path.join(self._shards_path, "labels.bin")
             if not os.path.exists(labels_path):
                 raise FileNotFoundError(
                     f"ignore_labels filtering requested but labels.bin not found at {labels_path}"
@@ -417,7 +477,7 @@ class DataLoader:
         # Create labels memmap if needed
         labels_mmap = None
         if self.cfg.ignore_labels:
-            labels_path = os.path.join(self.cfg.shards, "labels.bin")
+            labels_path = self._shards_path / "labels.bin"
             labels_mmap = np.memmap(
                 labels_path,
                 mode="r",
@@ -433,6 +493,7 @@ class DataLoader:
             args=(
                 self.cfg,
                 self.metadata,
+                self._shards_path,
                 self.reservoir,
                 self.stop_event,
                 self.err_queue,
@@ -612,8 +673,8 @@ class DataLoader:
             )
 
         # Load labels and count remaining patches
-        labels_path = os.path.join(self.cfg.shards, "labels.bin")
-        if not os.path.exists(labels_path):
+        labels_path = self._shards_path / "labels.bin"
+        if not labels_path.exists():
             raise FileNotFoundError(f"labels.bin not found at {labels_path}")
 
         # Memory-map the labels file
