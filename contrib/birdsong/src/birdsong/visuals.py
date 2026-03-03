@@ -161,6 +161,7 @@ def cli(cfg: tp.Annotated[Config, tyro.conf.arg(name="")]):
     ):
         feature_dir = run.inference / cfg.shards.name / "clips" / str(f)
         feature_dir.mkdir(exist_ok=True, parents=True)
+        max_clips = min(cfg.n_clips, 4)
 
         f_token_idx = topk_token_idx[f_i]
         token_values_kp = token_acts[f_token_idx.ravel()][:, f].reshape(cfg.top_k, -1)
@@ -171,6 +172,8 @@ def cli(cfg: tp.Annotated[Config, tyro.conf.arg(name="")]):
         for example_idx, token_values_p in zip(
             topk_example_idx[f_i].tolist(), token_values_kp
         ):
+            if len(examples) >= max_clips:
+                break
             if example_idx in seen_example_idx:
                 continue
             sample = audio_ds[example_idx]
@@ -295,8 +298,8 @@ def cli(cfg: tp.Annotated[Config, tyro.conf.arg(name="")]):
                 overlay_norm.T,
                 aspect="auto",
                 origin="lower",
-                cmap="Reds",
-                alpha=0.5 * overlay_norm.T,
+                cmap="winter",  # cool blue/green over warm magma for contrast
+                alpha=0.6 * overlay_norm.T,
             )
             ax.set_xlabel("Time frame")
             ax.set_ylabel("Mel bin")

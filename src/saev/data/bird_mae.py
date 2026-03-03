@@ -22,6 +22,29 @@ from saev.data import models
 
 logger = logging.getLogger(__name__)
 
+# Bird-MAE audio preprocessing constants
+
+BIRDMAE_SR_HZ = 32_000
+BIRDMAE_CLIP_SEC = 5
+BIRDMAE_TARGET_T = 512
+BIRDMAE_N_MELS = 128
+
+BIRDMAE_MEAN = -7.2
+BIRDMAE_STD = 4.43
+
+BIRDMAE_FRAMES_PER_PATCH = 16
+BIRDMAE_MELS_PER_PATCH = 16
+BIRDMAE_N_TIME_PATCHES = BIRDMAE_TARGET_T // BIRDMAE_FRAMES_PER_PATCH
+BIRDMAE_N_MEL_PATCHES = BIRDMAE_N_MELS // BIRDMAE_MELS_PER_PATCH
+
+BIRDMAE_SAMPLES_PER_FRAME = 320  # 10ms frame shift at 32kHz.
+BIRDMAE_SAMPLES_PER_TIME_PATCH = BIRDMAE_FRAMES_PER_PATCH * BIRDMAE_SAMPLES_PER_FRAME
+
+BIRDMAE_STFT_N_FFT = 1024
+BIRDMAE_STFT_HOP_LENGTH = BIRDMAE_SAMPLES_PER_FRAME
+BIRDMAE_STFT_WIN_LENGTH = 800  # 25ms at 32kHz.
+BIRDMAE_STFT_LOW_FREQ_HZ = 20.0
+
 
 @beartype.beartype
 @dataclasses.dataclass(frozen=True)
@@ -519,26 +542,17 @@ def download_hf_file(ckpt: str, *, force: bool = False) -> str:
 
 
 @jaxtyped(typechecker=beartype.beartype)
-def transform(
-    waveform: Float[np.ndarray, " samples"],
-) -> Float[Tensor, "channels time mels"]:
+def transform(waveform: Float[np.ndarray, " samples"]) -> Float[Tensor, "time mels"]:
     """
     waveform: 1D tensor [samples]
-    returns: 3D tensor [1, 512, 128] as expected by Bird-MAE
+    returns: 2D tensor [512, 128] matching HF's feature extractor output
     """
     import torchaudio.compliance.kaldi
-
-    BIRDMAE_MEAN = -7.2
-    BIRDMAE_STD = 4.43
-    SR = 32_000
-    CLIP_SEC = 5
-    TARGET_T = 512
-    N_MELS = 128
 
     waveform = torch.from_numpy(waveform).to(torch.float32)
     (n_samples,) = waveform.shape
     # 1) pad/truncate to exactly 5 s
-    max_len = SR * CLIP_SEC
+    max_len = BIRDMAE_SR_HZ * BIRDMAE_CLIP_SEC
     if n_samples < max_len:
         pad = max_len - n_samples
         waveform = F.pad(waveform, (0, pad))
@@ -552,28 +566,28 @@ def transform(
     fb = torchaudio.compliance.kaldi.fbank(
         waveform[None, :],
         htk_compat=True,
-        sample_frequency=SR,
+        sample_frequency=BIRDMAE_SR_HZ,
         use_energy=False,
         window_type="hanning",
-        num_mel_bins=N_MELS,
+        num_mel_bins=BIRDMAE_N_MELS,
         dither=0.0,
         frame_shift=10.0,
     )  # [T, 128]
 
     # 4) pad to 512 frames with min value
     t, _ = fb.shape
-    if t < TARGET_T:
-        diff = TARGET_T - t
+    if t < BIRDMAE_TARGET_T:
+        diff = BIRDMAE_TARGET_T - t
         min_val = fb.min()
         fb = F.pad(fb, (0, 0, 0, diff), value=min_val.item())
-    elif t > TARGET_T:
-        fb = fb[:TARGET_T]
+    elif t > BIRDMAE_TARGET_T:
+        fb = fb[:BIRDMAE_TARGET_T]
 
     fb = (fb - BIRDMAE_MEAN) / (BIRDMAE_STD * 2.0)
 
-    assert fb.shape == (TARGET_T, N_MELS), fb.shape
+    assert fb.shape == (BIRDMAE_TARGET_T, BIRDMAE_N_MELS), fb.shape
 
-    return fb[None, ...]
+    return fb
 
 
 @jaxtyped(typechecker=beartype.beartype)
@@ -599,10 +613,16 @@ class Transformer(nn.Module, models.Transformer):
         return slice(None, None, None)
 
     def forward(
-        self, batch: Float[Tensor, "batch 1 time mel"], **kwargs
+        self, batch: Float[Tensor, "..."], **kwargs
     ) -> Float[Tensor, "batch patches dim"]:
         if kwargs:
             self.logger.info("Unused kwargs: %s", kwargs)
+        if batch.ndim == 2:
+            batch = batch[None, None, :, :]
+        elif batch.ndim == 3:
+            batch = batch[:, None, :, :]
+        else:
+            assert batch.ndim == 4, batch.ndim
         dct = self.model(batch)
 
         features = torch.cat((dct["pooled"][:, None, :], dct["tokens"]), axis=1)
@@ -632,7 +652,7 @@ class Transformer(nn.Module, models.Transformer):
 # ============================================== #
 #
 # The transform() function converts a 5-second waveform (32kHz, 160,000 samples) into a
-# log-mel spectrogram of shape [1, 512, 128]:
+# log-mel spectrogram of shape [512, 128]:
 #   - 512 time frames (10ms frame shift, so 5.12 seconds)
 #   - 128 mel frequency bins
 #
@@ -667,14 +687,22 @@ class Transformer(nn.Module, models.Transformer):
 # Mel-to-Hz conversion: hz = 700 * (10^(mel / 2595) - 1). The Kaldi fbank uses 128 mel bins spanning roughly 0-16kHz (Nyquist at 32kHz).
 
 
+def hz_to_mel(hz: float | Tensor | np.ndarray) -> float | Tensor | np.ndarray:
+    return 2595 * np.log10(1 + hz / 700)
+
+
+def mel_to_hz(mel: float | Tensor | np.ndarray) -> float | Tensor | np.ndarray:
+    return 700 * (10 ** (mel / 2595) - 1)
+
+
 @jaxtyped(typechecker=beartype.beartype)
 def filter_audio(
-    waveform: Float[np.ndarray, " samples"],
+    waveform: Float[Tensor, " samples"],
     sample_rate: int,
-    patches: Bool[np.ndarray, " content_tokens_per_example"],
+    patches: Bool[Tensor, " content_tokens_per_example"],
     *,
     mode: tp.Literal["time", "time+freq"] = "time",
-) -> Float[np.ndarray, " clipped"]:
+) -> Float[Tensor, " clipped"]:
     """
     Filter audio based on SAE patch activations over the log-mel spectrogram.
 
@@ -690,14 +718,116 @@ def filter_audio(
             - "time+freq": Clip time AND apply frequency masking via STFT.
 
     Returns:
-        Filtered audio waveform as a 1D numpy array.
+        Filtered audio waveform as a 1D torch tensor.
 
     Example:
-        >>> waveform, sr = librosa.load(audio_path, sr=32000)
-        >>> mel = bird_mae.transform(waveform)  # [1, 512, 128]
+        >>> waveform_np, sr = librosa.load(audio_path, sr=32000)
+        >>> mel = bird_mae.transform(waveform_np)  # [512, 128]
+        >>> waveform = torch.from_numpy(waveform_np)
         >>> # ... run through SAE to get patch_activations [256] ...
         >>> # ... covert SAE activations to bool with > 0 ...
         >>> time_clip = bird_mae.filter_audio(waveform, sr, patches, mode="time")
         >>> time_freq_clip = bird_mae.filter_audio(waveform, sr, patches, mode="time+freq")
     """
-    raise NotImplementedError("TODO: implement")
+    msg = f"Bird-MAE expects sample_rate={BIRDMAE_SR_HZ}, got {sample_rate}."
+    assert sample_rate == BIRDMAE_SR_HZ, msg
+    assert patches.shape == (BIRDMAE_N_TIME_PATCHES * BIRDMAE_N_MEL_PATCHES,)
+    assert waveform.ndim == 1, waveform.shape
+
+    # Match transform(): pad/truncate to exactly 5s
+    waveform_t = waveform.to(torch.float32)
+    max_len = BIRDMAE_SR_HZ * BIRDMAE_CLIP_SEC
+    if waveform_t.numel() < max_len:
+        pad = max_len - waveform_t.numel()
+        waveform_t = F.pad(waveform_t, (0, pad))
+    else:
+        waveform_t = waveform_t[:max_len]
+    if mode == "time+freq":
+        # STFT parameters matching Kaldi/BirdMAE assumptions approximately
+        n_fft = BIRDMAE_STFT_N_FFT
+        hop_length = BIRDMAE_STFT_HOP_LENGTH
+        win_length = BIRDMAE_STFT_WIN_LENGTH
+        window = torch.hann_window(win_length)
+
+        stft = torch.stft(
+            waveform_t,
+            n_fft=n_fft,
+            hop_length=hop_length,
+            win_length=win_length,
+            window=window,
+            center=True,
+            return_complex=True,
+        )
+        # stft shape: [freq_bins, time_frames]
+        # freq_bins = 513
+        # time_frames ~ 498 for 160000 samples
+
+        freqs = torch.linspace(0, sample_rate / 2, stft.shape[0])
+        mask = torch.zeros_like(stft, dtype=torch.bool)
+
+        # Mel range
+        low_freq = BIRDMAE_STFT_LOW_FREQ_HZ
+        high_freq = sample_rate / 2
+        min_mel = hz_to_mel(low_freq)
+        max_mel = hz_to_mel(high_freq)
+        mel_range = max_mel - min_mel
+
+        active_patch_i = torch.nonzero(patches, as_tuple=False).flatten().tolist()
+        for i in active_patch_i:
+            time_idx = i // BIRDMAE_N_MEL_PATCHES
+            mel_idx = i % BIRDMAE_N_MEL_PATCHES
+
+            # Time range (frames)
+            t_start = time_idx * BIRDMAE_FRAMES_PER_PATCH
+            t_end = (time_idx + 1) * BIRDMAE_FRAMES_PER_PATCH
+
+            # Frequency range (Hz)
+            # 128 mel bins total, 16 bins per patch
+            p_mel_low = (
+                min_mel
+                + (mel_idx * BIRDMAE_MELS_PER_PATCH / BIRDMAE_N_MELS) * mel_range
+            )
+            p_mel_high = (
+                min_mel
+                + ((mel_idx + 1) * BIRDMAE_MELS_PER_PATCH / BIRDMAE_N_MELS) * mel_range
+            )
+
+            hz_low = mel_to_hz(p_mel_low)
+            hz_high = mel_to_hz(p_mel_high)
+
+            freq_mask = (freqs >= hz_low) & (freqs < hz_high)
+
+            # Apply mask to valid frames
+            valid_t_end = min(t_end, stft.shape[1])
+            if t_start < valid_t_end:
+                mask[freq_mask, t_start:valid_t_end] = True
+
+        stft_filtered = stft * mask
+        waveform_t = torch.istft(
+            stft_filtered,
+            n_fft=n_fft,
+            hop_length=hop_length,
+            win_length=win_length,
+            window=window,
+            center=True,
+            length=waveform_t.shape[0],
+        )
+
+    # Time clipping (applies to both modes)
+    active_time_indices = torch.unique(
+        torch.nonzero(patches, as_tuple=False).flatten() // BIRDMAE_N_MEL_PATCHES
+    ).tolist()
+    segments = []
+
+    for t in active_time_indices:
+        start = t * BIRDMAE_SAMPLES_PER_TIME_PATCH
+        end = (t + 1) * BIRDMAE_SAMPLES_PER_TIME_PATCH
+        if start >= waveform_t.shape[0]:
+            continue
+        seg = waveform_t[start : min(end, waveform_t.shape[0])]
+        segments.append(seg)
+
+    if not segments:
+        return waveform_t[:0]
+
+    return torch.cat(segments, dim=0)

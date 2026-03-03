@@ -6,26 +6,16 @@ app = marimo.App(width="full")
 
 @app.cell
 def _():
-    import os
-    import datasets
-    import marimo as mo
     import logging
-
     import pathlib
-    import soundfile as sf
-    import librosa
-    import librosa.display
+
     import matplotlib.pyplot as plt
     import numpy as np
-    import saev.data.datasets
-    import torchaudio
     import torch
-    import torch.nn.functional as F
-    from torchaudio.compliance.kaldi import fbank
-
-    from jaxtyping import Float, jaxtyped
-    import beartype
+    from jaxtyping import Float
     from torch import Tensor
+
+    import saev.data.datasets
 
     log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
     logging.basicConfig(level=logging.INFO, format=log_format)

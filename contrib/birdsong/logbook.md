@@ -41,3 +41,20 @@ Some arguments for each choice:
 
 All three models recommend this paper from ~1 month ago (https://arxiv.org/pdf/2511.13981) that does PCA whitening, which is apparently this per-dimension scaling + some additional covariance matrix inverse thing to "de-correlate" features. I'll probably just say that BirdMAE should use layernorm2 and call it a day, but testing the per-dim scaling approach might be a good task for a master's/undergrad student.
 
+# 12/15/2025
+
+I think I have some qualitative examples.
+However, now I need some way to make it easier to *find* interesting concepts.
+What metadata do I have?
+How can I develop methods on FishVista + FishBase and butterflies to help find interesting concepts?
+
+First, I need to know what I'm looking for.
+In butterflies, I have a specific goal.
+In FishVista, I don't.
+In beetles, I sort of do.
+
+Let's make a nice little write-up for Kaiya and Sam Lapp and ask them for ideas on what to look for.
+
+Done.
+
+Bug: checkpoint 0y6vhggq, feature 12438 has patches at the first and fifth second of example 0, but the clips are really short.
