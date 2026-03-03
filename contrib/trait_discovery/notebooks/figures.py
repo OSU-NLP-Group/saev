@@ -14,7 +14,11 @@ def _(mo):
     ## Coding Style For This Notebook
 
     - Use `RunSpec` + `load_df(specs)` as the single data-loading interface.
-    - `load_df` auto-scans run inference shards and adds shard-prefixed columns (for example `3e27794f/normalized_mse`, `3802cb66/mean_ap`).
+    - `load_df` auto-scans run inference shards and adds shard-prefixed columns.
+      - Metrics JSON columns: `<val_shard>/<metric_name>` (for example `3e27794f/normalized_mse`).
+      - Probe columns with explicit train-shard provenance: `<val_shard>/<metric_name>__train-<train_shard>` (for example `3802cb66/mean_ap__train-614861a0`).
+      - Local probe summary on a shard: `<val_shard>/probe_r`.
+    - Loader helpers should only add columns, they should not pick max/min runs or aggregate across shards.
     - Define run IDs inside each figure function/cell (local scope), not as global dicts.
     - Keep each figure self-contained:
       - create `specs: list[RunSpec]`
@@ -31,6 +35,14 @@ def _(mo):
     2. Inside it, define `specs = [RunSpec(...), ...]`.
     3. `df, skipped = load_df(specs)`.
     4. Plot from `df`, then write `csv_df` and save both `pdf` and `csv`.
+
+    ## Table Pattern
+
+    1. Write `<table_name>()`.
+    2. Inside it, define `specs = [RunSpec(...), ...]`.
+    3. `df, skipped = load_df(specs)`.
+    4. Select rows with explicit shard columns (for example best by `3802cb66/train_probe_r__train-614861a0`).
+    5. Return a tidy table `DataFrame` and save a CSV artifact for reproducibility.
     """)
     return
 
@@ -109,6 +121,7 @@ def _(
     RunSpec,
     SAE_PROJECT,
     beartype,
+    get_baseline_ce,
     json,
     np,
     pathlib,
@@ -162,22 +175,109 @@ def _(
 
     @beartype.beartype
     def add_shard_probe_metrics(
-        row: dict[str, object], shard: str, shard_dpath: pathlib.Path
+        row: dict[str, object],
+        inference_dpath: pathlib.Path,
+        shard: str,
+        shard_dpath: pathlib.Path,
     ) -> None:
-        best_mean_ap = None
-        for probe_fpath in shard_dpath.glob("probe1d_metrics__train-*.npz"):
+        loss_by_shard: dict[str, np.ndarray | None] = {}
+
+        def get_loss(shard_id: str) -> np.ndarray | None:
+            if shard_id in loss_by_shard:
+                return loss_by_shard[shard_id]
+
+            probe_fpath = inference_dpath / shard_id / "probe1d_metrics.npz"
+            if not probe_fpath.exists():
+                loss_by_shard[shard_id] = None
+                return None
             try:
                 with np.load(probe_fpath) as fd:
-                    if "ap" not in fd:
-                        continue
-                    mean_ap = float(fd["ap"].mean().item())
+                    if "loss" not in fd:
+                        loss_by_shard[shard_id] = None
+                        return None
+                    loss = fd["loss"]
+            except (OSError, ValueError):
+                loss_by_shard[shard_id] = None
+                return None
+            if loss.ndim != 2:
+                loss_by_shard[shard_id] = None
+                return None
+            loss_by_shard[shard_id] = loss
+            return loss
+
+        val_loss = get_loss(shard)
+        val_base_ce = get_baseline_ce(shard)
+        if val_loss is not None and val_base_ce is not None:
+            n_classes = val_loss.shape[1]
+            best_i = np.argmin(val_loss, axis=0)
+            val_ce = float(val_loss[best_i, np.arange(n_classes)].mean().item())
+            row[f"{shard}/probe_r"] = 1 - val_ce / val_base_ce
+
+        for probe_fpath in shard_dpath.glob("probe1d_metrics__train-*.npz"):
+            train_shard = probe_fpath.stem.rsplit("train-", maxsplit=1)[-1]
+            if not train_shard:
+                continue
+            try:
+                with np.load(probe_fpath) as fd:
+                    ap = fd["ap"] if "ap" in fd else None
+                    top_labels = fd["top_labels"] if "top_labels" in fd else None
             except (OSError, ValueError):
                 continue
-            if best_mean_ap is None or mean_ap > best_mean_ap:
-                best_mean_ap = mean_ap
 
-        if best_mean_ap is not None:
-            row[f"{shard}/mean_ap"] = best_mean_ap
+            if isinstance(ap, np.ndarray) and ap.ndim == 1:
+                row[f"{shard}/mean_ap__train-{train_shard}"] = float(ap.mean().item())
+                row[f"{shard}/cov_at_0_3__train-{train_shard}"] = float(
+                    (ap > 0.3).mean().item()
+                )
+                row[f"{shard}/cov_at_0_5__train-{train_shard}"] = float(
+                    (ap > 0.5).mean().item()
+                )
+                row[f"{shard}/cov_at_0_7__train-{train_shard}"] = float(
+                    (ap > 0.7).mean().item()
+                )
+
+            if val_loss is None:
+                continue
+
+            train_loss = get_loss(train_shard)
+            if train_loss is None:
+                continue
+            if train_loss.shape != val_loss.shape:
+                continue
+
+            n_classes = train_loss.shape[1]
+            best_i = np.argmin(train_loss, axis=0)
+            train_ce = float(train_loss[best_i, np.arange(n_classes)].mean().item())
+            val_ce = float(val_loss[best_i, np.arange(n_classes)].mean().item())
+
+            train_base_ce = get_baseline_ce(train_shard)
+            if train_base_ce is not None:
+                row[f"{shard}/train_probe_r__train-{train_shard}"] = (
+                    1 - train_ce / train_base_ce
+                )
+            if val_base_ce is not None:
+                row[f"{shard}/val_probe_r__train-{train_shard}"] = (
+                    1 - val_ce / val_base_ce
+                )
+
+            if not isinstance(top_labels, np.ndarray):
+                continue
+            if top_labels.ndim != 2:
+                continue
+            if top_labels.shape[0] <= int(best_i.max()):
+                continue
+
+            top_labels_ck = top_labels[best_i, :16]
+            max_count_c = np.apply_along_axis(
+                lambda labels_k: np.bincount(
+                    labels_k.astype(np.int64), minlength=256
+                ).max(),
+                1,
+                top_labels_ck,
+            )
+            row[f"{shard}/purity_16__train-{train_shard}"] = float(
+                (max_count_c / 16).mean().item()
+            )
 
     @beartype.beartype
     def load_df(specs: list[RunSpec]) -> tuple[pl.DataFrame, list[str]]:
@@ -208,6 +308,7 @@ def _(
                 row: dict[str, object] = {
                     "id": run.id,
                     "method": spec.method,
+                    "project": spec.project,
                     "l0": l0,
                     "layer": layer,
                 }
@@ -219,7 +320,9 @@ def _(
                             continue
                         shard = shard_dpath.name
                         add_shard_metrics(row, shard, shard_dpath / "metrics.json")
-                        add_shard_probe_metrics(row, shard, shard_dpath)
+                        add_shard_probe_metrics(
+                            row, disk_run.inference, shard, shard_dpath
+                        )
 
                 rows.append(row)
 
@@ -229,6 +332,7 @@ def _(
                     schema={
                         "id": pl.String,
                         "method": pl.String,
+                        "project": pl.String,
                         "l0": pl.Float64,
                         "layer": pl.Int64,
                     }
@@ -711,11 +815,21 @@ def _(RunSpec, load_df, mo, pl, plt, saev):
         # Source: W&B query for tag `in1k-v0.4.1`, then for each model/layer take the run
         # with the highest ADE20K val mean AP from inference/<probe_shard>/probe1d_metrics__train-*.npz.
         probe_col_by_method = {
-            "DINOv3 ViT-L/16": "3802cb66/mean_ap",
-            "DINOv3 ViT-B/16": "66a5d2c1/mean_ap",
-            "DINOv3 ViT-S/16": "5e195bbf/mean_ap",
+            "DINOv3 ViT-L/16": "3802cb66/mean_ap__train-614861a0",
+            "DINOv3 ViT-B/16": "66a5d2c1/mean_ap__train-fd5781e8",
+            "DINOv3 ViT-S/16": "5e195bbf/mean_ap__train-781f8739",
         }
         df, skipped_run_ids = load_df(specs)
+        missing_probe_cols = [
+            probe_col
+            for probe_col in probe_col_by_method.values()
+            if probe_col not in df.columns
+        ]
+        if missing_probe_cols:
+            mo.output.append(
+                mo.md(f"Missing probe columns: {', '.join(missing_probe_cols)}.")
+            )
+            return None
         missing_probe_run_ids: list[str] = []
         for method, probe_col in probe_col_by_method.items():
             missing_probe_run_ids.extend(
@@ -825,6 +939,790 @@ def _(RunSpec, load_df, mo, pl, plt, saev):
 
 
 @app.cell
+def _(SHARDS_ROOT, beartype, mo, np, pathlib):
+    @mo.cache
+    @beartype.beartype
+    def get_baseline_ce(shard: str) -> float | None:
+        from saev.data import Metadata
+
+        shards_dpath = pathlib.Path(SHARDS_ROOT) / shard
+        labels_fpath = shards_dpath / "labels.bin"
+        if not labels_fpath.exists():
+            return None
+
+        md = Metadata.load(shards_dpath)
+        labels = np.memmap(
+            labels_fpath,
+            mode="r",
+            dtype=np.uint8,
+            shape=(md.n_examples, md.content_tokens_per_example),
+        ).reshape(-1)
+        if labels.size == 0:
+            return None
+
+        n_classes = int(labels.max()) + 1
+        counts = np.bincount(labels, minlength=n_classes).astype(np.float64)
+        prob = counts / counts.sum()
+        prob = np.clip(prob, 1e-12, 1 - 1e-12)
+        ce = -(prob * np.log(prob) + (1 - prob) * np.log(1 - prob))
+        return float(ce.mean().item())
+
+    return (get_baseline_ce,)
+
+
+@app.cell
+def _(
+    RunSpec,
+    load_df,
+    pl,
+):
+    def sae_vs_baselines_table():
+        specs = [
+            RunSpec("kmeans", ["myy5btgw"], project="tdiscovery", l0_key=1.0),
+            RunSpec(
+                "pca",
+                [
+                    "qmbo5jxw",
+                    "kwh4twl0",
+                    "za1xuhhn",
+                    "a1x1laxm",
+                    "unu6dbfb",
+                    "dzv7ha4u",
+                ],
+                project="tdiscovery",
+                l0_key="config/k",
+            ),
+            RunSpec(
+                "semi_nmf",
+                [
+                    "lm51bf37",
+                    "em7hzdw0",
+                    "cmf1j0gd",
+                    "q6qtn8f6",
+                    "rv1wfbws",
+                    "k9sot7dd",
+                ],
+                project="tdiscovery",
+                l0_key="config/k",
+            ),
+            RunSpec(
+                "vanilla_sae",
+                # Source: contrib/trait_discovery/sweeps/010_eccv/relu_nmse.py,
+                # in1k_relu_run_ids for layer 23.
+                [
+                    "o1p9wl76",
+                    "4mlqkei5",
+                    "afyydka9",
+                    "wrnz7h7h",
+                    "xayzq0hf",
+                    "0pdum8cq",
+                    "rggc5m8n",
+                    "kqlfguzz",
+                    "uojvw5o4",
+                    "t1na9yxo",
+                    "extl56w1",
+                    "6iom0amk",
+                    "i1ujcsi6",
+                    "ho86h0gp",
+                    "as770651",
+                    "yt2roil5",
+                    "dt1y8m94",
+                    "xu8n5209",
+                    "p2ycew4h",
+                    "e2jsvsbx",
+                    "cjtedfwa",
+                    "iy4mtm9y",
+                    "l2yvdllc",
+                    "99l40o12",
+                ],
+            ),
+        ]
+
+        df, _skipped = load_df(specs)
+        cols_by_method = {
+            "kmeans": {
+                "sae_train_val_shard": "3e27794f",
+                "probe_fit_val_shard": "3802cb66",
+                "train_probe_r": "3802cb66/train_probe_r__train-614861a0",
+                "val_probe_r": "3802cb66/val_probe_r__train-614861a0",
+                "val_probe_map": "3802cb66/mean_ap__train-614861a0",
+                "val_probe_purity_16": "3802cb66/purity_16__train-614861a0",
+                "val_probe_cov_at_0_3": "3802cb66/cov_at_0_3__train-614861a0",
+            },
+            "pca": {
+                "sae_train_val_shard": "3e27794f",
+                "probe_fit_val_shard": "3802cb66",
+                "train_probe_r": "3802cb66/train_probe_r__train-614861a0",
+                "val_probe_r": "3802cb66/val_probe_r__train-614861a0",
+                "val_probe_map": "3802cb66/mean_ap__train-614861a0",
+                "val_probe_purity_16": "3802cb66/purity_16__train-614861a0",
+                "val_probe_cov_at_0_3": "3802cb66/cov_at_0_3__train-614861a0",
+            },
+            "semi_nmf": {
+                "sae_train_val_shard": "3e27794f",
+                "probe_fit_val_shard": "3802cb66",
+                "train_probe_r": "3802cb66/train_probe_r__train-614861a0",
+                "val_probe_r": "3802cb66/val_probe_r__train-614861a0",
+                "val_probe_map": "3802cb66/mean_ap__train-614861a0",
+                "val_probe_purity_16": "3802cb66/purity_16__train-614861a0",
+                "val_probe_cov_at_0_3": "3802cb66/cov_at_0_3__train-614861a0",
+            },
+            "vanilla_sae": {
+                "sae_train_val_shard": "3e27794f",
+                "probe_fit_val_shard": "3802cb66",
+                "train_probe_r": "3802cb66/train_probe_r__train-614861a0",
+                "val_probe_r": "3802cb66/val_probe_r__train-614861a0",
+                "val_probe_map": "3802cb66/mean_ap__train-614861a0",
+                "val_probe_purity_16": "3802cb66/purity_16__train-614861a0",
+                "val_probe_cov_at_0_3": "3802cb66/cov_at_0_3__train-614861a0",
+            },
+        }
+
+        def get_float(row: dict[str, object], key: str) -> float | None:
+            if key not in row:
+                return None
+            value = row[key]
+            if not isinstance(value, int | float) or isinstance(value, bool):
+                return None
+            return float(value)
+
+        def get_shard_l0(row: dict[str, object], shard: str) -> float | None:
+            shard_l0 = get_float(row, f"{shard}/l0")
+            if shard_l0 is not None:
+                return shard_l0
+            return get_float(row, "l0")
+
+        def make_null_row(method: str) -> dict[str, object]:
+            return {
+                "method": method,
+                "run_id": None,
+                "layer": None,
+                "sae_train_val_nmse": None,
+                "sae_train_val_l0": None,
+                "probe_fit_val_nmse": None,
+                "probe_fit_val_l0": None,
+                "probe_fit_val_probe_r": None,
+                "probe_fit_val_probe_map": None,
+                "probe_fit_val_probe_purity_16": None,
+                "probe_fit_val_probe_cov_at_0_3": None,
+            }
+
+        rows = []
+        for method, cols in cols_by_method.items():
+            train_probe_r_col = cols["train_probe_r"]
+            if train_probe_r_col not in df.columns:
+                rows.append(make_null_row(method))
+                continue
+
+            sub_df = df.filter(
+                (pl.col("method") == method) & pl.col(train_probe_r_col).is_not_null()
+            ).sort(train_probe_r_col, descending=True)
+            if sub_df.is_empty():
+                rows.append(make_null_row(method))
+                continue
+
+            best = sub_df.row(0, named=True)
+            train_val_shard = cols["sae_train_val_shard"]
+            probe_val_shard = cols["probe_fit_val_shard"]
+            rows.append({
+                "method": method,
+                "run_id": best["id"] if "id" in best else None,
+                "layer": int(best["layer"]) if "layer" in best else None,
+                "sae_train_val_nmse": get_float(
+                    best, f"{train_val_shard}/normalized_mse"
+                ),
+                "sae_train_val_l0": get_shard_l0(best, train_val_shard),
+                "probe_fit_val_nmse": get_float(
+                    best, f"{probe_val_shard}/normalized_mse"
+                ),
+                "probe_fit_val_l0": get_shard_l0(best, probe_val_shard),
+                "probe_fit_val_probe_r": get_float(best, cols["val_probe_r"]),
+                "probe_fit_val_probe_map": get_float(best, cols["val_probe_map"]),
+                "probe_fit_val_probe_purity_16": get_float(
+                    best, cols["val_probe_purity_16"]
+                ),
+                "probe_fit_val_probe_cov_at_0_3": get_float(
+                    best, cols["val_probe_cov_at_0_3"]
+                ),
+            })
+
+        table_df = pl.DataFrame(rows).sort("method")
+
+        table_df.write_csv(
+            "contrib/trait_discovery/docs/assets/sae_vs_baselines_table.csv"
+        )
+        return table_df
+
+    sae_vs_baselines_table()
+    return
+
+
+@app.cell
+def _(RunSpec, load_df, pl):
+    def vit_size_table():
+        specs = [
+            RunSpec(
+                "DINOv3 ViT-L/16",
+                [
+                    "ag8agm56",
+                    "e9oeml82",
+                    "vrepu5ey",
+                    "0tj48gqd",
+                    "71u6kzuq",
+                    "extl56w1",
+                ],
+            ),
+            RunSpec(
+                "DINOv3 ViT-B/16",
+                [
+                    "8hyzbyht",
+                    "knz7yndg",
+                    "q6pg7hl9",
+                    "zvx4qkov",
+                    "jpnwfh3w",
+                    "6crsj9gj",
+                ],
+            ),
+            RunSpec(
+                "DINOv3 ViT-S/16",
+                [
+                    "gcpbnr9n",
+                    "pvtt26ky",
+                    "5gjy7lwi",
+                    "flfplqsa",
+                    "jt45lucm",
+                    "5ewxrjg4",
+                ],
+            ),
+        ]
+        cols_by_method = {
+            "DINOv3 ViT-L/16": {
+                "sae_train_val_shard": "3e27794f",
+                "probe_fit_val_shard": "3802cb66",
+                "train_probe_r": "3802cb66/train_probe_r__train-614861a0",
+                "val_probe_r": "3802cb66/val_probe_r__train-614861a0",
+                "val_probe_map": "3802cb66/mean_ap__train-614861a0",
+                "val_probe_purity_16": "3802cb66/purity_16__train-614861a0",
+                "val_probe_cov_at_0_3": "3802cb66/cov_at_0_3__train-614861a0",
+            },
+            "DINOv3 ViT-B/16": {
+                "sae_train_val_shard": "8762551e",
+                "probe_fit_val_shard": "66a5d2c1",
+                "train_probe_r": "66a5d2c1/train_probe_r__train-fd5781e8",
+                "val_probe_r": "66a5d2c1/val_probe_r__train-fd5781e8",
+                "val_probe_map": "66a5d2c1/mean_ap__train-fd5781e8",
+                "val_probe_purity_16": "66a5d2c1/purity_16__train-fd5781e8",
+                "val_probe_cov_at_0_3": "66a5d2c1/cov_at_0_3__train-fd5781e8",
+            },
+            "DINOv3 ViT-S/16": {
+                "sae_train_val_shard": "52ec5790",
+                "probe_fit_val_shard": "5e195bbf",
+                "train_probe_r": "5e195bbf/train_probe_r__train-781f8739",
+                "val_probe_r": "5e195bbf/val_probe_r__train-781f8739",
+                "val_probe_map": "5e195bbf/mean_ap__train-781f8739",
+                "val_probe_purity_16": "5e195bbf/purity_16__train-781f8739",
+                "val_probe_cov_at_0_3": "5e195bbf/cov_at_0_3__train-781f8739",
+            },
+        }
+
+        df, _skipped = load_df(specs)
+
+        def get_float(row: dict[str, object], key: str) -> float | None:
+            if key not in row:
+                return None
+            value = row[key]
+            if not isinstance(value, int | float) or isinstance(value, bool):
+                return None
+            return float(value)
+
+        def get_shard_l0(row: dict[str, object], shard: str) -> float | None:
+            shard_l0 = get_float(row, f"{shard}/l0")
+            if shard_l0 is not None:
+                return shard_l0
+            return get_float(row, "l0")
+
+        def make_null_row(method: str) -> dict[str, object]:
+            return {
+                "method": method,
+                "run_id": None,
+                "layer": None,
+                "sae_train_val_nmse": None,
+                "sae_train_val_l0": None,
+                "probe_fit_val_nmse": None,
+                "probe_fit_val_l0": None,
+                "probe_fit_val_probe_r": None,
+                "probe_fit_val_probe_map": None,
+                "probe_fit_val_probe_purity_16": None,
+                "probe_fit_val_probe_cov_at_0_3": None,
+            }
+
+        rows = []
+        for method, cols in cols_by_method.items():
+            train_probe_r_col = cols["train_probe_r"]
+            if train_probe_r_col not in df.columns:
+                rows.append(make_null_row(method))
+                continue
+
+            sub_df = df.filter(
+                (pl.col("method") == method) & pl.col(train_probe_r_col).is_not_null()
+            ).sort(train_probe_r_col, descending=True)
+            if sub_df.is_empty():
+                rows.append(make_null_row(method))
+                continue
+
+            best = sub_df.row(0, named=True)
+            train_val_shard = cols["sae_train_val_shard"]
+            probe_val_shard = cols["probe_fit_val_shard"]
+            rows.append({
+                "method": method,
+                "run_id": best["id"] if "id" in best else None,
+                "layer": int(best["layer"]) if "layer" in best else None,
+                "sae_train_val_nmse": get_float(
+                    best, f"{train_val_shard}/normalized_mse"
+                ),
+                "sae_train_val_l0": get_shard_l0(best, train_val_shard),
+                "probe_fit_val_nmse": get_float(
+                    best, f"{probe_val_shard}/normalized_mse"
+                ),
+                "probe_fit_val_l0": get_shard_l0(best, probe_val_shard),
+                "probe_fit_val_probe_r": get_float(best, cols["val_probe_r"]),
+                "probe_fit_val_probe_map": get_float(best, cols["val_probe_map"]),
+                "probe_fit_val_probe_purity_16": get_float(
+                    best, cols["val_probe_purity_16"]
+                ),
+                "probe_fit_val_probe_cov_at_0_3": get_float(
+                    best, cols["val_probe_cov_at_0_3"]
+                ),
+            })
+
+        table_df = pl.DataFrame(rows).sort("method")
+        table_df.write_csv("contrib/trait_discovery/docs/assets/vit_size_table.csv")
+        return table_df
+
+    vit_size_table()
+    return
+
+
+@app.cell
+def _(RunSpec, load_df, pl):
+    def vit_family_table():
+        specs = [
+            RunSpec(
+                "DINOv3 ViT-L/16 (Matryoshka+TopK)",
+                # Source: contrib/trait_discovery/sweeps/010_eccv/matryoshka_topk_nmse.py
+                ["flqkcam7", "s3pqewz1", "l8hooa3r"],
+            ),
+            RunSpec(
+                "PE-core ViT-L/14 (Matryoshka+TopK)",
+                # Source: contrib/trait_discovery/sweeps/009_pe_core/inference.py
+                ["h4gy7fke", "ywydn3z5", "omk5qhxf", "f3a9b41q", "r69kzt74"],
+            ),
+        ]
+        cols_by_method = {
+            "DINOv3 ViT-L/16 (Matryoshka+TopK)": {
+                "sae_train_val_shard": "3e27794f",
+                "probe_fit_val_shard": "3802cb66",
+                "train_probe_r": "3802cb66/train_probe_r__train-614861a0",
+                "val_probe_r": "3802cb66/val_probe_r__train-614861a0",
+                "val_probe_map": "3802cb66/mean_ap__train-614861a0",
+                "val_probe_purity_16": "3802cb66/purity_16__train-614861a0",
+                "val_probe_cov_at_0_3": "3802cb66/cov_at_0_3__train-614861a0",
+            },
+            "PE-core ViT-L/14 (Matryoshka+TopK)": {
+                "sae_train_val_shard": "a7f78fe3",
+                "probe_fit_val_shard": "80219cbf",
+                "train_probe_r": "80219cbf/train_probe_r__train-fa2b7ff0",
+                "val_probe_r": "80219cbf/val_probe_r__train-fa2b7ff0",
+                "val_probe_map": "80219cbf/mean_ap__train-fa2b7ff0",
+                "val_probe_purity_16": "80219cbf/purity_16__train-fa2b7ff0",
+                "val_probe_cov_at_0_3": "80219cbf/cov_at_0_3__train-fa2b7ff0",
+            },
+        }
+
+        df, _skipped = load_df(specs)
+
+        def get_float(row: dict[str, object], key: str) -> float | None:
+            if key not in row:
+                return None
+            value = row[key]
+            if not isinstance(value, int | float) or isinstance(value, bool):
+                return None
+            return float(value)
+
+        def get_shard_l0(row: dict[str, object], shard: str) -> float | None:
+            shard_l0 = get_float(row, f"{shard}/l0")
+            if shard_l0 is not None:
+                return shard_l0
+            return get_float(row, "l0")
+
+        def make_null_row(method: str) -> dict[str, object]:
+            return {
+                "method": method,
+                "run_id": None,
+                "layer": None,
+                "sae_train_val_nmse": None,
+                "sae_train_val_l0": None,
+                "probe_fit_val_nmse": None,
+                "probe_fit_val_l0": None,
+                "probe_fit_val_probe_r": None,
+                "probe_fit_val_probe_map": None,
+                "probe_fit_val_probe_purity_16": None,
+                "probe_fit_val_probe_cov_at_0_3": None,
+            }
+
+        rows = []
+        for method, cols in cols_by_method.items():
+            train_probe_r_col = cols["train_probe_r"]
+            if train_probe_r_col not in df.columns:
+                rows.append(make_null_row(method))
+                continue
+
+            sub_df = df.filter(
+                (pl.col("method") == method) & pl.col(train_probe_r_col).is_not_null()
+            ).sort(train_probe_r_col, descending=True)
+            if sub_df.is_empty():
+                rows.append(make_null_row(method))
+                continue
+
+            best = sub_df.row(0, named=True)
+            train_val_shard = cols["sae_train_val_shard"]
+            probe_val_shard = cols["probe_fit_val_shard"]
+            rows.append({
+                "method": method,
+                "run_id": best["id"] if "id" in best else None,
+                "layer": int(best["layer"]) if "layer" in best else None,
+                "sae_train_val_nmse": get_float(
+                    best, f"{train_val_shard}/normalized_mse"
+                ),
+                "sae_train_val_l0": get_shard_l0(best, train_val_shard),
+                "probe_fit_val_nmse": get_float(
+                    best, f"{probe_val_shard}/normalized_mse"
+                ),
+                "probe_fit_val_l0": get_shard_l0(best, probe_val_shard),
+                "probe_fit_val_probe_r": get_float(best, cols["val_probe_r"]),
+                "probe_fit_val_probe_map": get_float(best, cols["val_probe_map"]),
+                "probe_fit_val_probe_purity_16": get_float(
+                    best, cols["val_probe_purity_16"]
+                ),
+                "probe_fit_val_probe_cov_at_0_3": get_float(
+                    best, cols["val_probe_cov_at_0_3"]
+                ),
+            })
+
+        table_df = pl.DataFrame(rows).sort("method")
+        table_df.write_csv("contrib/trait_discovery/docs/assets/vit_family_table.csv")
+        return table_df
+
+    vit_family_table()
+    return
+
+
+@app.cell
+def _(RunSpec, load_df, pl):
+    def sae_variants_table():
+        specs = [
+            RunSpec(
+                "vanilla_relu",
+                # Source: contrib/trait_discovery/sweeps/010_eccv/relu_nmse.py
+                [
+                    "o1p9wl76",
+                    "4mlqkei5",
+                    "afyydka9",
+                    "wrnz7h7h",
+                    "xayzq0hf",
+                    "0pdum8cq",
+                    "rggc5m8n",
+                    "kqlfguzz",
+                    "uojvw5o4",
+                    "t1na9yxo",
+                    "extl56w1",
+                    "6iom0amk",
+                    "i1ujcsi6",
+                    "ho86h0gp",
+                    "as770651",
+                    "yt2roil5",
+                    "dt1y8m94",
+                    "xu8n5209",
+                    "p2ycew4h",
+                    "e2jsvsbx",
+                    "cjtedfwa",
+                    "iy4mtm9y",
+                    "l2yvdllc",
+                    "99l40o12",
+                ],
+            ),
+            RunSpec(
+                "matryoshka_relu",
+                # Source: contrib/trait_discovery/sweeps/010_eccv/matryoshka_relu_nmse.py
+                [
+                    "lnleoyf6",
+                    "ibt2fgta",
+                    "6l12fjm9",
+                    "5mv59srt",
+                    "rfic94if",
+                    "t1vh0qy1",
+                    "u3gj24az",
+                    "mccrm7u8",
+                    "q91eu62e",
+                    "t88ez13w",
+                    "eosnewqp",
+                    "yfpdczj7",
+                    "fxcpfysr",
+                    "xg2vom0w",
+                    "rqdpylmi",
+                    "s3dxavbq",
+                    "2zf86reb",
+                    "1247ezti",
+                    "kd2pd8rs",
+                    "9drbwvhg",
+                    "09srbijj",
+                    "1qynjykb",
+                    "02ors1ov",
+                    "vxgyr2du",
+                    "x6ho5md2",
+                    "0pz90ly4",
+                    "ybm0jqi4",
+                    "kn0f5a3v",
+                    "2pdk23cz",
+                    "3kkf33w6",
+                    "9fn4l6rf",
+                    "9pdmmk1r",
+                    "o1vnl1yp",
+                ],
+            ),
+            RunSpec(
+                "matryoshka_topk",
+                # Source: contrib/trait_discovery/sweeps/010_eccv/matryoshka_topk_nmse.py
+                ["flqkcam7", "s3pqewz1", "l8hooa3r"],
+            ),
+        ]
+
+        df, _skipped = load_df(specs)
+        cols_by_method = {
+            "vanilla_relu": {
+                "sae_train_val_shard": "3e27794f",
+                "probe_fit_val_shard": "3802cb66",
+                "train_probe_r": "3802cb66/train_probe_r__train-614861a0",
+                "val_probe_r": "3802cb66/val_probe_r__train-614861a0",
+                "val_probe_map": "3802cb66/mean_ap__train-614861a0",
+                "val_probe_purity_16": "3802cb66/purity_16__train-614861a0",
+                "val_probe_cov_at_0_3": "3802cb66/cov_at_0_3__train-614861a0",
+            },
+            "matryoshka_relu": {
+                "sae_train_val_shard": "3e27794f",
+                "probe_fit_val_shard": "3802cb66",
+                "train_probe_r": "3802cb66/train_probe_r__train-614861a0",
+                "val_probe_r": "3802cb66/val_probe_r__train-614861a0",
+                "val_probe_map": "3802cb66/mean_ap__train-614861a0",
+                "val_probe_purity_16": "3802cb66/purity_16__train-614861a0",
+                "val_probe_cov_at_0_3": "3802cb66/cov_at_0_3__train-614861a0",
+            },
+            "matryoshka_topk": {
+                "sae_train_val_shard": "3e27794f",
+                "probe_fit_val_shard": "3802cb66",
+                "train_probe_r": "3802cb66/train_probe_r__train-614861a0",
+                "val_probe_r": "3802cb66/val_probe_r__train-614861a0",
+                "val_probe_map": "3802cb66/mean_ap__train-614861a0",
+                "val_probe_purity_16": "3802cb66/purity_16__train-614861a0",
+                "val_probe_cov_at_0_3": "3802cb66/cov_at_0_3__train-614861a0",
+            },
+        }
+
+        def get_float(row: dict[str, object], key: str) -> float | None:
+            if key not in row:
+                return None
+            value = row[key]
+            if not isinstance(value, int | float) or isinstance(value, bool):
+                return None
+            return float(value)
+
+        def get_shard_l0(row: dict[str, object], shard: str) -> float | None:
+            shard_l0 = get_float(row, f"{shard}/l0")
+            if shard_l0 is not None:
+                return shard_l0
+            return get_float(row, "l0")
+
+        def make_null_row(method: str) -> dict[str, object]:
+            return {
+                "method": method,
+                "run_id": None,
+                "layer": None,
+                "sae_train_val_nmse": None,
+                "sae_train_val_l0": None,
+                "probe_fit_val_nmse": None,
+                "probe_fit_val_l0": None,
+                "probe_fit_val_probe_r": None,
+                "probe_fit_val_probe_map": None,
+                "probe_fit_val_probe_purity_16": None,
+                "probe_fit_val_probe_cov_at_0_3": None,
+            }
+
+        rows = []
+        for method, cols in cols_by_method.items():
+            train_probe_r_col = cols["train_probe_r"]
+            if train_probe_r_col not in df.columns:
+                rows.append(make_null_row(method))
+                continue
+
+            sub_df = df.filter(
+                (pl.col("method") == method) & pl.col(train_probe_r_col).is_not_null()
+            ).sort(train_probe_r_col, descending=True)
+            if sub_df.is_empty():
+                rows.append(make_null_row(method))
+                continue
+
+            best = sub_df.row(0, named=True)
+            train_val_shard = cols["sae_train_val_shard"]
+            probe_val_shard = cols["probe_fit_val_shard"]
+            rows.append({
+                "method": method,
+                "run_id": best["id"] if "id" in best else None,
+                "layer": int(best["layer"]) if "layer" in best else None,
+                "sae_train_val_nmse": get_float(
+                    best, f"{train_val_shard}/normalized_mse"
+                ),
+                "sae_train_val_l0": get_shard_l0(best, train_val_shard),
+                "probe_fit_val_nmse": get_float(
+                    best, f"{probe_val_shard}/normalized_mse"
+                ),
+                "probe_fit_val_l0": get_shard_l0(best, probe_val_shard),
+                "probe_fit_val_probe_r": get_float(best, cols["val_probe_r"]),
+                "probe_fit_val_probe_map": get_float(best, cols["val_probe_map"]),
+                "probe_fit_val_probe_purity_16": get_float(
+                    best, cols["val_probe_purity_16"]
+                ),
+                "probe_fit_val_probe_cov_at_0_3": get_float(
+                    best, cols["val_probe_cov_at_0_3"]
+                ),
+            })
+
+        table_df = pl.DataFrame(rows).sort("method")
+
+        table_df.write_csv("contrib/trait_discovery/docs/assets/sae_variants_table.csv")
+        return table_df
+
+    sae_variants_table()
+    return
+
+
+@app.cell
+def _(RunSpec, load_df, pl):
+    def ade20k_vs_fishvista_table():
+        specs = [
+            RunSpec(
+                "ADE20K (Matryoshka+TopK, DINOv3 ViT-L/16)",
+                # Source: contrib/trait_discovery/sweeps/010_eccv/matryoshka_topk_nmse.py
+                ["flqkcam7", "s3pqewz1", "l8hooa3r"],
+            ),
+            RunSpec(
+                "FishVista (Matryoshka+TopK, DINOv3 ViT-L/16)",
+                # Source: contrib/trait_discovery/sweeps/006_proposal_audit/cls_train.py
+                # fishvista_run_ids[23].
+                ["pdikj9bl", "hfpct5ae", "s465wgg4", "dc86xg8z", "bpz34d80"],
+            ),
+        ]
+        cols_by_method = {
+            "ADE20K (Matryoshka+TopK, DINOv3 ViT-L/16)": {
+                "sae_train_val_shard": "3e27794f",
+                "probe_fit_val_shard": "3802cb66",
+                "train_probe_r": "3802cb66/train_probe_r__train-614861a0",
+                "val_probe_r": "3802cb66/val_probe_r__train-614861a0",
+                "val_probe_map": "3802cb66/mean_ap__train-614861a0",
+                "val_probe_purity_16": "3802cb66/purity_16__train-614861a0",
+                "val_probe_cov_at_0_3": "3802cb66/cov_at_0_3__train-614861a0",
+            },
+            "FishVista (Matryoshka+TopK, DINOv3 ViT-L/16)": {
+                "sae_train_val_shard": "5dcb2f75",
+                "probe_fit_val_shard": "8692dfa9",
+                "train_probe_r": "8692dfa9/train_probe_r__train-5dcb2f75",
+                "val_probe_r": "8692dfa9/val_probe_r__train-5dcb2f75",
+                "val_probe_map": "8692dfa9/mean_ap__train-5dcb2f75",
+                "val_probe_purity_16": "8692dfa9/purity_16__train-5dcb2f75",
+                "val_probe_cov_at_0_3": "8692dfa9/cov_at_0_3__train-5dcb2f75",
+            },
+        }
+
+        df, _skipped = load_df(specs)
+
+        def get_float(row: dict[str, object], key: str) -> float | None:
+            if key not in row:
+                return None
+            value = row[key]
+            if not isinstance(value, int | float) or isinstance(value, bool):
+                return None
+            return float(value)
+
+        def get_shard_l0(row: dict[str, object], shard: str) -> float | None:
+            shard_l0 = get_float(row, f"{shard}/l0")
+            if shard_l0 is not None:
+                return shard_l0
+            return get_float(row, "l0")
+
+        def make_null_row(method: str) -> dict[str, object]:
+            return {
+                "method": method,
+                "run_id": None,
+                "layer": None,
+                "sae_train_val_nmse": None,
+                "sae_train_val_l0": None,
+                "probe_fit_val_nmse": None,
+                "probe_fit_val_l0": None,
+                "probe_fit_val_probe_r": None,
+                "probe_fit_val_probe_map": None,
+                "probe_fit_val_probe_purity_16": None,
+                "probe_fit_val_probe_cov_at_0_3": None,
+            }
+
+        rows = []
+        for method, cols in cols_by_method.items():
+            train_probe_r_col = cols["train_probe_r"]
+            if train_probe_r_col not in df.columns:
+                rows.append(make_null_row(method))
+                continue
+
+            sub_df = df.filter(
+                (pl.col("method") == method) & pl.col(train_probe_r_col).is_not_null()
+            ).sort(train_probe_r_col, descending=True)
+            if sub_df.is_empty():
+                rows.append(make_null_row(method))
+                continue
+
+            best = sub_df.row(0, named=True)
+            train_val_shard = cols["sae_train_val_shard"]
+            probe_val_shard = cols["probe_fit_val_shard"]
+            rows.append({
+                "method": method,
+                "run_id": best["id"] if "id" in best else None,
+                "layer": int(best["layer"]) if "layer" in best else None,
+                "sae_train_val_nmse": get_float(
+                    best, f"{train_val_shard}/normalized_mse"
+                ),
+                "sae_train_val_l0": get_shard_l0(best, train_val_shard),
+                "probe_fit_val_nmse": get_float(
+                    best, f"{probe_val_shard}/normalized_mse"
+                ),
+                "probe_fit_val_l0": get_shard_l0(best, probe_val_shard),
+                "probe_fit_val_probe_r": get_float(best, cols["val_probe_r"]),
+                "probe_fit_val_probe_map": get_float(best, cols["val_probe_map"]),
+                "probe_fit_val_probe_purity_16": get_float(
+                    best, cols["val_probe_purity_16"]
+                ),
+                "probe_fit_val_probe_cov_at_0_3": get_float(
+                    best, cols["val_probe_cov_at_0_3"]
+                ),
+            })
+
+        table_df = pl.DataFrame(rows).sort("method")
+        table_df.write_csv(
+            "contrib/trait_discovery/docs/assets/ade20k_vs_fishvista_table.csv"
+        )
+        return table_df
+
+    ade20k_vs_fishvista_table()
+    return
+
+
+@app.cell
 def _(
     RUNS_ROOT_BY_PROJECT,
     RunSpec,
@@ -863,9 +1761,16 @@ def _(
                 ["pdikj9bl", "hfpct5ae", "s465wgg4", "dc86xg8z", "bpz34d80"],
             )
         ]
-        probe_col = "8692dfa9/mean_ap"
+        probe_col = "8692dfa9/mean_ap__train-5dcb2f75"
         val_shard = "8692dfa9"
         df, skipped_run_ids = load_df(specs)
+        if probe_col not in df.columns:
+            mo.output.append(
+                mo.md(
+                    f"Missing probe column `{probe_col}`. Ensure probe metrics exist on disk."
+                )
+            )
+            return None
         if skipped_run_ids:
             msg = f"Skipped {len(skipped_run_ids)} runs with missing run path/l0/layer: {', '.join(skipped_run_ids)}."
             mo.output.append(mo.md(msg))

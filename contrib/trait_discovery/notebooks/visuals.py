@@ -15,19 +15,25 @@ def _():
     import polars as pl
     from jaxtyping import Float, jaxtyped
 
-    import saev.disk
     import saev.data
+    import saev.disk
+
     return Float, beartype, bisect, jaxtyped, mo, np, pathlib, pl, saev
 
 
 @app.cell
 def _(pathlib):
-    root = pathlib.Path("/fs/ess/PAS2136/samuelstevens/saev/runs/")
-    return (root,)
+    root_dpaths = [
+        pathlib.Path("/fs/ess/PAS2136/samuelstevens/tdiscovery/saev/runs"),
+        pathlib.Path("/fs/ess/PAS2136/samuelstevens/saev/runs"),
+    ]
+    root_dpaths = [p for p in root_dpaths if p.is_dir()]
+    assert root_dpaths, "No runs roots found."
+    return (root_dpaths,)
 
 
 @app.cell
-def _(mo, root):
+def _(mo, root_dpaths):
     def has_images(run_dir):
         inference_dir = run_dir / "inference"
 
@@ -35,26 +41,33 @@ def _(mo, root):
             return False
 
         for shards in inference_dir.iterdir():
-            if (inference_dir / shards / "images").is_dir():
+            if (shards / "images").is_dir():
                 return True
 
         return False
 
     def make_ckpt_dropdown():
+        run_dpath_by_id = {}
         try:
-            choices = sorted(
-                path.name
-                for path in mo.status.progress_bar(list(root.iterdir()))
-                if has_images(path)
-            )
+            for root in root_dpaths:
+                for path in mo.status.progress_bar(list(root.iterdir())):
+                    if not has_images(path):
+                        continue
+                    if path.name in run_dpath_by_id:
+                        continue
+                    run_dpath_by_id[path.name] = path
+            choices = sorted(run_dpath_by_id)
 
         except FileNotFoundError:
             choices = []
+            run_dpath_by_id = {}
 
-        return mo.ui.dropdown(choices, label="Checkpoint", searchable=True)
+        return mo.ui.dropdown(
+            choices, label="Checkpoint", searchable=True
+        ), run_dpath_by_id
 
-    ckpt_dropdown = make_ckpt_dropdown()
-    return (ckpt_dropdown,)
+    ckpt_dropdown, run_dpath_by_id = make_ckpt_dropdown()
+    return ckpt_dropdown, run_dpath_by_id
 
 
 @app.cell
@@ -64,8 +77,8 @@ def _(ckpt_dropdown):
 
 
 @app.cell
-def _(ckpt_dropdown, root, saev):
-    run = saev.disk.Run(root / ckpt_dropdown.value)
+def _(ckpt_dropdown, run_dpath_by_id, saev):
+    run = saev.disk.Run(run_dpath_by_id[ckpt_dropdown.value])
     return (run,)
 
 
@@ -112,6 +125,7 @@ def _(pl):
         }
 
         return obs, target2fields
+
     return
 
 
@@ -221,6 +235,7 @@ def _(features, get_i, mo, sae_var):
         return mo.md(
             f"Feature {f} ({get_i()}/{len(features)}; {get_i() / len(features) * 100:.1f}%) | Frequency: {10 ** feature['log10_freq'] * 100:.5f}% of inputs | Mean Value: {10 ** feature['log10_value']:.3f}"
         )
+
     return (display_info,)
 
 
@@ -363,6 +378,7 @@ def _(
             ],
             align="center",
         )
+
     return (show_img,)
 
 
