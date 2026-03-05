@@ -211,163 +211,6 @@ def _():
 
 @app.cell
 def _():
-    # ~40 seconds on a CPU machine
-    dino_vit, dino_sae, dino_tr = load_model_and_sae(
-        "dinov2", "dinov2_vitb14_reg", "osunlp/SAE_DINOv2_24K_ViT-B-14_IN1K", 10, 256
-    )
-    return dino_sae, dino_tr, dino_vit
-
-
-@app.cell
-def _(
-    DINOV2_IMAGENET1K_MEAN,
-    DINOV2_IMAGENET1K_SCALAR,
-    dino_sae,
-    dino_tr,
-    dino_vit,
-    img,
-):
-    # Around 40s on a CPU-only machine
-    def _dino_normalize(x):
-        return (
-            x.clamp(-1e-5, 1e5) - DINOV2_IMAGENET1K_MEAN.to(x.device)
-        ) / DINOV2_IMAGENET1K_SCALAR
-
-
-    dino_patch_acts, dino_out = extract_features(
-        dino_vit, dino_sae, img, dino_tr, normalize_fn=_dino_normalize
-    )
-    return dino_out, dino_patch_acts
-
-
-@app.cell
-def _(dino_out, dino_patch_acts):
-    dino_mse = torch.mean((dino_out.x_hats[:, 0, :] - dino_patch_acts) ** 2)
-    dino_l0 = (dino_out.f_x > 0).sum(axis=1).float().mean()
-    dino_mse, dino_l0, dino_l0 / dino_out.f_x.shape[1] * 100
-    return
-
-
-@app.cell
-def _(dino_out, dino_vit, img):
-    dino_img = v2.Compose([v2.Resize(256), v2.CenterCrop(224)])(img)
-
-    dino_filt_top = select_top_latents_filtered(
-        dino_out.f_x, k=5, min_frac=0.05, max_frac=0.5, act_threshold=0.3
-    )
-
-    dino_filt_fig = plot_latent_heatmaps(
-        dino_img, dino_out.f_x, dino_filt_top, dino_vit.model.patch_size
-    )
-    dino_filt_fig.suptitle("Meta's DINOv2 ViT-B/14: Top 5 SAE Latents")
-    dino_filt_fig
-    return
-
-
-@app.cell(hide_code=True)
-def _():
-    mo.md(r"""
-    ## CLIP ViT-B/16
-    """)
-    return
-
-
-@app.cell
-def _():
-    clip_vit, clip_sae, clip_tr = load_model_and_sae(
-        "clip", "ViT-B-16/openai", "osunlp/SAE_CLIP_24K_ViT-B-16_IN1K", 10, 196
-    )
-    return clip_sae, clip_tr, clip_vit
-
-
-@app.cell
-def _(clip_sae, clip_tr, clip_vit, img):
-    clip_patch_acts, clip_out = extract_features(clip_vit, clip_sae, img, clip_tr)
-    return clip_out, clip_patch_acts
-
-
-@app.cell
-def _(clip_out, clip_patch_acts):
-    clip_mse = torch.mean((clip_out.x_hats[:, 0, :] - clip_patch_acts) ** 2)
-    clip_l0 = (clip_out.f_x > 0).sum(axis=1).float().mean()
-    clip_mse, clip_l0, clip_l0 / clip_out.f_x.shape[1] * 100
-    return
-
-
-@app.cell
-def _(clip_out, clip_vit, img):
-    # Note that CLIP doesn't do a 256 -> 224 resize+crop; it does 224->224.
-    clip_img = v2.Compose([v2.Resize(224), v2.CenterCrop(224)])(img)
-
-    clip_filt_top = select_top_latents_filtered(
-        clip_out.f_x, k=5, min_frac=0.05, max_frac=0.5, act_threshold=0.3
-    )
-
-    clip_filt_fig = plot_latent_heatmaps(
-        clip_img, clip_out.f_x, clip_filt_top, clip_vit.model.patch_size
-    )
-    clip_filt_fig.suptitle(f"OpenAI's CLIP ViT-B/16: Top 5 SAE Latents")
-    clip_filt_fig
-    return
-
-
-@app.cell(hide_code=True)
-def _():
-    mo.md(r"""
-    ## BioCLIP ViT-B/16
-    """)
-    return
-
-
-@app.cell
-def _():
-    bio_vit, bio_sae, bio_tr = load_model_and_sae(
-        "clip",
-        "hf-hub:imageomics/bioclip",
-        "osunlp/SAE_BioCLIP_24K_ViT-B-16_iNat21",
-        10,
-        196,
-    )
-    return bio_sae, bio_tr, bio_vit
-
-
-@app.cell
-def _(bio_sae, bio_tr, bio_vit, img):
-    bio_patch_acts, bio_out = extract_features(bio_vit, bio_sae, img, bio_tr)
-    return bio_out, bio_patch_acts
-
-
-@app.cell
-def _(bio_out, bio_patch_acts):
-    bio_mse = torch.mean((bio_out.x_hats[:, 0, :] - bio_patch_acts) ** 2)
-    bio_l0 = (bio_out.f_x > 0).sum(axis=1).float().mean()
-    bio_mse, bio_l0, bio_l0 / bio_out.f_x.shape[1] * 100
-    return
-
-
-@app.cell
-def _(bio_out, bio_vit, img):
-    # Note that BioCLIP doesn't do a 256 -> 224 resize+crop; it does 224->224.
-    bio_img = v2.Compose([v2.Resize(224), v2.CenterCrop(224)])(img)
-
-    bio_filt_top = select_top_latents_filtered(
-        bio_out.f_x,
-        k=5,
-        min_frac=0.1,
-        max_frac=0.4,
-        act_threshold=0.3,
-    )
-
-    bio_filt_fig = plot_latent_heatmaps(
-        bio_img, bio_out.f_x, bio_filt_top, bio_vit.model.patch_size
-    )
-    bio_filt_fig.suptitle(f"Imageomics' BioCLIP ViT-B/16: Top 5 SAE Latents")
-    bio_filt_fig
-    return
-
-
-@app.cell
-def _():
     DINOV2_IMAGENET1K_SCALAR = 2.0181241035461426
 
     DINOV2_IMAGENET1K_MEAN = torch.tensor(
@@ -1143,6 +986,163 @@ def _():
         ]
     )
     return DINOV2_IMAGENET1K_MEAN, DINOV2_IMAGENET1K_SCALAR
+
+
+@app.cell
+def _():
+    # ~40 seconds on a CPU machine
+    dino_vit, dino_sae, dino_tr = load_model_and_sae(
+        "dinov2", "dinov2_vitb14_reg", "osunlp/SAE_DINOv2_24K_ViT-B-14_IN1K", 10, 256
+    )
+    return dino_sae, dino_tr, dino_vit
+
+
+@app.cell
+def _(
+    DINOV2_IMAGENET1K_MEAN,
+    DINOV2_IMAGENET1K_SCALAR,
+    dino_sae,
+    dino_tr,
+    dino_vit,
+    img,
+):
+    # Around 40s on a CPU-only machine
+    def _dino_normalize(x):
+        return (
+            x.clamp(-1e-5, 1e5) - DINOV2_IMAGENET1K_MEAN.to(x.device)
+        ) / DINOV2_IMAGENET1K_SCALAR
+
+
+    dino_patch_acts, dino_out = extract_features(
+        dino_vit, dino_sae, img, dino_tr, normalize_fn=_dino_normalize
+    )
+    return dino_out, dino_patch_acts
+
+
+@app.cell
+def _(dino_out, dino_patch_acts):
+    dino_mse = torch.mean((dino_out.x_hats[:, 0, :] - dino_patch_acts) ** 2)
+    dino_l0 = (dino_out.f_x > 0).sum(axis=1).float().mean()
+    dino_mse, dino_l0, dino_l0 / dino_out.f_x.shape[1] * 100
+    return
+
+
+@app.cell
+def _(dino_out, dino_vit, img):
+    dino_img = v2.Compose([v2.Resize(256), v2.CenterCrop(224)])(img)
+
+    dino_filt_top = select_top_latents_filtered(
+        dino_out.f_x, k=5, min_frac=0.05, max_frac=0.5, act_threshold=0.3
+    )
+
+    dino_filt_fig = plot_latent_heatmaps(
+        dino_img, dino_out.f_x, dino_filt_top, dino_vit.model.patch_size
+    )
+    dino_filt_fig.suptitle("Meta's DINOv2 ViT-B/14: Top 5 SAE Latents")
+    dino_filt_fig
+    return
+
+
+@app.cell(hide_code=True)
+def _():
+    mo.md(r"""
+    ## CLIP ViT-B/16
+    """)
+    return
+
+
+@app.cell
+def _():
+    clip_vit, clip_sae, clip_tr = load_model_and_sae(
+        "clip", "ViT-B-16/openai", "osunlp/SAE_CLIP_24K_ViT-B-16_IN1K", 10, 196
+    )
+    return clip_sae, clip_tr, clip_vit
+
+
+@app.cell
+def _(clip_sae, clip_tr, clip_vit, img):
+    clip_patch_acts, clip_out = extract_features(clip_vit, clip_sae, img, clip_tr)
+    return clip_out, clip_patch_acts
+
+
+@app.cell
+def _(clip_out, clip_patch_acts):
+    clip_mse = torch.mean((clip_out.x_hats[:, 0, :] - clip_patch_acts) ** 2)
+    clip_l0 = (clip_out.f_x > 0).sum(axis=1).float().mean()
+    clip_mse, clip_l0, clip_l0 / clip_out.f_x.shape[1] * 100
+    return
+
+
+@app.cell
+def _(clip_out, clip_vit, img):
+    # Note that CLIP doesn't do a 256 -> 224 resize+crop; it does 224->224.
+    clip_img = v2.Compose([v2.Resize(224), v2.CenterCrop(224)])(img)
+
+    clip_filt_top = select_top_latents_filtered(
+        clip_out.f_x, k=5, min_frac=0.05, max_frac=0.5, act_threshold=0.3
+    )
+
+    clip_filt_fig = plot_latent_heatmaps(
+        clip_img, clip_out.f_x, clip_filt_top, clip_vit.model.patch_size
+    )
+    clip_filt_fig.suptitle(f"OpenAI's CLIP ViT-B/16: Top 5 SAE Latents")
+    clip_filt_fig
+    return
+
+
+@app.cell(hide_code=True)
+def _():
+    mo.md(r"""
+    ## BioCLIP ViT-B/16
+    """)
+    return
+
+
+@app.cell
+def _():
+    bio_vit, bio_sae, bio_tr = load_model_and_sae(
+        "clip",
+        "hf-hub:imageomics/bioclip",
+        "osunlp/SAE_BioCLIP_24K_ViT-B-16_iNat21",
+        10,
+        196,
+    )
+    return bio_sae, bio_tr, bio_vit
+
+
+@app.cell
+def _(bio_sae, bio_tr, bio_vit, img):
+    bio_patch_acts, bio_out = extract_features(bio_vit, bio_sae, img, bio_tr)
+    return bio_out, bio_patch_acts
+
+
+@app.cell
+def _(bio_out, bio_patch_acts):
+    bio_mse = torch.mean((bio_out.x_hats[:, 0, :] - bio_patch_acts) ** 2)
+    bio_l0 = (bio_out.f_x > 0).sum(axis=1).float().mean()
+    bio_mse, bio_l0, bio_l0 / bio_out.f_x.shape[1] * 100
+    return
+
+
+@app.cell
+def _(bio_out, bio_vit, img):
+    # Note that BioCLIP doesn't do a 256 -> 224 resize+crop; it does 224->224.
+    bio_img = v2.Compose([v2.Resize(224), v2.CenterCrop(224)])(img)
+
+    bio_filt_top = select_top_latents_filtered(
+        bio_out.f_x,
+        k=5,
+        min_frac=0.1,
+        max_frac=0.4,
+        act_threshold=0.3,
+    )
+
+    bio_filt_fig = plot_latent_heatmaps(
+        bio_img, bio_out.f_x, bio_filt_top, bio_vit.model.patch_size
+    )
+    bio_filt_fig.suptitle(f"Imageomics' BioCLIP ViT-B/16: Top 5 SAE Latents")
+    bio_filt_fig
+    return
 
 
 if __name__ == "__main__":
