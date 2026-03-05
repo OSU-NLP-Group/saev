@@ -45,18 +45,12 @@ class Vit(models.Transformer, torch.nn.Module):
     @property
     def patch_size(self) -> int:
         """Get patch size for CLIP models."""
-        import open_clip
-
-        if (
-            isinstance(self.model, open_clip.transformer.Transformer)
-            and hasattr(self.model, "conv1")
-            and isinstance(self.model.conv1, torch.nn.Conv2d)
-        ):
-            w, h = self.model.conv1.kernel_size
-            assert w == h and isinstance(w, int)
-            return w
-
-        raise ValueError(f"Unknown patch size for {self.name}")
+        assert hasattr(self.model, "conv1") and isinstance(
+            self.model.conv1, torch.nn.Conv2d
+        ), f"Cannot determine patch size for {self.name}: no conv1"
+        w, h = self.model.conv1.kernel_size
+        assert w == h and isinstance(w, int)
+        return w
 
     def get_residuals(self) -> list[torch.nn.Module]:
         return self.model.transformer.resblocks
