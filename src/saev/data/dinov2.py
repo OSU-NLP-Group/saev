@@ -40,13 +40,12 @@ class Vit(torch.nn.Module, models.Transformer):
     def get_residuals(self) -> list[torch.nn.Module]:
         return self.model.blocks
 
-    def get_patches(self, n_patches_per_img: int) -> slice:
+    def get_token_i(self, content_tokens_per_example: int) -> Tensor:
         n_reg = self.model.num_register_tokens
-        patches = torch.cat((
+        return torch.cat((
             torch.tensor([0]),  # CLS token
-            torch.arange(n_reg + 1, n_reg + 1 + n_patches_per_img),  # patches
+            torch.arange(n_reg + 1, n_reg + 1 + content_tokens_per_example),
         ))
-        return patches
 
     def forward(
         self, batch: Float[Tensor, "batch 3 width height"], **kwargs

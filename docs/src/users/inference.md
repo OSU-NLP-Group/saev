@@ -98,10 +98,12 @@ If the permalinks change, you are looking for the `get_sae_latents()` functions 
 
 Below is example code to do it using the `saev` package.
 
-```py
+```python
 import saev.nn
 import saev.data.models
 import saev.data.shards
+
+sae = saev.nn.load("PATH_TO_YOUR_SAE_CKPT.pt")
 
 vit_cls = saev.data.models.load_model_cls("clip")
 vit = vit_cls("ViT-B-16/openai").to(device)
@@ -110,16 +112,18 @@ vit = saev.data.shards.RecordedTransformer(vit, 196, True, [10])
 img_tr, _ = vit_cls.make_transforms("ViT-B-16/openai", 196)
 img = Image.open("example.jpg")
 
-x = img_transform(img)
-# Add a batch dimension
+x = img_tr(img)
+# Add a batch dimension.
 x = x[None, ...]
-_, vit_acts = recorded_vit(x)
-# Select the only layer in the batch and ignore the CLS token.
+_, vit_acts = vit(x)
+# Select the only layer and ignore the CLS token.
 vit_acts = vit_acts[:, 0, 1:, :]
 
-x_hat, f_x, loss = sae(vit_acts)
+out = sae(vit_acts)
+# out.f_x: sparse SAE latents (batch, d_sae)
+# out.x_hats: reconstructed activations (batch, n_prefixes, d_model)
 ```
 
-Now you have the reconstructed x (`x_hat`) and the sparse representation of all patches in the image (`f_x`).
+Now you have the sparse representation of all patches in the image (`out.f_x`) and the reconstructed activations (`out.x_hats`).
 
-You might select the dimensions with maximal values for each patch and see what other images are maximimally activating.
+You might select the dimensions with maximal values for each patch and see what other images are maximally activating.

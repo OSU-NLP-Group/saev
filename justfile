@@ -36,5 +36,9 @@ build-comparison: fmt
     cd web && elm make src/Comparison.elm --output apps/comparison/dist/app.js --optimize
     cd web && tailwindcss --input apps/comparison/main.css --output apps/comparison/dist/main.css
 
+export-demo:
+    uv run marimo export html examples/inference.py --force --output /dev/null
+    uv run python scripts/export_notebook.py
+
 deploy: build-classification build-semseg
     uv run python scripts/deploy.py

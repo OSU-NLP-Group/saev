@@ -12,9 +12,10 @@ dependencies = [
     "duckdb>=1.3.2",
     "einops>=0.8.0",
     "glasbey>=0.3.0",
+    "h5py>=3.15.1",
     "invoke>=2.2.0",
     "jaxtyping>=0.3.2",
-    "marimo>=0.9.10",
+    "marimo[mcp]>=0.20.2",
     "matplotlib>=3.9.2",
     "numpy>=2.3.2",
     "open-clip-torch>=2.28.0",
@@ -52,7 +53,11 @@ package = true
 default-groups = "all"
 
 [tool.uv.workspace]
-members = ["contrib/trait_discovery", "contrib/birdsong"]
+members = [
+    "contrib/trait_discovery",
+    "contrib/birdsong",
+    "contrib/mimics",
+]
 
 [tool.coverage.run]
 patch = ["subprocess"]
