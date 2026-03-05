@@ -3,158 +3,165 @@ import marimo
 __generated_with = "0.20.2"
 app = marimo.App(width="medium")
 
-
-@app.cell
-def _():
-    import math
+with app.setup:
     import urllib.request
     from collections.abc import Callable
 
     import marimo as mo
     import matplotlib.pyplot as plt
+    import numpy as np
     import torch
     from huggingface_hub import hf_hub_download
     from PIL import Image
+    from torchvision.transforms import v2
 
     import saev.data.models
     import saev.data.shards
     import saev.nn
+    import saev.viz
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    return (
-        Callable,
-        Image,
-        device,
-        hf_hub_download,
-        math,
-        mo,
-        plt,
-        saev,
-        torch,
-        urllib,
-    )
 
 
 @app.cell(hide_code=True)
-def _(device, mo):
+def _():
     mo.md(f"""
     Using device `{device}`
     """)
     return
 
 
-@app.cell
-def _(Callable, Image, hf_hub_download, plt, saev, torch):
-    def load_model_and_sae(
-        family: str,
-        ckpt: str,
-        sae_hf_repo: str,
-        layer: int,
-        n_content_tokens: int,
-        device: str,
-    ) -> tuple[saev.data.shards.RecordedTransformer, saev.nn.SparseAutoencoder, Callable]:
-        """Load a ViT and its corresponding SAE checkpoint.
+@app.function
+def load_model_and_sae(
+    family: str, ckpt: str, sae_hf_repo: str, layer: int, n_content_tokens: int
+) -> tuple[saev.data.shards.RecordedTransformer, saev.nn.SparseAutoencoder, Callable]:
+    """Load a ViT and its corresponding SAE checkpoint.
 
-        Returns (recorded_vit, sae, img_transform).
-        """
-        vit_cls = saev.data.models.load_model_cls(family)
+    Returns (recorded_vit, sae, img_transform).
+    """
+    vit_cls = saev.data.models.load_model_cls(family)
 
-        # Get transforms before constructing the model to avoid loading weights
-        # twice for CLIP-family models (make_transforms calls
-        # create_model_from_pretrained internally).
-        img_tr, _ = vit_cls.make_transforms(ckpt, n_content_tokens)
+    # Get transforms before constructing the model to avoid loading weights
+    # twice for CLIP-family models (make_transforms calls
+    # create_model_from_pretrained internally).
+    img_tr, _ = vit_cls.make_transforms(ckpt, n_content_tokens)
 
-        vit = vit_cls(ckpt).to(device)
-        vit.eval()
-        recorded_vit = saev.data.shards.RecordedTransformer(
-            vit, n_content_tokens, True, [layer]
-        )
-
-        sae_fpath = hf_hub_download(sae_hf_repo, "sae.pt")
-        sae = saev.nn.load(sae_fpath, device=device)
-        sae.eval()
-
-        return recorded_vit, sae, img_tr
-
-
-    def extract_features(
-        recorded_vit: saev.data.shards.RecordedTransformer,
-        sae: saev.nn.SparseAutoencoder,
-        img: Image.Image,
-        img_tr: Callable,
-        device: str,
-    ):
-        """Run an image through the ViT and SAE.
-
-        Returns (patch_acts, sae_out) where patch_acts has shape
-        [n_content_tokens, d_model] and sae_out.f_x has shape
-        [n_content_tokens, d_sae].
-        """
-        x = img_tr(img)
-        x = x[None, ...].to(device)
-
-        with torch.no_grad():
-            _, vit_acts = recorded_vit(x)
-
-        # vit_acts: [batch, n_layers, tokens_per_example, d_model]
-        # Select layer 0, strip CLS token (index 0).
-        patch_acts = vit_acts[0, 0, 1:, :]
-
-        with torch.no_grad():
-            sae_out = sae(patch_acts)
-
-        return patch_acts, sae_out
-
-
-    def select_top_latents(f_x, k=5):
-        """Pick top-k latents by spatial variance of activation.
-
-        Spatial variance highlights latents that activate in localized regions
-        rather than uniformly or in a single spike.
-        """
-        # f_x: [n_content_tokens, d_sae]
-        variance = f_x.var(dim=0)
-        _, top_i = variance.topk(k)
-        return top_i
-
-
-    def plot_latent_heatmaps(img_224, f_x, latent_i, grid_h, grid_w):
-        """Plot heatmap overlays on the 224x224 crop for each latent."""
-        n_latents = len(latent_i)
-        fig, axes = plt.subplots(1, n_latents, figsize=(4 * n_latents, 4))
-        if n_latents == 1:
-            axes = [axes]
-
-        for ax, li in zip(axes, latent_i):
-            heatmap = f_x[:, li].reshape(grid_h, grid_w).float().cpu().numpy()
-            vmin, vmax = heatmap.min(), heatmap.max()
-            if vmax > vmin:
-                heatmap = (heatmap - vmin) / (vmax - vmin)
-
-            ax.imshow(img_224)
-            ax.imshow(
-                heatmap,
-                alpha=0.5,
-                cmap="hot",
-                interpolation="bilinear",
-                extent=(0, 224, 224, 0),
-            )
-            ax.set_title(f"Latent {li.item()}")
-            ax.axis("off")
-
-        fig.tight_layout()
-        return fig
-
-    return (
-        extract_features,
-        load_model_and_sae,
-        plot_latent_heatmaps,
-        select_top_latents,
+    vit = vit_cls(ckpt).to(device)
+    vit.eval()
+    recorded_vit = saev.data.shards.RecordedTransformer(
+        vit, n_content_tokens, True, [layer]
     )
+
+    sae_fpath = hf_hub_download(sae_hf_repo, "sae.pt")
+    sae = saev.nn.load(sae_fpath, device=device)
+    sae.eval()
+
+    return recorded_vit, sae, img_tr
+
+
+@app.function
+def extract_features(
+    recorded_vit: saev.data.shards.RecordedTransformer,
+    sae: saev.nn.SparseAutoencoder,
+    img: Image.Image,
+    img_tr: Callable,
+    normalize_fn: Callable | None = None,
+):
+    """Run an image through the ViT and SAE.
+
+    Returns (patch_acts, sae_out) where patch_acts has shape
+    [n_content_tokens, d_model] and sae_out.f_x has shape
+    [n_content_tokens, d_sae].
+
+    normalize_fn is applied to patch_acts before the SAE forward pass.
+    DINOv2 SAEs expect activations normalized by the IN1K mean and scalar.
+    """
+    x = img_tr(img)
+    x = x[None, ...].to(device)
+
+    with torch.no_grad():
+        _, vit_acts = recorded_vit(x)
+
+    # vit_acts: [batch, n_layers, tokens_per_example, d_model]
+    # Select layer 0, strip CLS token (index 0).
+    patch_acts = vit_acts[0, 0, 1:, :]
+
+    if normalize_fn is not None:
+        patch_acts = normalize_fn(patch_acts)
+
+    with torch.no_grad():
+        sae_out = sae(patch_acts)
+
+    return patch_acts, sae_out
+
+
+@app.function
+def select_top_latents_by_variance(f_x, k=5):
+    """Pick top-k latents by spatial variance of activation.
+
+    Spatial variance highlights latents that activate in localized regions
+    rather than uniformly or in a single spike.
+    """
+    # f_x: [n_content_tokens, d_sae]
+    variance = f_x.var(dim=0)
+    _, top_i = variance.topk(k)
+    return top_i
+
+
+@app.function
+def select_top_latents_by_max(f_x, k=5):
+    """Pick top-k latents by maximum activation value across patches."""
+    # f_x: [n_content_tokens, d_sae]
+    max_vals, _ = f_x.max(dim=0)
+    _, top_i = max_vals.topk(k)
+    return top_i
+
+
+@app.function
+def select_top_latents_filtered(
+    f_x, k=5, min_frac=0.05, max_frac=0.5, act_threshold=0.1
+):
+    """Pick top-k latents by max activation, filtered by single-image sparsity.
+
+    A patch counts as "active" only if its activation exceeds act_threshold.
+    Only considers latents where between min_frac and max_frac of patches are active.
+    """
+    # f_x: [n_content_tokens, d_sae]
+    n_patches = f_x.shape[0]
+    frac_active = (f_x > act_threshold).float().sum(dim=0) / n_patches
+    mask = (frac_active >= min_frac) & (frac_active <= max_frac)
+
+    max_vals, _ = f_x.max(dim=0)
+    # Zero out latents outside the sparsity band so they won't be selected.
+    max_vals[~mask] = 0.0
+    _, top_i = max_vals.topk(k)
+    return top_i
+
+
+@app.function
+def plot_latent_heatmaps(img_224, f_x, latent_i, patch_size):
+    """Plot patch-level activation overlays using saev.viz.add_highlights."""
+
+    n_latents = len(latent_i)
+    fig, axes = plt.subplots(
+        1, n_latents, figsize=(4 * n_latents, 4), layout="constrained"
+    )
+    if n_latents == 1:
+        axes = [axes]
+
+    for ax, li in zip(axes, latent_i):
+        patches = f_x[:, li].float().cpu().numpy()
+        upper = float(patches.max())
+        highlighted = saev.viz.add_highlights(img_224, patches, patch_size, upper=upper)
+        ax.imshow(np.asarray(highlighted))
+        ax.set_title(f"Latent {li.item()}")
+        ax.axis("off")
+
+    return fig
 
 
 @app.cell(hide_code=True)
-def _(mo):
+def _():
     mo.md("""
     **Example image**
     """)
@@ -162,7 +169,7 @@ def _(mo):
 
 
 @app.cell
-def _(Image, mo, urllib):
+def _():
     with urllib.request.urlopen(
         urllib.request.Request(
             "https://raw.githubusercontent.com/pytorch/hub/master/images/dog.jpg",
@@ -170,157 +177,963 @@ def _(Image, mo, urllib):
         )
     ) as _resp:
         img = Image.open(_resp).convert("RGB")
-
-    mo.image(img, width=400)
     return (img,)
 
 
 @app.cell
-def _(device, load_model_and_sae):
+def _(img):
+    mo.image(img, width=400)
+    return
+
+
+@app.cell(hide_code=True)
+def _():
+    mo.md(r"""
+    ## DINOv2 with Registers
+    """)
+    return
+
+
+@app.cell
+def _():
+    # ~40 seconds on a CPU machine
     dino_vit, dino_sae, dino_tr = load_model_and_sae(
-        "dinov2",
-        "dinov2_vitb14",
-        "osunlp/SAE_DINOv2_24K_ViT-B-14_IN1K",
-        10,
-        256,
-        device,
+        "dinov2", "dinov2_vitb14_reg", "osunlp/SAE_DINOv2_24K_ViT-B-14_IN1K", 10, 256
     )
+    return dino_sae, dino_tr, dino_vit
+
+
+@app.cell
+def _(
+    DINOV2_IMAGENET1K_MEAN,
+    DINOV2_IMAGENET1K_SCALAR,
+    dino_sae,
+    dino_tr,
+    dino_vit,
+    img,
+):
+    # Around 40s on a CPU-only machine
+    def _dino_normalize(x):
+        return (
+            x.clamp(-1e-5, 1e5) - DINOV2_IMAGENET1K_MEAN.to(x.device)
+        ) / DINOV2_IMAGENET1K_SCALAR
+
+
+    dino_patch_acts, dino_out = extract_features(
+        dino_vit, dino_sae, img, dino_tr, normalize_fn=_dino_normalize
+    )
+    return dino_out, dino_patch_acts
+
+
+@app.cell
+def _(dino_out, dino_patch_acts):
+    dino_mse = torch.mean((dino_out.x_hats[:, 0, :] - dino_patch_acts) ** 2)
+    dino_l0 = (dino_out.f_x > 0).sum(axis=1).float().mean()
+    dino_mse, dino_l0, dino_l0 / dino_out.f_x.shape[1] * 100
+    return
+
+
+@app.cell
+def _(dino_out, dino_vit, img):
+    dino_img = v2.Compose([v2.Resize(256), v2.CenterCrop(224)])(img)
+
+    dino_filt_top = select_top_latents_filtered(
+        dino_out.f_x, k=5, min_frac=0.05, max_frac=0.5, act_threshold=0.3
+    )
+
+    dino_filt_fig = plot_latent_heatmaps(
+        dino_img, dino_out.f_x, dino_filt_top, dino_vit.model.patch_size
+    )
+    dino_filt_fig.suptitle(f"Meta's DINOv2 ViT-B/14: Top 5 SAE Latents")
+    dino_filt_fig
+    return
+
+
+@app.cell(hide_code=True)
+def _():
+    mo.md(r"""
+    ## CLIP ViT-B/16
+    """)
+    return
+
+
+@app.cell
+def _():
+    clip_vit, clip_sae, clip_tr = load_model_and_sae(
+        "clip", "ViT-B-16/openai", "osunlp/SAE_CLIP_24K_ViT-B-16_IN1K", 10, 196
+    )
+    return clip_sae, clip_tr, clip_vit
+
+
+@app.cell
+def _(clip_tr):
+    clip_tr
+    return
+
+
+@app.cell
+def _(clip_sae, clip_tr, clip_vit, img):
+    clip_patch_acts, clip_out = extract_features(clip_vit, clip_sae, img, clip_tr)
+    return clip_out, clip_patch_acts
+
+
+@app.cell
+def _(clip_out, clip_patch_acts):
+    clip_mse = torch.mean((clip_out.x_hats[:, 0, :] - clip_patch_acts) ** 2)
+    clip_l0 = (clip_out.f_x > 0).sum(axis=1).float().mean()
+    clip_mse, clip_l0, clip_l0 / clip_out.f_x.shape[1] * 100
+    return
+
+
+@app.cell
+def _(clip_out, clip_vit, img):
+    # Note that CLIP doesn't do a 256 -> 224 resize+crop; it does 224->224.
+    clip_img = v2.Compose([v2.Resize(224), v2.CenterCrop(224)])(img)
+
+    clip_filt_top = select_top_latents_filtered(
+        clip_out.f_x, k=5, min_frac=0.05, max_frac=0.5, act_threshold=0.3
+    )
+
+    clip_filt_fig = plot_latent_heatmaps(
+        clip_img, clip_out.f_x, clip_filt_top, clip_vit.model.patch_size
+    )
+    clip_filt_fig.suptitle(f"OpenAI's CLIP ViT-B/16: Top 5 SAE Latents")
+    clip_filt_fig
+    return
+
+
+@app.cell(hide_code=True)
+def _():
+    mo.md(r"""
+    ## BioCLIP ViT-B/16
+    """)
+    return
+
+
+@app.cell
+def _():
     bio_vit, bio_sae, bio_tr = load_model_and_sae(
         "clip",
         "hf-hub:imageomics/bioclip",
         "osunlp/SAE_BioCLIP_24K_ViT-B-16_iNat21",
         10,
         196,
-        device,
     )
-    return bio_sae, bio_tr, bio_vit, dino_sae, dino_tr, dino_vit
+    return bio_sae, bio_tr, bio_vit
 
 
 @app.cell
-def _(bio_vit, device, dino_vit, mo):
-    mo.md(f"""
-    **Models loaded.**
+def _(bio_sae, bio_tr, bio_vit, img):
+    bio_patch_acts, bio_out = extract_features(bio_vit, bio_sae, img, bio_tr)
+    return bio_out, bio_patch_acts
 
-    | Model | patch_size | content tokens | device |
-    |-------|-----------|---------------|--------|
-    | DINOv2 ViT-B/14 | {dino_vit.model.patch_size} | 256 | `{device}` |
-    | BioCLIP ViT-B/16 | {bio_vit.model.patch_size} | 196 | `{device}` |
-    """)
+
+@app.cell
+def _(bio_out, bio_patch_acts):
+    bio_mse = torch.mean((bio_out.x_hats[:, 0, :] - bio_patch_acts) ** 2)
+    bio_l0 = (bio_out.f_x > 0).sum(axis=1).float().mean()
+    bio_mse, bio_l0, bio_l0 / bio_out.f_x.shape[1] * 100
     return
 
 
 @app.cell
-def _(
-    bio_sae,
-    bio_tr,
-    bio_vit,
-    device,
-    dino_sae,
-    dino_tr,
-    dino_vit,
-    extract_features,
-    img,
-):
-    dino_patch_acts, dino_out = extract_features(dino_vit, dino_sae, img, dino_tr, device)
-    bio_patch_acts, bio_out = extract_features(bio_vit, bio_sae, img, bio_tr, device)
-    return bio_out, dino_out
+def _(bio_out, bio_vit, img):
+    # Note that BioCLIP doesn't do a 256 -> 224 resize+crop; it does 224->224.
+    bio_img = v2.Compose([v2.Resize(224), v2.CenterCrop(224)])(img)
 
-
-@app.cell
-def _(bio_out, dino_out, mo):
-    def _sparsity_stats(name, f_x):
-        n_nonzero = (f_x > 0).sum().item()
-        total = f_x.numel()
-        mass = f_x.sum().item()
-        return f"**{name}:** f_x shape `{tuple(f_x.shape)}`, nonzero {n_nonzero}/{total} ({100 * n_nonzero / total:.1f}%), activation mass {mass:.1f}"
-
-
-    mo.md(
-        "\n\n".join(
-            [
-                "**Feature extraction complete.**",
-                _sparsity_stats("DINOv2", dino_out.f_x),
-                _sparsity_stats("BioCLIP", bio_out.f_x),
-            ]
-        )
+    bio_filt_top = select_top_latents_filtered(
+        bio_out.f_x,
+        k=5,
+        min_frac=0.1,
+        max_frac=0.4,
+        act_threshold=0.3,
     )
+
+    bio_filt_fig = plot_latent_heatmaps(
+        bio_img, bio_out.f_x, bio_filt_top, bio_vit.model.patch_size
+    )
+    bio_filt_fig.suptitle(f"Imageomics' BioCLIP ViT-B/16: Top 5 SAE Latents")
+    bio_filt_fig
     return
 
 
 @app.cell
-def _(
-    bio_out,
-    dino_out,
-    img,
-    math,
-    mo,
-    plot_latent_heatmaps,
-    select_top_latents,
-):
-    # Get 224x224 crops for overlay. DINOv2 and BioCLIP both produce 224px crops
-    # via different transform pipelines, but we need the PIL image for display.
-    from torchvision.transforms import v2 as _v2
+def _():
+    DINOV2_IMAGENET1K_SCALAR = 2.0181241035461426
 
-    _crop = _v2.Compose([_v2.Resize(256), _v2.CenterCrop(224)])
-    img_224 = _crop(img)
-
-    dino_grid = int(math.isqrt(dino_out.f_x.shape[0]))
-    bio_grid = int(math.isqrt(bio_out.f_x.shape[0]))
-
-    dino_top = select_top_latents(dino_out.f_x, k=5)
-    bio_top = select_top_latents(bio_out.f_x, k=5)
-
-    dino_fig = plot_latent_heatmaps(img_224, dino_out.f_x, dino_top, dino_grid, dino_grid)
-    dino_fig.suptitle("DINOv2 - Top 5 latents by spatial variance", y=1.02)
-
-    bio_fig = plot_latent_heatmaps(img_224, bio_out.f_x, bio_top, bio_grid, bio_grid)
-    bio_fig.suptitle("BioCLIP - Top 5 latents by spatial variance", y=1.02)
-
-    mo.vstack([mo.as_html(dino_fig), mo.as_html(bio_fig)])
-    return bio_grid, bio_top, dino_grid, dino_top, img_224
-
-
-@app.cell
-def _(
-    bio_grid,
-    bio_out,
-    bio_top,
-    dino_grid,
-    dino_out,
-    dino_top,
-    img_224,
-    mo,
-    plt,
-):
-    fig, axes = plt.subplots(2, 3, figsize=(12, 8))
-
-    for row, (name, f_x, top_i, gh, gw) in enumerate(
+    DINOV2_IMAGENET1K_MEAN = torch.tensor(
         [
-            ("DINOv2", dino_out.f_x, dino_top[:3], dino_grid, dino_grid),
-            ("BioCLIP", bio_out.f_x, bio_top[:3], bio_grid, bio_grid),
+            0.1450997292995453,
+            -1.0630134344100952,
+            -0.3518574833869934,
+            -0.38624095916748047,
+            -0.4866980314254761,
+            -0.28983384370803833,
+            0.9997676014900208,
+            -1.231179118156433,
+            -0.7889889478683472,
+            -0.4450306296348572,
+            -0.09231726080179214,
+            0.13243812322616577,
+            0.09571082890033722,
+            -0.29342857003211975,
+            0.05933428555727005,
+            -0.21923032402992249,
+            0.08959043025970459,
+            -0.6981018781661987,
+            0.4853704869747162,
+            -0.29948222637176514,
+            0.3107207119464874,
+            -0.3812718093395233,
+            -0.5013473033905029,
+            2.88395094871521,
+            -0.5611682534217834,
+            -0.3514024615287781,
+            0.025546086952090263,
+            -0.24438244104385376,
+            -0.23365195095539093,
+            -0.2533780336380005,
+            0.4445696473121643,
+            1.1176759004592896,
+            -0.4188934564590454,
+            0.09051182866096497,
+            -0.04133417829871178,
+            -0.008052834309637547,
+            -0.5118610858917236,
+            0.22084011137485504,
+            -0.7333402633666992,
+            0.8644523620605469,
+            -0.43727627396583557,
+            -0.22333095967769623,
+            -1.5415295362472534,
+            -0.24187016487121582,
+            -0.33239033818244934,
+            -1.2828021049499512,
+            -0.21485395729541779,
+            0.6667488813400269,
+            -0.25890952348709106,
+            -0.8630414009094238,
+            1.5059994459152222,
+            -0.00952776987105608,
+            0.18695995211601257,
+            0.0200128685683012,
+            -0.221832275390625,
+            1.2800148725509644,
+            -0.1416555792093277,
+            0.61446613073349,
+            0.053658585995435715,
+            -0.08877403289079666,
+            1.0190010070800781,
+            -0.308927446603775,
+            -0.3903353214263916,
+            -0.35504740476608276,
+            -0.7907304763793945,
+            -0.18439480662345886,
+            -0.1797204464673996,
+            0.8199827075004578,
+            -0.1736353039741516,
+            -0.16373644769191742,
+            0.7541728019714355,
+            -0.3236996829509735,
+            0.8245170712471008,
+            0.3411649167537689,
+            -0.21873517334461212,
+            -0.7620954513549805,
+            -0.10635858029127121,
+            -0.592278003692627,
+            0.8314691781997681,
+            -0.2021609991788864,
+            -0.24301563203334808,
+            -0.03504444658756256,
+            -0.061244938522577286,
+            -0.36000630259513855,
+            -0.38578882813453674,
+            -1.2314008474349976,
+            -0.3416382968425751,
+            0.5925644636154175,
+            0.32259607315063477,
+            0.13169726729393005,
+            -0.131134033203125,
+            0.05763484537601471,
+            -0.7130515575408936,
+            -0.5685354471206665,
+            0.04428980499505997,
+            0.9245452880859375,
+            0.37724241614341736,
+            -0.4426809549331665,
+            0.5091503262519836,
+            -0.08006338775157928,
+            -0.18945513665676117,
+            -0.770736575126648,
+            -0.3588047921657562,
+            0.04727765917778015,
+            -0.16137081384658813,
+            -0.021555813029408455,
+            0.6381930708885193,
+            0.30161890387535095,
+            -0.0710706040263176,
+            -0.13884945213794708,
+            -0.22726555168628693,
+            -0.6134527921676636,
+            0.2969088852405548,
+            -0.2334780991077423,
+            -0.46334928274154663,
+            -0.3058214485645294,
+            0.5196799039840698,
+            0.6341780424118042,
+            0.12271945178508759,
+            -1.0072089433670044,
+            -0.1198473796248436,
+            -0.24667270481586456,
+            -0.19228138029575348,
+            -0.3955901861190796,
+            -0.19902971386909485,
+            0.7407659292221069,
+            2.3908257484436035,
+            0.02820657566189766,
+            0.07064329087734222,
+            -0.2637694776058197,
+            0.2560977339744568,
+            0.3973558247089386,
+            -0.17345857620239258,
+            -0.9541534185409546,
+            -0.21434728801250458,
+            0.41178393363952637,
+            -0.008175228722393513,
+            0.5115303993225098,
+            -0.9667210578918457,
+            1.6499103307724,
+            -1.8320564031600952,
+            1.1143667697906494,
+            0.24006624519824982,
+            -0.02112947776913643,
+            -0.4952388405799866,
+            1.1000680923461914,
+            -0.4901401102542877,
+            0.22758258879184723,
+            -0.6699370741844177,
+            0.6926363706588745,
+            -0.5719613432884216,
+            0.008403707295656204,
+            2.0220773220062256,
+            -0.1789812445640564,
+            -0.8777256011962891,
+            0.3709064722061157,
+            -0.2629733681678772,
+            0.08407248556613922,
+            -0.27063870429992676,
+            0.09993340820074081,
+            -0.3755860924720764,
+            0.07000888139009476,
+            0.3775370419025421,
+            0.5653945207595825,
+            -0.11404427886009216,
+            -0.06088113784790039,
+            -0.0898045226931572,
+            0.19868576526641846,
+            0.14287644624710083,
+            -0.669394314289093,
+            -0.07882463932037354,
+            -0.12379930168390274,
+            -0.010277876630425453,
+            -0.5625343918800354,
+            -0.6508009433746338,
+            0.06929764896631241,
+            -2.0470166206359863,
+            1.0193544626235962,
+            -0.9747569561004639,
+            -0.25624850392341614,
+            -0.04412469267845154,
+            -0.01941649615764618,
+            0.04781557247042656,
+            -0.2561051845550537,
+            -0.09596704691648483,
+            -1.0529744625091553,
+            -0.32774603366851807,
+            -0.1931363344192505,
+            -0.36885082721710205,
+            -0.9351740479469299,
+            -0.47905397415161133,
+            -0.678762674331665,
+            2.336048126220703,
+            0.26323413848876953,
+            -0.36512619256973267,
+            -0.3650853633880615,
+            -0.8287989497184753,
+            0.5866581201553345,
+            -0.420742005109787,
+            0.008546118624508381,
+            -0.7811568975448608,
+            -0.34993329644203186,
+            -0.373068243265152,
+            0.028424998745322227,
+            -0.537581205368042,
+            -0.15937983989715576,
+            -0.5638740062713623,
+            -0.4413940906524658,
+            -0.05887509509921074,
+            -0.12291032075881958,
+            -0.26565149426460266,
+            -0.23059803247451782,
+            -0.2925986349582672,
+            0.04849022254347801,
+            -0.4770037531852722,
+            0.040383752435445786,
+            -0.8186637759208679,
+            -0.062463242560625076,
+            -0.3251510262489319,
+            -0.4319412112236023,
+            -0.34569647908210754,
+            0.9713658690452576,
+            -0.25668394565582275,
+            -0.37531179189682007,
+            0.5259386301040649,
+            -0.06112021207809448,
+            0.06980857998132706,
+            -0.38363778591156006,
+            -0.1948518007993698,
+            -0.7897586822509766,
+            -0.600932776927948,
+            -0.4269576072692871,
+            -0.32002967596054077,
+            0.08897170424461365,
+            -0.3079395294189453,
+            -0.05779555067420006,
+            -0.782086968421936,
+            1.9608103036880493,
+            0.1145739033818245,
+            0.06164107844233513,
+            -0.3024725317955017,
+            -0.6308553218841553,
+            -0.7640243172645569,
+            -4.433685302734375,
+            -0.31690648198127747,
+            -0.019084235653281212,
+            -0.09761863201856613,
+            -0.029514605179429054,
+            -0.5096182823181152,
+            1.112805962562561,
+            -0.3302820324897766,
+            -0.23730400204658508,
+            0.044646695256233215,
+            -0.805400013923645,
+            -7.766678333282471,
+            -0.2016162872314453,
+            -0.5018128752708435,
+            0.6819560527801514,
+            -0.2735823392868042,
+            -2.2288968563079834,
+            -0.36170846223831177,
+            -0.7745882868766785,
+            0.4644778370857239,
+            0.2525951564311981,
+            -0.22642317414283752,
+            -0.5394997596740723,
+            -0.5064775347709656,
+            -0.5716705918312073,
+            0.19713695347309113,
+            -0.5411649942398071,
+            -0.17092496156692505,
+            0.45778003334999084,
+            0.6894896030426025,
+            -0.21671152114868164,
+            -0.9160588383674622,
+            -0.10307890176773071,
+            0.11703722178936005,
+            -0.7433905601501465,
+            -1.5170584917068481,
+            2.163774013519287,
+            -1.542649507522583,
+            -0.1601075381040573,
+            -0.5249155163764954,
+            0.44509291648864746,
+            -0.5261067152023315,
+            -0.02273540571331978,
+            -0.28311043977737427,
+            0.9144242405891418,
+            0.43954336643218994,
+            -0.2469814419746399,
+            0.18752114474773407,
+            -0.6066163778305054,
+            -0.14480441808700562,
+            -0.3546217679977417,
+            -0.11870954185724258,
+            -0.09891107678413391,
+            -0.377458781003952,
+            0.33304381370544434,
+            -0.156569704413414,
+            -0.9730328321456909,
+            -0.5034677386283875,
+            0.042613230645656586,
+            0.08271210640668869,
+            -0.2368200123310089,
+            -0.07397157698869705,
+            0.011974042281508446,
+            -0.2115129977464676,
+            -0.3752884566783905,
+            -0.24985794723033905,
+            -0.25223013758659363,
+            1.8311675786972046,
+            -0.1650543361902237,
+            -0.031050190329551697,
+            0.10702164471149445,
+            0.8963613510131836,
+            -0.9483885169029236,
+            -0.8156309723854065,
+            -1.7132004499435425,
+            0.08163392543792725,
+            0.4886241555213928,
+            -0.016470594331622124,
+            -0.37671732902526855,
+            -0.025105634704232216,
+            -0.2695018947124481,
+            -0.8450148701667786,
+            -0.9802296757698059,
+            -0.21868866682052612,
+            -0.5872927308082581,
+            1.019242763519287,
+            0.01872517168521881,
+            0.5087792873382568,
+            0.06771136820316315,
+            1.4142885208129883,
+            0.13146139681339264,
+            -0.36489933729171753,
+            0.37572142481803894,
+            -0.3490581810474396,
+            -0.13830198347568512,
+            -1.8019393682479858,
+            1.5129766464233398,
+            0.07059808075428009,
+            1.7206473350524902,
+            0.02890164405107498,
+            0.3628808557987213,
+            0.3914141058921814,
+            0.4993101954460144,
+            0.3969678580760956,
+            -0.058554816991090775,
+            -0.3434300422668457,
+            -0.4157616198062897,
+            -0.7624511122703552,
+            -0.3997197449207306,
+            1.4573990106582642,
+            -0.3363801836967468,
+            -0.46490129828453064,
+            -0.7445303797721863,
+            -0.3460237979888916,
+            -0.6315308809280396,
+            0.8536337018013,
+            -0.08939796686172485,
+            -0.21093742549419403,
+            -0.08742645382881165,
+            -0.020040960982441902,
+            0.09354449808597565,
+            -0.809800386428833,
+            -0.0018062496092170477,
+            -1.0083088874816895,
+            0.3428219258785248,
+            0.012708818539977074,
+            -0.3535612225532532,
+            1.9481208324432373,
+            0.013826621696352959,
+            -0.026771225035190582,
+            0.18734635412693024,
+            0.9365230798721313,
+            1.247671025339514e-05,
+            -0.4420109987258911,
+            0.10769690573215485,
+            -0.6858118176460266,
+            -0.24754805862903595,
+            1.0027467012405396,
+            -0.26436665654182434,
+            -0.33883318305015564,
+            0.38209766149520874,
+            0.479579895734787,
+            -0.5910238027572632,
+            0.1890297830104828,
+            -0.29854580760002136,
+            -0.5636696219444275,
+            -0.504091739654541,
+            -0.32814571261405945,
+            -0.748496949672699,
+            -0.3217906653881073,
+            -0.12439341843128204,
+            -0.3949342668056488,
+            0.09739203751087189,
+            -0.4254276752471924,
+            0.8690429329872131,
+            -0.26380032300949097,
+            -1.2738139629364014,
+            -0.12694764137268066,
+            -0.7331164479255676,
+            0.11337947845458984,
+            -0.7573927640914917,
+            -0.41507089138031006,
+            -0.18960340321063995,
+            1.2390563488006592,
+            -0.10859012603759766,
+            -0.021934548392891884,
+            -0.05041227489709854,
+            -0.055214136838912964,
+            0.20024456083774567,
+            -0.2689618766307831,
+            -0.3135489821434021,
+            -0.07520166784524918,
+            -0.5906742811203003,
+            0.2828388512134552,
+            0.05117213353514671,
+            1.4600849151611328,
+            -0.1967628449201584,
+            0.011182722635567188,
+            0.028878701850771904,
+            -0.12146933376789093,
+            0.6056286096572876,
+            0.22920559346675873,
+            -0.008979334495961666,
+            -0.2874019742012024,
+            -0.4887332320213318,
+            0.8754663467407227,
+            -0.05393843352794647,
+            -0.2956174910068512,
+            -0.18953847885131836,
+            -0.19063766300678253,
+            -0.8141281008720398,
+            0.11052622646093369,
+            -0.020359158515930176,
+            -0.1262499988079071,
+            -1.7762614488601685,
+            -0.4864279627799988,
+            -0.8644945621490479,
+            0.1278448849916458,
+            1.1127605438232422,
+            -0.595068097114563,
+            -0.06630692631006241,
+            1.5608118772506714,
+            -0.9473971724510193,
+            -0.1827543079853058,
+            -0.25564679503440857,
+            -0.4378860294818878,
+            -0.8285927176475525,
+            -1.1397618055343628,
+            -0.06226593255996704,
+            -0.09025824069976807,
+            -0.518083393573761,
+            -0.893482506275177,
+            0.5022943615913391,
+            -0.5922176837921143,
+            0.2571451961994171,
+            0.25571396946907043,
+            0.832092821598053,
+            -0.061823680996894836,
+            -0.08963754773139954,
+            -0.42173218727111816,
+            -0.4375287890434265,
+            -0.43921560049057007,
+            0.5626742243766785,
+            -0.011294233612716198,
+            0.626301646232605,
+            -0.28029197454452515,
+            0.15464802086353302,
+            -0.7071759700775146,
+            -0.0337684191763401,
+            -0.20901329815387726,
+            -0.29788798093795776,
+            0.6644192934036255,
+            -0.049459852278232574,
+            0.039552830159664154,
+            -0.2790898084640503,
+            0.3250356614589691,
+            -0.12668772041797638,
+            -0.46142634749412537,
+            -0.35542988777160645,
+            -1.1817448139190674,
+            0.007615066133439541,
+            -0.43865758180618286,
+            -0.16142761707305908,
+            -0.37852972745895386,
+            -0.582589328289032,
+            0.4371003210544586,
+            -0.2603273391723633,
+            -0.03284638375043869,
+            0.8895729184150696,
+            -0.025997856631875038,
+            0.5761443376541138,
+            -0.28437164425849915,
+            -0.11191761493682861,
+            -0.07794637233018875,
+            0.02127309888601303,
+            -0.10069284588098526,
+            -0.2177346795797348,
+            -1.029278039932251,
+            -0.5014596581459045,
+            -0.5774326920509338,
+            -0.2856050431728363,
+            -0.24715296924114227,
+            0.1243511438369751,
+            0.042631667107343674,
+            -0.846584677696228,
+            -0.7308683395385742,
+            -0.09307371079921722,
+            -0.35250845551490784,
+            0.12801845371723175,
+            -0.5423708558082581,
+            -0.22422067821025848,
+            1.574460744857788,
+            -0.27640238404273987,
+            -0.37266722321510315,
+            -0.12533603608608246,
+            0.3177711069583893,
+            -0.4530303478240967,
+            0.24940718710422516,
+            -0.1272897720336914,
+            0.6882254481315613,
+            -0.2153051793575287,
+            -0.6189695000648499,
+            -0.38704702258110046,
+            -0.14360225200653076,
+            -0.08159925043582916,
+            0.4714410603046417,
+            -0.16035029292106628,
+            0.005880486220121384,
+            -0.5742312669754028,
+            -0.33733850717544556,
+            -0.39702731370925903,
+            -0.14614750444889069,
+            -0.06936132907867432,
+            0.2528288662433624,
+            -0.25900882482528687,
+            0.45907658338546753,
+            -0.20694994926452637,
+            0.4083366394042969,
+            -0.9925484657287598,
+            -0.17098328471183777,
+            0.3215583860874176,
+            -0.33823585510253906,
+            -0.07112737745046616,
+            -0.05322866141796112,
+            0.19237284362316132,
+            -0.6257429122924805,
+            0.23328493535518646,
+            -0.17247024178504944,
+            -0.3362499177455902,
+            -0.17041970789432526,
+            -0.014526017010211945,
+            -0.12138030678033829,
+            0.0698552280664444,
+            -0.609315037727356,
+            0.8142863512039185,
+            -2.295081615447998,
+            -0.07903101295232773,
+            -0.48268306255340576,
+            -0.2097805291414261,
+            -0.4481655955314636,
+            -1.059373378753662,
+            0.17675237357616425,
+            -0.5335419774055481,
+            0.7713444232940674,
+            0.6341530084609985,
+            1.1411781311035156,
+            -0.18365903198719025,
+            -0.4029919505119324,
+            -0.34328755736351013,
+            -1.1935101747512817,
+            -0.4249494671821594,
+            0.10720300674438477,
+            -0.13509584963321686,
+            -0.610278844833374,
+            -0.1007867231965065,
+            -0.13094481825828552,
+            0.3319343030452728,
+            -0.22466504573822021,
+            -0.33384865522384644,
+            -0.3001727759838104,
+            -0.48621413111686707,
+            0.10271137952804565,
+            -0.3953743577003479,
+            -0.3412061631679535,
+            -1.3808176517486572,
+            -0.3035687804222107,
+            0.27737119793891907,
+            -0.10266303271055222,
+            -0.472690224647522,
+            0.03376518189907074,
+            -0.2053908109664917,
+            -0.46477705240249634,
+            -0.0046875146217644215,
+            0.8462978005409241,
+            -0.7554765343666077,
+            -0.9736349582672119,
+            -0.14118513464927673,
+            -0.2665828466415405,
+            -0.9371470212936401,
+            -0.007497116923332214,
+            0.6816821098327637,
+            0.20980679988861084,
+            -0.5602611303329468,
+            -0.7874919176101685,
+            -0.01479698158800602,
+            -0.45345690846443176,
+            -0.12117742747068405,
+            -0.5790822505950928,
+            -0.27737149596214294,
+            0.08818025887012482,
+            -0.25239622592926025,
+            1.1271374225616455,
+            0.0044799973256886005,
+            0.2183203548192978,
+            -2.0634095668792725,
+            -0.007129574194550514,
+            0.32677894830703735,
+            0.019878007471561432,
+            0.060301825404167175,
+            -0.6844122409820557,
+            0.35185739398002625,
+            -0.0028550554998219013,
+            -0.5629953145980835,
+            0.06621643155813217,
+            -0.043473124504089355,
+            -0.3398932218551636,
+            -0.1782192587852478,
+            -0.24575252830982208,
+            -0.20299431681632996,
+            -0.3652290999889374,
+            -0.9888001680374146,
+            -0.30628740787506104,
+            0.6184420585632324,
+            -0.33409008383750916,
+            0.20486755669116974,
+            -0.8251897692680359,
+            -0.08471876382827759,
+            -0.5613390803337097,
+            0.057765014469623566,
+            0.5359746813774109,
+            -0.7063419818878174,
+            0.28122395277023315,
+            -0.004502696450799704,
+            -0.6543170213699341,
+            0.04663177207112312,
+            -0.05775964632630348,
+            -6.37779594399035e-05,
+            0.46121329069137573,
+            -0.004464420489966869,
+            1.4332563877105713,
+            0.20597098767757416,
+            -0.17879879474639893,
+            0.4316228926181793,
+            -1.2352955341339111,
+            -0.19363455474376678,
+            -0.32174810767173767,
+            -0.23037514090538025,
+            0.17044368386268616,
+            0.13070613145828247,
+            1.2171069383621216,
+            -1.171966314315796,
+            0.04596511274576187,
+            -0.1690378040075302,
+            -0.030221890658140182,
+            0.3216114342212677,
+            -0.08577033132314682,
+            -0.26656001806259155,
+            -0.4321160316467285,
+            -0.22010475397109985,
+            -0.6187731623649597,
+            -0.4711909890174866,
+            -0.3499036431312561,
+            0.13558903336524963,
+            -0.2124641239643097,
+            -0.28327351808547974,
+            0.12788993120193481,
+            -1.3083688020706177,
+            -0.0332779586315155,
+            -0.4718656837940216,
+            1.031941533088684,
+            -0.07811620831489563,
+            -0.5331435799598694,
+            -0.2602376341819763,
+            -0.8461449146270752,
+            0.18593788146972656,
+            0.5763140320777893,
+            -0.45714831352233887,
+            -0.1056162416934967,
+            0.2665534019470215,
+            -0.4580163061618805,
+            -0.25224190950393677,
+            -0.2334505170583725,
+            -0.6723064184188843,
+            0.12331533432006836,
+            0.054681699723005295,
+            -0.14116793870925903,
+            -0.10254379361867905,
+            2.0082550048828125,
+            -1.4980225563049316,
+            0.00379346776753664,
+            -0.8470208644866943,
+            0.06866040825843811,
+            -0.3133383095264435,
+            -0.20381635427474976,
+            -0.03295162320137024,
+            1.1624072790145874,
+            -1.2590479850769043,
+            -0.5051106810569763,
+            -0.5310556292533875,
+            0.11350126564502716,
+            -0.5141156315803528,
+            1.0333826541900635,
+            -0.5528491735458374,
+            -0.6508246064186096,
+            -1.0594176054000854,
+            -0.03546600416302681,
+            -0.0008655009442009032,
+            0.06422116607427597,
+            -0.5845358371734619,
+            -0.049052149057388306,
+            -0.578079104423523,
+            -0.46709108352661133,
+            -0.6544204354286194,
+            -0.13105393946170807,
+            -0.12359122931957245,
+            0.19125737249851227,
+            -0.9108084440231323,
+            -0.24640944600105286,
+            -0.5813102126121521,
+            -0.2342103123664856,
+            0.645296573638916,
+            0.4200597405433655,
+            1.030412197113037,
+            0.026015933603048325,
+            0.03929654508829117,
+            -0.18394766747951508,
+            -0.2946997582912445,
+            0.029773380607366562,
+            -1.1292797327041626,
+            -0.3272054195404053,
+            -0.19441728293895721,
+            -0.8372487425804138,
+            0.5765964984893799,
+            -0.28797629475593567,
+            -0.6211466789245605,
+            0.09933445602655411,
+            -0.5617806911468506,
+            1.163861870765686,
+            0.1421220600605011,
+            -0.790323793888092,
+            -0.4003753960132599,
+            -0.6941299438476562,
+            -0.5033494830131531,
+            -0.2234964221715927,
+            -0.12398113310337067,
+            -0.26237404346466064,
+            -0.4991702139377594,
+            -0.7963886260986328,
+            -0.012063371017575264,
+            -1.1415417194366455,
+            0.40668150782585144,
+            0.33048388361930847,
+            1.3195141553878784,
+            -0.0008099540136754513,
+            -0.06793856620788574,
         ]
-    ):
-        for col, li in enumerate(top_i):
-            ax = axes[row, col]
-            heatmap = f_x[:, li].reshape(gh, gw).float().cpu().numpy()
-            vmin, vmax = heatmap.min(), heatmap.max()
-            if vmax > vmin:
-                heatmap = (heatmap - vmin) / (vmax - vmin)
-            ax.imshow(img_224)
-            ax.imshow(
-                heatmap,
-                alpha=0.5,
-                cmap="hot",
-                interpolation="bilinear",
-                extent=(0, 224, 224, 0),
-            )
-            ax.set_title(f"{name} latent {li.item()} (max={f_x[:, li].max():.2f})")
-            ax.axis("off")
-
-    fig.suptitle("Side-by-side: Top 3 SAE latents per model", fontsize=14)
-    fig.tight_layout()
-    mo.as_html(fig)
-    return
+    )
+    return DINOV2_IMAGENET1K_MEAN, DINOV2_IMAGENET1K_SCALAR
 
 
 if __name__ == "__main__":
