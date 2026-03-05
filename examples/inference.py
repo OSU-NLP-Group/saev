@@ -244,7 +244,7 @@ def _(dino_out, dino_vit, img):
     dino_filt_fig = plot_latent_heatmaps(
         dino_img, dino_out.f_x, dino_filt_top, dino_vit.model.patch_size
     )
-    dino_filt_fig.suptitle(f"Meta's DINOv2 ViT-B/14: Top 5 SAE Latents")
+    dino_filt_fig.suptitle("Meta's DINOv2 ViT-B/14: Top 5 SAE Latents")
     dino_filt_fig
     return
 
@@ -263,12 +263,6 @@ def _():
         "clip", "ViT-B-16/openai", "osunlp/SAE_CLIP_24K_ViT-B-16_IN1K", 10, 196
     )
     return clip_sae, clip_tr, clip_vit
-
-
-@app.cell
-def _(clip_tr):
-    clip_tr
-    return
 
 
 @app.cell

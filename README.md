@@ -9,7 +9,7 @@ Training sparse autoencoders (SAEs) on vision transformers (ViTs), implemented i
 ## Docs
 
 - [Docs](https://osu-nlp-group.github.io/saev/api)
-- [Quickstart](https://osu-nlp-group.github.io/saev/api/#quick-start)
+- [Colab Notebook for SAE Inference](https://colab.research.google.com/github/OSU-NLP-Group/saev/blob/main/examples/inference.ipynb)
 - [User guide](https://osu-nlp-group.github.io/saev/api/users/guide)
 - [API reference](https://osu-nlp-group.github.io/saev/api/api/saev/)
 
