@@ -31,6 +31,21 @@ def _():
     return
 
 
+@app.cell(hide_code=True)
+def _():
+    mo.md(r"""
+    # Inference for SAEs from ["Interpretable and Testable Vision Features via Sparse Autoencoders"](https://arxiv.org/abs/2502.06755)
+
+    This notebook describes how to do inference on pre-trained ReLU SAEs trained on ViT-B models:
+    - Meta's DINOv2
+    - OpenAI's CLIP
+    - [Imageomics](https://imageomics.osu.edu/)' [BioCLIP](https://imageomics.github.io/bioclip-ecosystem/)
+
+    It shows how to use a `saev.data.shards.RecordedTransformer` to record ViT patch-level activations, then feed them into an SAE for visualization.
+    """)
+    return
+
+
 @app.function
 def load_model_and_sae(
     family: str, ckpt: str, sae_hf_repo: str, layer: int, n_content_tokens: int
