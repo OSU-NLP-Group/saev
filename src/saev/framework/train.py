@@ -749,6 +749,9 @@ def main(
 
     logger.info("Running %d training jobs.", len(cfgs))
 
+    # Use the first resolved config for submitit parameters (n_hours, mem_gb, etc.) so that sweep values take effect instead of CLI defaults.
+    cfg = cfgs[0][0]
+
     if cfg.slurm_acct:
         executor = submitit.SlurmExecutor(folder=cfg.log_to)
 
