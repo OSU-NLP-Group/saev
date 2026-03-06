@@ -92,8 +92,7 @@ def _(pl):
         obs = obs.with_columns([pl.col(field).fill_null("unknown") for field in fields])
 
         combos = (
-            obs
-            .select(fields)
+            obs.select(fields)
             .unique(maintain_order=True)  # first-seen ordering
             .with_columns(pl.arange(0, pl.len(), dtype=pl.Int32).alias("target"))
         )
@@ -102,8 +101,7 @@ def _(pl):
 
         target2fields = {
             target: tuple(rest)
-            for target, *rest in obs
-            .unique(pl.col("target"))
+            for target, *rest in obs.unique(pl.col("target"))
             .select("target", *fields)
             .iter_rows()
         }

@@ -270,8 +270,7 @@ def _(
         )
 
         df = (
-            df
-            .unnest("config/sae", "config/train_data/metadata", separator="/")
+            df.unnest("config/sae", "config/train_data/metadata", separator="/")
             .unnest("config/sae/activation", separator="/")
             .unnest(
                 "config/sae/activation/aux",
@@ -607,8 +606,7 @@ def _(df, mo, pl):
         # col = "summary/eval/n_almost_dead"
 
         group = (
-            df
-            .filter(
+            df.filter(
                 True
                 # & pl.col(col).is_not_null()
                 & pl.col("is_pareto")
@@ -654,8 +652,7 @@ def _(df, mo, pl):
 def _(df, mo, pl):
     def _(df):
         group = (
-            df
-            .filter(
+            df.filter(
                 pl.col("downstream/train/probe_r").is_not_null() & pl.col("is_pareto")
                 # & pl.col("config/val_data/layer") == 21
             )
@@ -699,7 +696,6 @@ def _(df, mo, pl):
 
 @app.cell
 def _(df, pl):
-
     df.filter(
         pl.col("downstream/train/probe_r").is_not_null() & pl.col("is_pareto")
     ).group_by(
@@ -817,8 +813,7 @@ def _(collections, df, itertools, mo, pl, plt, saev):
 def _(df, mo, pl):
     def _(df):
         group = (
-            df
-            .filter(pl.col("downstream/train/probe_r").is_not_null())
+            df.filter(pl.col("downstream/train/probe_r").is_not_null())
             .select(
                 "id",
                 "data_key",

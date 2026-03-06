@@ -162,8 +162,7 @@ def _(
         )
 
         df = (
-            df
-            .unnest("config/sae", "config/train_data/metadata", separator="/")
+            df.unnest("config/sae", "config/train_data/metadata", separator="/")
             .unnest("config/sae/activation", separator="/")
             .unnest(
                 "config/sae/activation/aux",
@@ -533,8 +532,7 @@ def _(pl):
     MigrationEnum = pl.Enum(migration_cols)
 
     fishbase_df = (
-        pl
-        .read_csv(
+        pl.read_csv(
             "contrib/trait_discovery/data/fishvista_fishbase.csv",
             null_values=["?"],
             # Order matters
@@ -575,8 +573,7 @@ def _(pl):
             }),
         )
         .with_columns(
-            pl
-            .coalesce([
+            pl.coalesce([
                 pl.when(pl.col(col) == 1.0).then(pl.lit(col)) for col in habitat_cols
             ])
             .cast(HabitatEnum)
@@ -584,8 +581,7 @@ def _(pl):
         )
         .drop(habitat_cols)
         .with_columns(
-            pl
-            .coalesce([
+            pl.coalesce([
                 pl.when(pl.col(col) == 1.0).then(pl.lit(col)) for col in migration_cols
             ])
             .cast(MigrationEnum)
@@ -666,15 +662,13 @@ def _(
         )
         print(species_df.get_column("habitat").dtype.categories.to_list())
         habitats = (
-            species_df
-            .get_column("habitat")
+            species_df.get_column("habitat")
             .to_physical()
             .to_numpy()
             .repeat(md.content_tokens_per_example)
         )
         migration = (
-            species_df
-            .get_column("migration")
+            species_df.get_column("migration")
             .to_physical()
             .to_numpy()
             .repeat(md.content_tokens_per_example)

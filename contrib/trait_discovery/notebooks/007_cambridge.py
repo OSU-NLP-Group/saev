@@ -26,6 +26,7 @@ def _():
 
     import saev.colors
     import saev.data.datasets
+
     return (
         Float,
         base64,
@@ -96,7 +97,9 @@ def _(
         saev_run = saev.disk.Run(runs_root / wandb_run.id)
         row = {"id": wandb_run.id}
 
-        row.update(**{f"summary/{key}": value for key, value in wandb_run.summary.items()})
+        row.update(**{
+            f"summary/{key}": value for key, value in wandb_run.summary.items()
+        })
 
         try:
             row["summary/eval/freqs"] = load_freqs(wandb_run)
@@ -119,10 +122,12 @@ def _(
             print(f"Run {wandb_run.id} missing config section: {err}.")
             return None
 
-        row.update(
-            **{f"config/train_data/{key}": value for key, value in train_data.items()}
-        )
-        row.update(**{f"config/val_data/{key}": value for key, value in val_data.items()})
+        row.update(**{
+            f"config/train_data/{key}": value for key, value in train_data.items()
+        })
+        row.update(**{
+            f"config/val_data/{key}": value for key, value in val_data.items()
+        })
         row.update(**{f"config/{key}": value for key, value in config.items()})
 
         metadata = row.get("config/train_data/metadata")
@@ -142,7 +147,9 @@ def _(
 
             split_label = get_probe_split_label(shards_dpath)
             if split_label is None:
-                print(f"Skipping shards {shard_id}: unknown split (run {wandb_run.id}).")
+                print(
+                    f"Skipping shards {shard_id}: unknown split (run {wandb_run.id})."
+                )
                 continue
 
             if split_label in split_map:
@@ -214,7 +221,9 @@ def _(
 
         # k = 16
         path = (
-            saev_run.inference / val_shards / f"probe1d_metrics__train-{train_shards}.npz"
+            saev_run.inference
+            / val_shards
+            / f"probe1d_metrics__train-{train_shards}.npz"
         )
         if path.is_file():
             with np.load(path) as fd:
@@ -238,7 +247,6 @@ def _(
                 row[f"downstream/va/mean_purity_at_{k}"] = (count / k).mean().item()
 
         return row, cls_results
-
 
     @beartype.beartype
     def _finalize_sae_df(rows: list[dict[str, object]]):
@@ -290,7 +298,6 @@ def _(
 
         return df
 
-
     @beartype.beartype
     def _finalize_clf_df(rows: list[dict[str, object]]):
         df = pl.DataFrame(rows, infer_schema_length=None)
@@ -307,7 +314,6 @@ def _(
         )
         return df
 
-
     @beartype.beartype
     def _fetch_wandb_runs():
         all_runs = []
@@ -315,7 +321,9 @@ def _(
         for tag in WANDB_TAGS:
             # Use native W&B tags (set via wandb.init(tags=...))
             runs = list(
-                wandb.Api().runs(path=f"{WANDB_USERNAME}/{WANDB_PROJECT}", filters={"tags": tag})
+                wandb.Api().runs(
+                    path=f"{WANDB_USERNAME}/{WANDB_PROJECT}", filters={"tags": tag}
+                )
             )
             for run in runs:
                 if run.id not in seen_ids:
@@ -324,7 +332,6 @@ def _(
         if not all_runs:
             raise ValueError("No runs found.")
         return all_runs
-
 
     @beartype.beartype
     def make_sae_df_parallel(n_workers: int = 16):
@@ -350,7 +357,6 @@ def _(
 
         assert rows, "No valid runs."
         return _finalize_sae_df(rows)
-
 
     @beartype.beartype
     def make_clf_df_parallel(n_workers: int = 16):
@@ -380,7 +386,6 @@ def _(
         if not rows:
             return pl.DataFrame()
         return _finalize_clf_df(rows)
-
 
     sae_df = make_sae_df_parallel()
     clf_df = make_clf_df_parallel()
@@ -488,7 +493,6 @@ def _(collections, mo, np, pl, plt, sae_df, saev):
 
         return mo.vstack([fig, dict(pareto_ckpts)])
 
-
     _(sae_df)
     return
 
@@ -512,7 +516,6 @@ def _(Float, beartype, jaxtyped, json, np, os):
 
         raise ValueError(f"freqs not found in run '{run.id}'")
 
-
     @jaxtyped(typechecker=beartype.beartype)
     def load_mean_values(run) -> Float[np.ndarray, " d_sae"]:
         try:
@@ -529,6 +532,7 @@ def _(Float, beartype, jaxtyped, json, np, os):
             raise RuntimeError(f"Wandb sucks: {err}") from err
 
         raise ValueError(f"mean_values not found in run '{run.id}'")
+
     return load_freqs, load_mean_values
 
 
@@ -543,7 +547,9 @@ def _(base64, beartype, pickle, saev):
         )
 
         ckpt = next(
-            metadata[key] for key in ("vit_ckpt", "model_ckpt", "ckpt") if key in metadata
+            metadata[key]
+            for key in ("vit_ckpt", "model_ckpt", "ckpt")
+            if key in metadata
         )
 
         if family == "dinov2" and ckpt == "dinov2_vitb14_reg":
@@ -567,7 +573,6 @@ def _(base64, beartype, pickle, saev):
 
         print(f"Unknown model: {(family, ckpt)}")
         return ckpt
-
 
     @beartype.beartype
     def get_data_key(metadata: dict[str, object]) -> str | None:
@@ -598,6 +603,7 @@ def _(base64, beartype, pickle, saev):
 
         print(f"Unknown data: {data_cfg}")
         return None
+
     return get_data_key, get_model_key
 
 
@@ -626,6 +632,7 @@ def _(beartype, pathlib):
             probe_metric_fpaths.append(probe_metrics_fpath)
 
         return probe_metric_fpaths
+
     return (get_inference_probe_metric_fpaths,)
 
 
@@ -650,6 +657,7 @@ def _(beartype, pathlib, saev):
         if split_name in {"val", "validation"}:
             return "val"
         return None
+
     return (get_probe_split_label,)
 
 
@@ -674,7 +682,6 @@ def _(beartype, cloudpickle, collections, json, pathlib, saev, shards_root):
         if split_name in {"val", "validation"}:
             return "val"
         return None
-
 
     @beartype.beartype
     def get_cls_results_fpaths(run: saev.disk.Run) -> dict[str, list[pathlib.Path]]:
@@ -703,7 +710,6 @@ def _(beartype, cloudpickle, collections, json, pathlib, saev, shards_root):
 
         return cls_results_fpaths
 
-
     @beartype.beartype
     def get_cls_results(run: saev.disk.Run) -> list[dict[str, object]]:
         results = []
@@ -722,6 +728,7 @@ def _(beartype, cloudpickle, collections, json, pathlib, saev, shards_root):
                     continue
 
         return results
+
     return (get_cls_results,)
 
 
@@ -747,6 +754,7 @@ def _(beartype, mo, np, pathlib, saev):
 
         prob = y.mean(axis=0)
         return -(prob * np.log(prob) + (1 - prob) * np.log(1 - prob))
+
     return (get_baseline_ce,)
 
 
@@ -767,6 +775,7 @@ def _(np):
             oldmostfreq = mostfrequent
 
         return mostfrequent, oldcounts
+
     return (mode,)
 
 

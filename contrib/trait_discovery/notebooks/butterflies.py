@@ -16,8 +16,8 @@ def _():
 
     import marimo as mo
 
-
     import saev.data.datasets
+
     return Image, beartype, glasbey, itertools, mo, np, pathlib, saev
 
 
@@ -47,6 +47,7 @@ def _(Image, beartype, np, palette):
             img[seg == i] = palette[i]
 
         return Image.fromarray(img)
+
     return (make_seg,)
 
 
@@ -73,14 +74,10 @@ def _(ds):
 
 @app.cell
 def _(ds, itertools, mo):
-    mo.vstack(
-        [
-            mo.hstack(
-                sample.values(), justify="start"
-            )
-            for sample in itertools.islice(ds, 20)
-        ]
-    )
+    mo.vstack([
+        mo.hstack(sample.values(), justify="start")
+        for sample in itertools.islice(ds, 20)
+    ])
     return
 
 

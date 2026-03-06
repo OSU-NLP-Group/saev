@@ -28,6 +28,7 @@ def _():
 
     import saev.colors
     import saev.data.datasets
+
     return (
         Float,
         base64,
@@ -177,8 +178,7 @@ def _(
         )
 
         df = (
-            df
-            .unnest("config/sae", "config/train_data/metadata", separator="/")
+            df.unnest("config/sae", "config/train_data/metadata", separator="/")
             .unnest("config/sae/activation", separator="/")
             .unnest(
                 "config/sae/activation/aux",
@@ -216,8 +216,7 @@ def _(
     def _finalize_clf_df(rows: list[dict[str, object]]):
         df = pl.DataFrame(rows, infer_schema_length=None)
         df = (
-            df
-            .unnest("config/sae", "config/train_data/metadata", separator="/")
+            df.unnest("config/sae", "config/train_data/metadata", separator="/")
             .unnest("config/sae/activation", separator="/")
             .unnest(
                 "config/sae/activation/aux",
@@ -334,8 +333,7 @@ def _(clf_df, mo, np, pl, plt, saev, scipy):
 
         # Table of individual points
         table = (
-            filtered
-            .select(
+            filtered.select(
                 "config/val_data/layer",
                 "cls/cfg/cls/key",
                 k_col,
@@ -479,8 +477,7 @@ def _(clf_df, mo, np, pl, plt, saev, scipy):
 
         # Table of individual points
         table = (
-            filtered
-            .select(
+            filtered.select(
                 "config/val_data/layer",
                 "cls/cfg/cls/key",
                 k_col,
@@ -636,6 +633,7 @@ def _(Float, beartype, jaxtyped, json, np, os):
             raise RuntimeError(f"Wandb sucks: {err}") from err
 
         raise ValueError(f"mean_values not found in run '{run.id}'")
+
     return load_freqs, load_mean_values
 
 
@@ -701,6 +699,7 @@ def _(base64, beartype, pickle, saev):
 
         print(f"Unknown data: {data_cfg}")
         return None
+
     return get_data_key, get_model_key
 
 
@@ -809,6 +808,7 @@ def _(
                     continue
 
         return results
+
     return (get_cls_results,)
 
 

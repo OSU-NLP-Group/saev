@@ -897,8 +897,7 @@ def eval_worker_fn(cfg: EvalConfig) -> int:
     # Load segmentation labels
     logger.info("Loading segmentation labels from %s...", test_labels_fpath)
     labels_flat = (
-        np
-        .memmap(
+        np.memmap(
             test_labels_fpath,
             mode="r",
             dtype=np.uint8,

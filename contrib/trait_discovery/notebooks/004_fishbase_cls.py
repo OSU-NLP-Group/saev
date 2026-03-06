@@ -163,8 +163,7 @@ def _(
         )
 
         df = (
-            df
-            .unnest("config/sae", "config/train_data/metadata", separator="/")
+            df.unnest("config/sae", "config/train_data/metadata", separator="/")
             .unnest("config/sae/activation", separator="/")
             .unnest(
                 "config/sae/activation/aux",
@@ -611,8 +610,7 @@ def _(collections, df, mo, np, pl, plt, saev):
                     & (pl.col(x_col).is_not_null())
                 )
                 group = group.sort(by=x_col).with_columns(
-                    pl
-                    .col("cls/classifier")
+                    pl.col("cls/classifier")
                     .map_elements(
                         lambda clf: len(np.nonzero(clf.coef_)[0]), return_dtype=pl.Int32
                     )
