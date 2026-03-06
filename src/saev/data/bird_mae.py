@@ -443,7 +443,6 @@ class Encoder(nn.Module):
     def forward(
         self, input_values: Float[Tensor, "batch 1 512 128"]
     ) -> dict[str, Tensor]:
-
         bsz, c, w, h = input_values.shape
         assert c == 1
         assert w == self.cfg.img_size_x
