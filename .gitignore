@@ -25,16 +25,36 @@ pytest.json
 # Credentials
 r2-credentials
 
-# Presentation slides (opaque binaries, not diffable)
-docs/assets/*.key
-docs/assets/*.pages
-docs/assets/*.pptx
+# Presentations (opaque binaries, not diffable)
+docs/internal/presentations/
 
-# Social media videos and large assets
-docs/assets/twitter/*.mov
-docs/assets/twitter/*.gif
-docs/assets/twitter/*.mp4
-docs/assets/twitter/*.key
+# Paper assets (figures, social media, videos -- regenerable or too large)
+contrib/*/docs/papers/*/figures/
+contrib/*/docs/papers/*/*/figures/
+contrib/*/docs/papers/*/social/
+contrib/*/docs/papers/*/*/social/
 
-# Conference paper figures (regenerable from notebooks)
-contrib/*/papers/*/figures/
+# Design source files (OmniGraffle, iDraw, Keynote)
+*.graffle
+*.idraw
+*.pages
+
+# LaTeX
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.synctex.gz
+*.toc
+*.lof
+*.lot
+*.nav
+*.snm
+*.vrb
+*.bcf
+*.run.xml
+*-blx.bib
+*.brf
