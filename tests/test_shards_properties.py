@@ -75,7 +75,7 @@ def test_dataloader_batches():
         datasets.FakeImg(n_examples=10),
         batch_size=8,
         n_workers=0,
-        img_tr=img_tr,
+        data_tr=img_tr,
         sample_tr=sample_tr,
     )
     batch = next(iter(dataloader))

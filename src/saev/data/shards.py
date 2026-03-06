@@ -543,6 +543,54 @@ class Shard:
 
 
 @beartype.beartype
+def get_missing_shards_json_msg(
+    shards_dir_dpath: pathlib.Path, shards_json_fpath: pathlib.Path
+) -> str:
+    abs_shards_dir_dpath = shards_dir_dpath.resolve(strict=False)
+    abs_shards_json_fpath = shards_json_fpath.resolve(strict=False)
+
+    lines = [f"Could not load shard metadata at '{abs_shards_json_fpath}'."]
+
+    if not shards_dir_dpath.exists():
+        lines.append(f"Shard directory is missing: '{abs_shards_dir_dpath}'.")
+        lines.append(
+            "Scratch shards may have been cleaned. Re-run inference to regenerate shards on /fs/scratch."
+        )
+        return "\n".join(lines)
+
+    if not shards_dir_dpath.is_dir():
+        lines.append(
+            f"Expected shard directory at '{abs_shards_dir_dpath}', but it is not a directory."
+        )
+        return "\n".join(lines)
+
+    metadata_fpath = shards_dir_dpath / "metadata.json"
+    labels_fpath = shards_dir_dpath / "labels.bin"
+    acts_fpaths = sorted(shards_dir_dpath.glob("acts*.bin"))
+    n_acts = len(acts_fpaths)
+
+    lines.append(f"Shard directory exists: '{abs_shards_dir_dpath}'.")
+    lines.append(f"metadata.json exists: {metadata_fpath.exists()}.")
+    lines.append(f"labels.bin exists: {labels_fpath.exists()}.")
+    lines.append(f"acts*.bin files found: {n_acts}.")
+
+    if n_acts:
+        acts_preview = ", ".join(fpath.name for fpath in acts_fpaths[:5])
+        suffix = "" if n_acts <= 5 else ", ..."
+        lines.append(f"Example shard files: {acts_preview}{suffix}")
+        lines.append(
+            "This looks like an incomplete or older shard layout without shards.json. Re-run inference to regenerate shards on /fs/scratch."
+        )
+        return "\n".join(lines)
+
+    lines.append(
+        "No shard binaries were found. This shard directory may be partially deleted or never fully written."
+    )
+    lines.append("Re-run inference to regenerate shards on /fs/scratch.")
+    return "\n".join(lines)
+
+
+@beartype.beartype
 @dataclasses.dataclass(frozen=True)
 class ShardInfo:
     """
@@ -556,9 +604,17 @@ class ShardInfo:
 
     @classmethod
     def load(cls, shards_dir: pathlib.Path) -> "ShardInfo":
-        assert disk.is_shards_dir(shards_dir)
-        with open(shards_dir / "shards.json") as fd:
-            data = json.load(fd)
+        msg = f"Invalid shards path '{shards_dir}'. Expected .../saev/shards/<hash>."
+        assert len(shards_dir.parts) >= 3, msg
+        assert shards_dir.parts[-3:-1] == ("saev", "shards"), msg
+
+        shards_json_fpath = shards_dir / "shards.json"
+        try:
+            with open(shards_json_fpath) as fd:
+                data = json.load(fd)
+        except FileNotFoundError as err:
+            msg = get_missing_shards_json_msg(shards_dir, shards_json_fpath)
+            raise FileNotFoundError(msg) from err
 
         return cls([Shard(**entry) for entry in data])
 

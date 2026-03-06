@@ -177,3 +177,41 @@ def test_validate_accepts_str_path(make_shards_dir):
     shards_dir_dpath = make_shards_dir()
     shard_info = shards.ShardInfo.load(shards_dir_dpath)
     shard_info.validate(str(shards_dir_dpath))
+
+
+def test_load_missing_shards_dir_reports_cleanup_hint(tmp_path: pathlib.Path):
+    shards_dir_dpath = tmp_path / "saev" / "shards" / "deadbeef"
+
+    with pytest.raises(FileNotFoundError) as excinfo:
+        shards.ShardInfo.load(shards_dir_dpath)
+
+    msg = str(excinfo.value)
+    assert "Shard directory is missing" in msg
+    assert "Re-run inference to regenerate shards on /fs/scratch." in msg
+    assert str(shards_dir_dpath.resolve(strict=False)) in msg
+
+
+def test_load_missing_shards_json_reports_existing_bins(make_shards_dir):
+    shards_dir_dpath = make_shards_dir(n_shards=2)
+    (shards_dir_dpath / "shards.json").unlink()
+
+    with pytest.raises(FileNotFoundError) as excinfo:
+        shards.ShardInfo.load(shards_dir_dpath)
+
+    msg = str(excinfo.value)
+    assert "acts*.bin files found: 2." in msg
+    assert "Example shard files: acts000000.bin, acts000001.bin" in msg
+    assert "older shard layout without shards.json" in msg
+
+
+def test_load_missing_shards_json_reports_missing_bins(make_shards_dir):
+    shards_dir_dpath = make_shards_dir(n_shards=0)
+    (shards_dir_dpath / "shards.json").unlink()
+
+    with pytest.raises(FileNotFoundError) as excinfo:
+        shards.ShardInfo.load(shards_dir_dpath)
+
+    msg = str(excinfo.value)
+    assert "acts*.bin files found: 0." in msg
+    assert "No shard binaries were found" in msg
+    assert "Re-run inference to regenerate shards on /fs/scratch." in msg
