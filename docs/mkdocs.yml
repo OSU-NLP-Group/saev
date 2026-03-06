@@ -37,6 +37,7 @@ nav:
   - Users:
       - Guide: users/guide.md
       - Inference: users/inference.md
+      - Starting a new Project: users/new-project.md
       - Glossary: users/glossary.md
       - Sweeps: users/sweeps.md
       - Example Debugging: users/bird-mae-debugging.md
