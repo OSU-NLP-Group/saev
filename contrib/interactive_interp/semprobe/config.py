@@ -2,6 +2,7 @@ import dataclasses
 import os.path
 
 import beartype
+
 import saev.config
 
 
