@@ -1,0 +1,930 @@
+\documentclass{article}
+
+% Recommended, but optional, packages for figures and better typesetting:
+\usepackage[utf8]{inputenc} % allow utf-8 input
+\usepackage[T1]{fontenc}    % use 8-bit T1 fonts
+\usepackage{url}            % simple URL typesetting
+\usepackage{booktabs}       % professional-quality tables
+\usepackage{amsmath}
+\usepackage{amsfonts}       % blackboard math symbols
+\usepackage{nicefrac}       % compact symbols for 1/2, etc.
+\usepackage{microtype}      % microtypography
+\usepackage{xcolor}         % colors
+\usepackage{comment}
+\usepackage{graphicx}
+\usepackage{multirow}
+\usepackage{enumitem}
+\usepackage{tabularx}
+\usepackage{pifont}
+\usepackage{subcaption}
+\usepackage{booktabs} % for professional tables
+% ICML2026: table caption on top, figure captions on bottom
+
+% hyperref makes hyperlinks in the resulting PDF.
+% If your build breaks (sometimes temporarily if a hyperlink spans a page) please comment out the following usepackage line and replace \usepackage{icml2026} with \usepackage[nohyperref]{icml2026} above.
+\usepackage{hyperref}
+
+
+
+% Attempt to make hyperref and algorithmic work together better:
+\newcommand{\theHalgorithm}{\arabic{algorithm}}
+
+% Use the following line for the initial blind version submitted for review:
+\usepackage{icml2026}
+
+% For preprint, use
+% \usepackage[preprint]{icml2026}
+
+% If accepted, instead use the following line for the camera-ready submission:
+% \usepackage[accepted]{icml2026}
+
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{mathtools}
+\usepackage{amsthm}
+
+\newcommand{\todo}[1]{\textbf{\color{red}[TODO: #1]}}
+\newcommand{\sam}[1]{\textbf{\color{blue}[Sam: #1]}}
+\newcommand{\jake}[1]{\textbf{\color{green}[Jake: #1]}}
+\newcommand{\gpt}[1]{\textbf{\color{orange}[GPT: #1]}}
+
+\usepackage[detect-all,separate-uncertainty = true]{siunitx}
+\sisetup{
+    output-exponent-marker=\ensuremath{\mathrm{e}},
+    group-separator= {,},
+    group-minimum-digits = 4,
+    list-final-separator={, },
+    mode={math},
+    retain-explicit-plus
+}
+
+\makeatletter
+\renewcommand{\paragraph}{%
+  \@startsection{paragraph}{4}%
+  {\z@}{1.5ex \@plus 1ex \@minus .2ex}{-0.5em}%
+  {\normalfont\normalsize\bfseries}%
+}
+\makeatother
+
+\setlist{nosep}
+
+%%
+%% globally adjusts space between figure and caption
+%%
+\setlength{\abovecaptionskip}{.5em}
+
+% if you use cleveref..
+\usepackage[capitalize,noabbrev]{cleveref}
+
+\definecolor{green}{RGB}{25, 169, 116}
+\definecolor{red}{RGB}{255, 65, 54}
+\newcommand{\cmark}{\textcolor{green}{\ding{51}}}
+\newcommand{\xmark}{\textcolor{red}{\ding{55}}}
+% For fishvista
+\definecolor{blue}{RGB}{0, 18, 115}
+\definecolor{cyan}{RGB}{10, 147, 150}
+\definecolor{sea}{RGB}{148, 210, 189}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% THEOREMS
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\theoremstyle{plain}
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{corollary}[theorem]{Corollary}
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{assumption}[theorem]{Assumption}
+\theoremstyle{remark}
+\newtheorem{remark}[theorem]{Remark}
+
+% Todonotes is useful during development; simply uncomment the next line
+%    and comment out the line below the next line to turn off comments
+%\usepackage[disable,textsize=tiny]{todonotes}
+\usepackage[textsize=tiny]{todonotes}
+
+% The \icmltitle you define below is probably too long as a header.
+% Therefore, a short form for the running title is supplied here:
+\icmltitlerunning{Towards Open-Ended Visual Scientific Discovery with Sparse Autoencoders}
+
+\begin{document}
+
+\twocolumn[
+  \icmltitle{Towards Open-Ended Visual Scientific Discovery with Sparse Autoencoders}
+
+  % It is OKAY to include author information, even for blind submissions: the
+  % style file will automatically remove it for you unless you've provided
+  % the [accepted] option to the icml2026 package.
+
+  % List of affiliations: The first argument should be a (short) identifier you
+  % will use later to specify author affiliations Academic affiliations
+  % should list Department, University, City, Region, Country Industry
+  % affiliations should list Company, City, Region, Country
+
+  % You can specify symbols, otherwise they are numbered in order. Ideally, you
+  % should not use this facility. Affiliations will be numbered in order of
+  % appearance and this is the preferred way.
+  \icmlsetsymbol{equal}{*}
+
+  \begin{icmlauthorlist}
+    \icmlauthor{Firstname1 Lastname1}{equal,yyy}
+    \icmlauthor{Firstname2 Lastname2}{equal,yyy,comp}
+    \icmlauthor{Firstname3 Lastname3}{comp}
+    \icmlauthor{Firstname4 Lastname4}{sch}
+    \icmlauthor{Firstname5 Lastname5}{yyy}
+    \icmlauthor{Firstname6 Lastname6}{sch,yyy,comp}
+    \icmlauthor{Firstname7 Lastname7}{comp}
+    %\icmlauthor{}{sch}
+    \icmlauthor{Firstname8 Lastname8}{sch}
+    \icmlauthor{Firstname8 Lastname8}{yyy,comp}
+    %\icmlauthor{}{sch}
+    %\icmlauthor{}{sch}
+  \end{icmlauthorlist}
+
+  \icmlaffiliation{yyy}{Department of XXX, University of YYY, Location, Country}
+  \icmlaffiliation{comp}{Company Name, Location, Country}
+  \icmlaffiliation{sch}{School of ZZZ, Institute of WWW, Location, Country}
+
+  \icmlcorrespondingauthor{Firstname1 Lastname1}{first1.last1@xxx.edu}
+  \icmlcorrespondingauthor{Firstname2 Lastname2}{first2.last2@www.uk}
+
+  % You may provide any keywords that you find helpful for describing your
+  % paper; these are used to populate the "keywords" metadata in the PDF but
+  % will not be shown in the document
+  \icmlkeywords{Machine Learning, ICML}
+
+  \vskip 0.3in
+]
+
+% this must go after the closing bracket ] following \twocolumn[ ...
+
+% This command actually creates the footnote in the first column listing the
+% affiliations and the copyright notice. The command takes one argument, which
+% is text to display at the start of the footnote. The \icmlEqualContribution
+% command is standard text for equal contribution. Remove it (just {}) if you
+% do not need this facility.
+
+% Use ONE of the following lines. DO NOT remove the command.
+% If you have no special notice, KEEP empty braces:
+\printAffiliationsAndNotice{}  % no special notice (required even if empty)
+% Or, if applicable, use the standard equal contribution text:
+% \printAffiliationsAndNotice{\icmlEqualContribution}
+
+\begin{abstract}
+Scientific archives now contain hundreds of petabytes of data across genomics, ecology, climate, and molecular biology that could reveal undiscovered patterns if systematically analyzed at scale.
+Large-scale, weakly-supervised datasets in language and vision have driven the development of foundation models whose internal representations encode structure (patterns, co-occurrences and statistical regularities) beyond their training objectives.
+Most existing methods extract structure only for pre-specified targets; they excel at confirmation but do not support open-ended discovery of unknown patterns.
+We ask whether sparse autoencoders (SAEs) can enable open-ended feature discovery from foundation model representations.
+We evaluate this question in controlled rediscovery studies, where the learned SAE features are tested for alignment with semantic concepts on a standard segmentation benchmark and compared against strong label-free alternatives on concept-alignment metrics.
+Applied to ecological imagery, the same procedure surfaces fine-grained anatomical structure without access to segmentation or part labels, providing a scientific case study with ground-truth validation.
+While our experiments focus on vision with an ecology case study, the method is domain-agnostic and applicable to models in other sciences (e.g., proteins, genomics, weather).
+Our results indicate that sparse decomposition provides a practical instrument for exploring what scientific foundation models have learned, an important prerequisite for moving from confirmation to genuine discovery.
+\end{abstract}
+
+\section{Introduction}
+
+Scientific data now spans hundreds of petabytes across domains, far outpacing what any lab can annotate or manually inspect.\footnote{For example, the NIH Sequence Read Archive exposes roughly \num{47} PB of public sequencing data, the European Nucleotide Archive provides roughly \num{63} PB of immediately downloadable data, NASA Earthdata (EOSDIS) hosts more than \num{120} PB of open Earth science data, and a single reanalysis, ERA5, is on the order of \num{5} PB.}
+Large neural networks trained on these datasets cover proteins (e.g., AlphaFold 3 \citep{abramson2024alphafold3}), weather (e.g., GraphCast, GenCast \citep{lam2023graphcast,price2025gencast}), genomics (e.g., scGPT, ESM3 \citep{cui2024scgpt,hayes2025esm3}), and vision (e.g., Scale-MAE, BioCLIP 2 \citep{reed2023scale,gu2025bioclip2}).
+These models achieve strong predictive performance across a variety of tasks by learning compressed representations of the underlying data distribution's structure.
+% They learn to organize data by recurring patterns and factors \citep{bommasoni2021opportunities}; in vision, self-supervised encoders demonstrably learn object- and part-level structure that transfers to dense prediction tasks \citep{caron2021dinov1,oquab2024dinov2}.
+
+\begin{figure*}[t]
+    \centering
+    \includegraphics[width=\linewidth]{figures/hook.png}
+    % \includegraphics[width=\linewidth]{figures/hook.pdf}
+    \caption{\textit{Validating an instrument for open-ended feature discovery.} 
+    \textbf{Left:} Typical use of a foundation model in science: an input image is passed through a pretrained encoder and a task-specific head to yield class scores; the dense representation remains an opaque embedding, so unnamed factors are inaccessible. 
+    \textbf{Right:} Our procedure composes a foundation model with a sparse autoencoder, producing a library of interpretable semantic concepts with per-example activation maps. 
+    We find that these concepts align with and localize anatomical parts (e.g., head, dorsal fin) without seeing part-of-body labels.
+    Fish images are shown as a case study with known anatomy providing a controlled rediscovery test; the explored method is domain-agnostic.
+    }\label{fig:hook}
+    % \vspace{-6pt}
+\end{figure*}
+
+However, current usage of such foundation models in science is predominantly task-centric: models are used as frozen feature extractors or fine-tuned for specific predictions (species classification \citep{vanhorn2021inat21}, cellular responses to perturbations \citep{roohani2025vcc}, 3-D protein structure \citep{haas2018continuous,pereira2021high}).
+The learned, compressed representations are high-dimensional embeddings optimized for task performance.
+While these representations enable accurate predictions, they do not directly provide reusable scientific measurements or expose the structure the model learned for systematic investigation.
+This limits foundation models to \emph{confirmatory} applications where the target concepts are pre-specified (see \cref{tab:related-work}).
+
+\paragraph{Discovery vs. Confirmation}
+Scientific discovery often involves establishing names and descriptions of previously unexplained phenomena in the world \citep{kuhn1970structure}.
+A morphological feature that distinguishes subspecies but is not formally cataloged, an unexplored correlation between climate variables, or a sequence motif in an understudied protein family: these cannot be found by methods that require specifying target concepts in advance.
+
+Foundation models trained on millions of samples have processed more data than any human could learn from.
+If these models have learned semantic patterns not captured by existing annotations, interpretability methods offer a route to systematically surface this learned structure.
+% The patterns are encoded in the model's representations: model interpretability offers a path towards unlocking model-learned discoveries.
+However, current interpretability approaches require specifying concepts:
+\begin{itemize}
+\item{Supervised probing tests for known concepts \citep{alain2016understanding}.}
+\item{Concept activation vectors (CAV) measure sensitivity to user-defined concepts \citep{kim2018tcav}.}
+\item{Saliency maps and attention visualizations explain individual predictions for predefined tasks \citep{selvaraju2017gradcam,sundararajan2017axiomatic,simonyan2013deep}.}
+\end{itemize}
+These methods excel at \textit{confirmation}, but cannot perform open-ended exploration to generate hypotheses about what patterns exist in the learned representations.
+When labels are scarce and salient factors are unknown (i.e., in scientific use cases), the inability to extract unnamed patterns from foundation models represents a significant limitation.
+If foundation models have learned meaningful patterns from data that exceed what humans can manually analyze, we need methods to surface those patterns without pre-specification \citep{hughes2024open}.
+We view such open-ended feature discovery as a prerequisite step toward scientific discovery.
+
+\begin{table*}[t]
+    \centering
+    \small
+    \renewcommand{\arraystretch}{1.2}
+    \setlength{\tabcolsep}{4pt}
+    \caption{Comparison of methods for extracting knowledge from foundation models. Most approaches require researchers to specify concepts or tasks in advance, limiting them to confirmatory analysis. 
+    SAEs support open-ended feature discovery by surfacing the model's learned feature vocabulary in a structured format without any supervision.
+    }
+    \label{tab:related-work}
+    \begin{tabular}{lllll}
+    \toprule
+    \textbf{Method} & \textbf{Input} & \textbf{Output} & \textbf{Example} & \textbf{Discovery?} \\
+    \midrule
+    Task Heads & Labeled task dataset & Task predictions & Species classification & \xmark{} Needs task labels \\
+    Linear Probes & Labeled concept $\mathcal{A}$ samples & Decodability of concept $\mathcal{A}$ & ``Does DINOv3 see eyes?'' & \xmark{} Pre-specified concepts \\
+    Concept Vec. & Labeled concept $\mathcal{A}$ samples & Score for concept $\mathcal{A}$ & ``Find a `striped' direction'' & \xmark{} Needs concept samples \\
+    Feature Viz. & Selected neuron & Synthetic images & ``DeepDream for neuron $j$'' & \xmark{} Unstructured output \\
+    Prototypes & Labeled task dataset & Task-tied prototypes & ``This looks like concept $\mathcal{B}$'' & \xmark{} Task-specific \\
+    SAEs (Ours) & Unlabeled activations & Interpretable features & Discover new traits & \cmark{} Finds unknown patterns \\
+    \bottomrule
+    \end{tabular}
+\end{table*}
+
+% === VERSION A: Original "concept rediscovery" framing ===
+\paragraph{Our approach.}
+To address this gap, we study sparse autoencoders (SAEs) as a candidate mechanism for decomposing foundation model representations into interpretable features without concept supervision \citep{bricken2023monosemanticity,templeton2024scaling,cunningham2023sparse,gao2025scaling}.
+SAEs learn an overcomplete dictionary that reconstructs model activations through sparse linear combinations, with sparsity encouraging individual features to capture coherent semantic units.
+Unlike supervised methods, SAEs require no concept labels during training.
+Each learned feature provides a per-example activation score together with its decoding direction and exemplar evidence, enabling systematic investigation of what patterns the model represents.
+In short, we treat SAEs as a candidate tool for open-ended feature discovery from foundation models and seek to rigorously evaluate that tool in controlled settings \citep{peng2025unknown}.
+
+\paragraph{Evidence.}
+We train SAEs on patch-level activations from DINOv3 \citep{simeoni2025dinov3}, a self-supervised vision transformer (ViT, \cite{dosovitskiy2020vit}).
+We evaluate if SAEs can recover fine-grained semantic structure without access to labels in two settings: (1) ADE20K scene segmentation \citep{zhou2017ade20k}, containing \num{150} object classes, and (2) ecological images, where we test recovery of anatomical body parts from the FishVista dataset \citep{mehrab2024fishvista,fishvistadataset}.
+Both settings provide known semantic structure, so they serve as controlled rediscovery tests of whether SAEs can recover concepts that domain experts already recognize.
+We find that SAEs reliably extract semantic concepts that were never explicitly labeled in DINOv3's self-supervised training objective.
+We compare against decomposition baselines ($k$-means clustering and PCA) and find that SAEs achieve substantially higher concept alignment, with Matryoshka SAEs \citep{bussmann2025matryoshka} reaching \num{7.9}\% higher class coverage than standard SAEs on ADE20K (see \cref{sec:ade20k,tab:ade20k} for details).
+
+Our results indicate that unsupervised sparse decomposition can systematically recover semantic structure from foundation model representations.
+On standard vision benchmarks, SAEs rediscover segmentation classes and spatial relationships without label access during training.
+On scientific images, they surface fine-grained anatomical features, providing measurable quantities that can be evaluated against biological annotations.
+We analyze when this approach succeeds and when it fails, documenting sensitivity to architectural choices, layer selection, and dataset characteristics.
+While we validate our approach on two vision domains, the protocol itself is domain-agnostic and applicable to any setting with foundation model representations: proteins, genomics, weather, and more \citep{abramson2024alphafold3,lam2023graphcast,cui2024scgpt}.
+We view this work as a prerequisite step: establishing that SAEs can systematically recover known structure before using them to search for truly novel scientific phenomena.
+
+% === VERSION C: "Empirical evaluation for concept discovery" framing ===
+\paragraph{Our approach.}
+We study sparse autoencoders (SAEs) as a mechanism for decomposing foundation model representations into interpretable features \citep{bricken2023monosemanticity,templeton2024scaling,cunningham2023sparse,gao2025scaling}.
+SAEs learn an overcomplete dictionary that reconstructs activations through sparse combinations; each learned feature provides activation maps across images, a decoding direction, and exemplar visualizations—quantities that can be systematically examined and linked to external metadata.
+The central empirical question is whether SAE features align with semantic structure more reliably than alternative decompositions (PCA, $k$-means), which would support their use for exploring what foundation models have learned.
+We evaluate this via controlled rediscovery: training SAEs without concept labels, then measuring how often learned features align with withheld ground-truth concepts.
+
+\paragraph{Evidence.}
+We train SAEs on patch-level activations from DINOv3 \citep{simeoni2025dinov3}, a self-supervised vision transformer \citep{dosovitskiy2020vit}, and evaluate in two controlled settings: ADE20K scene segmentation \citep{zhou2017ade20k} with \num{150} object classes, and FishVista ecological images \citep{mehrab2024fishvista,fishvistadataset} with anatomical body-part annotations.
+Both provide known structure that we withhold during SAE training, enabling us to measure how often learned features align with genuine semantic concepts.
+Compared to $k$-means and PCA, SAEs yield higher concept alignment, with Matryoshka SAEs \citep{bussmann2025matryoshka} reaching \num{7.9}\% higher class coverage than standard SAEs on ADE20K (see \cref{sec:ade20k,tab:ade20k}).
+
+These results indicate that SAEs provide an effective method for extracting interpretable features from foundation model representations.
+On general-domain benchmarks, SAE features align with segmentation classes and localize spatially without any label supervision.
+On scientific images, they surface fine-grained anatomical structure, yielding measurements that can be validated against expert annotations.
+We document when this approach succeeds—and when it fails—analyzing sensitivity to model scale, layer depth, and domain characteristics.
+While our experiments focus on vision with ecology as a case study, the methodology applies wherever foundation models learn from data at scales exceeding manual analysis: proteins, genomics, remote sensing, and beyond \citep{abramson2024alphafold3,lam2023graphcast,cui2024scgpt}.
+This work validates SAEs for open-ended feature discovery; the next step is applying them to scientific questions where ground truth remains unknown.
+
+% === VERSION D: "SAE features + sparse prediction for trait discovery" framing ===
+\paragraph{Our approach.}
+We study sparse autoencoders (SAEs) as a mechanism for extracting candidate visual traits from foundation model representations \citep{bricken2023monosemanticity,templeton2024scaling,cunningham2023sparse,gao2025scaling}.
+SAEs decompose activations into a library of localized features—each a potential morphological pattern.
+On their own, these features are just patterns; connecting them to scientific questions requires an additional step.
+We compose SAE features with sparse linear classifiers that predict outcomes of interest (e.g., habitat, phylogenetic grouping), where sparsity highlights which features are discriminative.
+This mirrors the logic of a dichotomous key: a small number of observable traits that distinguish categories.
+The central empirical question is whether this pipeline surfaces features that (1) align with known semantic structure and (2) provide interpretable, sparse predictors for downstream scientific questions.
+
+\paragraph{Evidence.}
+We train SAEs on patch-level activations from DINOv3 \citep{simeoni2025dinov3}, a self-supervised vision transformer \citep{dosovitskiy2020vit}, and evaluate in two settings.
+First, on ADE20K \citep{zhou2017ade20k} and FishVista \citep{mehrab2024fishvista,fishvistadataset}, we test whether SAE features align with known semantic structure (segmentation classes, anatomical parts) that was withheld during training—a controlled rediscovery test.
+Second, on FishVista, we train sparse classifiers to predict habitat from SAE features and examine whether the selected features correspond to interpretable morphological traits.
+Compared to $k$-means and PCA, SAEs yield higher concept alignment, with Matryoshka SAEs \citep{bussmann2025matryoshka} reaching \num{7.9}\% higher class coverage than standard SAEs on ADE20K (see \cref{sec:ade20k,tab:ade20k}).
+
+These results indicate that SAEs, combined with sparse prediction, provide a practical method for surfacing scientifically meaningful visual features.
+On general-domain benchmarks, SAE features align with segmentation classes without label supervision.
+On scientific images, sparse classifiers select SAE features that correspond to interpretable anatomy while predicting ecological outcomes.
+We document when this approach succeeds and when it fails, analyzing sensitivity to model scale, layer depth, and domain characteristics.
+While our experiments focus on vision with ecology as a case study, the methodology applies wherever foundation models learn from scientific data: proteins, genomics, remote sensing, and beyond \citep{abramson2024alphafold3,lam2023graphcast,cui2024scgpt}.
+
+% === VERSION E: "Pattern library + sparse selection" framing ===
+\paragraph{Our approach.}
+We study sparse autoencoders (SAEs) as a mechanism for extracting a library of visual patterns from foundation model representations \citep{bricken2023monosemanticity,templeton2024scaling,cunningham2023sparse,gao2025scaling}.
+SAEs decompose activations into sparse combinations of learned features, where each feature provides activation maps, a decoding direction, and exemplar visualizations.
+On their own, these features are just patterns; a pattern becomes scientifically meaningful when it connects to an outcome the researcher cares about.
+To make this connection, we compose SAE features with sparse linear classifiers that predict outcomes (species, habitat, phylogenetic group) from feature activations.
+Sparsity in the classifier selects which patterns are discriminative for a given question—analogous to a dichotomous key, which identifies taxa through a small number of observable traits.
+The difference is that here, the trait vocabulary is discovered rather than predefined.
+The central empirical question is whether this pipeline surfaces features that are both semantically coherent and predictive of scientific outcomes.
+
+\paragraph{Evidence.}
+We train SAEs on patch-level activations from DINOv3 \citep{simeoni2025dinov3}, a self-supervised vision transformer \citep{dosovitskiy2020vit}, and evaluate in two settings.
+First, we test whether SAE features align with known semantic structure—segmentation classes on ADE20K \citep{zhou2017ade20k} and anatomical parts on FishVista \citep{mehrab2024fishvista,fishvistadataset}—that was withheld during SAE training.
+This controlled rediscovery validates that SAE features capture coherent visual concepts.
+Second, we train sparse classifiers to predict habitat from SAE features on FishVista and examine whether the selected features correspond to interpretable structure.
+Compared to $k$-means and PCA, SAEs yield higher concept alignment, with Matryoshka SAEs \citep{bussmann2025matryoshka} reaching \num{7.9}\% higher class coverage than standard SAEs on ADE20K (see \cref{sec:ade20k,tab:ade20k}).
+
+These results indicate that SAEs, combined with sparse prediction, provide a practical method for surfacing scientifically relevant visual features without pre-specifying what to look for.
+On general-domain benchmarks, SAE features align with segmentation classes without label supervision.
+On scientific images, sparse classifiers select features that correspond to interpretable structure while predicting ecological outcomes.
+We document when this approach succeeds and when it fails, analyzing sensitivity to model scale, layer depth, and sparsity.
+While our experiments focus on vision with ecology as a case study, the methodology applies wherever foundation models learn from data at scales exceeding manual analysis: proteins, genomics, remote sensing, and beyond \citep{abramson2024alphafold3,lam2023graphcast,cui2024scgpt}.
+
+\section{Related Work}
+
+
+\paragraph{Foundation Models.}
+Domain-specific foundation models capture rich structure and achieve state-of-the-art performance on their focal tasks, as shown in proteins \citep{abramson2024alphafold3,hayes2025esm3}, ecology \citep{stevens2024bioclip}, weather \citep{lam2023graphcast,price2025gencast}, and single-cell genomics \citep{cui2024scgpt}.
+In both general and scientific domains, large-scale training leads to emergent abilities beyond the pre-training objective \citep{wei2022emergent,gu2025bioclip2}.
+Theory and evidence suggest that large pretrained models internalize meaningful structure \citep{ha2018world,caron2021dinov1,lecun2022jepa,huh2024platonic}.
+Despite this, most scientific models are benchmarked as \textbf{task-specific predictors} rather than sources of novel concepts.
+
+\paragraph{Interpretability Methods.}
+A large body of work explains predictions without exposing a global factorization of representations.
+Saliency and attribution methods (e.g., gradients, Integrated Gradients, Grad-CAM) highlight input regions for \emph{individual} decisions and have known validity pitfalls \citep{simonyan2013deep,sundararajan2017axiomatic,selvaraju2017gradcam,adebayo2018sanity}.
+Linear probes test separability of \emph{pre-specified} targets \citep{alain2016understanding,hewitt2019probes}; concept methods such as TCAV/ACE require exemplar sets and so test investigator-defined ideas \citep{kim2018tcav,ghorbani2019ace}.
+Prototype models (ProtoPNet, ProtoTree, ProtoPFormer) provide case-based, class-tied explanations but are trained end-to-end for specific tasks \citep{chen2019protopnet,nauta2021prototree,xue2022protopformer}.
+Activation maximization and “feature visualization” (DeepDream-style) optimize inputs for chosen units to aid intuition, but produce synthetic, non-natural images \citep{mahendran2016visualizing,nguyen2016dgn,olah2017feature}.
+These approaches excel at explaining predictions or testing for known concepts (confirmation) but cannot be used to discover patterns without prior specification.
+
+\paragraph{Sparse Autoencoders \& Decomposition.}
+Classical dictionary learning and sparse coding demonstrated that sparse, parts-based factors can emerge from natural data \citep{olshausen1996nature,aharon2006ksvd,lee1999nmf}.
+Recent work applies sparse autoencoders (SAEs) to model activations, showing that sparse decompositions can partially ``unmix'' superposed features and yield monosemantic directions \citep{elhage2022superposition,bricken2023monosemanticity,gao2025scaling} in language and vision models.
+SAEs address the superposition hypothesis \citep{elhage2022superposition} by assigning features to directions in activation space rather than individual neurons.
+\citeauthor{gao2025scaling} demonstrate that $k$-sparse autoencoders scale effectively and improve reconstruction--sparsity tradeoffs.
+Concurrent work argues for using SAEs for discovering unknown concepts rather than acting on known ones \citep{peng2025unknown} and applies dictionary learning to microscopy foundation models for biological concept extraction \citep{donhauser2024towards}.
+% However, systematic evaluation of SAEs for semantic concept recovery on standard benchmarks, comparison to classical decomposition baselines, and application to scientific discovery with ground-truth validation remains limited.
+
+\paragraph{Discovery.}
+We use \emph{discovery} to mean surfacing previously unnamed factors (morphological features distinguishing subspecies, correlations between climate variables, or conserved sequence motifs in understudied proteins) as opposed to \emph{confirmation} of pre-specified targets.
+Closest in intent to our goal are (i) work advocating SAEs for uncovering \emph{unknown} concepts rather than acting on \emph{known} ones \citep{peng2025unknown} and (ii) dictionary-learning approaches that extract biological concepts from microscopy foundation models \citep{donhauser2024towards}.
+We differ by targeting dense token representations in vision and validating both on a standard semantic benchmark and an ecology case study.
+We also differ from unsupervised dense segmentation methods (LOST, TokenCut, STEGO, MaskCut) by returning global features with per-patch activations rather than per-image masks or clusters \citep{simeoni2021lost,wang2023tokencut,hamilton2022stego,wang2023maskcut}.
+
+Methods for open-ended, unsupervised discovery from foundation model representations remain underdeveloped.
+Our work takes a step toward addressing this gap by demonstrating, in controlled rediscovery settings, that sparse decomposition of foundation model representations can systematically surface semantic structure.
+
+\section{Methodology}
+
+We ask the question: ``Can SAEs reliably rediscover unlabeled concepts in pre-trained models?''
+Because discovery demands finding unnamed structure rather than confirming known categories, our method avoids concept supervision and treats labels only as holdout probes.
+Our goal is to recover a dictionary whose latents serve as candidate concepts and other interpretable features that can be measured and compared across images.
+We outline the ViT feature extraction, the SAE objective, and the evaluation probes that operationalize this goal.
+
+\paragraph{Foundation Model.} We use the publicly available DINOv3 ViT-L/16 checkpoint \citep{simeoni2025dinov3}.
+Images are resized to $256\times256$ with bicubic interpolation, yielding a $16\times16$ grid of patches per image.
+We extract patch-token activations ([CLS] discarded) from the final (24th) layer. 
+% We expect the later half of ViT layers to contain the best features \citep{bolya2025perceptionencoder}; in all experiments, we sweep over \num{6} evenly-spaced layers: for \num{24}-layer ViT-L models, we use layers \num{14}, \num{16}, \num{18}, \num{20}, \num{22}, and \num{24}.\footnote{For \num{12}-layer ViT-S and ViT-B models, we use the last \num{6} layers: \num{7}, \num{8}, \num{9}, \num{10}, \num{11}, and \num{12}.}
+
+\paragraph{Sparse Autoencoders (SAEs).} 
+Our dictionary learner is a ReLU SAE \citep{bricken2023monosemanticity,templeton2024scaling}; given a $d$-dimensional activation vector $\mathbf{x} \in \mathbb{R}^d$ from an intermediate layer $l$ of a transformer, an SAE maps $\mathbf{x}$ to a sparse representation $f(\mathbf{x})$ (\cref{eq:enc,eq:act}) and reconstructs the original input (\cref{eq:dec}):
+\begin{align}
+    \mathbf{h} &= W_\text{enc} (\mathbf{x} - b_\text{dec}) + b_\text{enc} \label{eq:enc} \\
+    f(\mathbf{x}) &= \text{ReLU}(\mathbf{h}) \label{eq:act} \\
+    \mathbf{\hat{x}} &= W_\text{dec} f(\mathbf{x}) + b_\text{dec} \label{eq:dec}
+\end{align}
+where $W_\text{enc} \in \mathbb{R}^{n \times d}$, $b_\text{enc} \in \mathbb{R}^{n}$, $W_\text{dec} \in \mathbb{R}^{d \times n}$ and $b_\text{dec} \in \mathbb{R}^{d}$.
+The training objective minimizes reconstruction error while encouraging sparsity:
+\begin{equation}
+    \mathcal{L}(\theta) = ||\mathbf{x} - \mathbf{\hat{x}}||_2^2 + \lambda \mathcal{S}(f(\mathbf{x}))
+\end{equation}
+where $\lambda$ controls the sparsity penalty and $\mathcal{S}$ measures sparsity (L$_1$ norm for training, L$_0$ for model selection).
+
+
+We train \num{16384}-latent SAEs for 100M patches and sweep a logarithmic grid of sparsity coefficients $\lambda$ and learning rates.
+We summarize each trained model by its reconstruction quality (normalized MSE) and sparsity (L$_0$).
+% normalized_mse (float): reconstruction sum squared SAE error / reconstruction sum squared mean baseline error
+Normalized MSE (NMSE) is MSE normalized by a mean baseline MSE:
+\begin{equation}\label{eq:nmse}
+\text{NMSE} = \frac{\sum_i || \mathbf{x_i} - \mathbf{\hat{x}_i} ||_2^2}{\sum_i || \mathbf{x_i} - \mathbf{\bar{x}} ||_2^2}
+\end{equation}
+where $\mathbf{\hat{x}_i}$ is the predicted reconstruction and $\mathbf{\bar{x}}$ is the mean of all $\mathbf{x_i}$.
+
+\paragraph{Activation Functions.}
+The ReLU activation in \cref{eq:act} combined with L$_1$ sparsity encourages but does not directly control the number of active latents.
+TopK activation \citep{gao2025scaling} replaces ReLU with a hard selection: given pre-activations $\mathbf{h}$, TopK keeps only the $k$ largest entries and zeros the rest:
+\begin{equation}\label{eq:topk}
+    f(\mathbf{x})_i = \begin{cases} h_i & \text{if } h_i \in \text{top-}k(\mathbf{h}) \\ 0 & \text{otherwise} \end{cases}
+\end{equation}
+This enforces L$_0 = k$ exactly, removing the need for L$_1$ regularization and its associated hyperparameter $\lambda$.
+
+\paragraph{Matryoshka SAEs.}
+To avoid feature splitting \citep{bricken2023monosemanticity,chanin2024absorption,leask2025sparse}, we use Matryoshka SAEs \cite{bussmann2025matryoshka}, which learn a single SAE by training multiple nested dictionaries simultaneously.
+Each training step samples random prefixes of SAE latents and reconstructs the inputs using each sampled prefix.
+We sample ten prefixes $\mathcal{M} = m_1, m_2, ... m_{10} \subset [1, 16384]$, meaning the first $m_1$ latents are used to reconstruct the input, then the first $m_2$ latents, etc. The sum of MSE values from each prefix reconstruction is then used in place of MSE in the objective function:
+\begin{equation}\label{eq:matryoshka-objective}
+\mathcal{L}(\theta) = \sum_{m \in \mathcal{M}} ||\mathbf{x}-\mathbf{\hat{x}}_{0:m}||^2_2 + \lambda \mathcal{S}(f(\mathbf{x}))
+\end{equation}
+where $\mathbf{\hat{x}}_{0:m}$ is the reconstruction using only the first $m$ latents. This training regime forces early latents to capture more general features. 
+Following training, Matryoshka SAE inference is identical to vanilla SAEs, and their reconstruction quality can be evaluated using normalized MSE. 
+
+\begin{figure}[t]
+    \centering
+    \small
+    \includegraphics[width=\linewidth]{figures/dinov3_vitl16_in1k_baselines.pdf}
+    \caption{We compare $k$-means, PCA, vanilla SAEs and Matryoshka SAEs along the reconstruction--sparsity tradeoff for learning to decompose ViT patch activations. We use final layer activations from DINOv3 ViT-L/16 on ImageNet-1K; we fit all methods on the training split and measure normalized MSE (see \cref{eq:nmse}) and L$_0$ on the validation split. For $k$-means, we ``reconstruct'' every patch with its nearest centroid; thus, L$_0$ is always $1$. For PCA, we sweep the number of components. For both SAE variants, we sweep $\lambda$ and show the Pareto frontier of reconstruction--sparsity. \textbf{Takeaway:} Reconstruction--sparsity does not indicate an optimal method.
+    }
+    \label{fig:mse-l0}
+\end{figure}
+
+\begin{figure*}[t]
+    \small
+    \centering
+    \begin{subfigure}[b]{0.23\textwidth}
+        \centering
+        \includegraphics[width=0.49\textwidth]{figures/kmeans-ade20k-person-1.png}
+        \hfill
+        \includegraphics[width=0.49\textwidth]{figures/kmeans-ade20k-toilet-1.png}
+        \includegraphics[width=0.49\textwidth]{figures/kmeans-ade20k-person-2.png}
+        \hfill
+        \includegraphics[width=0.49\textwidth]{figures/kmeans-ade20k-toilet-2.png}
+        \includegraphics[width=0.49\textwidth]{figures/kmeans-ade20k-person-3.png}
+        \hfill
+        \includegraphics[width=0.49\textwidth]{figures/kmeans-ade20k-toilet-3.png}
+        \includegraphics[width=0.49\textwidth]{figures/kmeans-ade20k-person-4.png}
+        \hfill
+        \includegraphics[width=0.49\textwidth]{figures/kmeans-ade20k-toilet-4.png}
+        \caption{$k$-means}
+        \label{fig:ade20k-examples-kmeans}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{0.23\textwidth}
+        \centering
+        \includegraphics[width=0.49\textwidth]{figures/pca-ade20k-person-1.png}
+        \hfill
+        \includegraphics[width=0.49\textwidth]{figures/pca-ade20k-toilet-1.png}
+        \includegraphics[width=0.49\textwidth]{figures/pca-ade20k-person-2.png}
+        \hfill
+        \includegraphics[width=0.49\textwidth]{figures/pca-ade20k-toilet-2.png}
+        \includegraphics[width=0.49\textwidth]{figures/pca-ade20k-person-3.png}
+        \hfill
+        \includegraphics[width=0.49\textwidth]{figures/pca-ade20k-toilet-3.png}
+        \includegraphics[width=0.49\textwidth]{figures/pca-ade20k-person-4.png}
+        \hfill
+        \includegraphics[width=0.49\textwidth]{figures/pca-ade20k-toilet-4.png}
+        \caption{PCA}
+        \label{fig:ade20k-examples-pca}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{0.23\textwidth}
+        \centering
+        \includegraphics[width=0.49\textwidth]{figures/vanilla-ade20k-person-1.png}
+        \hfill
+        \includegraphics[width=0.49\textwidth]{figures/vanilla-ade20k-toilet-1.png}
+        \includegraphics[width=0.49\textwidth]{figures/vanilla-ade20k-person-2.png}
+        \hfill
+        \includegraphics[width=0.49\textwidth]{figures/vanilla-ade20k-toilet-2.png}
+        \includegraphics[width=0.49\textwidth]{figures/vanilla-ade20k-person-3.png}
+        \hfill
+        \includegraphics[width=0.49\textwidth]{figures/vanilla-ade20k-toilet-3.png}
+        \includegraphics[width=0.49\textwidth]{figures/vanilla-ade20k-person-4.png}
+        \hfill
+        \includegraphics[width=0.49\textwidth]{figures/vanilla-ade20k-toilet-4.png}
+        \caption{Vanilla SAE}
+        \label{fig:ade20k-examples-vanilla}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{0.23\textwidth}
+        \centering
+        \includegraphics[width=0.49\textwidth]{figures/sae-ade20k-person-1.png}
+        \hfill
+        \includegraphics[width=0.49\textwidth]{figures/sae-ade20k-toilet-1.png}
+        \includegraphics[width=0.49\textwidth]{figures/sae-ade20k-person-2.png}
+        \hfill
+        \includegraphics[width=0.49\textwidth]{figures/sae-ade20k-toilet-2.png}
+        \includegraphics[width=0.49\textwidth]{figures/sae-ade20k-person-3.png}
+        \hfill
+        \includegraphics[width=0.49\textwidth]{figures/sae-ade20k-toilet-3.png}
+        \includegraphics[width=0.49\textwidth]{figures/sae-ade20k-person-4.png}
+        \hfill
+        \includegraphics[width=0.49\textwidth]{figures/sae-ade20k-toilet-4.png}
+        \caption{Matryoshka SAE}
+        \label{fig:ade20k-examples-matryoshka}
+    \end{subfigure}
+    \caption{   
+    Top images for lowest-loss probes for ``person'' (left) and ``toilet'' (right) classes for each method.
+    \textbf{(a):} $k$-means does not recover the ``person'' class; the best ``person'' cluster fires on roads.
+    \textbf{(b):} PCA learns a ``person'' component, but does not consistently activate on the entire person. Furthermore, PCA does not recover the ``toilet'' class; the best ``toilet''  doesn't have an obvious semantic concept. 
+    \textbf{(c)} \& \textbf{(d):} Vanilla and Matryoshka SAEs both reliably recover both ``person'' and ``toilet'' and activate on the entire object.
+    \textbf{Takeaway}: While $k$-means and PCA are good by dictionary learning metrics, visual concepts recovered by both vanilla and Matryoshka SAEs are more consistent and salient.
+    }\label{fig:ade20k-examples}
+\end{figure*}
+
+
+
+\section{Experiments}\label{sec:experiments}
+
+We study whether sparse autoencoders (SAEs) provide an effective instrument for scientific discovery in images: surfacing interpretable, localized factors that can be connected to structure not specified a priori.
+Given a collection of images and ``known'' metadata $K$ that reflects what an analyst can condition on (e.g., habitat, season, experimental condition), we train SAEs on patch-level representations to obtain a sparse feature library, use $K$ to prioritize a small subset of candidate features under an explicit exploration budget, and then evaluate discovery by measuring how often these candidates align with withheld structure $H$ (e.g., anatomical regions, trait annotations, or other orthogonal metadata) on held-out data.
+This yields a quantitative discovery curve—validated findings per feature inspected—and enables controlled comparisons to alternative decompositions (e.g., PCA/NMF) and null baselines under the same proposal-and-audit protocol.
+
+We evaluate SAE feature libraries as discovery instruments via a fixed propose–audit protocol with a browsing budget.
+Given a frozen ViT backbone $f$ producing patch tokens $t_{i,p}$, we train a feature library $g$ (SAE or baseline decomposition) on unlabeled tokens and obtain per-patch feature activations $z_{i,p}\in\mathbb{R}^m$.
+We summarize each image by a fixed pooling operator $X_i=\mathrm{pool}_p(z_{i,p})$ (e.g., max over patches) and fit a sparse image-level predictor for the known task $K$ (multinomial/one-vs-rest L1-logistic) on train, yielding coefficients $W$; this induces a global feature ranking $\pi$ (e.g., by $|W_{\cdot j}|_1$ or selection frequency under bootstrap).
+For a budget $B$, we select the top-$B$ features $S_B=\{j:\pi(j)\le B\}$ and audit each $j\in S_B$ for spatial grounding on a disjoint label space $H$ (dense masks) by treating its activation map $a_{i,j}(p)=z_{i,p,j}$ as a score field and computing threshold-free alignment to all segmentation classes $c\in H$ on held-out data (per-feature best-class $\mathrm{AP}_j=\max_c \mathrm{AP}(a_{i,j},\mathbf{1}[c])$, optionally purity/IoU).
+We define groundedness $\mathbf{1}[\mathrm{AP}_j\ge\tau]$ and report $\mathrm{Yield}(B)=\frac{1}{B}\sum_{j\in S_B}\mathbf{1}[\mathrm{AP}_j\ge\tau]$ for $B\in\{10,25,50,100\}$ plus scalar AUC; uncertainty is estimated by bootstrapping images and validity by a proposal-stage permutation null (shuffle $K$, refit, recompute Yield).
+All methods (SAE variants and non-SAE libraries: raw units, PCA, NMF, clustering) share identical $f$, pooling, proposal model, audit metric, and budgets, isolating the effect of the feature library on discovery yield.
+
+We evaluate feature libraries with a fixed propose–audit protocol under a browsing budget.
+A frozen ViT backbone $f$ maps images $x_i$ to patch tokens $t_{i,p}$; a library method $g$ (SAE or baseline decomposition) is trained unsupervised on tokens to produce per-patch activations $z_{i,p}\in\mathbb{R}^m$, and each image is summarized by a fixed pooling $X_i=\mathrm{pool}_p(z_{i,p})$.
+We then fit a sparse predictor for proposal labels $K$ (e.g., habitat / condition) on the training split using L1-regularized logistic regression (multinomial or one-vs-rest), yielding weights $W$; per-feature importance is computed by aggregating magnitude across classes, e.g. $s_j=\sum_c |W_{c j}|$ (or via bootstrap selection frequency), inducing a ranking $\pi$.
+Critically, proposal labels $K$ and audit labels $H$ (e.g., body-part segmentations or semantic masks) are disjoint: feature selection is driven only by $K$, while interpretability is assessed only via $H$, so the protocol measures whether task-relevant features align with orthogonal structure rather than merely predicting the training task.
+For a budget $B$, we select $S_B=\{j:\pi(j)\le B\}$ and audit each $j\in S_B$ on held-out images by treating its activation map $a_{i,j}(p)=z_{i,p,j}$ as a score field and computing alignment to all audit classes $h\in H$ (threshold-free AP); we define $\mathrm{AP}_j=\max_h \mathrm{AP}(a_{i,j},\mathbf{1}[h])$ and declare a feature anatomically grounded if $\mathrm{AP}_j\ge\tau$ for a fixed $\tau$.
+Discovery yield is $\mathrm{Yield}(B)=\frac{1}{B}\sum_{j\in S_B}\mathbf{1}[\mathrm{AP}_j\ge\tau]$ evaluated at $B\in\{10,25,50,100\}$ with scalar summary $\mathrm{AUC}_B=\sum_B \mathrm{Yield}(B)$ (area under the Yield-vs-budget curve).
+Uncertainty is estimated by bootstrapping images; validity is assessed with a proposal-stage permutation null (shuffle $K$, refit, rerank, recompute yield).
+All libraries (SAE variants and non-SAE baselines such as raw units, PCA, NMF, clustering) share identical $f$, pooling, proposal model, audit metric, budgets, and $\tau$, isolating the effect of the library on discovery yield.
+
+\begin{enumerate}
+\item \textbf{Inputs.} A frozen backbone $f$, a feature-library method $g$ (SAE or baseline), a proposal label set $K$ (e.g., habitat/condition), an audit label set $H$ (e.g., part/semantic masks), browsing budgets $\mathcal{B}$ (the number of features a scientist can feasibly inspect), and a grounding threshold $\tau$ (default $\tau=0.3$). Crucially, $K$ and $H$ must be disjoint: feature selection uses only $K$, while interpretability is assessed only via $H$.
+
+\item \textbf{Learn a feature library (unsupervised).} Train $g$ on patch tokens $t_{i,p}=f(x_i)$ to obtain per-patch activations $z_{i,p}\in\mathbb{R}^m$.
+
+\item \textbf{Pool to image level.} For each image, pool per-patch activations into a fixed summary $X_i=\mathrm{pool}_p(z_{i,p})$.
+
+\item \textbf{Proposal (rank features using only $K$).} Fit a sparse predictor of $K$ from $\{X_i\}$ (default: L1-logistic). Convert the fitted model into a per-feature importance score (e.g., sum of absolute weights across classes) and rank features by importance.
+
+\item \textbf{Audit (measure grounding using only $H$).} For each budget $B$, take the top-$B$ ranked features. For each selected feature, treat its activation as a spatial score map and compute alignment to the audit masks (primary: best-class AP across all $h\in H$).
+
+\item \textbf{Discovery yield.} Mark a selected feature as grounded if its best-class AP exceeds $\tau$, and report $\mathrm{Yield}(B)$ as the fraction of top-$B$ features that are grounded. Summarize across budgets by the area under the Yield-vs-budget curve.
+
+\item \textbf{Uncertainty and nulls.} Bootstrap over audit images for confidence intervals, and run a proposal-stage permutation null by shuffling $K$ and repeating the protocol end-to-end.
+
+\item \textbf{Qualitative/expert interpretation.} Inspect representative grounded features (including ``unexpected anatomy'') and consult domain experts for biological interpretation; this step is explicitly separated from the quantitative yield metric.
+\end{enumerate}
+
+
+We evaluate whether sparse autoencoders can systematically recover semantic structure from foundation model representations without concept supervision via \textbf{controlled rediscovery}: we train SAEs on unlabeled data, then test whether the learned features align with ground-truth semantic concepts that were withheld during training.
+Strong alignment on known concepts validates the method and provides a foundation for applying it to domains where ground truth is unavailable or incomplete.
+We organize our experiments around three questions.
+\textbf{Q1:} Do SAE features align with known segmentation concepts on a standard benchmark?  
+\textbf{Q2:} Do the same procedures surface anatomical parts in an ecological case study?
+\textbf{Q3:} How does foundation model size and depth affect downstream concept alignment?
+
+We evaluate concept alignment on held-out activations from ADE20K for rediscovery and from FishVista for the ecology case study.
+We compare against label-free alternatives ($k$-means and PCA) and report the reconstruction–sparsity trade-off (normalized MSE vs. L$_0$).
+We measure concept alignment by fitting binary logistic regression classifiers (ridge-regularized, per-class) on SAE activations, following prior work in SAEs for language models \citep{gao2025scaling}.
+For each concept, we train a 1-D logistic on each SAE latent $i$'s activations $z_i$ and record the best loss across all latents for each class:
+\begin{equation}\label{eq:probe-loss}
+    \min_{i,w,b} \mathbb{E} \big[-y \log \sigma (wz_i + b) - (1-y) \log (1 - \sigma (wz_i+b)) \big]
+\end{equation}
+We report (1) probe $R$: loss $\mathcal{L}$ normalized by a bias-only loss $\mathcal{L}_\pi$: $1 - (\mathcal{L}/\mathcal{L}_\pi)$, (2) mean Average Precision (mAP) across all classes, (3) Purity@$k$: precision of the top-$k$ activated patches for each feature, and (4) Coverage@$\tau$: the fraction of classes whose best-aligned feature achieves AP $\geq \tau$. 
+For each class, we select the single SAE feature with lowest binary cross-entropy on the training set, enabling unsupervised feature-to-concept matching.
+We report downstream ADE20K validation metrics for the SAE with the best probe loss on the ADE20K training split.
+This protocol tests whether SAEs produce features that align with semantic concepts.
+
+
+
+\begin{table}[t]
+    \centering
+    \small
+    \setlength{\tabcolsep}{3pt}
+    \caption{SAEs for rediscovering ADE20K's semantic segmentation classes from DINOv3 ViT-L/16.
+    For each method, we choose the best layer from DINOv3 based on probe loss (\cref{eq:probe-loss} on ADE20K's training split and report ADE20K validation metrics.
+    Probe $R$ is normalized probe loss, as described in \cref{sec:experiments}.
+    Purity@$k$ is precision over the top-$k$ highest-scoring patches for a feature, where $k=16$.
+    Coverage@$\tau$ is the fraction of ADE20K classes with best AP $\geq\tau$, where $\tau= 0.3$.
+    \textbf{Takeaway:} Matryoshka SAEs demonstrate meaningful improvement over traditional unsupervised methods and vanilla SAEs on downstream metrics.}
+    \label{tab:ade20k}
+    \begin{tabular}{lrrrrrr}
+    \toprule
+    & \multicolumn{2}{c}{Dict. $\downarrow$} & \multicolumn{4}{c}{Downstream $\uparrow$} \\
+    \cmidrule(lr){2-3} \cmidrule(lr){4-7}
+    Method & NMSE & L$_0$ & Probe $R$ & mAP & Purity@$k$ & Cov@$\tau$ \\
+    \midrule
+    $k$-Means & 0.619 & \textbf{1} & 0.001 & 0.031 & 0.795 & 0.026 \\  % myy5btgw, layer 24/24
+    PCA & \textbf{0.352} & 256 & 0.259 & 0.093 & 0.612 & 0.079 \\ % a1x1laxm, 24/24
+    % NMF \\
+    SAE & 0.460 & 64.1 & \textbf{0.425} & 0.313 & 0.748 & 0.417 \\  % 0pdum8cq, layer 24/24
+    Matryoshka & 0.702 & 6.5 & 0.402 & \textbf{0.319} & \textbf{0.808} & \textbf{0.450} \\  % mccrm7u8, layer 24/24
+    \bottomrule
+    \end{tabular}
+\end{table}
+
+
+
+\begin{figure*}[t]
+    \small
+    \centering
+    \begin{subfigure}[b]{0.32\textwidth}
+        \centering
+        \includegraphics[width=0.49\textwidth]{figures/dinov3-fishvista-head-sae-1.png}
+        \hfill
+        \includegraphics[width=0.49\textwidth]{figures/dinov3-fishvista-head-seg-1.png}
+        \includegraphics[width=0.49\textwidth]{figures/dinov3-fishvista-head-sae-2.png}
+        \hfill
+        \includegraphics[width=0.49\textwidth]{figures/dinov3-fishvista-head-seg-2.png}
+        \includegraphics[width=0.49\textwidth]{figures/dinov3-fishvista-head-sae-3.png}
+        \hfill
+        \includegraphics[width=0.49\textwidth]{figures/dinov3-fishvista-head-seg-3.png}
+        \caption{\textbf{\textcolor{blue}{``Head'' (\texttt{DINOv3-16K/9})}}}
+        \label{fig:fishvista-head}
+    \end{subfigure}
+    \hfill
+        \begin{subfigure}[b]{0.32\textwidth}
+        \centering
+        \includegraphics[width=0.49\textwidth]{figures/dinov3-fishvista-dorsal-sae-1.png}
+        \hfill
+        \includegraphics[width=0.49\textwidth]{figures/dinov3-fishvista-dorsal-seg-1.png}
+        \includegraphics[width=0.49\textwidth]{figures/dinov3-fishvista-dorsal-sae-2.png}
+        \hfill
+        \includegraphics[width=0.49\textwidth]{figures/dinov3-fishvista-dorsal-seg-2.png}
+        \includegraphics[width=0.49\textwidth]{figures/dinov3-fishvista-dorsal-sae-3.png}
+        \hfill
+        \includegraphics[width=0.49\textwidth]{figures/dinov3-fishvista-dorsal-seg-3.png}
+        \caption{\textbf{\textcolor{sea}{``Dorsal Fin'' (\texttt{DINOv3-16K/13})}}}
+        \label{fig:fishvista-dorsal}
+    \end{subfigure}
+    \hfill
+        \begin{subfigure}[b]{0.32\textwidth}
+        \centering
+        \includegraphics[width=0.49\textwidth]{figures/dinov3-fishvista-eye-sae-3.png}
+        \hfill
+        \includegraphics[width=0.49\textwidth]{figures/dinov3-fishvista-eye-seg-3.png}
+        \includegraphics[width=0.49\textwidth]{figures/dinov3-fishvista-eye-sae-4.png}
+        \hfill
+        \includegraphics[width=0.49\textwidth]{figures/dinov3-fishvista-eye-seg-4.png}
+        \includegraphics[width=0.49\textwidth]{figures/dinov3-fishvista-eye-sae-5.png}
+        \hfill
+        \includegraphics[width=0.49\textwidth]{figures/dinov3-fishvista-eye-seg-5.png}
+        \caption{\textbf{\textcolor{cyan}{``Eye'' (\texttt{DINOv3-16K/69})}}}
+        \label{fig:fishvista-eye}
+    \end{subfigure}
+    \caption{
+    Example Matryoshka SAE features (left) and patch-level segmentation masks (right) for \textbf{\textcolor{blue}{(a) ``Head''}}, \textbf{\textcolor{sea}{(b) ``Dorsal Fin''}} and \textbf{\textcolor{cyan}{(c) ``Eye''}} from DINOv3 ViT-L/16.
+    Features were picked by minimizing cross entropy on binary classification for each body part, as described in \cref{sec:fishvista,eq:probe-loss}.
+    \textbf{Takeaway}: Matryoshka SAEs accurately learn scientific concepts (anatomical body parts) without labels.
+    }
+    \label{fig:fishvista-examples}
+\end{figure*}
+
+\subsection{Rediscovering Semantic Segmentations}\label{sec:ade20k}
+
+We use ADE20K (150 classes) as a standard testbed for controlled rediscovery: can label-free SAE features align with segmentation classes? 
+SAEs are trained on ImageNet-1K activations only; ADE20K labels enter solely at evaluation, isolating extraction from supervision.
+Concretely, we extract activations on ImageNet-1K (train/val) and ADE20K (train/val) from the final layer of DINOv3 ViT-L/16. 
+
+
+\paragraph{Baseline Methods.}
+We compare SAEs to two standard unsupervised machine learning methods: $k$-means and principal component analysis (PCA).
+We fit $k$-means and PCA on ImageNet-1K training activations.
+For $k$-means, we use $k$=\num{16384} clusters and use the nearest cluster as the predicted reconstruction with a fixed L$_0$=$1$.
+We fit PCA with $n$ components $n \in \{1,4,16,64,256,1024\}$.
+We report normalized reconstruction MSE on ImageNet-1K (validation split).
+% See \cref{app:baselines} for more details.
+
+\paragraph{Results.}
+We compare all methods on the reconstruction--sparsity tradeoff in \cref{fig:mse-l0}, report rediscovery metrics in \cref{tab:ade20k} and show qualitative examples in \cref{fig:ade20k-examples}.
+While both SAE variants do not improve upon classical baselines as measured by normalized MSE and sparsity, they \textit{do} lead to better concept discovery as measured by mAP, Purity@$k$ and Coverage@$\tau$.
+Matryoshka SAEs, similar to PCA, also implicitly order their latents in order of decreasing reconstruction importance. 
+Anecdotally, this makes it easier to browse for salient, ``interesting'' concepts.
+
+\paragraph{Discussion.}
+$k$-means and PCA are competitive on reconstruction--sparsity trade-offs, yet underperform SAEs on downstream concept-alignment metrics such as mAP, Purity@$k$, and Coverage@$\tau$. 
+This reinforces that normalized MSE and L$_0$ measure how well activations are compressed, not how well individual latents track semantic concepts.
+Prior work in evaluating SAEs for language model interpretability also finds dictionary-learning metrics insufficient \citep{karvonen2025saebench}.
+% For discovery-oriented use, we therefore select SAEs by downstream metrics rather than by reconstruction.
+
+\subsection{Can SAEs recover domain-specific concepts?}
+\label{sec:fishvista}
+
+Beyond the general-domain semantic concepts present in ADE20K, we ultimately want SAEs to support scientific discovery.
+In this work, we again evaluate that capability via rediscovery: can vision foundation models, in combination with SAEs, rediscover the anatomy of diverse fish species? 
+We use FishVista \citep{mehrab2024fishvista,fishvistadataset} and the 10 annotated body-part traits to answer this question (see \cref{fig:fishvista-examples} for dataset examples).
+We train SAEs on \num{56.3}K fish images and evaluate SAE discovery on the \num{4.6}K (disjoint) images with body part segmentations.
+
+
+\begin{table}[t]
+    \centering
+    \small
+    \setlength{\tabcolsep}{3pt}
+    \caption{Matryoshka SAEs for concept rediscovery on general domain (ADE20K) and an ecological case study (FishVista). FishVista images are a more homogeneous distribution compared to ADE20K; we hypothesize that this contributes to the improved reconstruction (NMSE).}
+    \label{tab:fishvista}
+    \begin{tabular}{lrrrrrr}
+    \toprule
+    & \multicolumn{2}{c}{Dict. $\downarrow$} & \multicolumn{4}{c}{Downstream $\uparrow$} \\
+    \cmidrule(lr){2-3} \cmidrule(lr){4-7}
+    Dataset & NMSE & L$_0$ & Probe $R$ & mAP & Purity@$k$ & Cov@$\tau$ \\
+    \midrule
+    ADE20K & 0.702 & 6.5 & 0.402 & 0.319 & 0.808 & 0.45 \\  % mccrm7u8, layer 24/24
+    FishVista & 0.150 & 75.1 & 0.440 & 0.610 & 0.931 & 0.90 \\ % 9rrslm9e, layer 24/24
+    \bottomrule
+    \end{tabular}
+\end{table}
+
+
+\paragraph{Results.}
+We find that Matryoshka SAEs reliably find domain-specific concepts; we compare results on ADE20K and FishVista in \cref{tab:fishvista}, show examples in \cref{fig:fishvista-examples} and compare concept prevalence with average precision in \cref{fig:fishvista-prevalence}.
+These results indicate that strong foundation models, in combination with SAEs, can surface features that align closely with expert-defined anatomical annotations.
+Furthermore, the Matryoshka objective naturally orders latents from most to least general; we (anecdotally, but consistently) found earlier latents more ``interesting'' than later latents.
+% \sam{Can you plot the purity@k with respect to the latent? Matryoshka indicates an order; this would.}
+% \todo{Talk about how our patch majority-voting strategy consistently makes barbels nearly impossible to find.} \jake{@sam you can speak to this much better than me}
+
+\paragraph{Discussion.}
+Body parts that occur in more patches are recovered with higher average precision (\cref{fig:fishvista-prevalence}), while rare parts are substantially harder to rediscover. 
+This implies that scientific applications targeting rare or long-tail structures and patterns may need either more data, targeted sampling, or novel dictionary learning algorithms that learn rare structures more efficiently.
+% SAEs cannot invent concepts that are absent from the pretraining distribution, but they can expose structure that is already implicitly represented, providing a bridge between large unlabeled archives and testable, domain-specific hypotheses.
+
+
+
+
+
+\begin{figure}[t]
+    \centering
+    \small
+    \includegraphics[width=\linewidth]{figures/dinov3_fishvista_prevalence_ap.pdf}
+    \caption{
+    Prevalence vs rediscovery on FishVista. 
+    Each point is a body part; x-axis: number of patch-level samples in the validation split, y-axis: AP of the best-matching (lowest probe loss) Matryoshka SAE latent.
+    More common body parts are rediscovered more reliably. 
+    \textbf{Takeaway:} Higher concept prevalence improves label-free rediscovery.}
+    \label{fig:fishvista-prevalence}
+\end{figure}
+
+
+% For size, I am doing ViT-S, ViT-B and ViT-L on IN1K/ADE20K.
+% For width, I'm happy to do 1024 x {2, 4, 8, 16, 32} with ViT-L on IN1K/ADE20K.
+% For resolution I'm using a ViT-S for storage reasons and am doing 256 patches/img (default), then 576, then 1024. All of them use a native resize that picks out a size that minimizes aspect ratio distortion. So the 256 patch images can be 16 x 16 patches, 8 x 32 patches, 32 x 8 patches, etc. The 576 can be 24 x 24 patches, 32 x 18 patches, 18 x 32 patches, 48 x 12 etc. Then the 1024 can be 32 x 32 patches, etc. 
+% 
+% Remember, each of these ablations need to measure two things: dictionary learning quality (for completeness) and downstream metrics, BECAUSE WE WANT TO ENABLE DISCOVERY. I think it's very important to emphasize the effects of these ablations on discovery-related metrics rather than NMSE/L$_0$.
+
+
+
+
+
+
+
+\section{Conclusion}
+
+In the settings we studied, we demonstrated that sparse autoencoders can systematically recover semantic structure from foundation model representations without concept supervision, using controlled rediscovery on both general-domain visual concepts and a scientific case study.
+On ADE20K, SAEs consistently rediscovered semantic units from DINOv3 activations trained only on ImageNet-1K, outperforming decomposition baselines ($k$-means \& PCA) on concept alignment metrics. 
+On ecological images, the same procedure surfaced anatomical structures without using segmentation or part labels during extraction.
+Our results provide evidence that SAEs are a practical method for extracting interpretable features from vision foundation models, complementing existing confirmatory approaches.
+SAEs' exploratory capabilities are well-suited to scientific domains where target concepts are not fully specified in advance.
+Importantly, our contributions should be understood as validating SAEs as an instrument for open-ended feature discovery, not as delivering novel biological or physical discoveries themselves.
+
+As domain-specific foundation models proliferate across scientific fields, methods for understanding what these models learned become increasingly important. 
+Our results indicate that sparse decomposition provides a practical route from high-dimensional representations to interpretable visual features. 
+Rather than treating foundation models solely as feature extractors for predefined tasks, SAE-based decomposition enables researchers to investigate what patterns models captured from data, generate hypotheses about unexpected structures, and establish reproducible measurements across studies. 
+While our validation focuses on vision with ecology as a case study, the approach applies wherever foundation models learn from unlabeled or weakly-labeled data at scales that exceed manual analysis.
+
+
+% \section*{Acknowledgements}
+% Not in submission
+
+\section*{Impact Statement}
+
+Authors are \textbf{required} to include a statement of the potential broader
+impact of their work, including its ethical aspects and future societal
+consequences. This statement should be in an unnumbered section at the end of
+the paper (co-located with Acknowledgements -- the two may appear in either
+order, but both must be before References), and does not count toward the paper
+page limit. In many cases, where the ethical impacts and expected societal
+implications are those that are well established when advancing the field of
+Machine Learning, substantial discussion is not required, and a simple
+statement such as the following will suffice:
+
+``This paper presents work whose goal is to advance the field of Machine
+Learning. There are many potential societal consequences of our work, none
+which we feel must be specifically highlighted here.''
+
+The above statement can be used verbatim in such cases, but we encourage
+authors to think about whether there is content which does warrant further
+discussion, as this statement will be apparent if the paper is later flagged
+for ethics review.
+
+
+\bibliography{main}
+\bibliographystyle{icml2026}
+
+\newpage
+\appendix
+\section{Ablations}
+
+\subsection{Do larger models improve concept rediscovery?}\label{sec:ablation-size}
+Model scale consistently correlates with downstream performance \citep{kaplan2020scaling,hoffmann2022training}. 
+Prior work proposes scaling laws for SAE reconstruction based on both SAE and foundation model size \citep{gao2025scaling} but does not investigate downstream performance.
+We assess foundation model size effects by training SAEs on patch activations from DINOv3 ViT-S/16, ViT-B/16, and ViT-L/16 checkpoints.
+The models vary in both total parameter count (\num{22}M, \num{86}M and \num{303}M, respectively) and the embedding dimension $d$ (\num{384}, \num{768}, and \num{1024}, respectively).
+% \sam{Because of the difference in embedding dimension, I think smaller $d$ should lead to sparse SAEs, because there's a lower-dimension orthogonal basis or something. @Jake it would be great to get your math background here.} 
+% \jake{$d$ actually might not have an impact on the sparsity of your latent. The only thing that enforces the sparsity of your latent is your coefficient, and so its probably more dictated by the complexity of your feature manifold rather than the dimension it's in. This is something that would likely need it's own investigation/paper, so it may be best to avoid making claims about how each difference between models actually impacts discovery. Instead, we could just stick to "bigger = better"}
+For each size, we keep the SAE width fixed at \num{16384}, train on ImageNet-1K \num{100}M patch activations and probe the SAEs for ADE20K features.
+
+
+\paragraph{Results.}
+In \cref{fig:ablations-size-mse} we see that larger models are in fact harder to reconstruct (note that the $y$-axis is \textit{raw} rather than normalized MSE), consistent with prior work in scaling SAEs for language models \citep{gao2025scaling}.
+Despite more challenging dictionary learning, we see in \cref{tab:vit-size} that SAEs applied to larger models both recover more concepts (coverage) and are more precise (purity).
+All three sizes of the DINOv3 ViTs are distilled from a single, larger teacher model \citep{simeoni2025dinov3}; we conjecture then that all three checkpoints have learned the same set of concepts.
+% \sam{I don't know what to make of this. Why is it easier to recover from larger ViTs?} 
+These results indicate that, at least for vision, strong foundation models in combination with SAEs can rediscover semantic concepts, which we view as a prerequisite for scientific discovery.
+% \todo{Motivated by this, we train SAEs on DINOv3 ViT-7B/16.}
+
+
+\begin{table}[t]
+    \centering
+    \small
+    \setlength{\tabcolsep}{3pt}
+    \caption{
+        SAEs on different sizes of DINOv3 for rediscovering ADE20K's semantic segmentation classes.
+        \textbf{Takeaway:} While larger ViTs are harder to reconstruct, they lead to better concept rediscovery.
+    }
+    \label{tab:vit-size}
+    \begin{tabular}{lrrrrrr}
+    \toprule
+    \multirow{2.4}*{ViT} & \multicolumn{2}{c}{Dict. $\downarrow$} & \multicolumn{4}{c}{Downstream $\uparrow$} \\
+    \cmidrule(lr){2-3} \cmidrule(lr){4-7}
+     & NMSE & L$_0$ & Probe $R$ & mAP & Purity@$k$ & Cov@$\tau$ \\
+    \midrule
+    ViT-S/16 & \textbf{0.293} & 95.0 & \textbf{0.433} & 0.203 & 0.742 & 0.245 \\  % gc6iqrf2, layer 12/12
+    ViT-B/16 & 0.359 & 89.8 & 0.440 & 0.312 & \textbf{0.811} & 0.430 \\  % qoc1660r, layer 12/12
+    ViT-L/16 & 0.702 & \textbf{6.5} & 0.402 & \textbf{0.319} & 0.808 & \textbf{0.450} \\  % mccrm7u8, layer 24/24
+    \bottomrule
+    \end{tabular}
+\end{table}
+
+
+
+\begin{figure}[t]
+    \centering
+    \small
+    \includegraphics[width=\linewidth]{figures/dinov3_sizes_in1k_sae.pdf}
+    \caption{The reconstruction--sparsity tradeoff for SAEs trained on different sized ViTs. Larger backbones are harder to reconstruct at a given sparsity (ViT-L/16 $>$ ViT-B/16 $>$ ViT-S/16), though all improve as $L_0$ increases. 
+    Note that the $y$-axis is \textit{raw} rather than normalized MSE. 
+    }\label{fig:ablations-size-mse}  
+\end{figure}
+
+\paragraph{Discussion.}
+A potential confounder is total training FLOPs: prior work shows that additional SAE training compute (total FLOPs) leads to stronger SAEs as measured by the reconstruction--sparsity tradeoff \citep{gao2025scaling}.
+Our SAEs trained on larger embedding dimensions $d$ use more compute during training; this could explain the stronger results for larger models. 
+However, our SAEs trained on larger models have \textit{worse} reconstruction--sparsity but \textit{better} downstream concept alignment metrics.
+% These findings suggest a fundamental tension between reconstruction quality and semantic interpretability. 
+% Further work is necessary to understand this phenomenon.
+
+
+
+
+
+
+% \begin{figure*}[t]
+%     \centering
+%     \includegraphics[width=\linewidth]{figures/dinov3_vits16_in1k_ade20k_probe1d_nmse_map.pdf}
+%     \includegraphics[width=\linewidth]{figures/dinov3_vitb16_in1k_ade20k_probe1d_nmse_map.pdf}
+%     \includegraphics[width=\linewidth]{figures/dinov3_vitl16_in1k_ade20k_probe1d_nmse_map.pdf}
+%     \caption{\textbf{Top to bottom:} Matryoshka SAE probe quality for DINOv3 ViT-S/16, ViT-B/16 and ViT-L/16 checkpoints for 6 layers in the second half. \textbf{Takeaway:} \todo{Fill in.}}
+%     \label{fig:vit-size}
+% \end{figure*}
+
+% \paragraph{Do larger SAEs enable better discovery?}
+% We sweep the SAE dictionary size using ViT-L/16 patch activations to study capacity versus sparsity.
+% Concretely, we set the number of latents to $S=1024\times m$ with $m\in\{2,4,8,16,32\}$, i.e., $S\in\{2\mathrm{K},4\mathrm{K},8\mathrm{K},16\mathrm{K},32\mathrm{K}\}$.
+% We keep the encoder fixed (DINOv3 ViT-L/16).
+
+% In \cref{fig:sae-width}
+% \begin{figure}[t]
+%     \centering
+%     \small
+%     \includegraphics[width=\linewidth]{figures/sae-width.png}
+%     \caption{Bigger SAEs are better.}
+%     \label{fig:sae-width}
+% \end{figure}
+
+
+\begin{figure}[t]
+    \centering
+    \small
+    \includegraphics[width=\linewidth]{figures/dinov3_in1k_ade20k_layers_map.pdf}
+    \caption{Matryoshka SAE probe quality as measured by mean average precision (mAP) for DINOv3 ViT-S/16, ViT-B/16 and ViT-L/16 checkpoints over different transformer layers. 
+    \textbf{Takeaway:} Despite larger ViTs and later layers being harder to reconstruct at a given sparsity (see \cref{fig:ablations-size-mse,fig:ablations-layers-mse}), larger ViTs and later layers lead to better SAE concept alignment.}
+    \label{fig:ablations-best-layer}
+\end{figure}\subsection{Which layer is best?}\label{sec:ablation-layer}
+
+
+Representations evolve across network depth: later layers in CNNs and ViTs tend to encode higher-level, more linearly separable semantics, which often improves transfer and dense alignment \citep{yosinski2014transfer,azizpour2014factors,caron2021dinov1}. 
+However, recent results show that the final layer is not always optimal \citep{bolya2025perceptionencoder} .
+Intermediate layers can yield less entangled, more spatially localized features depending on the downstream task. 
+We therefore evaluate six layers in the second half of the transformer for the three evaluated checkpoints: for the \num{24}-layer ViT-L/16 model, we use layers \num{14}, \num{16}, \num{18}, \num{20}, \num{22}, and \num{24} and for the \num{12}-layer ViT-S/16 and ViT-B/16 we use the last \num{6} layers \num{7}, \num{8}, \num{9}, \num{10}, \num{11}, and \num{12}.
+
+
+\begin{figure}[t]
+    \centering
+    \small
+    \includegraphics[width=\linewidth]{figures/dinov3_vitl_layers_in1k_sae.pdf}
+    \caption{Layer-wise reconstruction–sparsity trade-off (DINOv3 ViT-L/16) on ImageNet-1K activations. Each curve is a ViT layer (14–24). Later layers consistently incur higher MSE at matched sparsity, indicating greater representational complexity. Again, note that the $y$-axis is \textit{raw} rather than normalized MSE.}
+    \label{fig:ablations-layers-mse}
+\end{figure}
+
+\paragraph{Results.}
+In \cref{fig:ablations-layers-mse}, we find that later layers are harder to reconstruct (note that the $y$-axis is \textit{raw} rather than normalized MSE).
+We also evaluate downstream metrics (mAP) for the best SAE at each layer for all three ViT checkpoints in \cref{fig:ablations-best-layer}.
+Despite more challenging reconstruction, we find that later layers lead to better recovery for all three checkpoints.
+
+\paragraph{Discussion.}\label{sec:layers-discussion}
+Prior work in SAEs for language models finds that later layers are harder to reconstruct \text{except} for the final two layers \citep{gao2025scaling}.  % fig 27 in appendix
+Language models use a linear embedding layer for next-token-prediction; the final layers must optimize for linear separability.
+In contrast, DINOv3 uses multiple, loss-specific multilayer perceptrons with additional non-linearities for pre-training \citep{simeoni2025dinov3}; we conjecture this architectural difference leads to the difference in our results.
+
+
+
+\end{document}
