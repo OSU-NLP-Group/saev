@@ -270,8 +270,7 @@ def _(
         )
 
         df = (
-            df
-            .unnest("config/sae", "config/train_data/metadata", separator="/")
+            df.unnest("config/sae", "config/train_data/metadata", separator="/")
             .unnest("config/sae/activation", separator="/")
             .unnest(
                 "config/sae/activation/aux",

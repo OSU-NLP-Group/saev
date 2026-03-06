@@ -13,6 +13,7 @@ def _():
 
     import saev.data
     import saev.data.datasets
+
     return beartype, pathlib, pl, saev
 
 
@@ -28,7 +29,6 @@ def _(beartype, pathlib, pl, saev, shards_root):
     BYTES_PER_TB = 1024**4
     BYTES_PER_FLOAT32 = 4
 
-
     @beartype.beartype
     def get_n_bytes_in_dir(shards_dpath: pathlib.Path) -> int:
         if not shards_dpath.exists():
@@ -42,7 +42,6 @@ def _(beartype, pathlib, pl, saev, shards_root):
             n_bytes += path.stat().st_blocks * 512
         return n_bytes
 
-
     @beartype.beartype
     def bytes_to_human(n_bytes: int) -> str:
         if n_bytes >= BYTES_PER_TB:
@@ -51,7 +50,6 @@ def _(beartype, pathlib, pl, saev, shards_root):
         size = n_bytes / BYTES_PER_GB
         return f"{size:.1f} GB"
 
-
     @beartype.beartype
     def make_disk_usage_metrics(shards_dpath: pathlib.Path) -> dict[str, object]:
         n_bytes = get_n_bytes_in_dir(shards_dpath)
@@ -59,7 +57,6 @@ def _(beartype, pathlib, pl, saev, shards_root):
             "disk_usage": n_bytes,
             "disk_usage_human": bytes_to_human(n_bytes),
         }
-
 
     @beartype.beartype
     def make_expected_disk_usage_metrics(md: saev.data.Metadata) -> dict[str, object]:
@@ -74,7 +71,6 @@ def _(beartype, pathlib, pl, saev, shards_root):
             "expected_disk_usage": n_bytes,
             "expected_disk_usage_human": bytes_to_human(n_bytes),
         }
-
 
     def format_ckpt(family: str, ckpt: str) -> str:
         if family == "dinov3":
@@ -99,7 +95,6 @@ def _(beartype, pathlib, pl, saev, shards_root):
 
         raise ValueError(family)
 
-
     def format_data_cfg(data: saev.data.datasets.DatasetConfig) -> dict[str, object]:
         if isinstance(data, saev.data.datasets.Cifar10):
             return {"name": "CIFAR10"}
@@ -122,7 +117,6 @@ def _(beartype, pathlib, pl, saev, shards_root):
 
         raise ValueError(data)
 
-
     def make_df():
         rows = []
         for shards_dpath in shards_root.iterdir():
@@ -131,22 +125,19 @@ def _(beartype, pathlib, pl, saev, shards_root):
             md = saev.data.Metadata.load(shards_dpath)
             disk_usage = make_disk_usage_metrics(shards_dpath)
             expected_disk_usage = make_expected_disk_usage_metrics(md)
-            rows.append(
-                {
-                    "shards": shards_dpath.name,
-                    "family": md.family,
-                    "ckpt": format_ckpt(md.family, md.ckpt),
-                    "layers": md.layers,
-                    "tokens": md.content_tokens_per_example,
-                    "disk": disk_usage["disk_usage_human"],
-                    "expected_disk": expected_disk_usage["expected_disk_usage_human"],
-                    **format_data_cfg(md.make_data_cfg()),
-                }
-            )
+            rows.append({
+                "shards": shards_dpath.name,
+                "family": md.family,
+                "ckpt": format_ckpt(md.family, md.ckpt),
+                "layers": md.layers,
+                "tokens": md.content_tokens_per_example,
+                "disk": disk_usage["disk_usage_human"],
+                "expected_disk": expected_disk_usage["expected_disk_usage_human"],
+                **format_data_cfg(md.make_data_cfg()),
+            })
             # print(shards_dir.name, md.family, md.ckpt, md.make_data_cfg())
 
         return pl.DataFrame(rows)
-
 
     df = make_df()
     return (df,)

@@ -39,6 +39,7 @@ nav:
       - Inference: users/inference.md
       - Glossary: users/glossary.md
       - Sweeps: users/sweeps.md
+      - Example Debugging: users/bird-mae-debugging.md
   - Developers:
       - Contributing: developers/contributing.md
       - Shard Protocol: developers/protocol.md

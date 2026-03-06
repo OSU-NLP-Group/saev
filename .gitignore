@@ -21,3 +21,20 @@ coverage.json
 .hypothesis/
 
 pytest.json
+
+# Credentials
+r2-credentials
+
+# Presentation slides (opaque binaries, not diffable)
+docs/assets/*.key
+docs/assets/*.pages
+docs/assets/*.pptx
+
+# Social media videos and large assets
+docs/assets/twitter/*.mov
+docs/assets/twitter/*.gif
+docs/assets/twitter/*.mp4
+docs/assets/twitter/*.key
+
+# Conference paper figures (regenerable from notebooks)
+contrib/*/papers/*/figures/

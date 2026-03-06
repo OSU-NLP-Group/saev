@@ -1,0 +1,91 @@
+# @inproceedings{
+# gao2025scaling,
+# title={Scaling and evaluating sparse autoencoders},
+# author={Leo Gao and Tom Dupre la Tour and Henk Tillman and Gabriel Goh and Rajan Troll and Alec Radford and Ilya Sutskever and Jan Leike and Jeffrey Wu},
+# booktitle={The Thirteenth International Conference on Learning Representations},
+# year={2025},
+# url={https://openreview.net/forum?id=tcsZt9ZNKD}
+# }
+
+gao2025scaling:
+  type: article
+  title: Scaling and evaluating sparse autoencoders
+  author:
+    - Gao, Leo
+    - Dupre la Tour, Tom
+    - Tillman, Henk
+    - Goh, Gabriel
+    - Troll, Rajan
+    - Radford, Alec
+    - Sutskever, Ilya
+    - Leike, Jan
+    - Wu, Jeffrey
+
+
+# @inproceedings{zhou2017scene,
+#     title={Scene Parsing through ADE20K Dataset},
+#     author={Zhou, Bolei and Zhao, Hang and Puig, Xavier and Fidler, Sanja and Barriuso, Adela and Torralba, Antonio},
+#     booktitle={Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition},
+#     year={2017}
+# }
+# @article{zhou2016semantic,
+#   title={Semantic understanding of scenes through the ade20k dataset},
+#   author={Zhou, Bolei and Zhao, Hang and Puig, Xavier and Fidler, Sanja and Barriuso, Adela and Torralba, Antonio},
+#   journal={arXiv preprint arXiv:1608.05442},
+#   year={2016}
+# }
+
+zhou2016ade20k:
+  type: article
+  title: Semantic Understanding of Scenes Through the ADE20K Dataset
+  author:
+    - Zhou, Bolei
+    - Zhao, Hang
+    - Puig, Xavier
+    - Fidler, Sanja
+    - Barriuso, Adela
+    - Torralba, Antonio
+
+zhou2017ade20k:
+  type: article
+  title: Scene Parsing Through ADE20K Dataset
+  author:
+    - Zhou, Bolei
+    - Zhao, Hang
+    - Puig, Xavier
+    - Fidler, Sanja
+    - Barriuso, Adela
+    - Torralba, Antonio
+
+
+# @inproceedings{mehrab2025fish,
+#   title={Fish-vista: A multi-purpose dataset for understanding \& identification of traits from images},
+#   author={Mehrab, Kazi Sajeed and Maruf, M and Daw, Arka and Neog, Abhilash and Manogaran, Harish Babu and Khurana, Mridul and Feng, Zhenyang and Altintas, Bahadir and Bakis, Yasin and Campolongo, Elizabeth G and others},
+#   booktitle={Proceedings of the Computer Vision and Pattern Recognition Conference},
+#   pages={24275--24285},
+#   year={2025}
+# }
+
+fishvista:
+  type: article
+  title: "Fish-Vista: A multi-purpose dataset for understanding & identification of traits from images"
+  author:
+    - Mehrab, Kazi Sajeed
+    - Maruf, M
+    - Daw, Arka
+    - Neog, Abhilash
+    - Manogaran, Harish Babu
+    - Khurana, Mridul
+    - Feng, Zhenyang
+    - Altintas, Bahadir
+    - Bakis, Yasin
+    - Campolongo, Elizabeth G
+    - Thompson, Matthew J
+    - Wang, Xiaojun
+    - Lapp, Hilmar
+    - Berger-Wolf, Tanya
+    - Mabee, Paula
+    - Bart, Henry
+    - Chao, Wei-Lun
+    - Dahdul, Wasila M
+    - Karpatne, Anuj
