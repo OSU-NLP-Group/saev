@@ -72,7 +72,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#debugging-activations" class="md-skip">
+        <a href="#debugging-bird-mae-activations" class="md-skip">
           Skip to content
         </a>
       
@@ -519,6 +519,24 @@
         
       
       
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Example Debugging
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
       <a href="./" class="md-nav__link md-nav__link--active">
         
   
@@ -535,6 +553,113 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#symptom-80-dead-neurons" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Symptom: 80% dead neurons
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#comparing-to-known-good-activations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Comparing to known-good activations
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#finding-the-outlier-dimension-296" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Finding the outlier: dimension 296
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tracing-the-outlier-through-the-residual-stream" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tracing the outlier through the residual stream
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#narrowing-it-down-the-first-mlp" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Narrowing it down: the first MLP
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#root-cause-emergent-outlier-features" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Root cause: emergent outlier features
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fix-record-after-layernorm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fix: record after LayerNorm
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lessons" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Lessons
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
       
     </li>
   
@@ -1905,12 +2030,13 @@
 
 
 
-<h1 id="debugging-activations">Debugging Activations<a class="headerlink" href="#debugging-activations" title="Permanent link">&para;</a></h1>
+<h1 id="debugging-bird-mae-activations">Debugging Bird-MAE Activations<a class="headerlink" href="#debugging-bird-mae-activations" title="Permanent link">&para;</a></h1>
 <blockquote>
-<p>This is an example of the kind of debugging you might have to do when training SAEs.</p>
+<p>This is an example of the kind of debugging you might have to do when training SAEs on a new model. The short version: Bird-MAE has an "emergent outlier feature" in dimension 296 that blows up after the first MLP. The fix is to record activations after the pre-MLP LayerNorm (<code>block.norm2</code>) instead of the raw residual stream, because the LayerNorm learns to suppress the outlier.</p>
 </blockquote>
-<p>While training TopK SAEs on <a href="https://arxiv.org/abs/2504.12880">BirdMAE</a> activations taken from birdsong, ~80% of my neurons were dead from the very start of training.
-Here, I take you through my debugging process.</p>
+<h2 id="symptom-80-dead-neurons">Symptom: 80% dead neurons<a class="headerlink" href="#symptom-80-dead-neurons" title="Permanent link">&para;</a></h2>
+<p>While training TopK SAEs on <a href="https://arxiv.org/abs/2504.12880">BirdMAE</a> activations taken from birdsong, ~80% of my neurons were dead from the very start of training.</p>
+<h2 id="comparing-to-known-good-activations">Comparing to known-good activations<a class="headerlink" href="#comparing-to-known-good-activations" title="Permanent link">&para;</a></h2>
 <p>First, I compared activations from BirdMAE to DINOv3 activations (which I know are well-behaved).
 I recorded 300K <a href="../glossary/">content token</a> activation vectors from layer 14/24 from DINOv3 ViT-L/16 and BirdMAE-L.
 Each vector has 1024 dimensions.
@@ -1920,6 +2046,7 @@ I plotted a histogram below. Note the log scale on the y-axis.</p>
 <p>I zoomed in on the left-most cluster, ignoring the right cluster.
 While BirdMAE is more spread out, the shapes look good enough for now.</p>
 <p><img alt="Histogram of DINOv3 vs ADE20K activations, ignoring outliers." src="../../img/bird-mae/normal-acts-hist.png" /></p>
+<h2 id="finding-the-outlier-dimension-296">Finding the outlier: dimension 296<a class="headerlink" href="#finding-the-outlier-dimension-296" title="Permanent link">&para;</a></h2>
 <p>Looking at the right cluster, I realized that all of these values are from neuron 296 of 1024.
 Here, I colored activations based on their neuron: all BirdMAE neurons besides 296 are blue, DINOv3 is orange, and neuron 296 is red.</p>
 <p><img alt="Histogram of DINOv3 vs ADE20K activations, ignoring outliers." src="../../img/bird-mae/all-acts-hist-highlight-d-bad.png" /></p>
@@ -1928,9 +2055,10 @@ Here, I colored activations based on their neuron: all BirdMAE neurons besides 2
 bird_acts[:, 295].min()  # 2549.54
 bird_acts[:, 295].max()  # 4625.12
 </code></pre>
-<p><strong>Something is broken inside of BirdMAE.</strong>
-Where in BirdMAE does this abnormality show up?</p>
-<p>Consider transformers as residual streams.
+<p><strong>Something is broken inside of BirdMAE.</strong></p>
+<h2 id="tracing-the-outlier-through-the-residual-stream">Tracing the outlier through the residual stream<a class="headerlink" href="#tracing-the-outlier-through-the-residual-stream" title="Permanent link">&para;</a></h2>
+<p>Where in BirdMAE does this abnormality show up?
+Consider transformers as residual streams.
 After what layer does dimension 296/1024 blow up?
 See this diagram below: for a single random example from BirdMAE, we will track both the average neuron and neuron 296's value through the 24 transformer layers.</p>
 <p><img alt="Informal diagram explaining residual stream layout." src="../../img/bird-mae/arch.png" /></p>
@@ -1943,6 +2071,7 @@ Note the log scale on the y-axis.</p>
 <p>Our well-behaved neurons mostly stay in (-10, 10).
 Neuron 296 jumps straight to ~2.2K after the first residual block and is never fixed again.
 It's well-behaved coming out of the patch embedding before the first residual block.</p>
+<h2 id="narrowing-it-down-the-first-mlp">Narrowing it down: the first MLP<a class="headerlink" href="#narrowing-it-down-the-first-mlp" title="Permanent link">&para;</a></h2>
 <p>Below is the output from the attention layers (Graph #2) in our architecture diagram.</p>
 <p><img alt="Attention output values throughout BirdMAE." src="../../img/bird-mae/attn.png" /></p>
 <p>Neuron 296 is mostly well-behaved; it's a little big after the second attention layer, but not insane.</p>
@@ -1957,8 +2086,25 @@ I take the L2 norm of <code>fc2.weight</code>'s columns to see if col 296/1024 i
 <p><img alt="BirdMAE's MLP fc2 parameters." src="../../img/bird-mae/fc2-params.png" /></p>
 <p><code>fc2.weight</code> does appear to be different, and abnormally large (note the log scale).
 <code>fc2.bias</code> is also different, but it's not immediately obvious what's going on there to me.</p>
-<hr />
-<p>This turned out to be fixed by recording activations </p>
+<h2 id="root-cause-emergent-outlier-features">Root cause: emergent outlier features<a class="headerlink" href="#root-cause-emergent-outlier-features" title="Permanent link">&para;</a></h2>
+<p>This is a known phenomenon in transformers called "emergent outlier features."
+After extensive pretraining, a single dimension in the residual stream accumulates a very large magnitude.
+The model never needs to "fix" this because the pre-attention and pre-MLP `LayerNormss learn to suppress it: the learned multiplicative weight for dimension 296 is very small, and the bias is approximately 1.
+So later layers never actually "see" the outlier in practice.</p>
+<p>We verified this by inspecting <code>norm2.weight</code> across layers and confirming that the learned scale for dimension 296 is near-zero, but that analysis is not reproduced here.</p>
+<p>The BirdMAE authors never had to deal with this because all downstream use of the model goes through LayerNorm first.</p>
+<h2 id="fix-record-after-layernorm">Fix: record after LayerNorm<a class="headerlink" href="#fix-record-after-layernorm" title="Permanent link">&para;</a></h2>
+<p>The fix is to record activations after <code>block.norm2</code> (the pre-MLP LayerNorm) instead of from the raw residual stream. In <code>saev</code>, this is implemented as:</p>
+<pre><code class="language-py">def get_residuals(self) -&gt; list[torch.nn.Module]:
+    return [block.norm2 for block in self.model.blocks]
+</code></pre>
+<p>After this change, the outlier is suppressed and SAE training works normally.</p>
+<h2 id="lessons">Lessons<a class="headerlink" href="#lessons" title="Permanent link">&para;</a></h2>
+<ol>
+<li><strong>Compare activation distributions to a known-good model.</strong> Histogramming flattened activations from 300K tokens is cheap and can reveal outliers.</li>
+<li><strong>Emergent outlier features are real.</strong> If a single dimension dominates your activation distribution, check whether it's a known artifact of pretraining before assuming your recording code is wrong.</li>
+<li><strong>Record after LayerNorm, not from the raw residual stream.</strong> The residual stream can carry high-magnitude "bookkeeping" values that LayerNorm suppresses. Recording post-norm avoids this entirely.</li>
+</ol>
 
 
 
