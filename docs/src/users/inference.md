@@ -1,5 +1,7 @@
 # Inference
 
+> If you want to get started quickly, try the [inference notebook](https://github.com/OSU-NLP-Group/saev/blob/main/examples/inference.ipynb) in marimo or on [Google Colab](https://colab.research.google.com/github/OSU-NLP-Group/saev/blob/main/examples/inference.ipynb).
+
 Briefly, you need to:
 
 1. Download a checkpoint.
