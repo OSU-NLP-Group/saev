@@ -21,7 +21,7 @@
       
       
       <link rel="icon" href="../../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.1">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.0">
     
     
       
@@ -29,7 +29,7 @@
       
     
     
-      <link rel="stylesheet" href="../../../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.618322db.min.css">
       
         
         <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
@@ -341,6 +341,8 @@
       
         
       
+        
+      
     
     
     
@@ -485,6 +487,34 @@
     
   
     Sweeps
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../users/bird-mae-debugging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Example Debugging
   
 
     
@@ -696,6 +726,8 @@
   
     
     
+      
+        
       
         
       
@@ -1871,6 +1903,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../metrics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    saev.metrics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../nn/saev.nn/" class="md-nav__link">
         
   
@@ -2432,24 +2492,24 @@
 
                   <details class="mkdocstrings-source">
                     <summary>Source code in <code>src/saev/data/shards.py</code></summary>
-                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">945</span>
-<span class="normal">946</span>
-<span class="normal">947</span>
-<span class="normal">948</span>
-<span class="normal">949</span>
-<span class="normal">950</span>
-<span class="normal">951</span>
-<span class="normal">952</span>
-<span class="normal">953</span>
-<span class="normal">954</span>
-<span class="normal">955</span>
-<span class="normal">956</span>
-<span class="normal">957</span>
-<span class="normal">958</span>
-<span class="normal">959</span>
-<span class="normal">960</span>
-<span class="normal">961</span>
-<span class="normal">962</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1001</span>
+<span class="normal">1002</span>
+<span class="normal">1003</span>
+<span class="normal">1004</span>
+<span class="normal">1005</span>
+<span class="normal">1006</span>
+<span class="normal">1007</span>
+<span class="normal">1008</span>
+<span class="normal">1009</span>
+<span class="normal">1010</span>
+<span class="normal">1011</span>
+<span class="normal">1012</span>
+<span class="normal">1013</span>
+<span class="normal">1014</span>
+<span class="normal">1015</span>
+<span class="normal">1016</span>
+<span class="normal">1017</span>
+<span class="normal">1018</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
     <span class="bp">self</span><span class="p">,</span>
     <span class="n">md</span><span class="p">:</span> <span class="n">Metadata</span><span class="p">,</span>
     <span class="n">tokens</span><span class="p">:</span> <span class="n">tp</span><span class="o">.</span><span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;special&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">,</span> <span class="s2">&quot;all&quot;</span><span class="p">],</span>
@@ -2499,39 +2559,39 @@
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/saev/data/shards.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1016</span>
-<span class="normal">1017</span>
-<span class="normal">1018</span>
-<span class="normal">1019</span>
-<span class="normal">1020</span>
-<span class="normal">1021</span>
-<span class="normal">1022</span>
-<span class="normal">1023</span>
-<span class="normal">1024</span>
-<span class="normal">1025</span>
-<span class="normal">1026</span>
-<span class="normal">1027</span>
-<span class="normal">1028</span>
-<span class="normal">1029</span>
-<span class="normal">1030</span>
-<span class="normal">1031</span>
-<span class="normal">1032</span>
-<span class="normal">1033</span>
-<span class="normal">1034</span>
-<span class="normal">1035</span>
-<span class="normal">1036</span>
-<span class="normal">1037</span>
-<span class="normal">1038</span>
-<span class="normal">1039</span>
-<span class="normal">1040</span>
-<span class="normal">1041</span>
-<span class="normal">1042</span>
-<span class="normal">1043</span>
-<span class="normal">1044</span>
-<span class="normal">1045</span>
-<span class="normal">1046</span>
-<span class="normal">1047</span>
-<span class="normal">1048</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__len__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1072</span>
+<span class="normal">1073</span>
+<span class="normal">1074</span>
+<span class="normal">1075</span>
+<span class="normal">1076</span>
+<span class="normal">1077</span>
+<span class="normal">1078</span>
+<span class="normal">1079</span>
+<span class="normal">1080</span>
+<span class="normal">1081</span>
+<span class="normal">1082</span>
+<span class="normal">1083</span>
+<span class="normal">1084</span>
+<span class="normal">1085</span>
+<span class="normal">1086</span>
+<span class="normal">1087</span>
+<span class="normal">1088</span>
+<span class="normal">1089</span>
+<span class="normal">1090</span>
+<span class="normal">1091</span>
+<span class="normal">1092</span>
+<span class="normal">1093</span>
+<span class="normal">1094</span>
+<span class="normal">1095</span>
+<span class="normal">1096</span>
+<span class="normal">1097</span>
+<span class="normal">1098</span>
+<span class="normal">1099</span>
+<span class="normal">1100</span>
+<span class="normal">1101</span>
+<span class="normal">1102</span>
+<span class="normal">1103</span>
+<span class="normal">1104</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__len__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Dataset length depends on `patches` and `layer`.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -4700,44 +4760,44 @@
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/saev/data/shards.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">797</span>
-<span class="normal">798</span>
-<span class="normal">799</span>
-<span class="normal">800</span>
-<span class="normal">801</span>
-<span class="normal">802</span>
-<span class="normal">803</span>
-<span class="normal">804</span>
-<span class="normal">805</span>
-<span class="normal">806</span>
-<span class="normal">807</span>
-<span class="normal">808</span>
-<span class="normal">809</span>
-<span class="normal">810</span>
-<span class="normal">811</span>
-<span class="normal">812</span>
-<span class="normal">813</span>
-<span class="normal">814</span>
-<span class="normal">815</span>
-<span class="normal">816</span>
-<span class="normal">817</span>
-<span class="normal">818</span>
-<span class="normal">819</span>
-<span class="normal">820</span>
-<span class="normal">821</span>
-<span class="normal">822</span>
-<span class="normal">823</span>
-<span class="normal">824</span>
-<span class="normal">825</span>
-<span class="normal">826</span>
-<span class="normal">827</span>
-<span class="normal">828</span>
-<span class="normal">829</span>
-<span class="normal">830</span>
-<span class="normal">831</span>
-<span class="normal">832</span>
-<span class="normal">833</span>
-<span class="normal">834</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@beartype</span><span class="o">.</span><span class="n">beartype</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">853</span>
+<span class="normal">854</span>
+<span class="normal">855</span>
+<span class="normal">856</span>
+<span class="normal">857</span>
+<span class="normal">858</span>
+<span class="normal">859</span>
+<span class="normal">860</span>
+<span class="normal">861</span>
+<span class="normal">862</span>
+<span class="normal">863</span>
+<span class="normal">864</span>
+<span class="normal">865</span>
+<span class="normal">866</span>
+<span class="normal">867</span>
+<span class="normal">868</span>
+<span class="normal">869</span>
+<span class="normal">870</span>
+<span class="normal">871</span>
+<span class="normal">872</span>
+<span class="normal">873</span>
+<span class="normal">874</span>
+<span class="normal">875</span>
+<span class="normal">876</span>
+<span class="normal">877</span>
+<span class="normal">878</span>
+<span class="normal">879</span>
+<span class="normal">880</span>
+<span class="normal">881</span>
+<span class="normal">882</span>
+<span class="normal">883</span>
+<span class="normal">884</span>
+<span class="normal">885</span>
+<span class="normal">886</span>
+<span class="normal">887</span>
+<span class="normal">888</span>
+<span class="normal">889</span>
+<span class="normal">890</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@beartype</span><span class="o">.</span><span class="n">beartype</span>
 <span class="k">def</span><span class="w"> </span><span class="nf">get_dataloader</span><span class="p">(</span>
     <span class="n">data</span><span class="p">:</span> <span class="n">datasets</span><span class="o">.</span><span class="n">Config</span><span class="p">,</span>
     <span class="o">*</span><span class="p">,</span>
@@ -4931,63 +4991,7 @@
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/saev/data/shards.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">837</span>
-<span class="normal">838</span>
-<span class="normal">839</span>
-<span class="normal">840</span>
-<span class="normal">841</span>
-<span class="normal">842</span>
-<span class="normal">843</span>
-<span class="normal">844</span>
-<span class="normal">845</span>
-<span class="normal">846</span>
-<span class="normal">847</span>
-<span class="normal">848</span>
-<span class="normal">849</span>
-<span class="normal">850</span>
-<span class="normal">851</span>
-<span class="normal">852</span>
-<span class="normal">853</span>
-<span class="normal">854</span>
-<span class="normal">855</span>
-<span class="normal">856</span>
-<span class="normal">857</span>
-<span class="normal">858</span>
-<span class="normal">859</span>
-<span class="normal">860</span>
-<span class="normal">861</span>
-<span class="normal">862</span>
-<span class="normal">863</span>
-<span class="normal">864</span>
-<span class="normal">865</span>
-<span class="normal">866</span>
-<span class="normal">867</span>
-<span class="normal">868</span>
-<span class="normal">869</span>
-<span class="normal">870</span>
-<span class="normal">871</span>
-<span class="normal">872</span>
-<span class="normal">873</span>
-<span class="normal">874</span>
-<span class="normal">875</span>
-<span class="normal">876</span>
-<span class="normal">877</span>
-<span class="normal">878</span>
-<span class="normal">879</span>
-<span class="normal">880</span>
-<span class="normal">881</span>
-<span class="normal">882</span>
-<span class="normal">883</span>
-<span class="normal">884</span>
-<span class="normal">885</span>
-<span class="normal">886</span>
-<span class="normal">887</span>
-<span class="normal">888</span>
-<span class="normal">889</span>
-<span class="normal">890</span>
-<span class="normal">891</span>
-<span class="normal">892</span>
-<span class="normal">893</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">893</span>
 <span class="normal">894</span>
 <span class="normal">895</span>
 <span class="normal">896</span>
@@ -4999,7 +5003,63 @@
 <span class="normal">902</span>
 <span class="normal">903</span>
 <span class="normal">904</span>
-<span class="normal">905</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@jaxtyped</span><span class="p">(</span><span class="n">typechecker</span><span class="o">=</span><span class="n">beartype</span><span class="o">.</span><span class="n">beartype</span><span class="p">)</span>
+<span class="normal">905</span>
+<span class="normal">906</span>
+<span class="normal">907</span>
+<span class="normal">908</span>
+<span class="normal">909</span>
+<span class="normal">910</span>
+<span class="normal">911</span>
+<span class="normal">912</span>
+<span class="normal">913</span>
+<span class="normal">914</span>
+<span class="normal">915</span>
+<span class="normal">916</span>
+<span class="normal">917</span>
+<span class="normal">918</span>
+<span class="normal">919</span>
+<span class="normal">920</span>
+<span class="normal">921</span>
+<span class="normal">922</span>
+<span class="normal">923</span>
+<span class="normal">924</span>
+<span class="normal">925</span>
+<span class="normal">926</span>
+<span class="normal">927</span>
+<span class="normal">928</span>
+<span class="normal">929</span>
+<span class="normal">930</span>
+<span class="normal">931</span>
+<span class="normal">932</span>
+<span class="normal">933</span>
+<span class="normal">934</span>
+<span class="normal">935</span>
+<span class="normal">936</span>
+<span class="normal">937</span>
+<span class="normal">938</span>
+<span class="normal">939</span>
+<span class="normal">940</span>
+<span class="normal">941</span>
+<span class="normal">942</span>
+<span class="normal">943</span>
+<span class="normal">944</span>
+<span class="normal">945</span>
+<span class="normal">946</span>
+<span class="normal">947</span>
+<span class="normal">948</span>
+<span class="normal">949</span>
+<span class="normal">950</span>
+<span class="normal">951</span>
+<span class="normal">952</span>
+<span class="normal">953</span>
+<span class="normal">954</span>
+<span class="normal">955</span>
+<span class="normal">956</span>
+<span class="normal">957</span>
+<span class="normal">958</span>
+<span class="normal">959</span>
+<span class="normal">960</span>
+<span class="normal">961</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@jaxtyped</span><span class="p">(</span><span class="n">typechecker</span><span class="o">=</span><span class="n">beartype</span><span class="o">.</span><span class="n">beartype</span><span class="p">)</span>
 <span class="k">def</span><span class="w"> </span><span class="nf">pixel_to_patch_labels</span><span class="p">(</span>
     <span class="n">seg</span><span class="p">:</span> <span class="n">Image</span><span class="o">.</span><span class="n">Image</span><span class="p">,</span>
     <span class="n">n_patches</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
@@ -5335,63 +5395,7 @@
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/saev/data/shards.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">641</span>
-<span class="normal">642</span>
-<span class="normal">643</span>
-<span class="normal">644</span>
-<span class="normal">645</span>
-<span class="normal">646</span>
-<span class="normal">647</span>
-<span class="normal">648</span>
-<span class="normal">649</span>
-<span class="normal">650</span>
-<span class="normal">651</span>
-<span class="normal">652</span>
-<span class="normal">653</span>
-<span class="normal">654</span>
-<span class="normal">655</span>
-<span class="normal">656</span>
-<span class="normal">657</span>
-<span class="normal">658</span>
-<span class="normal">659</span>
-<span class="normal">660</span>
-<span class="normal">661</span>
-<span class="normal">662</span>
-<span class="normal">663</span>
-<span class="normal">664</span>
-<span class="normal">665</span>
-<span class="normal">666</span>
-<span class="normal">667</span>
-<span class="normal">668</span>
-<span class="normal">669</span>
-<span class="normal">670</span>
-<span class="normal">671</span>
-<span class="normal">672</span>
-<span class="normal">673</span>
-<span class="normal">674</span>
-<span class="normal">675</span>
-<span class="normal">676</span>
-<span class="normal">677</span>
-<span class="normal">678</span>
-<span class="normal">679</span>
-<span class="normal">680</span>
-<span class="normal">681</span>
-<span class="normal">682</span>
-<span class="normal">683</span>
-<span class="normal">684</span>
-<span class="normal">685</span>
-<span class="normal">686</span>
-<span class="normal">687</span>
-<span class="normal">688</span>
-<span class="normal">689</span>
-<span class="normal">690</span>
-<span class="normal">691</span>
-<span class="normal">692</span>
-<span class="normal">693</span>
-<span class="normal">694</span>
-<span class="normal">695</span>
-<span class="normal">696</span>
-<span class="normal">697</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">697</span>
 <span class="normal">698</span>
 <span class="normal">699</span>
 <span class="normal">700</span>
@@ -5488,7 +5492,63 @@
 <span class="normal">791</span>
 <span class="normal">792</span>
 <span class="normal">793</span>
-<span class="normal">794</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@beartype</span><span class="o">.</span><span class="n">beartype</span>
+<span class="normal">794</span>
+<span class="normal">795</span>
+<span class="normal">796</span>
+<span class="normal">797</span>
+<span class="normal">798</span>
+<span class="normal">799</span>
+<span class="normal">800</span>
+<span class="normal">801</span>
+<span class="normal">802</span>
+<span class="normal">803</span>
+<span class="normal">804</span>
+<span class="normal">805</span>
+<span class="normal">806</span>
+<span class="normal">807</span>
+<span class="normal">808</span>
+<span class="normal">809</span>
+<span class="normal">810</span>
+<span class="normal">811</span>
+<span class="normal">812</span>
+<span class="normal">813</span>
+<span class="normal">814</span>
+<span class="normal">815</span>
+<span class="normal">816</span>
+<span class="normal">817</span>
+<span class="normal">818</span>
+<span class="normal">819</span>
+<span class="normal">820</span>
+<span class="normal">821</span>
+<span class="normal">822</span>
+<span class="normal">823</span>
+<span class="normal">824</span>
+<span class="normal">825</span>
+<span class="normal">826</span>
+<span class="normal">827</span>
+<span class="normal">828</span>
+<span class="normal">829</span>
+<span class="normal">830</span>
+<span class="normal">831</span>
+<span class="normal">832</span>
+<span class="normal">833</span>
+<span class="normal">834</span>
+<span class="normal">835</span>
+<span class="normal">836</span>
+<span class="normal">837</span>
+<span class="normal">838</span>
+<span class="normal">839</span>
+<span class="normal">840</span>
+<span class="normal">841</span>
+<span class="normal">842</span>
+<span class="normal">843</span>
+<span class="normal">844</span>
+<span class="normal">845</span>
+<span class="normal">846</span>
+<span class="normal">847</span>
+<span class="normal">848</span>
+<span class="normal">849</span>
+<span class="normal">850</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@beartype</span><span class="o">.</span><span class="n">beartype</span>
 <span class="k">def</span><span class="w"> </span><span class="nf">worker_fn</span><span class="p">(</span>
     <span class="o">*</span><span class="p">,</span>
     <span class="n">family</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
@@ -5768,10 +5828,10 @@
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.tabs", "navigation.path", "navigation.indexes", "navigation.expand", "toc.follow", "toc.integrate", "navigation.top", "search.suggest", "search.highlight", "content.tabs.link", "content.code.annotation", "content.code.copy", "navigation.footer", "content.action.edit"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.tabs", "navigation.path", "navigation.indexes", "navigation.expand", "toc.follow", "toc.integrate", "navigation.top", "search.suggest", "search.highlight", "content.tabs.link", "content.code.annotation", "content.code.copy", "navigation.footer", "content.action.edit"], "search": "../../../assets/javascripts/workers/search.7a47a382.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../../assets/javascripts/bundle.e71a0d61.min.js"></script>
       
         <script src="../../../javascripts/mathjax.js"></script>
       

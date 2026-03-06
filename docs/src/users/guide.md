@@ -23,12 +23,12 @@ To save activations to disk, we need to specify:
 
 The `saev/framework/shards.py` script does all of this for us.
 
-Run `uv run scripts/launch.py shards --help` to see all the configuration.
+Run `uv run launch.py shards --help` to see all the configuration.
 
 In practice, you might run:
 
 ```sh
-uv run scripts/launch.py shards \
+uv run launch.py shards \
   --shards-root /fs/scratch/PAS2136/samuelstevens/saev/shards \
   --family clip \
   --ckpt ViT-B-16/openai \
@@ -115,7 +115,7 @@ While you can use the SAE as a regular PyTorch `torch.nn.Module` in combination 
 
 However, most SAEs are evaluated with a similar set of metrics (normalized MSE, L0, etc).
 The `saev/framework/inference.py` script calculates these metrics.
-You can run `uv run scripts/launch.py inference --help` to see all the options.
+You can run `uv run launch.py inference --help` to see all the options.
 
 The most important options are:
 
@@ -123,7 +123,7 @@ The most important options are:
 - `--data`: The options for the OrderedDataLoader. Specifically, you need to set `--data.shards` and `--data.layer`, just like for training.
 
 ```sh
-uv run scripts/launch.py inference \
+uv run launch.py inference \
   --run /fs/ess/PAS2136/samuelstevens/saev/runs/z55bntm1/ \
   --data.shards /fs/scratch/PAS2136/samuelstevens/saev/shards/614861a0 \
   --data.layer 11

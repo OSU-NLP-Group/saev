@@ -21,7 +21,7 @@
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.1">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.0">
     
     
       
@@ -29,7 +29,7 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.618322db.min.css">
       
         
         <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
@@ -343,6 +343,8 @@
       
         
       
+        
+      
     
     
     
@@ -620,6 +622,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../bird-mae-debugging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Example Debugging
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -816,6 +846,8 @@
   
     
     
+      
+        
       
         
       
@@ -1637,6 +1669,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../api/metrics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    saev.metrics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../api/nn/saev.nn/" class="md-nav__link">
         
   
@@ -2021,9 +2081,11 @@ We need to:</p>
 <p>There are examples of this in the demo code: for <a href="https://huggingface.co/spaces/samuelstevens/saev-image-classification/blob/main/app.py#L318">classification</a> and <a href="https://huggingface.co/spaces/samuelstevens/saev-semantic-segmentation/blob/main/app.py#L222">semantic segmentation</a>.
 If the permalinks change, you are looking for the <code>get_sae_latents()</code> functions in both files.</p>
 <p>Below is example code to do it using the <code>saev</code> package.</p>
-<pre><code class="language-py">import saev.nn
+<pre><code class="language-python">import saev.nn
 import saev.data.models
 import saev.data.shards
+
+sae = saev.nn.load(&quot;PATH_TO_YOUR_SAE_CKPT.pt&quot;)
 
 vit_cls = saev.data.models.load_model_cls(&quot;clip&quot;)
 vit = vit_cls(&quot;ViT-B-16/openai&quot;).to(device)
@@ -2032,17 +2094,19 @@ vit = saev.data.shards.RecordedTransformer(vit, 196, True, [10])
 img_tr, _ = vit_cls.make_transforms(&quot;ViT-B-16/openai&quot;, 196)
 img = Image.open(&quot;example.jpg&quot;)
 
-x = img_transform(img)
-# Add a batch dimension
+x = img_tr(img)
+# Add a batch dimension.
 x = x[None, ...]
-_, vit_acts = recorded_vit(x)
-# Select the only layer in the batch and ignore the CLS token.
+_, vit_acts = vit(x)
+# Select the only layer and ignore the CLS token.
 vit_acts = vit_acts[:, 0, 1:, :]
 
-x_hat, f_x, loss = sae(vit_acts)
+out = sae(vit_acts)
+# out.f_x: sparse SAE latents (batch, d_sae)
+# out.x_hats: reconstructed activations (batch, n_prefixes, d_model)
 </code></pre>
-<p>Now you have the reconstructed x (<code>x_hat</code>) and the sparse representation of all patches in the image (<code>f_x</code>).</p>
-<p>You might select the dimensions with maximal values for each patch and see what other images are maximimally activating.</p>
+<p>Now you have the sparse representation of all patches in the image (<code>out.f_x</code>) and the reconstructed activations (<code>out.x_hats</code>).</p>
+<p>You might select the dimensions with maximal values for each patch and see what other images are maximally activating.</p>
 
 
 
@@ -2156,10 +2220,10 @@ x_hat, f_x, loss = sae(vit_acts)
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.path", "navigation.indexes", "navigation.expand", "toc.follow", "toc.integrate", "navigation.top", "search.suggest", "search.highlight", "content.tabs.link", "content.code.annotation", "content.code.copy", "navigation.footer", "content.action.edit"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.path", "navigation.indexes", "navigation.expand", "toc.follow", "toc.integrate", "navigation.top", "search.suggest", "search.highlight", "content.tabs.link", "content.code.annotation", "content.code.copy", "navigation.footer", "content.action.edit"], "search": "../../assets/javascripts/workers/search.7a47a382.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../assets/javascripts/bundle.e71a0d61.min.js"></script>
       
         <script src="../../javascripts/mathjax.js"></script>
       

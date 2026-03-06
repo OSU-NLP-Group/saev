@@ -11,7 +11,7 @@
         <link rel="canonical" href="https://osu-nlp-group.github.io/saev/api/api/nn/saev.nn/">
       
       
-        <link rel="prev" href="../../helpers/">
+        <link rel="prev" href="../../metrics/">
       
       
         <link rel="next" href="../modeling/">
@@ -21,7 +21,7 @@
       
       
       <link rel="icon" href="../../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.1">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.0">
     
     
       
@@ -29,7 +29,7 @@
       
     
     
-      <link rel="stylesheet" href="../../../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.618322db.min.css">
       
         
         <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
@@ -341,6 +341,8 @@
       
         
       
+        
+      
     
     
     
@@ -485,6 +487,34 @@
     
   
     Sweeps
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../users/bird-mae-debugging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Example Debugging
   
 
     
@@ -696,6 +726,8 @@
   
     
     
+      
+        
       
         
       
@@ -1515,6 +1547,34 @@
                 
   
   
+  
+  
+    <li class="md-nav__item">
+      <a href="../../metrics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    saev.metrics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
     
   
   
@@ -2173,8 +2233,8 @@
 
     <span class="bp">self</span><span class="o">.</span><span class="n">normalize_w_dec</span><span class="p">()</span>
 
-    <span class="c1"># Initialize W_enc to the transpose of W_dec.</span>
-    <span class="bp">self</span><span class="o">.</span><span class="n">W_enc</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">W_dec</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">T</span><span class="p">)</span>
+    <span class="c1"># Initialize W_enc to the transpose of W_dec. .clone() is critical: without it, W_enc is a transposed VIEW sharing storage with W_dec. That means load_state_dict overwrites W_dec when it loads W_enc.</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">W_enc</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">W_dec</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">T</span><span class="o">.</span><span class="n">clone</span><span class="p">())</span>
     <span class="bp">self</span><span class="o">.</span><span class="n">b_enc</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">d_sae</span><span class="p">))</span>
 
     <span class="bp">self</span><span class="o">.</span><span class="n">activation</span> <span class="o">=</span> <span class="n">get_activation</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">activation</span><span class="p">)</span>
@@ -2959,11 +3019,7 @@
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/saev/nn/modeling.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">538</span>
-<span class="normal">539</span>
-<span class="normal">540</span>
-<span class="normal">541</span>
-<span class="normal">542</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">542</span>
 <span class="normal">543</span>
 <span class="normal">544</span>
 <span class="normal">545</span>
@@ -2985,7 +3041,11 @@
 <span class="normal">561</span>
 <span class="normal">562</span>
 <span class="normal">563</span>
-<span class="normal">564</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@beartype</span><span class="o">.</span><span class="n">beartype</span>
+<span class="normal">564</span>
+<span class="normal">565</span>
+<span class="normal">566</span>
+<span class="normal">567</span>
+<span class="normal">568</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@beartype</span><span class="o">.</span><span class="n">beartype</span>
 <span class="k">def</span><span class="w"> </span><span class="nf">dump</span><span class="p">(</span><span class="n">fpath</span><span class="p">:</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span> <span class="o">|</span> <span class="nb">str</span><span class="p">,</span> <span class="n">sae</span><span class="p">:</span> <span class="n">SparseAutoencoder</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Save an SAE checkpoint to disk along with configuration, using the [trick from equinox](https://docs.kidger.site/equinox/examples/serialisation).</span>
@@ -3034,11 +3094,7 @@
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/saev/nn/modeling.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">567</span>
-<span class="normal">568</span>
-<span class="normal">569</span>
-<span class="normal">570</span>
-<span class="normal">571</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">571</span>
 <span class="normal">572</span>
 <span class="normal">573</span>
 <span class="normal">574</span>
@@ -3114,7 +3170,12 @@
 <span class="normal">644</span>
 <span class="normal">645</span>
 <span class="normal">646</span>
-<span class="normal">647</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@beartype</span><span class="o">.</span><span class="n">beartype</span>
+<span class="normal">647</span>
+<span class="normal">648</span>
+<span class="normal">649</span>
+<span class="normal">650</span>
+<span class="normal">651</span>
+<span class="normal">652</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@beartype</span><span class="o">.</span><span class="n">beartype</span>
 <span class="k">def</span><span class="w"> </span><span class="nf">load</span><span class="p">(</span><span class="n">fpath</span><span class="p">:</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span> <span class="o">|</span> <span class="nb">str</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s2">&quot;cpu&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SparseAutoencoder</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Loads a sparse autoencoder from disk.</span>
@@ -3166,8 +3227,9 @@
             <span class="c1"># Format 1B: Newer format with activation as dict</span>
             <span class="k">if</span> <span class="s2">&quot;activation&quot;</span> <span class="ow">in</span> <span class="n">cfg_dict</span><span class="p">:</span>
                 <span class="n">activation_info</span> <span class="o">=</span> <span class="n">cfg_dict</span><span class="p">[</span><span class="s2">&quot;activation&quot;</span><span class="p">]</span>
-                <span class="n">activation_cls</span> <span class="o">=</span> <span class="nb">globals</span><span class="p">()[</span><span class="n">activation_info</span><span class="p">[</span><span class="s2">&quot;cls&quot;</span><span class="p">]]</span>
-                <span class="n">activation</span> <span class="o">=</span> <span class="n">activation_cls</span><span class="p">(</span><span class="o">**</span><span class="n">activation_info</span><span class="p">[</span><span class="s2">&quot;params&quot;</span><span class="p">])</span>
+                <span class="n">activation</span> <span class="o">=</span> <span class="n">_deserialize_dataclass_payload</span><span class="p">(</span>
+                    <span class="n">activation_info</span><span class="p">,</span> <span class="n">allow_legacy_nested</span><span class="o">=</span><span class="kc">True</span>
+                <span class="p">)</span>
                 <span class="n">cfg_dict</span><span class="p">[</span><span class="s2">&quot;activation&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">activation</span>
             <span class="n">cfg_kwargs</span> <span class="o">=</span> <span class="n">_normalize_cfg_kwargs</span><span class="p">(</span><span class="n">cfg_dict</span><span class="p">)</span>
             <span class="n">cfg</span> <span class="o">=</span> <span class="n">SparseAutoencoderConfig</span><span class="p">(</span><span class="o">**</span><span class="n">cfg_kwargs</span><span class="p">)</span>
@@ -3245,7 +3307,7 @@
       <nav class="md-footer__inner md-grid" aria-label="Footer" >
         
           
-          <a href="../../helpers/" class="md-footer__link md-footer__link--prev" aria-label="Previous: saev.helpers">
+          <a href="../../metrics/" class="md-footer__link md-footer__link--prev" aria-label="Previous: saev.metrics">
             <div class="md-footer__button md-icon">
               
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
@@ -3255,7 +3317,7 @@
                 Previous
               </span>
               <div class="md-ellipsis">
-                saev.helpers
+                saev.metrics
               </div>
             </div>
           </a>
@@ -3321,10 +3383,10 @@
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.tabs", "navigation.path", "navigation.indexes", "navigation.expand", "toc.follow", "toc.integrate", "navigation.top", "search.suggest", "search.highlight", "content.tabs.link", "content.code.annotation", "content.code.copy", "navigation.footer", "content.action.edit"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.tabs", "navigation.path", "navigation.indexes", "navigation.expand", "toc.follow", "toc.integrate", "navigation.top", "search.suggest", "search.highlight", "content.tabs.link", "content.code.annotation", "content.code.copy", "navigation.footer", "content.action.edit"], "search": "../../../assets/javascripts/workers/search.7a47a382.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../../assets/javascripts/bundle.e71a0d61.min.js"></script>
       
         <script src="../../../javascripts/mathjax.js"></script>
       
