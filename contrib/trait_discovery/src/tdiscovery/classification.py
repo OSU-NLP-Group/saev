@@ -218,8 +218,7 @@ def load_image_labels(
 
 @beartype.beartype
 def apply_grouping(
-    labels: list[str],
-    task: LabelGrouping,
+    labels: list[str], task: LabelGrouping
 ) -> tuple[Int[np.ndarray, " n"], list[str], np.ndarray]:
     """
     Apply label grouping to get integer targets.
