@@ -75,7 +75,10 @@ cub_root = "/fs/ess/PAS2136/cub2011/CUB_200_2011_ImageFolder"
 test_y_true_NT = cub200.data.load_attrs(cub_root, is_train=False).numpy()
 n_test, n_traits = test_y_true_NT.shape
 
-const_ap_T = np.array([sklearn.metrics.average_precision_score(test_y_true_NT[:,i], np.zeros(n_test)) for i in range(n_traits)])
+const_ap_T = np.array([
+    sklearn.metrics.average_precision_score(test_y_true_NT[:, i], np.zeros(n_test))
+    for i in range(n_traits)
+])
 print(const_ap_T.mean())  # -> 0.83
 ```
 
@@ -223,8 +226,8 @@ $$$\text{Coherence} = \max_{i\ne j}\left|\left\langle\hat w_i,\hat w_j\right\ran
 \hat w_i = \frac{w_i}{\lVert w_i\rVert_2}$$
 
 ```python
-W = decoder.weight                       # (D, K)
-W_norm = W / W.norm(dim=0, keepdim=True) # column-normalise
+W = decoder.weight  # (D, K)
+W_norm = W / W.norm(dim=0, keepdim=True)  # column-normalise
 coherence = (W_norm.T @ W_norm).abs().triu(1).max()
 ```
 
@@ -1156,8 +1159,12 @@ import importlib
 import sys
 
 
-importlib.import_module(act_ds.md.__class__.__module__)  # <module 'saev.data.shards' from '/users/PAS1576/samuelstevens/projects/saev/src/saev/data/shards.py'>
-class_obj = getattr(sys.modules[act_ds.md.__class__.__module__], act_ds.md.__class__.__name__)
+importlib.import_module(
+    act_ds.md.__class__.__module__
+)  # <module 'saev.data.shards' from '/users/PAS1576/samuelstevens/projects/saev/src/saev/data/shards.py'>
+class_obj = getattr(
+    sys.modules[act_ds.md.__class__.__module__], act_ds.md.__class__.__name__
+)
 class_obj  # <class 'saev.data.shards.Metadata'>
 ```
 
@@ -2224,3 +2231,49 @@ Very OOD
 28123_CAM011406_d
 28124_CAM011406_d
 28143_CAM011411_d
+
+# 03/06/2025
+
+okay, so I got some feedback from my advisor today on this document.
+
+For the ticks, I need to make a doc with my recommended next steps. For each of these steps:
+- A description of this step
+- A timeline for each step, so sort of like a cost of how much it would cost in terms of man-hours
+- Why I would do that step, like why I think it's important or more important than the other steps
+- The expected gain or benefit
+
+I've added some comments as well to the main.typ doc.
+
+Then a full transcription of my notes for SAEs:
+
+Add future vision as well to all tasks/projects -> SAEs for butterflies are also useful for the rodent task (all closely related visual species) -> what is the general version of the task?
+
+fridays @ 11am -> pitch SAEs to the broader ABC community
+
+Applied to butterflies. Have a list of specific traits to bring owen in -> written for MEE or Nature MI
+
+- Get 1+ masters' student to do a dichotomous key for fish with zach -> set up a meeting with me, zach, students and net + matt -> "How to do dichotomous keys with SAEs"
+
+Jake -> He gets it all
+
+Follow up with julia: I have a lot of problems (tasks/projects0 do you want to talk with Sara about this?
+
+"SAEs can be used for dichotomous keys" -> NEed an example as a METHOD
+
+Full Documentation
+
+Methods paper -> Explain to biologists the computationl process/method
+- Intro to SAEs why it's a tool, example applications
+
+
+MEE Papers:
+Title: "Generating Dichotomous Keys with SAES"
+Title: "Finding Discriminative Traits in Mimic Pairs with SAEs"
+
+Divil is in the dtails -> the Discussion section
+- Examples of "bad" features (reward hacking)
+
+Beetles: enough momentum
+
+Concrete butterfly trait
+
