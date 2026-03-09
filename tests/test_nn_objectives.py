@@ -334,7 +334,7 @@ def test_decode_prefixes_device_handling():
     x_hats = sae.decode(f_x, prefixes=prefixes)
 
     assert x_hats.device == f_x.device
-    assert x_hats.shape == (3, 2, 16)
+    assert x_hats.shape == (2, 3, 16)
 
 
 def test_decode_default_prefix_is_long_and_does_not_crash():
