@@ -50,12 +50,14 @@ README.md
 Users download individual checkpoints via:
 ```python
 from huggingface_hub import hf_hub_download
+
 path = hf_hub_download("osunlp/SAE_DINOv3_ViT-L-16_IN1K", "layer_23/<run-id>/sae.pt")
 ```
 
 Or download everything:
 ```python
 from huggingface_hub import snapshot_download
+
 snapshot_download("osunlp/SAE_DINOv3_ViT-L-16_IN1K")
 ```
 

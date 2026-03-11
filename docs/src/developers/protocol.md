@@ -75,7 +75,10 @@ tokens_per_ex = patches_per_ex + (1 if cls_token else 0)
 examples_per_shard = floor(patches_per_shard / (tokens_per_ex * len(layers)))
 
 shape_per_shard = (
-    examples_per_shard, len(layers), tokens_per_ex, d_model,
+    examples_per_shard,
+    len(layers),
+    tokens_per_ex,
+    d_model,
 )
 ```
 

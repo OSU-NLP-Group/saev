@@ -55,7 +55,9 @@ def sp_csr_to_pt(csr: scipy.sparse.csr_matrix, *, device: str) -> Tensor:
 # Bad.
 train_token_acts_fpath = train_inference_dpath / "token_acts.npz"
 if not train_token_acts_fpath.exists():
-    msg = f"Train SAE activations missing: '{train_token_acts_fpath}'. Run inference.py."
+    msg = (
+        f"Train SAE activations missing: '{train_token_acts_fpath}'. Run inference.py."
+    )
     logger.error(msg)
     raise FileNotFoundError(msg)
 

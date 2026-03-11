@@ -181,6 +181,8 @@ def make_saes(
             if sae.cfg.reinit_enc_dec_tranpose:
                 sae.W_dec.data.copy_(sae.W_enc.data.T)
             sae.normalize_w_dec()
+            # Sync W_enc back to normalized W_dec. Before the .clone() fix in modeling.py, W_enc and W_dec shared storage, so normalize_w_dec() implicitly kept W_enc = W_dec.T. Without this line, W_enc keeps un-normalized magnitudes from the data init, making the encoder output ~24x too large and blowing up the loss.
+            sae.W_enc.data.copy_(sae.W_dec.data.T)
 
     mean_p = sum(sae.cfg.reinit_blend for sae in saes) / len(saes)
     logger.info("Initialized %d SAEs with avg(p)=%.2f", len(saes), mean_p)

@@ -670,7 +670,8 @@ def _(H_s, np, pl, top_img_i):
 @app.cell
 def _(pl, var):
     low_entropy_latents = (
-        var.filter(~pl.col("entropy").is_nan() & (pl.col("n_imgs") >= 6))
+        var
+        .filter(~pl.col("entropy").is_nan() & (pl.col("n_imgs") >= 6))
         .sort(by="entropy")
         .head(100)
         .get_column("i")

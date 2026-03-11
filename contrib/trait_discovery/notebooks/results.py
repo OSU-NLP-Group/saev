@@ -183,7 +183,8 @@ def _(df, pl):
     print(
         " ".join(
             f"{i}"
-            for i in df.filter(
+            for i in df
+            .filter(
                 pl.col("sae_ckpt")
                 == "/fs/ess/PAS2136/samuelstevens/checkpoints/saev/6b18jnda/sae.pt"
             )
@@ -215,7 +216,8 @@ def _(beartype, df, math, np, pl, plt, re):
             self._df = df
 
             self._agg_df = (
-                df.filter(~pl.col("class_idx").is_in([0, 9]))
+                df
+                .filter(~pl.col("class_idx").is_in([0, 9]))
                 .group_by(self.group_by)
                 .agg(
                     pl.col("average_precision").mean().alias("mAP"),
@@ -290,7 +292,8 @@ def _(beartype, df, math, np, pl, plt, re):
 
         def _supervised(self, ax, *, show_std: bool):
             mAP = (
-                self._agg_df.filter(
+                self._agg_df
+                .filter(
                     (pl.col("vit_family") == "dinov3")
                     & (pl.col("method") == "linear-clf")
                     & (pl.col("n_train") == -1)
@@ -317,7 +320,8 @@ def _(beartype, df, math, np, pl, plt, re):
             )
 
             sae_ckpts = sorted(
-                df.filter(pl.col("sae_ckpt").is_not_null())
+                df
+                .filter(pl.col("sae_ckpt").is_not_null())
                 .get_column("sae_ckpt")
                 .unique()
             )
@@ -402,7 +406,8 @@ def _(df, np, pl, plt):
     def grid_by_ntrain_nproto(df, *, metric_col="average_precision"):
         # Aggregate to per (n_prototypes, n_train, vit_family, layer)
         df = (
-            df.filter(pl.col("n_train") > 0)
+            df
+            .filter(pl.col("n_train") > 0)
             .group_by(["n_prototypes", "n_train", "vit_family", "layer"])
             .agg(pl.col(metric_col).mean().alias("mAP"))
             .sort(["n_prototypes", "n_train", "vit_family", "layer"])
@@ -490,7 +495,8 @@ def _(df, np, pl, plt):
 @app.cell
 def _(df, pl):
     print(
-        df.group_by(["n_prototypes", "n_train", "vit_family", "vit_ckpt", "layer"])
+        df
+        .group_by(["n_prototypes", "n_train", "vit_family", "vit_ckpt", "layer"])
         .agg(
             pl.col("average_precision").mean().alias("mAP"),
             pl.col("average_precision").quantile(0.05).alias("5%"),

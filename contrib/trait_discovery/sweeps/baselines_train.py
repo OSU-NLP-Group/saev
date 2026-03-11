@@ -7,7 +7,8 @@ def make_cfgs() -> list[dict]:
 
     methods = [
         # ("kmeans", [1024 * 16]),
-        ("pca", [1, 4, 16, 64, 256, 1024]),
+        # ("pca", [1, 4, 16, 64, 256, 1024]),
+        ("semi-nmf", [1, 4, 16, 64, 256, 1024]),
     ]
     for layer in [13, 15, 17, 19, 21, 23]:
         for method, ks in methods:

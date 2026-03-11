@@ -1,0 +1,197 @@
+FINS Code,Species,Spc Grp,Feed Guild,TOL,IBI Grp,Riv Size,Brd Gld,Hab Pref,Family
+01001,Silver lamprey,0,P,,,L,N,B,Petromyzontidae
+01002,Northern brook lamprey,0,F,,,,N,P,Petromyzontidae
+01003,Ohio lamprey,0,P,,,,N,B,Petromyzontidae
+01004,Mountain brook lamprey,0,F,S,,,N,P,Petromyzontidae
+01005,Sea lamprey,0,P,,E,,N,B,Petromyzontidae
+01006,Least brook lamprey,0,,,,H,N,P,Petromyzontidae
+01007,American brook lamprey,0,F,R,,H,N,P,Petromyzontidae
+04001,Paddlefish,0,F,S,,L,S,B,Polyodontidae
+08001,Lake sturgeon,0,V,,,L,S,B,Acipenseridae
+08002,Shovelnose sturgeon,0,I,,,L,S,P,Acipenseridae
+10001,Alligator gar,L,P,,,L,M,P,Lepisosteidae
+10002,Shortnose gar,L,P,,,L,M,P,Lepisosteidae
+10003,Spotted gar,L,P,,,L,M,P,Lepisosteidae
+10004,Longnose gar,L,P,,,L,M,P,Lepisosteidae
+15001,Bowfin,0,P,,,,C,P,Amiidae
+18001,Goldeye,W,I,R,,L,M,B,Hiodontidae
+18002,Mooneye,W,I,R,,L,M,B,Hiodontidae
+20001,Skipjack herring,W,P,,,L,M,B,Clupeidae
+20002,Alewife,0,,,E,,M,P,Clupeidae
+20003,Gizzard shad,GS,O,,,,,,P,Clupeidae
+20004,Threadfin shad,GS,O,,,L,M,P,Clupeidae
+25001,Brown trout,SA,,,,,N,B,Salmonidae
+25002,Rainbow trout,SA,,,E,,N,B,Salmonidae
+25003,Brook trout,SA,,,,,N,B,Salmonidae
+25004,Lake trout,SA,P,,,,N,P,Salmonidae
+25005,Coho salmon,SA,P,,E,,N,P,Salmonidae
+25006,Chinook salmon,SA,P,,E,,N,P,Salmonidae
+25007,Cisco or Lake Herring,WF,I,,,M,M,P,Salmonidae
+25008,Lake whitefish,WF,I,,,M,M,P,Salmonidae
+30001,Rainbow smelt,,,,,,,P,Osmeridae
+34001,Central mudminnow,T,I,T,,C,C,P,Umbridae
+37001,Grass pickerel,P,P,P,,M,,P,Esocidae
+37002,Chain pickerel,P,P,,F,,M,P,Esocidae
+37003,Northern pike,P,P,,F,,M,P,Esocidae
+37004,Muskellunge,P,P,,F,,M,P,Esocidae
+37005,N. Pike x Muskellunge,P,P,,E,,,,Esocidae
+37006,Grass P. x Chain P.,P,P,,,,,Esocidae
+40001,Blue sucker,,I,,,L,S,,Catostomidae
+40002,Bigmouth buffalo,C,I,M,,L,M,,Catostomidae
+40003,Black buffalo,,I,,,L,M,,Catostomidae
+40004,Smallmouth buffalo,C,I,,C,L,M,P,Catostomidae
+40005,Quillback,C,O,,C,,M,P,Catostomidae
+40006,River carpsucker,C,O,,C,L,M,P,Catostomidae
+40007,Highfin carpsucker,C,O,,C,L,M,P,Catostomidae
+40008,Silver redhorse,R,I,M,R,,S,P,Catostomidae
+40009,Black redhorse,R,I,I,R,,S,,Catostomidae
+40010,Golden redhorse,R,I,M,R,,S,,Catostomidae
+40011,Shorthead redhorse,R,I,,R,,S,,Catostomidae
+40012,Greater redhorse,R,I,,R,,S,,Catostomidae
+40013,River redhorse,R,I,I,R,,S,,Catostomidae
+40014,Harelip sucker,R,S,,,S,,Catostomidae
+40015,Northern hog sucker,R,I,M,R,,S,,Catostomidae
+40016,White sucker,R,O,T,,,S,,Catostomidae
+40017,Longnose sucker,R,,I,R,,S,,Catostomidae
+40018,Spotted sucker,R,I,,R,,S,,Catostomidae
+40019,Lake chubsucker,R,I,,,,M,P,Catostomidae
+40020,Creek chubsucker,R,I,,P,M,P,Catostomidae
+43001,Common carp,G,O,T,,,M,P,Cyprinidae
+43002,Goldfish,G,O,T,,,M,P,Cyprinidae
+43003,Golden shiner,N,I,T,,,M,P,Cyprinidae
+43004,Hornyhead chub,M,I,I,,N,N,B,Cyprinidae
+43005,River chub,M,I,I,,,N,B,Cyprinidae
+43006,Silver chub,M,I,,,L,M,P,Cyprinidae
+43007,Bigeye chub,,I,I,,S,S,R,Cyprinidae
+43008,Streamline chub,M,I,,,,R,R,Cyprinidae
+43009,Gravel chub,M,I,I,,,S,R,Cyprinidae
+43010,Speckled chub,,I,,,,L,R,Cyprinidae
+43011,Blacknose dace,,G,,,,,R,Cyprinidae
+43012,Longnose dace,,I,,,,R,R,Cyprinidae
+43013,Creek chub,,G,,P,,,B,Cyprinidae
+43014,Tonguetied minnow,,I,,,,,P,Cyprinidae
+43015,Suckermouth minnow,,I,,,,R,R,Cyprinidae
+43016,Southern redbelly dace,,H,,,,H,B,Cyprinidae
+43017,Redside dace,,I,,,,,P,Cyprinidae
+43018,Rosyside dace,,I,,,,S,P,Cyprinidae
+43019,Pugnose minnow,,I,,,,,P,Cyprinidae
+43020,Emerald shiner,,I,,,,P,P,Cyprinidae
+43021,Silver shiner,N,I,,,,,P,Cyprinidae
+43022,Rosyface shiner,N,I,,,,,R,Cyprinidae
+43023,Redfin shiner,N,I,,,,,P,Cyprinidae
+43024,Rosefin shiner,N,I,,,,,P,Cyprinidae
+43025,Striped shiner,N,I,,,,,B,Cyprinidae
+43026,Common shiner,N,I,,,,,P,Cyprinidae
+43027,River shiner,N,I,,N,L,S,P,Cyprinidae
+43028,Spottail shiner,N,I,,N,L,M,P,Cyprinidae
+43029,Blackchin shiner,N,I,,N,,M,P,Cyprinidae
+43030,Bigeye shiner,N,I,,N,,S,B,Cyprinidae
+43031,Steelcolor shiner,N,I,,N,,M,P,Cyprinidae
+43032,Spotfin shiner,N,I,,,M,M,B,Cyprinidae
+43033,Bigmouth shiner,N,I,,N,,M,B,Cyprinidae
+43034,Sand shiner,N,I,,N,L,M,B,Cyprinidae
+43035,Mimic shiner,N,I,,N,,M,B,Cyprinidae
+43036,Ghost shiner,N,I,,N,,M,P,Cyprinidae
+43037,Blacknose shiner,N,I,N,,,M,P,Cyprinidae
+43038,Pugnose shiner,N,I,N,,,M,P,Cyprinidae
+43039,Silverjaw minnow,M,I,N,P,M,M,B,Cyprinidae
+43040,Mississippi silvery minnow,M,H,N,,,M,P,Cyprinidae
+43041,Bullhead minnow,N,O,N,,,C,P,Cyprinidae
+43042,Fathead minnow,M,O,T,N,P,C,B,Cyprinidae
+43043,Bluntnose minnow,M,O,T,N,P,C,B,Cyprinidae
+43044,Central stoneroller,M,H,,N,N,N,B,Cyprinidae
+43045,Common carp x Goldfish,G,O,T,G,,,,Cyprinidae
+43046,Popeye shiner,N,I,N,,,S,P,Cyprinidae
+43047,Grass carp,G,I,E,E,,M,B,Cyprinidae
+43048,Red shiner,N,I,,C,,N,P,Cyprinidae
+43049,Common x Rosyface Shiner,N,I,,,,,Cyprinidae
+43057,Striped shiner/Stoneroller,M,,,,,,Cyprinidae
+43058,Common shiner/Stoneroller,M,,,,,,Cyprinidae
+43059,Striped shiner/Horny chub,M,I,,,,,Cyprinidae
+43999,Hybrid Minnow,M,,,,,,Cyprinidae
+47001,Blue catfish,,C,,,C,C,P,Ictaluridae
+47002,Channel catfish,F,,F,,C,C,P,Ictaluridae
+47003,White catfish,F,I,,,C,C,P,Ictaluridae
+47004,Yellow bullhead,F,I,,,C,C,P,Ictaluridae
+47005,Brown bullhead,F,I,,,C,C,P,Ictaluridae
+47006,Black bullhead,F,I,,,C,C,P,Ictaluridae
+47007,Flathead catfish,F,P,F,L,C,C,B,Ictaluridae
+47008,Stonecat,0,I,I,,,C,R,Ictaluridae
+47009,Mountain madtom,0,I,,,,C,R,Ictaluridae
+47010,Northern madtom,0,I,R,,,,R,Ictaluridae
+47011,Scioto madtom,0,I,S,,,,,Ictaluridae
+47012,Brindled madtom,0,I,I,,,,,Ictaluridae
+47013,Tadpole madtom,0,I,,,,,,Ictaluridae
+50001,American eel,0,C,,,,,,Anguillidae
+54000,Western Banded killifish,T,I,S,,,,,Cyprinodontidae
+54001,Eastern Banded killifish,T,I,T,,,,,Cyprinodontidae
+54002,Blackstripe topminnow,T,I,,,,,,Cyprinodontidae
+57001,Mosquitofish,0,I,,,,,,Poeciliidae
+60001,Burbot,0,,,,,,,Gadidae
+63001,Trout-perch,0,I,,,,,,Percopsidae
+68001,Pirate perch,0,I,,,,,,Aphredoderidae
+70001,Brook silverside,0,I,M,,,,,Atherinidae
+74001,White bass,M,P,,,L,M,,Percichthyidae
+74002,Striped bass,W,P,,,L,M,,Percichthyidae
+74003,White perch,W,,,,E,,,Percichthyidae
+74004,White bass x White perch,W,,,,,,,Percichthyidae
+74005,Striped bass x White bass,W,,,,,,,Percichthyidae
+77001,White crappie,B,P,,,L,C,,Centrarchidae
+77002,Black crappie,B,I,,,L,C,,Centrarchidae
+77003,Rock bass,B,C,I,,,C,,Centrarchidae
+77004,Smallmouth bass,B,C,M,,,C,,Centrarchidae
+77005,Spotted bass,B,C,,,,,Centrarchidae
+77006,Largemouth bass,B,C,,,,,Centrarchidae
+77007,Warmouth,S,C,,,,,,P,Centrarchidae
+77008,Green sunfish,S,I,T,,P,P,P,Centrarchidae
+77009,Bluegill,S,I,P,,,,P,Centrarchidae
+77010,Orangespotted sunfish,S,I,,,,,,P,Centrarchidae
+77011,Longear sunfish,S,I,M,,,,,P,Centrarchidae
+77012,Redear sunfish,S,I,,,,,,P,Centrarchidae
+77013,Pumpkinseed,S,I,P,,,,P,Centrarchidae
+77014,Bluegill x Pumpkinseed,S,,,,,,Centrarchidae
+77015,Green x Bluegill,S,,,,,,Centrarchidae
+77016,Green x Pumpkinseed,S,,,,,,Centrarchidae
+77017,Longear x Bluegill,S,,,,,,Centrarchidae
+77018,Bluegill x Orangespotted,S,,,,,,Centrarchidae
+77019,Green x Orangespotted,S,,,,,,Centrarchidae
+77020,Pumpkinseed x Longear,S,,,,,,Centrarchidae
+77021,Green x Longear,S,,,,,,Centrarchidae
+77022,O'spotted x Pumpkinseed,S,,,,,,Centrarchidae
+77023,Longear x Orangespotted,S,,,,,,Centrarchidae
+77024,Green x Warmouth,S,,,,,,Centrarchidae
+77025,Warmouth x Pumpkinseed,S,,,,,,Centrarchidae
+77998,Green Sunfish Hybrid,S,,,,,,Centrarchidae
+77999,Hybrid Sunfish,S,,,,,,Centrarchidae
+80001,Sauger,V,P,,,,,,Percidae
+80002,Walleye,V,P,,,,,,Percidae
+80003,Yellow perch,V,,,,,,,Percidae
+80004,Dusky darter,D,M,,,,S,B,Percidae
+80005,Blackside darter,D,I,,D,,S,,Percidae
+80006,Longhead darter,D,I,I,D,L,S,R,Percidae
+80007,Slenderhead darter,D,I,I,D,,S,R,Percidae
+80008,River darter,D,I,,D,L,S,R,Percidae
+80009,Channel darter,D,I,,D,,S,P,Percidae
+80010,Gilt darter,D,I,,D,,,B,Percidae
+80011,Logperch,D,I,,D,,,B,Percidae
+80012,Crystal darter,D,I,,D,,,,Percidae
+80013,Eastern sand darter,D,I,,D,,,,Percidae
+80014,Johnny darter,D,I,,D,P,,,Percidae
+80015,Greenside darter,D,I,,D,,,,Percidae
+80016,Banded darter,D,I,,D,,,,Percidae
+80017,Variegate darter,D,I,,D,,,,Percidae
+80018,Spotted darter,D,I,,D,,,,Percidae
+80019,Bluebreast darter,D,I,,D,,,,Percidae
+80020,Tippecanoe darter,D,I,,D,,,,Percidae
+80021,Iowa darter,D,I,,D,,,,Percidae
+80022,Rainbow darter,D,I,,D,,,,Percidae
+80023,Orangethroat darter,D,I,,D,,,,Percidae
+80024,Fantail darter,D,I,,D,,,,Percidae
+80025,Least darter,D,I,,D,,,,Percidae
+80026,Sauger x Walleye,V,P,,E,,,,Percidae
+85001,Freshwater drum,F,,,L,,,Sciaenidae
+90001,Spoonhead sculpin,SC,,,,,,Cottidae
+90002,Mottled sculpin,SC,I,,H,,,Cottidae
+90003,Slimy sculpin,SC,,,,,,Cottidae
+90004,Deepwater sculpin,0,I,,H,,C,P,Gasterosteidae
+95001,Brook stickleback,0,I,I,,C,C,P,Gasterosteidae

@@ -73,3 +73,12 @@ no graphical abstract/conceptual figure (only needed if it makes it to peer revi
 
 word count (7k) for MEE
 
+
+Notes from lab meeting
+
+- Email Owen+Tanya with some examples (does Tanya want me to invite anyone else? Jake? David? Christopher? Neil?)
+- Find some examples for the email.
+
+# 03/11/2026
+
+

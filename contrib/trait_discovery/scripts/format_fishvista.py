@@ -1,6 +1,7 @@
 # contrib/trait_discovery/scripts/format_fishvista.py
 
 import concurrent.futures
+import csv
 import dataclasses
 import logging
 import pathlib
@@ -83,10 +84,8 @@ def _cp_seg(
             continue
 
         dst_fpath = cfg.dump_to / "images" / tgt_split / fname
-        if dst_fpath.exists():
-            continue
-
-        shutil.copy2(src_fpath, dst_fpath)
+        if not dst_fpath.exists():
+            shutil.copy2(src_fpath, dst_fpath)
 
         # Segmentations
         seg_fname = f"{stem}.png"
@@ -137,8 +136,19 @@ def _get_valid_stems(cfg: Config) -> set[str]:
         .alias("species"),
     ]).select(["stem", "family", "genus", "species"])
 
+    if cfg.fishbase_csv is None:
+        logger.info(
+            "No FishBase CSV provided, writing labels.csv without habitat/migration fields."
+        )
+        header = ["stem", "family", "genus", "species"]
+        with open(cfg.dump_to / "labels.csv", "w", newline="") as fd:
+            writer = csv.writer(fd)
+            writer.writerow(header)
+            for row in seg_df.select(header).iter_rows():
+                writer.writerow(row)
+        return set(seg_df.get_column("stem").to_list())
+
     # Load and validate FishBase data
-    assert cfg.fishbase_csv is not None, "fishbase_csv is required"
     assert cfg.fishbase_csv.is_file(), f"FishBase CSV not found: {cfg.fishbase_csv}"
 
     fb_df = pl.read_csv(cfg.fishbase_csv, null_values=["?"])
@@ -214,10 +224,7 @@ def _get_valid_stems(cfg: Config) -> set[str]:
     assert match_pct > 50, f"FishBase join matched only {match_pct:.1f}%, expected >50%"
     assert n_after > 0, "No images left after filtering for habitat data"
 
-    # Write CSV
-    import csv
-
-    header = ["stem", "family", "species"] + extra_cols
+    header = ["stem", "family", "genus", "species"] + extra_cols
     with open(cfg.dump_to / "labels.csv", "w", newline="") as fd:
         writer = csv.writer(fd)
         writer.writerow(header)
@@ -242,7 +249,7 @@ def segfolder(
     # First compute valid stems and write labels.csv (must happen before copying)
     logger.info("Computing valid stems and writing labels.csv...")
     valid_stems = _get_valid_stems(cfg)
-    logger.info("Found %d valid stems with habitat data", len(valid_stems))
+    logger.info("Found %d valid stems", len(valid_stems))
 
     # Then copy images in parallel
     with concurrent.futures.ThreadPoolExecutor(max_workers=cfg.n_threads) as pool:

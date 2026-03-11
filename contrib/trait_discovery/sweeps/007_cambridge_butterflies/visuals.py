@@ -24,6 +24,13 @@ def make_cfgs() -> list[dict]:
         384: "/fs/scratch/PAS2136/samuelstevens/saev/shards/7c2ba646",
         640: "/fs/scratch/PAS2136/samuelstevens/saev/shards/71ba8292",
     }
+    # v1.6 shards (cambridge-segfolder-v1.6)
+    shards_v16 = {
+        384: "/fs/scratch/PAS2136/samuelstevens/saev/shards/a6be28a1",
+        640: "/fs/scratch/PAS2136/samuelstevens/saev/shards/79239bdd",
+    }
+
+    shards_by_version = {"v1.0": shards_v10, "v1.2": shards_v12, "v1.6": shards_v16}
 
     # Pareto-optimal run IDs by (n_patches, layer, version)
     # v1.0 runs (Pareto-optimal from notebook)
@@ -45,29 +52,30 @@ def make_cfgs() -> list[dict]:
         (640, 23): ["7cmnd5ib", "ez4ntgik", "ujj22ci0", "ey7aqcqi", "cqwk6eoo"],
     }
 
+    # v1.6 runs (Pareto-optimal from notebook)
+    run_ids_v16 = {
+        (384, 21): ["p0guo1jd", "5s6r8jdl", "mv3i6uib", "qqfr68vr", "snqrghcl"],
+        (384, 23): ["otu1sjxm", "kinh5q05", "gjwhz6zk", "19wcnti9", "3c982cdt"],
+        (640, 21): ["zhul9opa", "gz2dikb3", "3rqci2h1", "r27w7pmf", "x4n29kua"],
+        (640, 23): ["pnsi8yhe", "onqqe859", "rd8wc24d", "vends70d", "pa5cu0mf"],
+    }
+
+    run_ids_by_version = {"v1.0": run_ids_v10, "v1.2": run_ids_v12, "v1.6": run_ids_v16}
+
+    version = "v1.6"
+    shards = shards_by_version[version]
+    run_ids = run_ids_by_version[version]
+
     # First 30 latents + 10 random
     latents = list(range(30))
 
     cfgs = []
 
-    # v1.0 configs (commented out - already done)
-    # for (n_patches, _layer), ids in run_ids_v10.items():
-    #     for run_id in ids:
-    #         cfgs.append({
-    #             "run": f"{run_root}/{run_id}",
-    #             "shards": shards_v10[n_patches],
-    #             "latents": latents,
-    #             "n_latents": 10,
-    #             "ignore_labels": [0],
-    #             "device": "cuda",
-    #         })
-
-    # v1.2 configs
-    for (n_patches, _layer), ids in run_ids_v12.items():
+    for (n_patches, _layer), ids in run_ids.items():
         for run_id in ids:
             cfgs.append({
                 "run": f"{run_root}/{run_id}",
-                "shards": shards_v12[n_patches],
+                "shards": shards[n_patches],
                 "latents": latents,
                 "n_latents": 10,
                 "ignore_labels": [0],

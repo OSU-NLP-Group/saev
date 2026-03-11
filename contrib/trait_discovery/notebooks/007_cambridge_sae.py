@@ -34,6 +34,7 @@ def _():
         cloudpickle,
         collections,
         concurrent,
+        itertools,
         jaxtyped,
         json,
         mo,
@@ -57,6 +58,8 @@ def _(pathlib):
         "cambridge-butterflies-384p",
         "cambridge-butterflies-512p",
         "cambridge-butterflies-640p",
+        "cambridge-384p-v1.6",
+        "cambridge-640p-v1.6",
     ]
 
     runs_root = pathlib.Path("/fs/ess/PAS2136/samuelstevens/saev/runs")
@@ -264,7 +267,8 @@ def _(
         )
 
         df = (
-            df.unnest("config/sae", "config/train_data/metadata", separator="/")
+            df
+            .unnest("config/sae", "config/train_data/metadata", separator="/")
             .unnest("config/sae/activation", separator="/")
             .unnest(
                 "config/sae/activation/aux",
@@ -302,7 +306,8 @@ def _(
     def _finalize_clf_df(rows: list[dict[str, object]]):
         df = pl.DataFrame(rows, infer_schema_length=None)
         df = (
-            df.unnest("config/sae", "config/train_data/metadata", separator="/")
+            df
+            .unnest("config/sae", "config/train_data/metadata", separator="/")
             .unnest("config/sae/activation", separator="/")
             .unnest(
                 "config/sae/activation/aux",
@@ -388,7 +393,6 @@ def _(
         return _finalize_clf_df(rows)
 
     sae_df = make_sae_df_parallel()
-    clf_df = make_clf_df_parallel()
     return (sae_df,)
 
 
@@ -399,7 +403,7 @@ def _(sae_df):
 
 
 @app.cell
-def _(collections, mo, np, pl, plt, sae_df, saev):
+def _(collections, itertools, pl, plt, sae_df):
     def _(df: pl.DataFrame):
         x_col = "summary/eval/l0"
         y_col = "summary/eval/normalized_mse"
@@ -408,7 +412,42 @@ def _(collections, mo, np, pl, plt, sae_df, saev):
         layers = [21, 23]
         n_patches_list = [256, 384, 512, 640]
         k_values = [16, 32, 64, 128, 256]
-        data_key = "Butterflies (ImgSeg)"
+        data_keys = ["Butterflies v1.0", "Butterflies v1.2", "Butterflies v1.6"]
+
+        # Different colors and markers for each (layer, version) combo
+        # v1.0: blue/cyan tones, v1.2: orange/red tones, v1.6: green/purple tones
+        style_map = {
+            (21, "Butterflies v1.0"): {
+                "color": "#1f77b4",
+                "marker": "o",
+                "linestyle": "--",
+            },
+            (23, "Butterflies v1.0"): {
+                "color": "#17becf",
+                "marker": "^",
+                "linestyle": "--",
+            },
+            (21, "Butterflies v1.2"): {
+                "color": "#ff7f0e",
+                "marker": "s",
+                "linestyle": "-",
+            },
+            (23, "Butterflies v1.2"): {
+                "color": "#d62728",
+                "marker": "D",
+                "linestyle": "-",
+            },
+            (21, "Butterflies v1.6"): {
+                "color": "#2ca02c",
+                "marker": "v",
+                "linestyle": "-.",
+            },
+            (23, "Butterflies v1.6"): {
+                "color": "#9467bd",
+                "marker": "P",
+                "linestyle": "-.",
+            },
+        }
 
         fig, axes = plt.subplots(
             figsize=(8, 6),
@@ -421,16 +460,11 @@ def _(collections, mo, np, pl, plt, sae_df, saev):
         )
         axes = axes.flatten()
 
-        colors = list(saev.colors.ALL_RGB01)
-        rng = np.random.default_rng(seed=1)
-        rng.shuffle(colors)
-
         pareto_ckpts = collections.defaultdict(list)
 
         for ax, n_patches in zip(axes, n_patches_list):
-            for i, (layer, color, marker) in enumerate(
-                zip(layers, colors, ("o", "^", "s", "x", "+", "o"))
-            ):
+            for layer, data_key in itertools.product(layers, data_keys):
+                style = style_map[(layer, data_key)]
                 group = df.filter(
                     (pl.col("config/sae/activation/key") == "top-k")
                     & (pl.col("config/sae/reinit_blend") == 0.8)
@@ -452,14 +486,15 @@ def _(collections, mo, np, pl, plt, sae_df, saev):
                     xs = pareto.get_column(x_col).to_numpy()
                     ys = pareto.get_column(y_col).to_numpy()
 
+                    version = data_key.split()[-1]
                     ax.plot(
                         xs,
                         ys,
                         alpha=0.7,
-                        label=f"Layer {layer + 1}",
-                        color=color,
-                        marker=marker,
-                        linestyle="-",
+                        label=f"L{layer + 1} {version}",
+                        color=style["color"],
+                        marker=style["marker"],
+                        linestyle=style["linestyle"],
                     )
                     pareto_ckpts[(n_patches, layer, data_key)].extend(ids)
                     pareto_k_values = set(pareto.get_column(k_col).to_list())
@@ -476,7 +511,14 @@ def _(collections, mo, np, pl, plt, sae_df, saev):
                     best = k_group.sort(y_col).head(1)
                     x = best.get_column(x_col).item()
                     y = best.get_column(y_col).item()
-                    ax.scatter([x], [y], alpha=0.4, color=color, marker=marker, s=30)
+                    ax.scatter(
+                        [x],
+                        [y],
+                        alpha=0.4,
+                        color=style["color"],
+                        marker=style["marker"],
+                        s=30,
+                    )
 
             ax.set_title(f"{n_patches} patches")
 
@@ -491,9 +533,16 @@ def _(collections, mo, np, pl, plt, sae_df, saev):
         axes[3].set_xlabel("L$_0$")
         axes[1].legend()
 
-        return mo.vstack([fig, dict(pareto_ckpts)])
+        return fig, dict(pareto_ckpts)
 
-    _(sae_df)
+    _fig, pareto_ckpts = _(sae_df)
+    _fig
+    return (pareto_ckpts,)
+
+
+@app.cell
+def _(pareto_ckpts):
+    pareto_ckpts
     return
 
 
@@ -598,8 +647,18 @@ def _(base64, beartype, pickle, saev):
 
         if isinstance(
             data_cfg, saev.data.datasets.ImgSegFolder
+        ) and "cambridge-segfolder-v1.6" in str(data_cfg.root):
+            return "Butterflies v1.6"
+
+        if isinstance(
+            data_cfg, saev.data.datasets.ImgSegFolder
+        ) and "cambridge-segfolder-v1.2" in str(data_cfg.root):
+            return "Butterflies v1.2"
+
+        if isinstance(
+            data_cfg, saev.data.datasets.ImgSegFolder
         ) and "cambridge-segfolder" in str(data_cfg.root):
-            return "Butterflies (ImgSeg)"
+            return "Butterflies v1.0"
 
         print(f"Unknown data: {data_cfg}")
         return None

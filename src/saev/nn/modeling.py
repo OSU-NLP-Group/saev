@@ -316,7 +316,13 @@ class SparseAutoencoder(torch.nn.Module):
 
         self.normalize_w_dec()
 
-        # Initialize W_enc to the transpose of W_dec. .clone() is critical: without it, W_enc is a transposed VIEW sharing storage with W_dec. That means load_state_dict overwrites W_dec when it loads W_enc.
+        # Initialize W_enc to the transpose of W_dec.
+        #
+        # .clone() is critical here. Without it, W_enc is a transposed VIEW sharing storage with W_dec, which causes two bugs:
+        #
+        # 1. load_state_dict breaks: loading W_enc overwrites W_dec (shared memory), then loading W_dec overwrites W_enc. The loaded SAE ends up with one weight being the transpose of the other instead of the independently-trained values.
+        #
+        # 2. Any code that mutates W_dec in-place (e.g. normalize_w_dec) silently mutates W_enc too. The datapoint init in train.make_saes() relied on this accident: normalize_w_dec() kept W_enc columns unit-norm via shared storage. With .clone(), make_saes() must explicitly sync W_enc after normalizing W_dec.
         self.W_enc = torch.nn.Parameter(self.W_dec.data.T.clone())
         self.b_enc = torch.nn.Parameter(torch.zeros(cfg.d_sae))
 

@@ -78,7 +78,10 @@ Sketch:
 ```py
 import torch
 
-def make_keep_mask(n_imgs: int, n_patches_per_img: int, k_keep: int, seed: int) -> torch.Tensor:
+
+def make_keep_mask(
+    n_imgs: int, n_patches_per_img: int, k_keep: int, seed: int
+) -> torch.Tensor:
     """Return a boolean mask of length N that keeps exactly k indices, uniformly without replacement, deterministically given `seed`. N = n_imgs * n_patches_per_img.
 
     Memory: N=2.7M ⇒ ~2.7 MB as torch.bool.
@@ -91,6 +94,7 @@ def make_keep_mask(n_imgs: int, n_patches_per_img: int, k_keep: int, seed: int) 
     keep_mask_n[keep_idx_k] = True
     return keep_mask_n
 
+
 # Precompute once per experiment (and optionally save to disk to reuse across runs)
 # Example:
 # keep_mask_n = make_keep_mask(acts_dl.metadata.n_imgs, acts_dl.metadata.n_patches_per_img, k_keep=100_000, seed=0xC0FFEE)
@@ -101,7 +105,9 @@ for acts, imgs in zip(saev.helpers.progress(acts_dl, desc="Computing scores"), i
     image_i_b = imgs["index"].repeat_interleave(acts_dl.metadata.n_patches_per_img)
     assert (image_i_b == acts["image_i"]).all()
 
-    patch_i_b = torch.arange(acts_dl.metadata.n_patches_per_img).repeat(len(imgs["index"]))
+    patch_i_b = torch.arange(acts_dl.metadata.n_patches_per_img).repeat(
+        len(imgs["index"])
+    )
     assert (patch_i_b == acts["patch_i"]).all()
 
     # Flattened patch index i_b ∈ [0, N)
@@ -120,7 +126,9 @@ for acts, imgs in zip(saev.helpers.progress(acts_dl, desc="Computing scores"), i
     # Downstream: either accumulate per‐prototype stats or write into preallocated arrays at positions i_b[keep_b]
     i_keep_b = i_b[keep_b]
     scores_nk[i_keep_b] = scores_bk
-    labels_n[i_keep_b] = einops.rearrange(imgs["patch_labels"], "imgs patches -> (imgs patches)")[keep_b]
+    labels_n[i_keep_b] = einops.rearrange(
+        imgs["patch_labels"], "imgs patches -> (imgs patches)"
+    )[keep_b]
 ```
 
 Notes

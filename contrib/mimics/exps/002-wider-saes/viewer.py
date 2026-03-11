@@ -89,41 +89,45 @@ def _(all_run_ids, mo, pl, run_root_dpath, shard_id):
     mo.stop(scores_df.height == 0, mo.md("No score parquets found."))
 
     scores_df = scores_df.with_columns(
-        pl.col("auroc").sub(0.5).abs().mul(2).clip(0, 1).alias("selectivity")
+        pl.col("auroc").sub(0.5).abs().mul(2).clip(0, 1).alias("selectivity"),
+        (pl.col("support_erato") - pl.col("support_melpomene"))
+        .abs()
+        .alias("support_diff"),
     )
     return (scores_df,)
 
 
 @app.cell
 def _(mo, scores_df):
-    _runs = sorted(scores_df.get_column("run_id").unique().to_list())
     _tasks = sorted(scores_df.get_column("task").unique().to_list())
-    run_dropdown = mo.ui.dropdown(_runs, value=_runs[0], label="Run", searchable=True)
-    task_dropdown = mo.ui.dropdown(_tasks, value=_tasks[0], label="Task", searchable=True)
+    task_dropdown = mo.ui.dropdown(
+        _tasks, value=_tasks[0], label="Task", searchable=True
+    )
     n_per_class_slider = mo.ui.slider(3, 20, value=6, label="Images per class")
     show_seg_toggle = mo.ui.switch(value=False, label="Show seg masks")
     mo.hstack(
-        [run_dropdown, task_dropdown, n_per_class_slider, show_seg_toggle],
+        [task_dropdown, n_per_class_slider, show_seg_toggle],
         justify="start",
     )
-    return n_per_class_slider, run_dropdown, show_seg_toggle, task_dropdown
+    return n_per_class_slider, show_seg_toggle, task_dropdown
 
 
 @app.cell
-def _(mo, pl, run_dropdown, scores_df, task_dropdown):
+def _(mo, pl, scores_df, task_dropdown):
     filtered_df = scores_df.filter(
-        (pl.col("run_id") == run_dropdown.value)
-        & (pl.col("task") == task_dropdown.value)
+        pl.col("task") == task_dropdown.value
     ).sort("selectivity", descending=True)
-    mo.stop(filtered_df.height == 0, mo.md("No features for this run/task."))
+    mo.stop(filtered_df.height == 0, mo.md("No features for this task."))
 
     feature_table = mo.ui.table(
         filtered_df
         .head(200)
         .select(
+            "run_id",
             "feature_id",
             "selectivity",
             "auroc",
+            "support_diff",
             "support_erato",
             "support_melpomene",
             "mean_act_erato",
@@ -144,9 +148,10 @@ def _(feature_table, mo):
         _sel is None or len(_sel) == 0,
         mo.md("Select a feature from the table above."),
     )
+    selected_run_id = str(_sel.iloc[0]["run_id"])
     selected_feature_id = int(_sel.iloc[0]["feature_id"])
-    mo.md(f"Selected feature: **{selected_feature_id}**")
-    return (selected_feature_id,)
+    mo.md(f"Selected: run=`{selected_run_id}` feature=**{selected_feature_id}**")
+    return selected_feature_id, selected_run_id
 
 
 @app.cell
@@ -154,10 +159,10 @@ def _(
     apply_grouping,
     load_image_labels,
     mo,
-    run_dropdown,
     run_root_dpath,
     saev,
     scipy,
+    selected_run_id,
     shard_id,
     shards_dpath,
     task_dropdown,
@@ -196,7 +201,7 @@ def _(
 
     # Load token_acts for selected run.
     _ta_fpath = (
-        run_root_dpath / run_dropdown.value / "inference" / shard_id / "token_acts.npz"
+        run_root_dpath / selected_run_id / "inference" / shard_id / "token_acts.npz"
     )
     msg = f"Missing token_acts: '{_ta_fpath}'."
     assert _ta_fpath.exists(), msg
@@ -205,7 +210,7 @@ def _(
     assert ta_csc.shape[0] == n_images * tpi
 
     mo.md(
-        f"Loaded token_acts for `{run_dropdown.value}` (d_sae={ta_csc.shape[1]}, tpi={tpi}, patch_size={patch_size})."
+        f"Loaded token_acts for `{selected_run_id}` (d_sae={ta_csc.shape[1]}, tpi={tpi}, patch_size={patch_size})."
     )
     return (
         bg_label,
@@ -239,10 +244,10 @@ def _(
     np,
     patch_size,
     pixel_agg,
-    run_dropdown,
     run_root_dpath,
     saev,
     selected_feature_id,
+    selected_run_id,
     shard_id,
     show_seg_toggle,
     sv_labels,
@@ -271,7 +276,7 @@ def _(
     # Cache dir: runs/{run_id}/inference/{shard_id}/images/{feature_id}/
     _cache_dpath = (
         run_root_dpath
-        / run_dropdown.value
+        / selected_run_id
         / "inference"
         / shard_id
         / "images"

@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.18.4"
+__generated_with = "0.20.2"
 app = marimo.App(width="full")
 
 
@@ -92,7 +92,13 @@ def _():
         "saev": "/fs/ess/PAS2136/samuelstevens/saev/runs",
         "tdiscovery": "/fs/ess/PAS2136/samuelstevens/tdiscovery/saev/runs",
     }
-    return BASELINES_PROJECT, NMSE_SHARD, RUNS_ROOT_BY_PROJECT, SAE_PROJECT, SHARDS_ROOT
+    return (
+        BASELINES_PROJECT,
+        NMSE_SHARD,
+        RUNS_ROOT_BY_PROJECT,
+        SAE_PROJECT,
+        SHARDS_ROOT,
+    )
 
 
 @app.cell
@@ -429,7 +435,7 @@ def _(NMSE_SHARD, RunSpec, load_df, mo, pl, plt, saev):
             )
         mo.output.append(mo.md(msg))
 
-        fig, ax = plt.subplots(figsize=(5.5, 3.5), dpi=300, layout="constrained")
+        fig, ax = plt.subplots(figsize=(4.5, 3), dpi=300, layout="constrained")
         alpha = 0.7
         xticks = [1, 4, 16, 64, 256, 1024]
         csv_parts: list[pl.DataFrame] = []
@@ -459,32 +465,32 @@ def _(NMSE_SHARD, RunSpec, load_df, mo, pl, plt, saev):
                 label="$k$-Means",
             ),
             "pca": dict(
-                color=saev.colors.ORANGE_RGB01, marker="^", linestyle="-", label="PCA"
+                color=saev.colors.SCARLET_RGB01, marker="^", linestyle="-", label="PCA"
             ),
             "semi_nmf": dict(
                 color=saev.colors.GOLD_RGB01,
                 marker="D",
                 linestyle="--",
-                label="Semi-NMF",
+                label="SemiNMF",
             ),
             "sae_relu": dict(
                 color=saev.colors.BLUE_RGB01,
                 marker="^",
                 linestyle="--",
-                label="SAE (ReLU)",
+                label="SAE",
             ),
-            "matryoshka_relu": dict(
-                color=saev.colors.SCARLET_RGB01,
-                marker="s",
-                linestyle="-.",
-                label="Matryoshka (ReLU)",
-            ),
-            "matryoshka_topk": dict(
-                color=saev.colors.BLACK_RGB01,
-                marker="o",
-                linestyle="-",
-                label="Matryoshka (TopK)",
-            ),
+            # "matryoshka_relu": dict(
+            #     color=saev.colors.ORANGE_RGB01,
+            #     marker="s",
+            #     linestyle="-.",
+            #     label="+Matryoshka",
+            # ),
+            # "matryoshka_topk": dict(
+            #     color=saev.colors.BLACK_RGB01,
+            #     marker="o",
+            #     linestyle="-",
+            #     label="+Matryoshka +TopK",
+            # ),
         }
 
         for method, style in method_style.items():
@@ -545,6 +551,7 @@ def _(NMSE_SHARD, RunSpec, load_df, mo, pl, plt, saev):
             )
         )
         out_prefix = "contrib/trait_discovery/docs/assets/dinov3_vitl16_in1k_baselines"
+        # out_prefix = "contrib/trait_discovery/docs/assets/dinov3_vitl16_in1k_sae_variants"
         fig.savefig(f"{out_prefix}.pdf")
         csv_df.write_csv(f"{out_prefix}.csv")
 
@@ -718,6 +725,33 @@ def _(NMSE_SHARD, RunSpec, load_df, mo, pl, plt):
         fig, ax = plt.subplots(figsize=(4.5, 3), dpi=300, layout="constrained")
         alpha = 0.8
         csv_parts: list[pl.DataFrame] = []
+        frontier_counts: list[str] = []
+
+        def get_pareto(sub_df: pl.DataFrame) -> pl.DataFrame:
+            if sub_df.is_empty():
+                return sub_df
+
+            return (
+                sub_df
+                .group_by("l0", maintain_order=True)
+                .agg(
+                    pl.col("id").sort_by(y_col).first().alias("id"),
+                    pl.col("layer").first().alias("layer"),
+                    pl.col("method").first().alias("method"),
+                    pl.col(y_col).min().alias(y_col),
+                )
+                .sort("l0")
+                .with_columns(
+                    pl
+                    .col(y_col)
+                    .cum_min()
+                    .shift(1)
+                    .fill_null(float("inf"))
+                    .alias("_prev_best")
+                )
+                .filter(pl.col(y_col) < pl.col("_prev_best"))
+                .drop("_prev_best")
+            )
 
         layer_values = [14, 16, 18, 20, 22, 24]
         cmap = plt.get_cmap("plasma")
@@ -735,15 +769,25 @@ def _(NMSE_SHARD, RunSpec, load_df, mo, pl, plt):
             if sub_df.is_empty():
                 continue
 
-            csv_parts.append(sub_df)
+            frontier_df = get_pareto(sub_df)
+            if frontier_df.is_empty():
+                continue
+            frontier_counts.append(f"{method}: {frontier_df.height}/{sub_df.height}")
+            csv_parts.append(frontier_df)
             ax.plot(
-                sub_df["l0"].to_numpy(),
-                sub_df[y_col].to_numpy(),
+                frontier_df["l0"].to_numpy(),
+                frontier_df[y_col].to_numpy(),
                 color=color,
                 marker="o",
                 alpha=alpha,
                 label=method,
                 clip_on=False,
+            )
+        if frontier_counts:
+            mo.output.append(
+                mo.md(
+                    f"Frontier points kept (after filtering): {', '.join(frontier_counts)}."
+                )
             )
 
         ax.set_xlabel("L0 ($\\downarrow$)")
@@ -752,9 +796,9 @@ def _(NMSE_SHARD, RunSpec, load_df, mo, pl, plt):
         ax.spines[["right", "top"]].set_visible(False)
         ax.set_xscale("log")
         ax.set_yscale("log")
-        ax.set_xlim(1e0)
-        ax.set_ylim(1e0)
-        ax.legend(loc="lower right")
+        ax.set_xlim(3e-1)
+        ax.set_ylim(3e-2)
+        ax.legend(ncol=2)
 
         csv_df = (
             pl.concat(csv_parts)
@@ -768,6 +812,219 @@ def _(NMSE_SHARD, RunSpec, load_df, mo, pl, plt):
         return fig
 
     plot_layer_comparison()
+    return
+
+
+@app.cell
+def _(RunSpec, load_df, mo, pl, plt, saev):
+    def plot_size_comparison():
+        specs = [
+            RunSpec(
+                "ViT-L/16",
+                # Source: contrib/trait_discovery/scripts/push_dinov3.py, vitl_relu_run_ids[23].
+                [
+                    "lnleoyf6",
+                    "ibt2fgta",
+                    "6l12fjm9",
+                    "rfic94if",
+                    "t1vh0qy1",
+                    "mccrm7u8",
+                    "t88ez13w",
+                    "eosnewqp",
+                    "fxcpfysr",
+                    "kd2pd8rs",
+                    "9drbwvhg",
+                    "1qynjykb",
+                    "0pz90ly4",
+                    "ybm0jqi4",
+                    "2pdk23cz",
+                    "9fn4l6rf",
+                ],
+            ),
+            RunSpec(
+                "ViT-B/16",
+                # Source: contrib/trait_discovery/scripts/push_dinov3.py, vitb_run_ids[11].
+                [
+                    "n1xwev0z",
+                    "ef657fwa",
+                    "qoc1660r",
+                    "6crsj9gj",
+                    "d4v8aruu",
+                    "7mpdhd0n",
+                    "abhe5g2j",
+                    "22p3bnt8",
+                ],
+            ),
+            RunSpec(
+                "ViT-S/16",
+                # Source: contrib/trait_discovery/scripts/push_dinov3.py, vits_run_ids[11].
+                [
+                    "jgu19fzx",
+                    "8yd05vxi",
+                    "utmjp20e",
+                    "gc6iqrf2",
+                    "5ewxrjg4",
+                    "x7e75z6t",
+                    "hyda2tk7",
+                    "36ztscy4",
+                ],
+            ),
+        ]
+        y_col_by_method = {
+            "ViT-L/16": "3e27794f/mse_per_dim",
+            "ViT-B/16": "8762551e/mse_per_dim",
+            "ViT-S/16": "52ec5790/mse_per_dim",
+        }
+        df, skipped_run_ids = load_df(specs)
+        missing_metric_run_ids: list[str] = []
+        for method, y_col in y_col_by_method.items():
+            method_run_ids = (
+                df.filter(pl.col("method") == method).get_column("id").to_list()
+            )
+            if y_col not in df.columns:
+                missing_metric_run_ids.extend(method_run_ids)
+                continue
+            missing_metric_run_ids.extend(
+                df
+                .filter((pl.col("method") == method) & pl.col(y_col).is_null())
+                .get_column("id")
+                .to_list()
+            )
+        msg = f"Loaded {df.height} runs for ViT-size comparison from disk shard scans."
+        if skipped_run_ids:
+            msg += (
+                f" Skipped {len(skipped_run_ids)} runs: {', '.join(skipped_run_ids)}."
+            )
+        mo.output.append(mo.md(msg))
+        if skipped_run_ids or missing_metric_run_ids:
+            if missing_metric_run_ids:
+                mo.output.append(
+                    mo.md(
+                        f"Missing shard MSE for {len(missing_metric_run_ids)} runs: {', '.join(missing_metric_run_ids)}."
+                    )
+                )
+            mo.output.append(
+                mo.md(
+                    "This figure requires complete on-disk MSE for all hardcoded runs."
+                )
+            )
+            return None
+
+        fig, ax = plt.subplots(figsize=(4.5, 3), dpi=300, layout="constrained")
+        alpha = 0.8
+        csv_parts: list[pl.DataFrame] = []
+        frontier_counts: list[str] = []
+
+        def get_pareto(sub_df: pl.DataFrame, y_col: str) -> pl.DataFrame:
+            if sub_df.is_empty():
+                return sub_df
+
+            return (
+                sub_df
+                .group_by("l0", maintain_order=True)
+                .agg(
+                    pl.col("id").sort_by(y_col).first().alias("id"),
+                    pl.col("layer").first().alias("layer"),
+                    pl.col("method").first().alias("method"),
+                    pl.col(y_col).min().alias(y_col),
+                )
+                .sort("l0")
+                .with_columns(
+                    pl
+                    .col(y_col)
+                    .cum_min()
+                    .shift(1)
+                    .fill_null(float("inf"))
+                    .alias("_prev_best")
+                )
+                .filter(pl.col(y_col) < pl.col("_prev_best"))
+                .drop("_prev_best")
+            )
+
+        style_by_method = {
+            "ViT-L/16": dict(
+                color=saev.colors.CYAN_RGB01,
+                marker="o",
+                linestyle="-",
+            ),
+            "ViT-B/16": dict(
+                color=saev.colors.ORANGE_RGB01,
+                marker="^",
+                linestyle="--",
+            ),
+            "ViT-S/16": dict(
+                color=saev.colors.SEA_RGB01,
+                marker="s",
+                linestyle="-.",
+            ),
+        }
+
+        for method, style in style_by_method.items():
+            y_col = y_col_by_method[method]
+            if y_col not in df.columns:
+                continue
+            sub_df = df.filter(
+                (pl.col("method") == method)
+                & pl.col(y_col).is_not_null()
+                & (pl.col("l0") > 0)
+            ).sort("l0")
+            if sub_df.is_empty():
+                continue
+
+            frontier_df = get_pareto(sub_df, y_col)
+            if frontier_df.is_empty():
+                continue
+            frontier_counts.append(f"{method}: {frontier_df.height}/{sub_df.height}")
+            csv_parts.append(
+                frontier_df.select(
+                    "id",
+                    "layer",
+                    "method",
+                    "l0",
+                    pl.col(y_col).alias("mse_per_dim"),
+                    pl.lit(y_col).alias("mse_col"),
+                )
+            )
+            ax.plot(
+                frontier_df["l0"].to_numpy(),
+                frontier_df[y_col].to_numpy(),
+                color=style["color"],
+                marker=style["marker"],
+                linestyle=style["linestyle"],
+                alpha=alpha,
+                label=method,
+                clip_on=False,
+            )
+        if frontier_counts:
+            mo.output.append(
+                mo.md(
+                    f"Frontier points kept (after filtering): {', '.join(frontier_counts)}."
+                )
+            )
+
+        ax.set_xlabel("L$_0$ ($\\downarrow$)")
+        ax.set_ylabel("MSE ($\\downarrow$)")
+        ax.grid(True, linewidth=0.3, alpha=0.7)
+        ax.spines[["right", "top"]].set_visible(False)
+        ax.set_xscale("log")
+        ax.set_yscale("log")
+        ax.set_xlim(3e-1)
+        ax.set_ylim(9e1)
+        ax.legend(loc="lower right")
+
+        csv_df = (
+            pl
+            .concat(csv_parts)
+            .sort("method", "l0")
+            .select("id", "layer", "method", "l0", "mse_per_dim", "mse_col")
+        )
+        out_prefix = "contrib/trait_discovery/docs/assets/dinov3_sizes_in1k_sae"
+        fig.savefig(f"{out_prefix}.pdf")
+        csv_df.write_csv(f"{out_prefix}.csv")
+
+        return fig
+
+    plot_size_comparison()
     return
 
 
@@ -854,7 +1111,7 @@ def _(RunSpec, load_df, mo, pl, plt, saev):
             )
             return None
 
-        fig, ax1 = plt.subplots(figsize=(4.5, 3.5), dpi=300, layout="constrained")
+        fig, ax1 = plt.subplots(figsize=(4.5, 3), dpi=300, layout="constrained")
 
         handles = []
         for method, color, marker, linestyle, label in [
@@ -935,6 +1192,508 @@ def _(RunSpec, load_df, mo, pl, plt, saev):
 
 
 @app.cell
+def _(RunSpec, load_df, mo, pl, plt, saev):
+    def plot_vit_layers_ade20k_probe_r():
+        specs = [
+            RunSpec(
+                "DINOv3 ViT-L/16",
+                [
+                    "ag8agm56",
+                    "e9oeml82",
+                    "vrepu5ey",
+                    "0tj48gqd",
+                    "71u6kzuq",
+                    "extl56w1",
+                ],
+            ),
+            RunSpec(
+                "DINOv3 ViT-B/16",
+                [
+                    "8hyzbyht",
+                    "knz7yndg",
+                    "q6pg7hl9",
+                    "zvx4qkov",
+                    "jpnwfh3w",
+                    "6crsj9gj",
+                ],
+            ),
+            RunSpec(
+                "DINOv3 ViT-S/16",
+                [
+                    "gcpbnr9n",
+                    "pvtt26ky",
+                    "5gjy7lwi",
+                    "flfplqsa",
+                    "jt45lucm",
+                    "5ewxrjg4",
+                ],
+            ),
+        ]
+        # Source: W&B query for tag `in1k-v0.4.1`, then for each model/layer take the run
+        # with the highest ADE20K val mean AP from inference/<probe_shard>/probe1d_metrics__train-*.npz.
+        probe_col_by_method = {
+            "DINOv3 ViT-L/16": "3802cb66/val_probe_r__train-614861a0",
+            "DINOv3 ViT-B/16": "66a5d2c1/val_probe_r__train-fd5781e8",
+            "DINOv3 ViT-S/16": "5e195bbf/val_probe_r__train-781f8739",
+        }
+        df, skipped_run_ids = load_df(specs)
+        missing_probe_cols = [
+            probe_col
+            for probe_col in probe_col_by_method.values()
+            if probe_col not in df.columns
+        ]
+        if missing_probe_cols:
+            mo.output.append(
+                mo.md(
+                    f"Missing probe columns: {', '.join(missing_probe_cols)}. Available columns: {df.columns}"
+                )
+            )
+            return None
+        missing_probe_run_ids: list[str] = []
+        for method, probe_col in probe_col_by_method.items():
+            missing_probe_run_ids.extend(
+                df
+                .filter((pl.col("method") == method) & pl.col(probe_col).is_null())
+                .get_column("id")
+                .to_list()
+            )
+
+        msg = f"Loaded {df.height} runs for ViT-layer ADE20K mAP from disk shard scans."
+        if skipped_run_ids:
+            msg += (
+                f" Skipped {len(skipped_run_ids)} runs: {', '.join(skipped_run_ids)}."
+            )
+        mo.output.append(mo.md(msg))
+        if missing_probe_run_ids:
+            mo.output.append(
+                mo.md(
+                    "This figure requires complete probe metrics on disk for all hardcoded runs."
+                )
+            )
+            mo.output.append(
+                mo.md(
+                    f"Missing probe mAP columns for {len(missing_probe_run_ids)} runs: {', '.join(missing_probe_run_ids)}."
+                )
+            )
+            return None
+
+        fig, ax1 = plt.subplots(figsize=(4.5, 3), dpi=300, layout="constrained")
+
+        handles = []
+        for method, color, marker, linestyle, label in [
+            (
+                "DINOv3 ViT-B/16",
+                saev.colors.ORANGE_RGB01,
+                "s",
+                "--",
+                "ViT-B/16",
+            ),
+            (
+                "DINOv3 ViT-S/16",
+                saev.colors.BLUE_RGB01,
+                "^",
+                "-.",
+                "ViT-S/16",
+            ),
+        ]:
+            sub_df = df.filter(pl.col("method") == method).sort("layer")
+            if sub_df.is_empty():
+                continue
+            xs = sub_df["layer"].to_numpy() + 1
+            ys = sub_df[probe_col_by_method[method]].to_numpy()
+            (handle,) = ax1.plot(
+                xs,
+                ys,
+                color=color,
+                alpha=0.8,
+                marker=marker,
+                linestyle=linestyle,
+                label=label,
+            )
+            handles.append(handle)
+
+        ax1.grid(True, linewidth=0.3, alpha=0.5)
+        ax1.set_xlabel("ViT-{B,S}/16 Layer")
+        ax1.set_ylabel("Probe $R$ ($\\uparrow$)")
+        ax1.set_ylim(0, 0.5)
+        ax1.set_xticks([7, 8, 9, 10, 11, 12])
+        ax1.set_xlim(6.75, 12.25)
+
+        ax2 = ax1.twiny()
+        sub_df = df.filter(pl.col("method") == "DINOv3 ViT-L/16").sort("layer")
+        if not sub_df.is_empty():
+            xs = sub_df["layer"].to_numpy() + 1
+            ys = sub_df[probe_col_by_method["DINOv3 ViT-L/16"]].to_numpy()
+            (handle,) = ax2.plot(
+                xs,
+                ys,
+                color=saev.colors.SEA_RGB01,
+                alpha=0.8,
+                marker="o",
+                label="ViT-L/16",
+            )
+            handles.insert(0, handle)
+        ax2.set_xlabel("ViT-L/16 Layer")
+        ax2.set_xticks([14, 16, 18, 20, 22, 24])
+        ax2.set_xlim(13.5, 24.5)
+
+        ax1.legend(handles=handles)
+
+        csv_df = df.sort("method", "layer").select(
+            "id",
+            "method",
+            "layer",
+            probe_col_by_method["DINOv3 ViT-L/16"],
+            probe_col_by_method["DINOv3 ViT-B/16"],
+            probe_col_by_method["DINOv3 ViT-S/16"],
+        )
+        out_prefix = (
+            "contrib/trait_discovery/docs/assets/dinov3_in1k_ade20k_layers_probe_r"
+        )
+        fig.savefig(f"{out_prefix}.pdf")
+        csv_df.write_csv(f"{out_prefix}.csv")
+
+        return fig
+
+    plot_vit_layers_ade20k_probe_r()
+    return
+
+
+@app.cell
+def _(RunSpec, load_df, mo, pl, plt, saev):
+    def plot_vit_layers_ade20k_purity():
+        specs = [
+            RunSpec(
+                "DINOv3 ViT-L/16",
+                [
+                    "ag8agm56",
+                    "e9oeml82",
+                    "vrepu5ey",
+                    "0tj48gqd",
+                    "71u6kzuq",
+                    "extl56w1",
+                ],
+            ),
+            RunSpec(
+                "DINOv3 ViT-B/16",
+                [
+                    "8hyzbyht",
+                    "knz7yndg",
+                    "q6pg7hl9",
+                    "zvx4qkov",
+                    "jpnwfh3w",
+                    "6crsj9gj",
+                ],
+            ),
+            RunSpec(
+                "DINOv3 ViT-S/16",
+                [
+                    "gcpbnr9n",
+                    "pvtt26ky",
+                    "5gjy7lwi",
+                    "flfplqsa",
+                    "jt45lucm",
+                    "5ewxrjg4",
+                ],
+            ),
+        ]
+        # Source: W&B query for tag `in1k-v0.4.1`, then for each model/layer take the run
+        # with the highest ADE20K val mean AP from inference/<probe_shard>/probe1d_metrics__train-*.npz.
+        probe_col_by_method = {
+            "DINOv3 ViT-L/16": "3802cb66/purity_16__train-614861a0",
+            "DINOv3 ViT-B/16": "66a5d2c1/purity_16__train-fd5781e8",
+            "DINOv3 ViT-S/16": "5e195bbf/purity_16__train-781f8739",
+        }
+        df, skipped_run_ids = load_df(specs)
+        missing_probe_cols = [
+            probe_col
+            for probe_col in probe_col_by_method.values()
+            if probe_col not in df.columns
+        ]
+        if missing_probe_cols:
+            mo.output.append(
+                mo.md(
+                    f"Missing probe columns: {', '.join(missing_probe_cols)}. Available columns: {df.columns}"
+                )
+            )
+            return None
+        missing_probe_run_ids: list[str] = []
+        for method, probe_col in probe_col_by_method.items():
+            missing_probe_run_ids.extend(
+                df
+                .filter((pl.col("method") == method) & pl.col(probe_col).is_null())
+                .get_column("id")
+                .to_list()
+            )
+
+        msg = f"Loaded {df.height} runs for ViT-layer ADE20K mAP from disk shard scans."
+        if skipped_run_ids:
+            msg += (
+                f" Skipped {len(skipped_run_ids)} runs: {', '.join(skipped_run_ids)}."
+            )
+        mo.output.append(mo.md(msg))
+        if missing_probe_run_ids:
+            mo.output.append(
+                mo.md(
+                    "This figure requires complete probe metrics on disk for all hardcoded runs."
+                )
+            )
+            mo.output.append(
+                mo.md(
+                    f"Missing probe mAP columns for {len(missing_probe_run_ids)} runs: {', '.join(missing_probe_run_ids)}."
+                )
+            )
+            return None
+
+        fig, ax1 = plt.subplots(figsize=(4.5, 3), dpi=300, layout="constrained")
+
+        handles = []
+        for method, color, marker, linestyle, label in [
+            (
+                "DINOv3 ViT-B/16",
+                saev.colors.ORANGE_RGB01,
+                "s",
+                "--",
+                "ViT-B/16",
+            ),
+            (
+                "DINOv3 ViT-S/16",
+                saev.colors.BLUE_RGB01,
+                "^",
+                "-.",
+                "ViT-S/16",
+            ),
+        ]:
+            sub_df = df.filter(pl.col("method") == method).sort("layer")
+            if sub_df.is_empty():
+                continue
+            xs = sub_df["layer"].to_numpy() + 1
+            ys = sub_df[probe_col_by_method[method]].to_numpy()
+            (handle,) = ax1.plot(
+                xs,
+                ys,
+                color=color,
+                alpha=0.8,
+                marker=marker,
+                linestyle=linestyle,
+                label=label,
+            )
+            handles.append(handle)
+
+        ax1.grid(True, linewidth=0.3, alpha=0.5)
+        ax1.set_xlabel("ViT-{B,S}/16 Layer")
+        ax1.set_ylabel("Purity@16 ($\\uparrow$)")
+        # ax1.set_ylim(0, 0.5)
+        ax1.set_xticks([7, 8, 9, 10, 11, 12])
+        ax1.set_xlim(6.75, 12.25)
+
+        ax2 = ax1.twiny()
+        sub_df = df.filter(pl.col("method") == "DINOv3 ViT-L/16").sort("layer")
+        if not sub_df.is_empty():
+            xs = sub_df["layer"].to_numpy() + 1
+            ys = sub_df[probe_col_by_method["DINOv3 ViT-L/16"]].to_numpy()
+            (handle,) = ax2.plot(
+                xs,
+                ys,
+                color=saev.colors.SEA_RGB01,
+                alpha=0.8,
+                marker="o",
+                label="ViT-L/16",
+            )
+            handles.insert(0, handle)
+        ax2.set_xlabel("ViT-L/16 Layer")
+        ax2.set_xticks([14, 16, 18, 20, 22, 24])
+        ax2.set_xlim(13.5, 24.5)
+
+        ax1.legend(handles=handles)
+
+        csv_df = df.sort("method", "layer").select(
+            "id",
+            "method",
+            "layer",
+            probe_col_by_method["DINOv3 ViT-L/16"],
+            probe_col_by_method["DINOv3 ViT-B/16"],
+            probe_col_by_method["DINOv3 ViT-S/16"],
+        )
+        out_prefix = (
+            "contrib/trait_discovery/docs/assets/dinov3_in1k_ade20k_layers_purity"
+        )
+        fig.savefig(f"{out_prefix}.pdf")
+        csv_df.write_csv(f"{out_prefix}.csv")
+
+        return fig
+
+    plot_vit_layers_ade20k_purity()
+    return
+
+
+@app.cell
+def _(RunSpec, load_df, mo, pl, plt, saev):
+    def plot_vit_layers_ade20k_cov():
+        specs = [
+            RunSpec(
+                "DINOv3 ViT-L/16",
+                [
+                    "ag8agm56",
+                    "e9oeml82",
+                    "vrepu5ey",
+                    "0tj48gqd",
+                    "71u6kzuq",
+                    "extl56w1",
+                ],
+            ),
+            RunSpec(
+                "DINOv3 ViT-B/16",
+                [
+                    "8hyzbyht",
+                    "knz7yndg",
+                    "q6pg7hl9",
+                    "zvx4qkov",
+                    "jpnwfh3w",
+                    "6crsj9gj",
+                ],
+            ),
+            RunSpec(
+                "DINOv3 ViT-S/16",
+                [
+                    "gcpbnr9n",
+                    "pvtt26ky",
+                    "5gjy7lwi",
+                    "flfplqsa",
+                    "jt45lucm",
+                    "5ewxrjg4",
+                ],
+            ),
+        ]
+        # Source: W&B query for tag `in1k-v0.4.1`, then for each model/layer take the run
+        # with the highest ADE20K val mean AP from inference/<probe_shard>/probe1d_metrics__train-*.npz.
+        probe_col_by_method = {
+            "DINOv3 ViT-L/16": "3802cb66/cov_at_0_3__train-614861a0",
+            "DINOv3 ViT-B/16": "66a5d2c1/cov_at_0_3__train-fd5781e8",
+            "DINOv3 ViT-S/16": "5e195bbf/cov_at_0_3__train-781f8739",
+        }
+        df, skipped_run_ids = load_df(specs)
+        missing_probe_cols = [
+            probe_col
+            for probe_col in probe_col_by_method.values()
+            if probe_col not in df.columns
+        ]
+        if missing_probe_cols:
+            mo.output.append(
+                mo.md(
+                    f"Missing probe columns: {', '.join(missing_probe_cols)}. Available columns: {df.columns}"
+                )
+            )
+            return None
+        missing_probe_run_ids: list[str] = []
+        for method, probe_col in probe_col_by_method.items():
+            missing_probe_run_ids.extend(
+                df
+                .filter((pl.col("method") == method) & pl.col(probe_col).is_null())
+                .get_column("id")
+                .to_list()
+            )
+
+        msg = f"Loaded {df.height} runs for ViT-layer ADE20K mAP from disk shard scans."
+        if skipped_run_ids:
+            msg += (
+                f" Skipped {len(skipped_run_ids)} runs: {', '.join(skipped_run_ids)}."
+            )
+        mo.output.append(mo.md(msg))
+        if missing_probe_run_ids:
+            mo.output.append(
+                mo.md(
+                    "This figure requires complete probe metrics on disk for all hardcoded runs."
+                )
+            )
+            mo.output.append(
+                mo.md(
+                    f"Missing probe mAP columns for {len(missing_probe_run_ids)} runs: {', '.join(missing_probe_run_ids)}."
+                )
+            )
+            return None
+
+        fig, ax1 = plt.subplots(figsize=(4.5, 3), dpi=300, layout="constrained")
+
+        handles = []
+        for method, color, marker, linestyle, label in [
+            (
+                "DINOv3 ViT-B/16",
+                saev.colors.ORANGE_RGB01,
+                "s",
+                "--",
+                "ViT-B/16",
+            ),
+            (
+                "DINOv3 ViT-S/16",
+                saev.colors.BLUE_RGB01,
+                "^",
+                "-.",
+                "ViT-S/16",
+            ),
+        ]:
+            sub_df = df.filter(pl.col("method") == method).sort("layer")
+            if sub_df.is_empty():
+                continue
+            xs = sub_df["layer"].to_numpy() + 1
+            ys = sub_df[probe_col_by_method[method]].to_numpy()
+            (handle,) = ax1.plot(
+                xs,
+                ys,
+                color=color,
+                alpha=0.8,
+                marker=marker,
+                linestyle=linestyle,
+                label=label,
+            )
+            handles.append(handle)
+
+        ax1.grid(True, linewidth=0.3, alpha=0.5)
+        ax1.set_xlabel("ViT-{B,S}/16 Layer")
+        ax1.set_ylabel("Cov@0.3 ($\\uparrow$)")
+        ax1.set_ylim(0, 0.0)
+        ax1.set_xticks([7, 8, 9, 10, 11, 12])
+        ax1.set_xlim(6.75, 12.25)
+
+        ax2 = ax1.twiny()
+        sub_df = df.filter(pl.col("method") == "DINOv3 ViT-L/16").sort("layer")
+        if not sub_df.is_empty():
+            xs = sub_df["layer"].to_numpy() + 1
+            ys = sub_df[probe_col_by_method["DINOv3 ViT-L/16"]].to_numpy()
+            (handle,) = ax2.plot(
+                xs,
+                ys,
+                color=saev.colors.SEA_RGB01,
+                alpha=0.8,
+                marker="o",
+                label="ViT-L/16",
+            )
+            handles.insert(0, handle)
+        ax2.set_xlabel("ViT-L/16 Layer")
+        ax2.set_xticks([14, 16, 18, 20, 22, 24])
+        ax2.set_xlim(13.5, 24.5)
+
+        ax1.legend(handles=handles)
+
+        csv_df = df.sort("method", "layer").select(
+            "id",
+            "method",
+            "layer",
+            probe_col_by_method["DINOv3 ViT-L/16"],
+            probe_col_by_method["DINOv3 ViT-B/16"],
+            probe_col_by_method["DINOv3 ViT-S/16"],
+        )
+        out_prefix = "contrib/trait_discovery/docs/assets/dinov3_in1k_ade20k_layers_cov"
+        fig.savefig(f"{out_prefix}.pdf")
+        csv_df.write_csv(f"{out_prefix}.csv")
+
+        return fig
+
+    plot_vit_layers_ade20k_cov()
+    return
+
+
+@app.cell
 def _(SHARDS_ROOT, beartype, mo, np, pathlib):
     @mo.cache
     @beartype.beartype
@@ -967,11 +1726,7 @@ def _(SHARDS_ROOT, beartype, mo, np, pathlib):
 
 
 @app.cell
-def _(
-    RunSpec,
-    load_df,
-    pl,
-):
+def _(RunSpec, load_df, pl):
     def sae_vs_baselines_table():
         specs = [
             RunSpec("kmeans", ["myy5btgw"], project="tdiscovery", l0_key=1.0),

@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.17.2"
+__generated_with = "0.18.4"
 app = marimo.App(width="full")
 
 
@@ -869,7 +869,8 @@ def _(BLUE_RGB01, ORANGE_RGB01, SEA_RGB01, beartype, df, pl, plt):
         handles = []
 
         grouped = (
-            df.filter(
+            df
+            .filter(
                 (pl.col("model") == "DINOv3 ViT-B/16")
                 & (pl.col("val_probe_shards") == "66a5d2c1")
             )
@@ -893,7 +894,8 @@ def _(BLUE_RGB01, ORANGE_RGB01, SEA_RGB01, beartype, df, pl, plt):
         handles.append(handle)
 
         grouped = (
-            df.filter(
+            df
+            .filter(
                 (pl.col("model") == "DINOv3 ViT-S/16")
                 & (pl.col("val_probe_shards") == "5e195bbf")
             )
@@ -924,7 +926,8 @@ def _(BLUE_RGB01, ORANGE_RGB01, SEA_RGB01, beartype, df, pl, plt):
         ax2 = ax1.twiny()
 
         grouped = (
-            df.filter(
+            df
+            .filter(
                 (pl.col("model") == "DINOv3 ViT-L/16")
                 & (pl.col("val_probe_shards") == "3802cb66")
             )
@@ -965,7 +968,8 @@ def _(BLUE_RGB01, ORANGE_RGB01, SEA_RGB01, beartype, df, pl, plt):
         handles = []
 
         grouped = (
-            df.filter(
+            df
+            .filter(
                 (pl.col("model") == "DINOv3 ViT-B/16")
                 & (pl.col("val_probe_shards") == "66a5d2c1")
             )
@@ -983,7 +987,8 @@ def _(BLUE_RGB01, ORANGE_RGB01, SEA_RGB01, beartype, df, pl, plt):
         handles.append(handle)
 
         grouped = (
-            df.filter(
+            df
+            .filter(
                 (pl.col("model") == "DINOv3 ViT-S/16")
                 & (pl.col("val_probe_shards") == "5e195bbf")
             )
@@ -1007,7 +1012,8 @@ def _(BLUE_RGB01, ORANGE_RGB01, SEA_RGB01, beartype, df, pl, plt):
         ax2 = ax1.twiny()
 
         grouped = (
-            df.filter(
+            df
+            .filter(
                 (pl.col("model") == "DINOv3 ViT-L/16")
                 & (pl.col("val_probe_shards") == "3802cb66")
             )
@@ -1715,9 +1721,10 @@ def _(
             figsize=(4.5, 3), nrows=1, ncols=1, dpi=300, layout="constrained"
         )
 
-        run = saev.disk.Run(runs_root / "9rrslm9e")
+        run = saev.disk.Run(runs_root / "um6hbn05")
         train_shards, val_shards = next(
-            df.filter(pl.col("run_id") == run.run_id)
+            df
+            .filter(pl.col("run_id") == run.run_id)
             .select("train_probe_shards", "val_probe_shards")
             .iter_rows()
         )
@@ -1801,7 +1808,7 @@ def _(
         adjust_text(texts)
 
         fig.savefig(
-            "contrib/trait_discovery/docs/assets/dinov3_fishvista_prevalence_ap.pdf"
+            "contrib/trait_discovery/docs/assets/dinov3_fishvista_prevalence_ap_topk.pdf"
         )
 
         lines = [
@@ -1819,7 +1826,8 @@ def _(
 def _(df, mo, pl):
     mo.vstack([
         mo.md("# FishVista Tables"),
-        df.filter(
+        df
+        .filter(
             (pl.col("model") == "DINOv3 ViT-L/16")
             & (pl.col("val_probe_shards") == "8692dfa9")
             & (pl.col("objective") == "matryoshka")
@@ -2068,7 +2076,8 @@ def _(df, pl):
         ]:
             for model, layer, nmse, l0, probe_r, map, purity, cov in (
                 (
-                    df.filter(
+                    df
+                    .filter(
                         (pl.col("model") == model)
                         & (pl.col("val_probe_shards") == shards)
                         & (pl.col("objective") == "matryoshka")
@@ -2099,6 +2108,52 @@ def _(df, pl):
 
     _()
     return
+
+
+@app.cell
+def _(df, pl):
+    model = "DINOv3 ViT-L/16"
+    val_probe_shards = "3802cb66"
+    objective = "matryoshka"
+
+    metrics = (
+        "val_mean_ap",
+        "val_mean_purity_16",
+        "cov_at_0_3",
+        "cov_at_0_5",
+        "cov_at_0_7",
+        "val_probe_r",
+    )
+
+    filtered = df.filter(
+        (pl.col("model") == model)
+        & (pl.col("val_probe_shards") == val_probe_shards)
+        & (pl.col("objective") == objective)
+        & pl.col("sae_val_l0").is_not_null()
+        & pl.col("val_nmse").is_not_null()
+        & (pl.col("val_nmse") <= 1.0)
+    )
+
+    frontier = (
+        filtered
+        .sort(by=["layer", "sae_val_l0", "val_nmse"])
+        .with_columns(
+            (pl.col("val_nmse") == pl.col("val_nmse").cum_min().over("layer")).alias(
+                "is_frontier"
+            )
+        )
+        .filter(pl.col("is_frontier"))
+    )
+
+    agg_exprs: list[pl.Expr] = [pl.len().alias("n_runs")]
+    for metric in metrics:
+        agg_exprs.append(pl.col(metric).mean().alias(f"{metric}_mean"))
+        agg_exprs.append(pl.col(metric).std().alias(f"{metric}_std"))
+
+    layer_frontier_stats = frontier.group_by("layer").agg(agg_exprs).sort(by="layer")
+
+    layer_frontier_stats
+    return (layer_frontier_stats,)
 
 
 if __name__ == "__main__":

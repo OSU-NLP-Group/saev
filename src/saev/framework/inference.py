@@ -329,6 +329,7 @@ def main(
     executor = submitit.SlurmExecutor(folder=cfg.log_to)
 
     executor.update_parameters(
+        job_name="sae-inference",
         time=int(cfg.n_hours * 60),
         partition=cfg.slurm_partition,
         gpus_per_node=1,

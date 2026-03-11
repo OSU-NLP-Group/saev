@@ -7,6 +7,8 @@ Usage:
 
 The taxa file should be a CSV with columns like 'family', 'genus', 'species'.
 Any subset of these columns can be used for filtering.
+
+Uses pyarrow instead of polars to avoid segfaults on large GBIF files.
 """
 
 import concurrent.futures
@@ -15,19 +17,29 @@ import io
 import logging
 import pathlib
 import typing as tp
+from typing import NamedTuple
 
 import beartype
 import h5py
 import polars as pl
+import pyarrow as pa
+import pyarrow.compute as pc
+import pyarrow.parquet as pq
 import tyro
 from PIL import Image
 
 log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
 logging.basicConfig(level=logging.INFO, format=log_format)
-logger = logging.getLogger("extract_tol")
+logger = logging.getLogger("root")
 
 
-@beartype.beartype
+class ImagePair(NamedTuple):
+    """A (uuid, label) pair for an image to extract."""
+
+    uuid: str
+    label: str
+
+
 @dataclasses.dataclass(frozen=True)
 class Config:
     taxa_file: pathlib.Path | None = None
@@ -61,79 +73,73 @@ class Config:
     """Time limit in hours for Slurm job."""
     log_to: pathlib.Path = pathlib.Path("logs/extract_tol")
     """Directory for Slurm logs."""
-
-
-@beartype.beartype
-def load_taxa(fpath: pathlib.Path) -> pl.DataFrame:
-    """Load taxa file (CSV or parquet)."""
-    if fpath.suffix == ".parquet":
-        return pl.read_parquet(fpath)
-    else:
-        return pl.read_csv(fpath, infer_schema_length=None)
+    mem_gb: int = 64
+    """Memory in GB for Slurm job."""
 
 
 TAXA_COLS = ("uuid", "class", "order", "family", "genus", "species")
 
 
-@beartype.beartype
-def load_resolved_taxa(dpath: pathlib.Path, sources: tuple[str, ...]) -> pl.DataFrame:
-    """Load all resolved_taxa parquet files for specified sources."""
-    frames = []
-    for source in sources:
-        source_dpath = dpath / f"source={source}"
-        if not source_dpath.exists():
-            logger.warning(f"Source directory not found: {source_dpath}")
-            continue
-        parquet_files = list(source_dpath.glob("*.parquet"))
-        logger.info(f"Loading {len(parquet_files)} parquet files from {source}")
-        for fpath in parquet_files:
-            df = pl.read_parquet(fpath, columns=list(TAXA_COLS))
-            frames.append(df)
-    if not frames:
-        msg = f"No parquet files found in {dpath}"
-        raise FileNotFoundError(msg)
-    return pl.concat(frames)
+@dataclasses.dataclass(frozen=True, slots=True)
+class TaxaFilter:
+    """Filter for matching taxa in parquet files."""
+
+    match_cols: list[str]
+    """Column names to filter by, e.g. ['family']."""
+    taxa_unique: pl.DataFrame
+    """DataFrame with unique values to match."""
+
+    @classmethod
+    def load(cls, fpath: pathlib.Path) -> tp.Self:
+        """Load taxa filter from CSV or parquet file."""
+        if fpath.suffix == ".parquet":
+            df = pl.read_parquet(fpath)
+        else:
+            df = pl.read_csv(
+                fpath, infer_schema_length=None, truncate_ragged_lines=True
+            )
+        # Normalize column names to lowercase
+        df = df.rename({col: col.lower() for col in df.columns})
+        logger.info(f"Loaded {len(df)} taxa entries from {fpath}")
+
+        taxa_cols = set(df.columns)
+        match_cols = [c for c in ["family", "genus", "species"] if c in taxa_cols]
+        if not match_cols:
+            msg = f"Taxa file must have at least one of: family, genus, species. Found: {df.columns}"
+            raise ValueError(msg)
+        logger.info(f"Will filter by columns: {match_cols}")
+        taxa_unique = df.select(match_cols).unique()
+        logger.info(f"Found {len(taxa_unique)} unique taxa combinations")
+        return cls(match_cols=match_cols, taxa_unique=taxa_unique)
 
 
 @beartype.beartype
-def load_lookup_tables(dpath: pathlib.Path, uuids: set[str]) -> pl.DataFrame:
-    """Load lookup_tables parquet files, filtering for specific UUIDs."""
-    parquet_files = list(dpath.glob("*.parquet"))
+def load_lookup_tables_pyarrow(dpath: pathlib.Path, uuids: set[str]) -> dict[str, str]:
+    """Load lookup_tables parquet files, filtering for specific UUIDs. Returns uuid->h5_file dict."""
+    parquet_files = sorted(dpath.glob("*.parquet"))
     logger.info(
-        f"Scanning {len(parquet_files)} lookup table files for {len(uuids)} UUIDs"
+        f"Loading lookup tables for {len(uuids)} UUIDs from {len(parquet_files)} files"
     )
-    frames = []
+    uuid_array = pa.array(list(uuids))
+    uuid_to_h5: dict[str, str] = {}
     for fpath in parquet_files:
-        df = pl.scan_parquet(fpath).filter(pl.col("uuid").is_in(uuids)).collect()
-        if len(df) > 0:
-            frames.append(df)
-            logger.info(f"Found {len(df)} matches in {fpath.name}")
-    if not frames:
-        return pl.DataFrame({"uuid": [], "h5_file": []})
-    return pl.concat(frames)
-
-
-@beartype.beartype
-def filter_by_taxa(resolved: pl.DataFrame, taxa: pl.DataFrame) -> pl.DataFrame:
-    """Filter resolved_taxa by matching taxa file columns."""
-    # Find which columns are in both dataframes
-    taxa_cols = set(taxa.columns)
-    match_cols = [c for c in ["family", "genus", "species"] if c in taxa_cols]
-    if not match_cols:
-        msg = f"Taxa file must have at least one of: family, genus, species. Found: {taxa.columns}"
-        raise ValueError(msg)
-    logger.info(f"Filtering by columns: {match_cols}")
-
-    # Build filter expression by joining on available columns
-    # Get unique taxa values
-    taxa_unique = taxa.select(match_cols).unique()
-    return resolved.join(taxa_unique, on=match_cols, how="inner")
+        table = pq.read_table(fpath, columns=["uuid", "h5_file"])
+        mask = pc.is_in(table["uuid"], value_set=uuid_array)
+        filtered = table.filter(mask)
+        n_matches = filtered.num_rows
+        if n_matches > 0:
+            for uuid, h5_file in zip(
+                filtered["uuid"].to_pylist(), filtered["h5_file"].to_pylist()
+            ):
+                uuid_to_h5[uuid] = h5_file
+            logger.info(f"  {fpath.name}: {n_matches} matches")
+    logger.info(f"Found {len(uuid_to_h5)} UUIDs in lookup tables")
+    return uuid_to_h5
 
 
 @beartype.beartype
 def extract_h5_file(
-    h5_fpath: pathlib.Path,
-    tasks: list[tuple[str, pathlib.Path]],
+    h5_fpath: pathlib.Path, tasks: list[tuple[str, pathlib.Path]]
 ) -> int:
     """Extract all images from a single h5 file. Returns count of successful extractions."""
     n_success = 0
@@ -159,50 +165,110 @@ def extract_h5_file(
 
 
 @beartype.beartype
+def load_and_filter_source_pyarrow(
+    dpath: pathlib.Path,
+    source: str,
+    taxa_filter: TaxaFilter | None,
+    class_filter: str,
+    order_filter: tuple[str, ...],
+    label_column: str,
+) -> list[ImagePair]:
+    """Load and filter source using pyarrow."""
+    source_dpath = dpath / f"source={source}"
+    if not source_dpath.exists():
+        logger.warning(f"Source directory not found: {source_dpath}")
+        return []
+
+    parquet_files = sorted(source_dpath.glob("*.parquet"))
+    logger.info(f"Processing {len(parquet_files)} parquet files from {source}")
+
+    # Build filter value sets for pyarrow
+    filter_col: str | None = None
+    filter_values: pa.Array | None = None
+    if taxa_filter is not None:
+        # Use first match column (usually 'family')
+        filter_col = taxa_filter.match_cols[0]
+        filter_values = pa.array(taxa_filter.taxa_unique[filter_col].unique().to_list())
+    elif class_filter:
+        filter_col = "class"
+        filter_values = pa.array([class_filter])
+    elif order_filter:
+        filter_col = "order"
+        filter_values = pa.array(list(order_filter))
+
+    results: list[ImagePair] = []
+    for fpath in parquet_files:
+        # Read only needed columns
+        cols = ["uuid", label_column]
+        if filter_col and filter_col not in cols:
+            cols.append(filter_col)
+        table = pq.read_table(fpath, columns=cols)
+
+        # Apply filter
+        if filter_col and filter_values is not None:
+            mask = pc.is_in(table[filter_col], value_set=filter_values)
+            table = table.filter(mask)
+
+        # Filter nulls in label column
+        mask = pc.is_valid(table[label_column])
+        table = table.filter(mask)
+
+        n_matches = table.num_rows
+        if n_matches > 0:
+            uuids = table["uuid"].to_pylist()
+            labels = table[label_column].to_pylist()
+            results.extend(ImagePair(u, lbl) for u, lbl in zip(uuids, labels))
+            logger.info(f"  {fpath.name}: {n_matches} matches")
+
+    logger.info(f"  {source} total: {len(results)} matching images")
+    return results
+
+
+@beartype.beartype
 def main(cfg: Config) -> None:
-    logger.info(f"Loading resolved taxa from: {cfg.resolved_taxa_dpath}")
-    resolved = load_resolved_taxa(cfg.resolved_taxa_dpath, cfg.sources)
-    logger.info(f"Loaded {len(resolved)} total resolved taxa entries")
+    logging.basicConfig(level=logging.INFO, format=log_format, force=True)
+    logger.info(f"Starting extraction: sources={cfg.sources}")
 
-    # Filter by taxa file, class, or order
+    # Build filter once
+    taxa_filter = None
     if cfg.taxa_file is not None:
-        logger.info(f"Loading taxa file: {cfg.taxa_file}")
-        taxa = load_taxa(cfg.taxa_file)
-        logger.info(f"Loaded {len(taxa)} taxa entries")
-        logger.info("Filtering by taxa file...")
-        filtered = filter_by_taxa(resolved, taxa)
-    elif cfg.class_filter:
-        logger.info(f"Filtering by class: {cfg.class_filter}")
-        filtered = resolved.filter(pl.col("class") == cfg.class_filter)
-    elif cfg.order_filter:
-        logger.info(f"Filtering by orders: {cfg.order_filter}")
-        filtered = resolved.filter(pl.col("order").is_in(cfg.order_filter))
-    else:
-        logger.info("No filtering - extracting all images")
-        filtered = resolved
-    logger.info(f"Found {len(filtered)} matching images")
+        taxa_filter = TaxaFilter.load(cfg.taxa_file)
 
-    if len(filtered) == 0:
+    # Step 1: Collect all (uuid, label) pairs from all sources
+    logger.info("Step 1: Collecting image metadata from sources...")
+    all_pairs: list[ImagePair] = []
+    for source in cfg.sources:
+        pairs = load_and_filter_source_pyarrow(
+            cfg.resolved_taxa_dpath,
+            source,
+            taxa_filter,
+            cfg.class_filter,
+            cfg.order_filter,
+            cfg.label_column,
+        )
+        all_pairs.extend(pairs)
+        logger.info(f"After {source}: {len(all_pairs)} total pairs")
+
+    if not all_pairs:
         logger.warning("No matching images found. Check your filter settings.")
         return
 
-    uuids = set(filtered["uuid"].to_list())
-    logger.info(f"Loading lookup tables from: {cfg.lookup_tables_dpath}")
-    lookup = load_lookup_tables(cfg.lookup_tables_dpath, uuids)
+    logger.info(f"Total: {len(all_pairs)} matching images across all sources")
 
-    logger.info("Joining with lookup tables...")
-    joined = filtered.join(lookup, on="uuid", how="inner")
-    logger.info(f"Found {len(joined)} images with h5 paths")
+    # Step 2: Load lookup tables ONCE with all UUIDs
+    logger.info("Step 2: Loading lookup tables...")
+    uuids = {pair.uuid for pair in all_pairs}
+    uuid_to_h5 = load_lookup_tables_pyarrow(cfg.lookup_tables_dpath, uuids)
+    uuid_to_label = {pair.uuid: pair.label for pair in all_pairs}
 
-    # Filter out rows with null labels
-    joined = joined.filter(pl.col(cfg.label_column).is_not_null())
-    logger.info(f"After removing null labels: {len(joined)} images")
-
-    # Group tasks by h5 file for efficient I/O
+    # Step 3: Build h5_tasks grouped by h5 file
+    logger.info("Step 3: Building extraction tasks...")
     h5_tasks: dict[pathlib.Path, list[tuple[str, pathlib.Path]]] = {}
     n_skipped = 0
-    for row in joined.select("uuid", cfg.label_column, "h5_file").iter_rows():
-        uuid, label, h5_file = row
+    for uuid, h5_file in uuid_to_h5.items():
+        label = uuid_to_label.get(uuid)
+        if label is None:
+            continue
         label_safe = str(label).replace("/", "_").replace(" ", "_")
         output_fpath = cfg.output_dpath / label_safe / f"{uuid}.jpg"
         if output_fpath.exists():
@@ -222,9 +288,9 @@ def main(cfg: Config) -> None:
         logger.info("No new images to extract.")
         return
 
-    # Process h5 files in parallel
+    # Step 4: Extract images in parallel
+    logger.info(f"Step 4: Extracting with {cfg.n_workers} workers...")
     h5_items = list(h5_tasks.items())
-    logger.info(f"Extracting with {cfg.n_workers} workers...")
     n_total = 0
     with concurrent.futures.ThreadPoolExecutor(max_workers=cfg.n_workers) as executor:
         futures = {
@@ -234,7 +300,7 @@ def main(cfg: Config) -> None:
         for i, future in enumerate(concurrent.futures.as_completed(futures)):
             n_success = future.result()
             n_total += n_success
-            if (i + 1) % 50 == 0 or (i + 1) == len(futures):
+            if (i + 1) % 100 == 0 or (i + 1) == len(futures):
                 logger.info(
                     f"Progress: {i + 1}/{len(futures)} h5 files, {n_total} images"
                 )
@@ -256,18 +322,30 @@ def cli() -> int:
 
     cfg.log_to.mkdir(parents=True, exist_ok=True)
     executor = submitit.SlurmExecutor(folder=cfg.log_to)
-    executor.update_parameters(
+
+    # Request enough CPUs to get desired memory (~10GB per CPU on nextgen)
+    n_cpus = max(cfg.n_workers, cfg.mem_gb // 10)
+
+    params = dict(
+        job_name="extract-tol",
         time=int(cfg.n_hours * 60),
         partition=cfg.slurm_partition,
         gpus_per_node=0,
         ntasks_per_node=1,
-        cpus_per_task=cfg.n_workers,
+        cpus_per_task=n_cpus,
         stderr_to_stdout=True,
         account=cfg.slurm_acct,
     )
+    executor.update_parameters(**params)
     job = executor.submit(main, cfg)
     logger.info(f"Submitted job {job.job_id} to Slurm. Logs: {cfg.log_to}")
-    return 0
+    try:
+        job.result()
+        logger.info(f"Job {job.job_id} completed successfully.")
+        return 0
+    except Exception as e:
+        logger.error(f"Job {job.job_id} failed: {e}")
+        return 1
 
 
 if __name__ == "__main__":

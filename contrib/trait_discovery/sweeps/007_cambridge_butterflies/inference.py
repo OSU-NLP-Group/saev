@@ -17,6 +17,11 @@ def make_cfgs():
         384: "/fs/scratch/PAS2136/samuelstevens/saev/shards/7c2ba646",
         640: "/fs/scratch/PAS2136/samuelstevens/saev/shards/71ba8292",
     }
+    # v1.6 shards (cambridge-segfolder-v1.6)
+    shards_v16 = {
+        384: "/fs/scratch/PAS2136/samuelstevens/saev/shards/a6be28a1",
+        640: "/fs/scratch/PAS2136/samuelstevens/saev/shards/79239bdd",
+    }
 
     # Pareto-optimal run IDs by (n_patches, layer) from notebook
     # v1.0 runs
@@ -38,6 +43,13 @@ def make_cfgs():
         (640, 23): ["7cmnd5ib", "ez4ntgik", "ujj22ci0", "ey7aqcqi", "cqwk6eoo"],
     }
 
+    run_ids_v16 = {
+        (384, 21): ["p0guo1jd", "5s6r8jdl", "mv3i6uib", "qqfr68vr", "snqrghcl"],
+        (384, 23): ["otu1sjxm", "kinh5q05", "gjwhz6zk", "19wcnti9", "3c982cdt"],
+        (640, 21): ["zhul9opa", "gz2dikb3", "3rqci2h1", "r27w7pmf", "x4n29kua"],
+        (640, 23): ["pnsi8yhe", "onqqe859", "rd8wc24d", "vends70d", "pa5cu0mf"],
+    }
+
     # v1.0 configs
     for (n_patches, layer), ids in run_ids_v10.items():
         for run_id in ids:
@@ -52,6 +64,13 @@ def make_cfgs():
             cfgs.append({
                 "run": os.path.join(run_root, run_id),
                 "data": {"shards": shards_v12[n_patches], "layer": layer},
+            })
+    # v1.6
+    for (n_patches, layer), ids in run_ids_v16.items():
+        for run_id in ids:
+            cfgs.append({
+                "run": os.path.join(run_root, run_id),
+                "data": {"shards": shards_v16[n_patches], "layer": layer},
             })
 
     return cfgs

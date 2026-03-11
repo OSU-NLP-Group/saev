@@ -99,12 +99,12 @@ After the main forward pass but within the training step. Gradients from AuxK sh
 
 ```python
 def auxk_loss(
-    x: Tensor,           # (batch, d_model) - input
-    x_hat: Tensor,       # (batch, d_model) - main reconstruction
-    pre_acts: Tensor,    # (batch, d_sae) - pre-activation (before TopK)
-    dead_mask: Tensor,   # (d_sae,) - boolean mask of dead latents
-    W_dec: Tensor,       # (d_sae, d_model) - decoder weights
-    b_dec: Tensor,       # (d_model,) - decoder bias
+    x: Tensor,  # (batch, d_model) - input
+    x_hat: Tensor,  # (batch, d_model) - main reconstruction
+    pre_acts: Tensor,  # (batch, d_sae) - pre-activation (before TopK)
+    dead_mask: Tensor,  # (d_sae,) - boolean mask of dead latents
+    W_dec: Tensor,  # (d_sae, d_model) - decoder weights
+    b_dec: Tensor,  # (d_model,) - decoder bias
     k_aux: int = 512,
 ) -> Tensor:
     # isolate AuxK from live latents by detaching the main reconstruction
@@ -167,7 +167,7 @@ Option A seems cleanest - the training loop needs both anyway.
 class AuxKConfig:
     enabled: bool = True
     k_aux: int = 512
-    alpha: float = 1/32
+    alpha: float = 1 / 32
     dead_threshold_tokens: int = 10_000_000
 ```
 

@@ -27,7 +27,12 @@ class ParallelWandbRun:
         self.summary_updates: dict[str, object] = {}
 
         self.live_run = wandb.init(
-            project=project, config=cfg, mode=mode, tags=tags, dir=dir
+            project=project,
+            config=cfg,
+            mode=mode,
+            tags=tags,
+            dir=dir,
+            settings=wandb.Settings(init_timeout=300),
         )
 
         self.metric_queues: list[MetricQueue] = [[] for _ in self.cfgs]
@@ -55,6 +60,7 @@ class ParallelWandbRun:
                 mode=self.mode,
                 tags=self.tags + ["queued"],
                 dir=self.dir,
+                settings=wandb.Settings(init_timeout=300),
             )
             for key, value in self.summary_updates.items():
                 run.summary[key] = value

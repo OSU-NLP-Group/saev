@@ -172,6 +172,7 @@ activation = mmap[img_i, layer_i, patch_idx_with_cls]
 4. **Process Spawning**: Use `spawn` start method for multiprocessing
    ```python
    import torch.multiprocessing as mp
+
    mp.set_start_method("spawn", force=True)
    ```
 

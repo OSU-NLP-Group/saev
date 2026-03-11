@@ -207,7 +207,7 @@ This approach:
 The `train` command accepts a `--sweep` parameter that points to a TOML file defining the hyperparameter grid:
 
 ```bash
-uv run python -m saev train --sweep configs/my_sweep.toml
+uv run launch.py train --sweep configs/my_sweep.toml
 ```
 
 Here's an example sweep configuration file:

@@ -39,6 +39,7 @@ build-comparison: fmt
 export-demo:
     uv run marimo export html examples/inference.py --force --output /dev/null
     uv run python scripts/export_notebook.py
+    uv run jupyter nbconvert --to notebook --execute examples/inference.ipynb --inplace
 
 deploy: build-classification build-semseg
     uv run python scripts/deploy.py

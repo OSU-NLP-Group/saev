@@ -58,7 +58,18 @@ Add a `MiniBatchSemiNMF` class to `baselines.py` that processes data in batches.
 class MiniBatchSemiNMF(torch.nn.Module):
     method = "semi-nmf"
 
-    def __init__(self, n_concepts: int, device: str = "cuda", z_iters: int = 10, encode_iters: int = 300, batch_size: int = 16384, ridge: float = 1e-6, eps: float = 1e-8, forget_factor: float = 0.7, d_update_every: int = 10):
+    def __init__(
+        self,
+        n_concepts: int,
+        device: str = "cuda",
+        z_iters: int = 10,
+        encode_iters: int = 300,
+        batch_size: int = 16384,
+        ridge: float = 1e-6,
+        eps: float = 1e-8,
+        forget_factor: float = 0.7,
+        d_update_every: int = 10,
+    ):
         ...
         self.D_: Tensor | None = None  # (n_concepts, n_features)
         self.n_features_in_: int | None = None
@@ -257,8 +268,10 @@ def fit(self, dataloader, n_concepts: int, n_features: int):
 def pos_part(X: Tensor) -> Tensor:
     return (X.abs() + X) / 2
 
+
 def neg_part(X: Tensor) -> Tensor:
     return (X.abs() - X) / 2
+
 
 def warm_start_z(A: Tensor, D: Tensor, eps: float = 1e-8) -> Tensor:
     """Initialize Z using ridge-regularized least-squares, clamped to positive.

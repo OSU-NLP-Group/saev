@@ -97,7 +97,7 @@ def _(beartype, pathlib, pl, saev, shards_root):
 
     def format_data_cfg(data: saev.data.datasets.DatasetConfig) -> dict[str, object]:
         if isinstance(data, saev.data.datasets.Cifar10):
-            return {"name": "CIFAR10"}
+            return {"name": "CIFAR10", "split": data.split}
 
         if isinstance(data, saev.data.datasets.ImgSegFolder):
             if "ADE" in str(data.root):
@@ -110,7 +110,7 @@ def _(beartype, pathlib, pl, saev, shards_root):
 
         if isinstance(data, saev.data.datasets.ImgFolder):
             if "fish-vista" in str(data.root) and "*" in str(data.root):
-                return {"name": "FistVista (Cls)", "split": "all"}
+                return {"name": "FistVista (Img)", "split": "all"}
 
         if isinstance(data, saev.data.datasets.Imagenet):
             return {"name": "ImageNet-1K", "split": data.split}
@@ -145,7 +145,7 @@ def _(beartype, pathlib, pl, saev, shards_root):
 
 @app.cell
 def _(df):
-    df
+    df.sort(by=["family", "ckpt", "name", "split"])
     return
 
 

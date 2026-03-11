@@ -11,10 +11,9 @@ def _():
 
     import beartype
     import glasbey
+    import marimo as mo
     import numpy as np
     from PIL import Image
-
-    import marimo as mo
 
     import saev.data.datasets
 

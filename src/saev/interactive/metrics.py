@@ -1,12 +1,13 @@
 import marimo
 
-__generated_with = "0.15.0"
-app = marimo.App(width="medium")
+__generated_with = "0.18.4"
+app = marimo.App(width="full")
 
 
 @app.cell
 def _():
     import base64
+    import collections
     import itertools
     import json
     import os
@@ -15,6 +16,7 @@ def _():
     import altair as alt
     import beartype
     import marimo as mo
+    import matplotlib as mpl
     import matplotlib.pyplot as plt
     import numpy as np
     import polars as pl
@@ -30,10 +32,12 @@ def _():
         alt,
         base64,
         beartype,
+        collections,
         itertools,
         jaxtyped,
         json,
         mo,
+        mpl,
         np,
         os,
         pickle,
@@ -46,8 +50,7 @@ def _():
 
 @app.cell
 def _(mo):
-    mo.md(
-        """
+    mo.md("""
     # SAE Metrics Explorer
 
     This notebook helps you analyze and compare SAE training runs from WandB.
@@ -58,8 +61,7 @@ def _(mo):
     ## Troubleshooting
 
     - **No runs found**: Check your WandB username, project name, and tag filter
-    """
-    )
+    """)
     return
 
 
@@ -72,7 +74,7 @@ def _():
 
 @app.cell
 def _(mo):
-    tag_input = mo.ui.text(value="train-v1.0", label="Sweep Tag:")
+    tag_input = mo.ui.text(label="Sweep Tag:")
     return (tag_input,)
 
 
@@ -91,21 +93,22 @@ def _(WANDB_PROJECT, WANDB_USERNAME, mo, tag_input):
 def _(df, mo):
     # All unique (model, layer) pairs
     pairs = (
-        df.select(["model_key", "config/val_data/layer"])
+        df
+        .select(["model_key", "config/val_data/layer"])
         .unique()
         .sort(by=["model_key", "config/val_data/layer"])
         .iter_rows()
     )
 
     pair_elems = {
-        f"{model}|{layer}": mo.ui.switch(value=True, label=f"{model} / layer {layer}")
+        f"{model}|{layer}": mo.ui.switch(value=False, label=f"{model} / layer {layer}")
         for model, layer in pairs
     }
     pair_dict = mo.ui.dictionary(pair_elems)  # ★ reactive wrapper ★
 
     # Global toggle for non-frontier ("rest") points
     show_rest = mo.ui.switch(value=True, label="Show non-frontier points")
-    show_ids = mo.ui.switch(value=False, label="Annotate Pareto points")
+    show_ids = mo.ui.switch(value=True, label="Annotate Pareto points")
 
     def _make_grid(elems, ncols: int, gap: float):
         return mo.hstack(
@@ -125,6 +128,7 @@ def _(df, mo):
 @app.cell
 def _(
     adjust_text,
+    collections,
     df,
     itertools,
     mo,
@@ -167,8 +171,10 @@ def _(
 
         texts = []
 
+        pareto_ckpts = collections.defaultdict(list)
+
         for model, marker in zip(models, itertools.cycle(markers)):
-            model_df = df.filter(pl.col(model_col) == model)
+            model_df = df.filter((pl.col(model_col) == model))
 
             layers = model_df.select(layer_col).unique().get_column(layer_col).to_list()
             for layer, color, linestyle in zip(
@@ -176,15 +182,16 @@ def _(
                 itertools.cycle(colors),
                 itertools.cycle(linestyles),
             ):
-                group = (
-                    model_df.filter(pl.col(layer_col) == layer)
-                    .sort(l0_col)
-                    .with_columns(pl.col(mse_col).cum_min().alias("cummin_mse"))
-                )
+                group = model_df.filter(
+                    (pl.col(layer_col) == layer)
+                    & (pl.col("config/objective/n_prefixes").is_not_null())
+                ).sort(l0_col)
 
-                pareto = group.filter(pl.col(mse_col) == pl.col("cummin_mse"))
+                pareto = group.filter(pl.col("is_pareto"))
+                if pareto.height == 0:
+                    continue
+
                 ids = pareto.get_column("id").to_list()
-
                 xs = pareto.get_column(l0_col).to_numpy()
                 ys = pareto.get_column(mse_col).to_numpy()
 
@@ -198,45 +205,93 @@ def _(
                     label=f"{model} / layer {layer}",
                 )
 
-                if show_ids:  # <-- annotate
-                    for x, y, rid in zip(xs, ys, ids):
+                edge_mask = (
+                    pl.col("is_lr_min") | pl.col("is_lr_max")
+                    # | pl.col("is_lambda_min")
+                    # | pl.col("is_lambda_max")
+                )
+                edge_df = pareto.filter(edge_mask)
+
+                if edge_df.height > 0:
+                    edge_xs = edge_df.get_column(l0_col).to_numpy()
+                    edge_ys = edge_df.get_column(mse_col).to_numpy()
+                    ax.scatter(
+                        edge_xs,
+                        edge_ys,
+                        facecolors="none",
+                        edgecolors="tab:red",
+                        marker=marker,
+                        s=60,
+                        linewidths=1.2,
+                        zorder=line.get_zorder() + 1,
+                    )
+
+                if show_ids:
+                    lr_min = pareto.get_column("is_lr_min").to_list()
+                    lr_max = pareto.get_column("is_lr_max").to_list()
+                    lam_min = [False] * len(lr_min)
+                    lam_max = [False] * len(lr_max)
+                    # lam_min = pareto.get_column("is_lambda_min").to_list()
+                    # lam_max = pareto.get_column("is_lambda_max").to_list()
+
+                    for x, y, rid, is_lr_min, is_lr_max, is_lam_min, is_lam_max in zip(
+                        xs, ys, ids, lr_min, lr_max, lam_min, lam_max
+                    ):
+                        edge_parts = []
+                        if is_lr_min:
+                            edge_parts.append("LR min")
+                        if is_lr_max:
+                            edge_parts.append("LR max")
+                        if is_lam_min:
+                            edge_parts.append("$\\lambda$ min")
+                        if is_lam_max:
+                            edge_parts.append("$\\lambda$ max")
+
+                        label = (
+                            rid
+                            if not edge_parts
+                            else f"{rid} ({', '.join(edge_parts)})"
+                        )
+                        color_text = "tab:red" if edge_parts else "black"
                         texts.append(
                             ax.text(
                                 x,
                                 y,
-                                rid,
+                                label,
                                 fontsize=6,
-                                color="black",
+                                color=color_text,
                                 ha="left",
                                 va="bottom",
                             )
                         )
 
-                rest = group.filter(pl.col(mse_col) != pl.col("cummin_mse"))
-                xs = rest.get_column(l0_col).to_numpy()
-                ys = rest.get_column(mse_col).to_numpy()
+                        pareto_ckpts[f"{model}/{layer}"].append(rid)
 
                 if show_rest:
-                    # Scatter
-                    ax.scatter(
-                        xs,
-                        ys,
-                        color=color,
-                        marker=marker,
-                        s=12,
-                        linewidth=0,
-                        alpha=0.5,
-                    )
+                    rest = group.filter(~pl.col("is_pareto"))
+                    if rest.height > 0:
+                        ax.scatter(
+                            rest.get_column(l0_col).to_numpy(),
+                            rest.get_column(mse_col).to_numpy(),
+                            color=color,
+                            marker=marker,
+                            s=12,
+                            linewidths=0,
+                            alpha=0.5,
+                        )
 
         ax.set_xlabel("L0 sparsity (lower is better)")
         ax.set_ylabel("Reconstruction MSE (lower is better)")
         ax.grid(True, linewidth=0.3, alpha=0.7)
         ax.legend(fontsize="small", ncols=2)
         ax.spines[["right", "top"]].set_visible(False)
+        ax.set_xscale("log")
+        ax.set_xlim(1e-1, 1e5)
+        ax.set_yscale("log")
 
         adjust_text(texts)
 
-        return fig
+        return fig, pareto_ckpts
 
     selected_keys = [k for k, v in pair_dict.value.items() if v]
     if selected_keys:
@@ -253,15 +308,15 @@ def _(
 
     mo.stop(filtered_df.height == 0, mo.md("No runs match the current filters."))
 
-    fig = plot_layerwise(filtered_df, show_rest.value, show_ids.value)
-    fig
-    return (layers,)
+    mo.vstack(plot_layerwise(filtered_df, show_rest.value, show_ids.value))
+    return filtered_df, layers, models
 
 
 @app.cell
 def _(alt, df, layers, mo, pl):
     chart = mo.ui.altair_chart(
-        alt.Chart(
+        alt
+        .Chart(
             df.filter(
                 pl.col("config/val_data/layer").is_in([int(layer) for layer in layers])
             ).select(
@@ -269,7 +324,7 @@ def _(alt, df, layers, mo, pl):
                 "summary/eval/mse",
                 "id",
                 "config/objective/sparsity_coeff",
-                "config/lr",
+                pl.col("config/lr").log10().alias("config/lr"),
                 "config/sae/d_sae",
                 "config/val_data/layer",
                 "model_key",
@@ -292,7 +347,20 @@ def _(alt, df, layers, mo, pl):
 
 
 @app.cell
-def _(chart, df, mo, np, plot_dist, plt):
+def _(
+    WANDB_PROJECT,
+    WANDB_USERNAME,
+    chart,
+    df,
+    load_freqs,
+    load_mean_values,
+    mo,
+    np,
+    pl,
+    plot_dist,
+    plt,
+    wandb,
+):
     mo.stop(
         len(chart.value) < 2,
         mo.md(
@@ -300,17 +368,39 @@ def _(chart, df, mo, np, plot_dist, plt):
         ),
     )
 
-    sub_df = (
-        df.select(
-            "id",
-            "summary/eval/freqs",
-            "summary/eval/mean_values",
-            "summary/eval/l0",
-        )
+    selected_df = (
+        df
+        .select("id", "summary/eval/l0")
         .join(chart.value.select("id"), on="id", how="inner")
         .sort(by="summary/eval/l0")
         .head(4)
     )
+    wandb_path = f"{WANDB_USERNAME}/{WANDB_PROJECT}"
+    rows = []
+    for run_id, l0 in selected_df.iter_rows():
+        run = wandb.Api().run(f"{wandb_path}/{run_id}")
+        try:
+            freqs = load_freqs(run)
+            mean_values = load_mean_values(run)
+        except ValueError:
+            print(f"Run {run_id} did not log eval/freqs or eval/mean_values.")
+            continue
+        except RuntimeError:
+            print(f"Wandb blew up on run {run_id}.")
+            continue
+        rows.append({
+            "id": run_id,
+            "summary/eval/freqs": freqs,
+            "summary/eval/mean_values": mean_values,
+            "summary/eval/l0": l0,
+        })
+    mo.stop(
+        not rows,
+        mo.md(
+            "No selected runs have eval/freqs and eval/mean_values artifacts available."
+        ),
+    )
+    sub_df = pl.DataFrame(rows).sort(by="summary/eval/l0")
 
     scatter_fig, scatter_axes = plt.subplots(
         ncols=len(sub_df), figsize=(12, 3), squeeze=False, sharey=True, sharex=True
@@ -436,8 +526,6 @@ def _(
     get_data_key,
     get_model_key,
     json,
-    load_freqs,
-    load_mean_values,
     mo,
     os,
     pl,
@@ -477,16 +565,36 @@ def _(
 
     @beartype.beartype
     def make_df(tag: str):
-        filters = {}
-        if tag:
-            filters["config.tag"] = tag
-            # filters["config.data.metadata.n_patches_per_img"] = 1920
-            # filters["config.data.metadata.data.root"] = (
-            #     "/fs/scratch/PAS2136/samuelstevens/datasets/butterflies-segfolder/"
-            # )
-        runs = wandb.Api().runs(
-            path=f"{WANDB_USERNAME}/{WANDB_PROJECT}", filters=filters
-        )
+        empty_df = pl.DataFrame({
+            "id": [],
+            "model_key": [],
+            "config/val_data/layer": [],
+            "data_key": [],
+            "summary/eval/l0": [],
+            "summary/eval/mse": [],
+        })
+
+        if not tag:
+            return empty_df
+
+        def is_scalar(value: object) -> bool:
+            if value is None:
+                return True
+            if isinstance(value, bool):
+                return True
+            if isinstance(value, str):
+                return True
+            if isinstance(value, int | float):
+                return True
+            return False
+
+        path = f"{WANDB_USERNAME}/{WANDB_PROJECT}"
+        # Most sweeps use config.tag and this is usually much narrower.
+        runs = list(wandb.Api().runs(path=path, filters={"config.tag": tag}))
+        if not runs:
+            runs = list(wandb.Api().runs(path=path, filters={"tags": {"$in": [tag]}}))
+
+        # runs = runs[:10]
 
         rows = []
         for run in mo.status.progress_bar(
@@ -498,47 +606,37 @@ def _(
             row = {}
             row["id"] = run.id
 
-            row.update(**{
-                f"summary/{key}": value for key, value in run.summary.items()
-            })
             try:
-                row["summary/eval/freqs"] = load_freqs(run)
-            except ValueError:
-                print(f"Run {run.id} did not log eval/freqs.")
+                for key, value in run.summary.items():
+                    if not is_scalar(value):
+                        continue
+                    row[f"summary/{key}"] = value
+            except AttributeError as err:
+                print(f"Run {run.id} has a problem in run.summary._json_dict: {err}")
                 continue
-            except RuntimeError:
-                print(f"Wandb blew up on run {run.id}.")
-                continue
-            try:
-                row["summary/eval/mean_values"] = load_mean_values(run)
-            except ValueError:
-                print(f"Run {run.id} did not log eval/mean_values.")
-                continue
-            except RuntimeError:
-                print(f"Wandb blew up on run {run.id}.")
-                continue
-
             # config
-            row.update(**{
-                f"config/train_data/{key}": value
-                for key, value in run.config.pop("train_data").items()
-            })
-            row.update(**{
-                f"config/val_data/{key}": value
-                for key, value in run.config.pop("val_data").items()
-            })
-            row.update(**{
-                f"config/sae/{key}": value
-                for key, value in run.config.pop("sae").items()
-            })
+            cfg = dict(run.config)
 
-            if "objective" in run.config:
-                row.update(**{
-                    f"config/objective/{key}": value
-                    for key, value in run.config.pop("objective").items()
-                })
+            for cfg_key in ("train_data", "val_data", "sae"):
+                nested_cfg = cfg.pop(cfg_key, {})
+                if not isinstance(nested_cfg, dict):
+                    continue
+                for key, value in nested_cfg.items():
+                    if not is_scalar(value):
+                        continue
+                    row[f"config/{cfg_key}/{key}"] = value
 
-            row.update(**{f"config/{key}": value for key, value in run.config.items()})
+            objective_cfg = cfg.pop("objective", {})
+            if isinstance(objective_cfg, dict):
+                for key, value in objective_cfg.items():
+                    if not is_scalar(value):
+                        continue
+                    row[f"config/objective/{key}"] = value
+
+            for key, value in cfg.items():
+                if not is_scalar(value):
+                    continue
+                row[f"config/{key}"] = value
 
             try:
                 # Check if metadata is available in WandB config
@@ -562,16 +660,48 @@ def _(
             rows.append(row)
 
         if not rows:
-            raise ValueError("No runs found.")
+            return empty_df
 
-        df = pl.DataFrame(rows).with_columns(
-            (pl.col("config/sae/d_model") * pl.col("config/sae/exp_factor")).alias(
-                "config/sae/d_sae"
-            )
+        df = pl.DataFrame(rows).with_row_index("_row_idx")
+
+        group_cols = ("model_key", "config/val_data/layer", "data_key")
+        lr_col = "config/lr"
+        # lambda_col = "config/objective/sparsity_coeff"
+
+        bounds_df = df.group_by(group_cols, maintain_order=False).agg(
+            pl.col(lr_col).min().alias("lr_min"),
+            pl.col(lr_col).max().alias("lr_max"),
+            # pl.col(lambda_col).min().alias("lambda_min"),
+            # pl.col(lambda_col).max().alias("lambda_max"),
         )
+
+        df = (
+            df
+            .join(bounds_df, on=group_cols, how="left")
+            .with_columns(
+                (pl.col(lr_col) == pl.col("lr_min")).alias("is_lr_min"),
+                (pl.col(lr_col) == pl.col("lr_max")).alias("is_lr_max"),
+                # (pl.col(lambda_col) == pl.col("lambda_min")).alias("is_lambda_min"),
+                # (pl.col(lambda_col) == pl.col("lambda_max")).alias("is_lambda_max"),
+            )
+            .sort(group_cols + ("summary/eval/l0", "summary/eval/mse"))
+            .with_columns(
+                (
+                    pl.col("summary/eval/mse")
+                    == pl.col("summary/eval/mse").cum_min().over(group_cols)
+                ).alias("is_pareto"),
+            )
+            .sort("_row_idx")
+            .drop("_row_idx")
+        )
+
         return df
 
     df = make_df(tag_input.value)
+    mo.stop(
+        df.height == 0,
+        mo.md(f"No runs found for tag: `{tag_input.value}`."),
+    )
     return (df,)
 
 
@@ -596,7 +726,11 @@ def _(base64, beartype, pickle, saev):
         if family == "dinov2" and ckpt == "dinov2_vitl14_reg":
             return "DINOv2 ViT-L/14 (reg)"
         if family == "dinov3" and "vitl" in ckpt:
-            return "DINOv3 ViT-L/14"
+            return "DINOv3 ViT-L/16"
+        if family == "dinov3" and "vitb" in ckpt:
+            return "DINOv3 ViT-B/16"
+        if family == "dinov3" and "vits" in ckpt:
+            return "DINOv3 ViT-S/16"
         if family == "clip" and ckpt == "ViT-B-16/openai":
             return "CLIP ViT-B/16"
         if family == "clip" and ckpt == "hf-hub:imageomics/bioclip":
@@ -616,9 +750,17 @@ def _(base64, beartype, pickle, saev):
         if isinstance(data_cfg, saev.data.datasets.ImgSegFolder) and "ADE" in str(
             data_cfg.root
         ):
-            return "ADE20K"
+            return f"ADE20K/{data_cfg.split}"
 
-        print(f"Unknown data: {metadata['data']}")
+        if isinstance(data_cfg, saev.data.datasets.Imagenet):
+            return f"IN1K/{data_cfg.split}"
+
+        if isinstance(
+            data_cfg, saev.data.datasets.ImgFolder
+        ) and "fish-vista-imgfolder" in str(data_cfg.root):
+            return "FishVista (Img)"
+
+        print(f"Unknown data: {data_cfg}")
         return None
 
     return get_data_key, get_model_key
@@ -666,7 +808,8 @@ def _(Float, json, np, os):
 @app.cell
 def _(alt, df, layers, mo, pl):
     mo.ui.altair_chart(
-        alt.Chart(
+        alt
+        .Chart(
             df.filter(
                 pl.col("config/val_data/layer").is_in([int(layer) for layer in layers])
             ).select(
@@ -678,20 +821,653 @@ def _(alt, df, layers, mo, pl):
                 "config/sae/d_sae",
                 "config/val_data/layer",
                 "model_key",
+                "is_pareto",
             )
         )
         .mark_point()
         .encode(
-            x=alt.X("summary/eval/l0"),
-            y=alt.Y("summary/eval/mse"),
-            tooltip=["id", "config/lr"],
+            x=alt.X("summary/eval/l0").scale(type="log"),
+            y=alt.Y("summary/eval/mse").scale(type="log"),
+            tooltip=["id", "config/lr", "config/objective/sparsity_coeff", "is_pareto"],
             color="config/lr:Q",
+            shape="is_pareto:N",
             # shape="config/val_data/layer:N",
-            shape="config/objective/sparsity_coeff:N",
+            # shape="config/objective/sparsity_coeff:N",
             # shape="config/sae/d_sae:N",
             # shape="model_key",
         )
     )
+    return
+
+
+@app.cell
+def _(alt, df, layers, mo, models, pl):
+    mo.ui.altair_chart(
+        alt
+        .Chart(
+            df.filter(
+                pl.col("config/val_data/layer").is_in([int(layer) for layer in layers])
+                & pl.col("model_key").is_in(models)
+            ).select(
+                "summary/eval/l0",
+                "summary/eval/mse",
+                "id",
+                "config/objective/sparsity_coeff",
+                "config/lr",
+                "config/sae/d_sae",
+                "config/val_data/layer",
+                "model_key",
+                "is_pareto",
+            )
+        )
+        .mark_point()
+        .encode(
+            x=alt.X("summary/eval/l0").scale(type="log", domain=(1e-1, 1e4)),
+            y=alt.Y("summary/eval/mse").scale(type="log"),
+            tooltip=["id", "config/lr", "config/objective/sparsity_coeff", "is_pareto"],
+            color="config/objective/sparsity_coeff:Q",
+            shape="is_pareto:N",
+            # shape="config/val_data/layer:N",
+            # shape="config/objective/sparsity_coeff:N",
+            # shape="config/sae/d_sae:N",
+            # shape="model_key",
+        )
+    )
+    return
+
+
+@app.cell
+def _(adjust_text, filtered_df, itertools, mo, pl, plt, saev):
+    def plot_lambdawise(df: pl.DataFrame):
+        l0_col = "summary/eval/l0"
+        mse_col = "summary/eval/mse"
+        layer_col = "config/val_data/layer"
+        lam_col = "config/objective/sparsity_coeff"
+        model_col = "model_key"
+
+        fig, ax = plt.subplots(figsize=(7, 4), dpi=300)
+
+        linestyles = ["-", "--", ":", "-."]
+        colors = [
+            saev.colors.CYAN_RGB01,
+            saev.colors.SEA_RGB01,
+            saev.colors.CREAM_RGB01,
+            saev.colors.GOLD_RGB01,
+            saev.colors.ORANGE_RGB01,
+            saev.colors.RUST_RGB01,
+            saev.colors.SCARLET_RGB01,
+            saev.colors.RED_RGB01,
+        ]
+        markers = ["X", "o", "+"]
+
+        models = sorted(df.select(model_col).unique().get_column(model_col).to_list())
+        lams = sorted(df.select(lam_col).unique().get_column(lam_col).to_list())
+
+        texts = []
+
+        for model, marker in zip(models, itertools.cycle(markers)):
+            model_df = df.filter(pl.col(model_col) == model)
+
+            layers = model_df.select(layer_col).unique().get_column(layer_col).to_list()
+            for layer, linestyle in zip(sorted(layers), itertools.cycle(linestyles)):
+                for lam, color in zip(lams, itertools.cycle(colors)):
+                    group = model_df.filter(
+                        (pl.col(layer_col) == layer) & (pl.col(lam_col) == lam)
+                    ).sort(l0_col)
+
+                    line, *_ = ax.plot(
+                        group.get_column(l0_col).to_numpy(),
+                        group.get_column(mse_col).to_numpy(),
+                        color=color,
+                        linestyle=linestyle,
+                        marker=marker,
+                        alpha=0.8,
+                        label=f"Layer {layer} / $\\lambda$ {lam:.1g}",
+                    )
+
+        ax.set_xlabel("L0 sparsity (lower is better)")
+        ax.set_ylabel("Reconstruction MSE (lower is better)")
+        ax.grid(True, linewidth=0.3, alpha=0.7)
+        ax.legend(fontsize="small", ncols=2)
+        ax.spines[["right", "top"]].set_visible(False)
+        ax.set_xscale("log")
+        # ax.set_xlim(1e-1)
+        # ax.set_yscale("log")
+        # ax.set_ylim(1e1)
+
+        adjust_text(texts)
+
+        return fig
+
+    mo.stop(filtered_df.height == 0, mo.md("No runs match the current filters."))
+
+    plot_lambdawise(filtered_df)
+    return
+
+
+@app.cell
+def _(df):
+    print("rm -r " + " ".join(df.get_column("id").to_list()))
+    return
+
+
+@app.cell
+def _(df, pl):
+    df.select(pl.col("^config/objective.*$"))
+    return
+
+
+@app.cell
+def _(collections, df, functools, get_nmse, pl, plt, saev):
+    def plot_for_publication(
+        df: pl.DataFrame,
+        l0_col: str = "summary/eval/l0",
+        layer_col: str = "config/val_data/layer",
+    ):
+        mse_col = "val_nmse"
+        # mse_col = "summary/eval/mse"
+
+        fig, ax = plt.subplots(figsize=(4.5, 3), dpi=300, layout="constrained")
+
+        pareto_ckpts = collections.defaultdict(list)
+
+        point_alpha = 0.8
+
+        ax.scatter(
+            [1.0],
+            [0.672],
+            color=saev.colors.SEA_RGB01,
+            marker="x",
+            s=64,
+            linewidth=2.5,
+            alpha=point_alpha,
+            label="$k$-Means",
+        )
+
+        ax.plot(
+            [
+                1,
+                4,
+                16,
+                64,
+                256,
+                1024,
+            ],
+            [
+                1.0,
+                0.9900600238458658,
+                0.8605523198923893,
+                0.6878579596261332,
+                0.35252687913334674,
+                1e-9,
+            ],
+            color=saev.colors.ORANGE_RGB01,
+            marker="^",
+            alpha=point_alpha,
+            label="PCA",
+        )
+
+        vanilla_df = df.filter(
+            (
+                pl.col("objective") == "vanilla"
+                # & pl.col("is_pareto")
+            )
+        ).sort(by=l0_col)
+
+        ids = vanilla_df.get_column("id").to_list()
+        xs = vanilla_df.get_column(l0_col).to_numpy()
+        ys = vanilla_df.get_column(mse_col).to_numpy()
+
+        line, *_ = ax.plot(
+            xs,
+            ys,
+            color=saev.colors.BLUE_RGB01,
+            linestyle="--",
+            marker="^",
+            alpha=point_alpha,
+            label="SAE",
+        )
+
+        mat_df = df.filter(
+            (
+                pl.col("objective") == "matryoshka"
+                # & pl.col('is_pareto')
+            )
+        ).sort(by=l0_col)
+
+        ids = mat_df.get_column("id").to_list()
+        xs = mat_df.get_column(l0_col).to_numpy()
+        ys = mat_df.get_column(mse_col).to_numpy()
+
+        line, *_ = ax.plot(
+            xs,
+            ys,
+            color=saev.colors.SCARLET_RGB01,
+            linestyle="-.",
+            marker="s",
+            alpha=point_alpha,
+            label="Matryoshka",
+        )
+
+        ax.set_xlabel("L0 ($\\downarrow$)")
+        ax.set_ylabel("Normalized MSE ($\\downarrow$)")
+        ax.grid(True, linewidth=0.3, alpha=0.7)
+        ax.spines[["right", "top"]].set_visible(False)
+        ax.set_xscale("log")
+        # ax.set_xlim(1e0, 1e3)
+        ax.legend()
+
+        fig.savefig(
+            "contrib/trait_discovery/docs/assets/dinov3_vitl16_in1k_baselines.pdf"
+        )
+        return fig
+
+    plot_for_publication(
+        df
+        .filter(
+            (pl.col("model_key") == "DINOv3 ViT-L/16")
+            & (pl.col("config/train_data/layer") == 23)
+        )
+        .with_columns(
+            pl
+            .col("id")
+            .map_elements(
+                functools.partial(get_nmse, shards="614861a0"), return_dtype=pl.Float64
+            )
+            .alias("train_nmse"),
+            pl
+            .col("id")
+            .map_elements(
+                functools.partial(get_nmse, shards="3802cb66"), return_dtype=pl.Float64
+            )
+            .alias("val_nmse"),
+            pl
+            .when(pl.col("config/objective/n_prefixes").is_null())
+            .then(pl.lit("vanilla"))
+            .otherwise(pl.lit("matryoshka"))
+            .alias("objective"),
+        )
+        .filter(pl.col("train_nmse") < 1)
+    )
+    return
+
+
+@app.cell
+def _(df, get_nmse, pl, plt, saev):
+    def _(
+        df: pl.DataFrame,
+        l0_col: str = "summary/eval/l0",
+        layer_col: str = "config/val_data/layer",
+    ):
+        mse_col = "ade20k_val_nmse"
+        mse_col = "summary/eval/mse"
+
+        fig, ax = plt.subplots(figsize=(4.5, 3), dpi=300, layout="constrained")
+
+        point_alpha = 0.8
+
+        vitl_df = df.filter(
+            (
+                pl.col("model_key") == "DINOv3 ViT-L/16"  # & pl.col("is_pareto")
+            )
+        ).sort(by=l0_col)
+
+        ids = vitl_df.get_column("id").to_list()
+        xs = vitl_df.get_column(l0_col).to_numpy()
+        ys = vitl_df.get_column(mse_col).to_numpy()
+
+        line, *_ = ax.plot(
+            xs,
+            ys,
+            color=saev.colors.SEA_RGB01,
+            linestyle="-",
+            marker="o",
+            alpha=point_alpha,
+            label="ViT-L/16",
+            clip_on=False,
+        )
+
+        vitb_df = df.filter(
+            (
+                pl.col("model_key") == "DINOv3 ViT-B/16"  # & pl.col("is_pareto")
+            )
+        ).sort(by=l0_col)
+
+        ids = vitb_df.get_column("id").to_list()
+        xs = vitb_df.get_column(l0_col).to_numpy()
+        ys = vitb_df.get_column(mse_col).to_numpy()
+
+        line, *_ = ax.plot(
+            xs,
+            ys,
+            color=saev.colors.ORANGE_RGB01,
+            linestyle="--",
+            marker="^",
+            alpha=point_alpha,
+            label="ViT-B/16",
+            clip_on=False,
+        )
+
+        vits_df = df.filter(
+            (
+                pl.col("model_key") == "DINOv3 ViT-S/16"  # & pl.col("is_pareto")
+            )
+        ).sort(by=l0_col)
+
+        ids = vits_df.get_column("id").to_list()
+        xs = vits_df.get_column(l0_col).to_numpy()
+        ys = vits_df.get_column(mse_col).to_numpy()
+
+        line, *_ = ax.plot(
+            xs,
+            ys,
+            color=saev.colors.BLUE_RGB01,
+            linestyle="-.",
+            marker="s",
+            alpha=point_alpha,
+            label="ViT-S/16",
+            clip_on=False,
+        )
+
+        ax.set_xlabel("L$_0$ ($\\downarrow$)")
+        ax.set_ylabel("MSE ($\\downarrow$)")
+        ax.grid(True, linewidth=0.3, alpha=0.7)
+        ax.spines[["right", "top"]].set_visible(False)
+        ax.set_xscale("log")
+        # ax.set_xlim(1e0, 2e3)
+        ax.set_ylim(9e1, 2e3)
+        ax.set_yscale("log")
+        ax.legend(loc="lower right")
+
+        fig.savefig("contrib/trait_discovery/docs/assets/dinov3_sizes_in1k_sae.pdf")
+        return fig
+
+    _(
+        df
+        .filter(
+            (
+                (pl.col("model_key") == "DINOv3 ViT-L/16")
+                & (pl.col("config/train_data/layer") == 23)
+                & (pl.col("data_key") == "IN1K/train")
+                & pl.col("config/objective/n_prefixes").is_not_null()
+            )
+            | (
+                (pl.col("model_key") == "DINOv3 ViT-B/16")
+                & (pl.col("config/train_data/layer") == 11)
+                & (pl.col("data_key") == "IN1K/train")
+                & pl.col("config/objective/n_prefixes").is_not_null()
+            )
+            | (
+                (pl.col("model_key") == "DINOv3 ViT-S/16")
+                & (pl.col("config/train_data/layer") == 11)
+                & (pl.col("data_key") == "IN1K/train")
+                & pl.col("config/objective/n_prefixes").is_not_null()
+            )
+        )
+        .with_columns(
+            pl
+            .when(pl.col("model_key") == "DINOv3 ViT-S/16")
+            .then(pl.lit("5e195bbf"))
+            .when(pl.col("model_key") == "DINOv3 ViT-B/16")
+            .then(pl.lit("66a5d2c1"))
+            .when(pl.col("model_key") == "DINOv3 ViT-L/16")
+            .then(pl.lit("3802cb66"))
+            .alias("ade20k_val_shards"),
+        )
+        .with_columns(
+            pl
+            .struct("id", "ade20k_val_shards")
+            .map_elements(
+                lambda cols: get_nmse(cols["id"], cols["ade20k_val_shards"]),
+                return_dtype=pl.Float64,
+            )
+            .alias("ade20k_val_nmse"),
+        )
+        .filter(pl.col("ade20k_val_nmse") < 1)
+    )
+    return
+
+
+@app.cell
+def _(df, get_nmse, mpl, np, pl, plt):
+    def _(
+        df: pl.DataFrame,
+        l0_col: str = "summary/eval/l0",
+        layer_col: str = "config/val_data/layer",
+    ):
+        # mse_col = "ade20k_val_nmse"
+        mse_col = "summary/eval/mse"
+
+        fig, ax = plt.subplots(figsize=(4.5, 3), dpi=300, layout="constrained")
+
+        point_alpha = 0.8
+
+        layers = (13, 15, 17, 19, 21, 23)
+        colormap = mpl.colormaps.get_cmap("plasma")
+        colors = colormap(np.linspace(0, 1, len(layers)))[:, :3]
+
+        for layer, color in zip(layers, colors):
+            layer_df = df.filter(
+                (
+                    pl.col("config/train_data/layer") == layer
+                    # & pl.col("is_pareto")
+                )
+            ).sort(by=l0_col)
+
+            ids = layer_df.get_column("id").to_list()
+            xs = layer_df.get_column(l0_col).to_numpy()
+            ys = layer_df.get_column(mse_col).to_numpy()
+
+            line, *_ = ax.plot(
+                xs,
+                ys,
+                color=color,
+                marker="o",
+                alpha=point_alpha,
+                label=f"Layer {layer + 1}",
+                clip_on=False,
+            )
+
+        ax.set_xlabel("L0 ($\\downarrow$)")
+        ax.set_ylabel("MSE ($\\downarrow$)")
+        ax.grid(True, linewidth=0.3, alpha=0.7)
+        ax.spines[["right", "top"]].set_visible(False)
+        ax.set_xscale("log")
+        ax.set_xlim(1e0)
+        ax.set_ylim(1e0)
+        # ax.set_ylim(-0.05, 1.05)
+        ax.set_yscale("log")
+        ax.legend(loc="lower right")
+
+        fig.savefig(
+            "contrib/trait_discovery/docs/assets/dinov3_vitl_layers_in1k_sae.pdf"
+        )
+        return fig
+
+    _(
+        df
+        .filter(
+            (
+                (pl.col("model_key") == "DINOv3 ViT-L/16")
+                & (pl.col("data_key") == "IN1K/train")
+                & pl.col("config/objective/n_prefixes").is_not_null()
+            )
+        )
+        .with_columns(
+            pl
+            .when(pl.col("model_key") == "DINOv3 ViT-S/16")
+            .then(pl.lit("5e195bbf"))
+            .when(pl.col("model_key") == "DINOv3 ViT-B/16")
+            .then(pl.lit("66a5d2c1"))
+            .when(pl.col("model_key") == "DINOv3 ViT-L/16")
+            .then(pl.lit("3802cb66"))
+            .alias("ade20k_val_shards"),
+        )
+        .with_columns(
+            pl
+            .struct("id", "ade20k_val_shards")
+            .map_elements(
+                lambda cols: get_nmse(cols["id"], cols["ade20k_val_shards"]),
+                return_dtype=pl.Float64,
+            )
+            .alias("ade20k_val_nmse"),
+        )
+        .filter(pl.col("ade20k_val_nmse") < 1)
+    )
+    return
+
+
+@app.cell
+def _(df, get_nmse, pl):
+    (
+        df
+        .filter(
+            (
+                (pl.col("model_key") == "DINOv3 ViT-L/16")
+                & (pl.col("config/train_data/layer") == 23)
+                & (pl.col("data_key") == "IN1K/train")
+            )
+            | (
+                (pl.col("model_key") == "DINOv3 ViT-B/16")
+                & (pl.col("config/train_data/layer") == 11)
+            )
+            | (
+                (pl.col("model_key") == "DINOv3 ViT-S/16")
+                & (pl.col("config/train_data/layer") == 11)
+            )
+        )
+        .with_columns(
+            pl
+            .when(pl.col("model_key") == "DINOv3 ViT-S/16")
+            .then(pl.lit("5e195bbf"))
+            .when(pl.col("model_key") == "DINOv3 ViT-B/16")
+            .then(pl.lit("66a5d2c1"))
+            .when(pl.col("model_key") == "DINOv3 ViT-L/16")
+            .then(pl.lit("3802cb66"))
+            .alias("ade20k_val_shards"),
+            pl
+            .when(pl.col("config/objective/n_prefixes").is_null())
+            .then(pl.lit("vanilla"))
+            .otherwise(pl.lit("matryoshka"))
+            .alias("objective"),
+        )
+        .with_columns(
+            pl
+            .struct("id", "ade20k_val_shards")
+            .map_elements(
+                lambda cols: get_nmse(cols["id"], cols["ade20k_val_shards"]),
+                return_dtype=pl.Float64,
+            )
+            .alias("val_nmse"),
+        )
+        .select("id", "model_key", "data_key", "ade20k_val_shards", "val_nmse")
+    )
+    return
+
+
+@app.cell
+def _():
+    return
+
+
+@app.cell
+def _(df):
+    df
+    return
+
+
+@app.cell
+def _(beartype, df, json, pl, saev):
+    import functools
+    import pathlib
+
+    @beartype.beartype
+    def get_nmse(id: str, shards: str) -> float:
+        nmse = 1.0
+        try:
+            run = saev.disk.Run(
+                pathlib.Path("/fs/ess/PAS2136/samuelstevens/saev/runs") / id
+            )
+
+            path = run.inference / shards / "metrics.json"
+
+            nmse = json.loads(path.read_text())["normalized_mse"]
+        except FileNotFoundError:
+            pass
+        return nmse
+
+    df.filter(pl.col("model_key") == "DINOv3 ViT-L/16").with_columns(
+        pl
+        .col("id")
+        .map_elements(
+            functools.partial(get_nmse, shards="614861a0"), return_dtype=pl.Float64
+        )
+        .alias("train_nmse"),
+        pl
+        .col("id")
+        .map_elements(
+            functools.partial(get_nmse, shards="3802cb66"), return_dtype=pl.Float64
+        )
+        .alias("val_nmse"),
+    ).select("id", "train_nmse", "val_nmse").filter(pl.col("train_nmse") < 1)
+    return functools, get_nmse
+
+
+@app.cell
+def _(df):
+    df.columns
+    return
+
+
+@app.cell
+def _(df, mpl, np, pl, plt):
+    def _(df: pl.DataFrame):
+        # mse_col = "ade20k_val_nmse"
+        mse_col = "summary/eval/mse"
+        lr_col = "config/lr"
+        layer_col = ("config/val_data/layer",)
+
+        fig, ax = plt.subplots(figsize=(4.5, 3), dpi=300, layout="constrained")
+
+        point_alpha = 0.8
+
+        layers = (13, 15, 17, 19, 21, 23)
+        colormap = mpl.colormaps.get_cmap("plasma")
+        colors = colormap(np.linspace(0, 1, len(layers)))[:, :3]
+
+        for layer, color in zip(layers, colors):
+            layer_df = df.filter(
+                (
+                    pl.col("config/train_data/layer") == layer
+                    # & pl.col("is_pareto")
+                )
+            )
+
+            ids = layer_df.get_column("id").to_list()
+            xs = layer_df.get_column(lr_col).to_numpy()
+            ys = layer_df.get_column(mse_col).to_numpy()
+
+            line, *_ = ax.plot(
+                xs,
+                ys,
+                color=color,
+                marker="o",
+                alpha=point_alpha,
+                label=f"Layer {layer + 1}",
+                clip_on=False,
+            )
+
+        ax.set_xlabel("L0 ($\\downarrow$)")
+        ax.set_ylabel("MSE ($\\downarrow$)")
+        ax.grid(True, linewidth=0.3, alpha=0.7)
+        ax.spines[["right", "top"]].set_visible(False)
+        ax.set_xscale("log")
+        ax.set_yscale("log")
+        ax.legend(loc="lower right")
+
+        return fig
+
+    _(df.filter((pl.col("model_key") == "DINOv3 ViT-L/16")))
     return
 
 

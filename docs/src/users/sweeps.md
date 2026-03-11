@@ -10,6 +10,7 @@ Create a Python file defining your sweep:
 ```python
 # sweeps/my_sweep.py
 
+
 def make_cfgs() -> list[dict]:
     cfgs = []
 

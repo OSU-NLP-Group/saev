@@ -62,5 +62,6 @@ ImageFolder structure: `output_dpath/{label}/{uuid}.jpg`
 Use with saev:
 ```python
 from saev.data import ImgFolder
+
 cfg = ImgFolder(root=pathlib.Path("data/freshwater-fish"))
 ```

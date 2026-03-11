@@ -45,6 +45,7 @@ Add eager validation at data loader initialization that checks all binary shard 
 ```python
 # In shards.py
 
+
 @beartype.beartype
 @dataclasses.dataclass(frozen=True)
 class ShardInfo:
@@ -199,7 +200,13 @@ Create helper to build minimal valid shards directory:
 @pytest.fixture
 def make_shards_dir(tmp_path):
     """Factory fixture that creates a shards directory structure."""
-    def _make(n_shards: int = 3, *, empty_shards: list[int] = None, missing_shards: list[int] = None):
+
+    def _make(
+        n_shards: int = 3,
+        *,
+        empty_shards: list[int] = None,
+        missing_shards: list[int] = None,
+    ):
         # Create directory structure matching disk.is_shards_dir() expectations
         shards_dir = tmp_path / "saev" / "shards" / "abc12345"
         shards_dir.mkdir(parents=True)
@@ -209,6 +216,7 @@ def make_shards_dir(tmp_path):
         # Create acts*.bin files (skip missing_shards, truncate empty_shards)
 
         return shards_dir
+
     return _make
 ```
 

@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.17.2"
+__generated_with = "0.20.2"
 app = marimo.App(width="full")
 
 
@@ -14,6 +14,7 @@ def _():
     import os.path
     import pathlib
     import pickle
+    import time
 
     import beartype
     import marimo as mo
@@ -43,6 +44,7 @@ def _():
         pl,
         plt,
         saev,
+        time,
         wandb,
     )
 
@@ -52,16 +54,23 @@ def _(pathlib):
     WANDB_USERNAME = "samuelstevens"
     WANDB_PROJECT = "saev"
     WANDB_TAG = "auxk-comparison-v0.3"
+    WANDB_TIMEOUT_SECONDS = 120
 
     runs_root = pathlib.Path("/fs/ess/PAS2136/samuelstevens/saev/runs")
     shards_root = pathlib.Path("/fs/scratch/PAS2136/samuelstevens/saev/shards")
-    return WANDB_PROJECT, WANDB_TAG, WANDB_USERNAME, runs_root, shards_root
+    return (
+        WANDB_PROJECT,
+        WANDB_TIMEOUT_SECONDS,
+        WANDB_USERNAME,
+        runs_root,
+        shards_root,
+    )
 
 
 @app.cell
 def _(
     WANDB_PROJECT,
-    WANDB_TAG,
+    WANDB_TIMEOUT_SECONDS,
     WANDB_USERNAME,
     beartype,
     concurrent,
@@ -81,6 +90,7 @@ def _(
     runs_root,
     saev,
     shards_root,
+    time,
     wandb,
 ):
     @beartype.beartype
@@ -164,6 +174,8 @@ def _(
 
         train_probe_metrics_fpath, train_shards, train_shards_dpath = split_map["train"]
         val_probe_metrics_fpath, val_shards, val_shards_dpath = split_map["val"]
+        row["downstream/train/shard"] = train_shards
+        row["downstream/val/shard"] = val_shards
 
         with np.load(train_probe_metrics_fpath) as fd:
             train_loss = fd["loss"]
@@ -233,7 +245,7 @@ def _(
 
             for k in [16, 64, 256]:
                 _, count = mode(top_labels_dk[best_i, :k], axis=1)
-                row[f"downstream/va/mean_purity_at_{k}"] = (count / k).mean().item()
+                row[f"downstream/val/mean_purity_at_{k}"] = (count / k).mean().item()
 
         return row
 
@@ -306,14 +318,46 @@ def _(
 
     @beartype.beartype
     def make_df_parallel(n_workers: int = 16):
-        filters = {}
+        run_ids = sorted([
+            # Layer 24/24 (index 23), DINOv3 ViT-L, AUXK sweep 003.
+            # Source: contrib/trait_discovery/sweeps/003_auxk/inference.py
+            "a95jzikd",
+            "c3yusm40",
+            "elwq2g19",
+            "flqkcam7",
+            "gi8l3pk1",
+            "i6z66rly",
+            "l8hooa3r",
+            "r0m5713d",
+            "s3pqewz1",
+            "um6hbn05",
+            "x0mkt04y",
+            "ztnu4ml1",
+        ])
 
-        filters["config.tag"] = WANDB_TAG
+        api = wandb.Api(timeout=WANDB_TIMEOUT_SECONDS)
+        runs = []
+        max_attempts = 5
+        for run_id in run_ids:
+            run = None
+            for attempt in range(1, max_attempts + 1):
+                try:
+                    run = api.run(f"{WANDB_USERNAME}/{WANDB_PROJECT}/{run_id}")
+                    break
+                except Exception as err:
+                    if attempt == max_attempts:
+                        print(f"Skipping {run_id}, run fetch failed: {err}")
+                        break
+                    print(
+                        f"Run {run_id} fetch failed ({attempt}/{max_attempts}), retrying: {err}"
+                    )
+                    time.sleep(5 * attempt)
 
-        runs = list(
-            wandb.Api().runs(path=f"{WANDB_USERNAME}/{WANDB_PROJECT}", filters=filters)
-        )
-        # runs = runs[:8]
+            if run is None:
+                continue
+
+            runs.append(run)
+
         if not runs:
             raise ValueError("No runs found.")
 
@@ -357,6 +401,40 @@ def _(df, pl):
         "config/sae/activation/aux/key",
         descending=[True, False, True],
     )
+    return
+
+
+@app.cell
+def _(df, mo, pl):
+    layer_i = 23
+    layer24_nmse = (
+        df
+        .filter(
+            (pl.col("config/sae/activation/key") == "top-k")
+            & (pl.col("config/sae/reinit_blend") == 0.8)
+            & (pl.col("config/val_data/layer") == layer_i)
+            & pl.col("summary/eval/normalized_mse").is_not_null()
+            & pl.col("downstream/train/normalized_mse").is_not_null()
+            & pl.col("downstream/val/normalized_mse").is_not_null()
+        )
+        .select(
+            "id",
+            "data_key",
+            "config/sae/activation/aux/key",
+            "summary/eval/l0",
+            pl.col("summary/eval/normalized_mse").alias("source_nmse"),
+            pl.col("downstream/train/normalized_mse").alias("seg_train_nmse"),
+            pl.col("downstream/val/normalized_mse").alias("seg_val_nmse"),
+            "downstream/train/probe_r",
+            "downstream/val/probe_r",
+            "downstream/train/shard",
+            "downstream/val/shard",
+            "is_pareto",
+        )
+        .sort("data_key", "config/sae/activation/aux/key", "summary/eval/l0")
+    )
+
+    mo.vstack([mo.md("# Layer 24 NMSE (Source vs Downstream)"), layer24_nmse])
     return
 
 
@@ -662,7 +740,9 @@ def _(df, mo, pl):
                     == pl.col("downstream/train/probe_r").max()
                 )
                 .over(
-                    "data_key", "config/val_data/layer", "config/sae/activation/aux/key"
+                    "data_key",
+                    "config/val_data/layer",
+                    "config/sae/activation/aux/key",
                 )
                 .alias("best_train_probe_r")
             )

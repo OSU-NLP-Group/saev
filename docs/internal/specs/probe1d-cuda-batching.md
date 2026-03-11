@@ -47,7 +47,7 @@
 for row_batch in design.stream_rows(batch):
     x_cpu = row_batch.cpu_view
     x_gpu = staging[current].copy_(x_cpu, non_blocking=True)
-    y_gpu = y[row_batch.row_start:row_batch.row_end]
+    y_gpu = y[row_batch.row_start : row_batch.row_end]
     for latent_block in latent_blocks(n_latents, latent_block_size):
         stats = design.accumulate_stats_dense(
             x_gpu[:, latent_block],
