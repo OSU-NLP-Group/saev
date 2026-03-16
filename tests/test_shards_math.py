@@ -93,3 +93,13 @@ def test_special_tokens_with_cls_token(custom_shards_dir):
     assert index.example_idx_in_shard == 0
     assert index.layer_idx_in_shard == 0
     assert index.token_idx_in_shard == 0
+
+    idx = 5
+    index = index_map.from_global(idx)
+    assert index.idx == idx
+    assert index.example_idx == 5
+    assert index.content_token_idx == -1
+    assert index.shard_idx == 1
+    assert index.example_idx_in_shard == 2
+    assert index.layer_idx_in_shard == 0
+    assert index.token_idx_in_shard == 0

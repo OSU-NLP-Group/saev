@@ -59,7 +59,7 @@ class Config:
     """
 
     shards: pathlib.Path = pathlib.Path("$SAEV_SCRATCH/saev/shards/abcdefg")
-    tokens: tp.Literal["content"] = "content"
+    tokens: tp.Literal["special", "content"] = "content"
     layer: int | tp.Literal["all"] = -2
     batch_size: int = 1024 * 16
     batch_timeout_s: float = 30.0
@@ -92,9 +92,9 @@ def _manager_main(
     )
 
     # 0. PRE-CONDITIONS
-    if cfg.tokens != "content" or not isinstance(cfg.layer, int):
+    if cfg.tokens not in ("special", "content") or not isinstance(cfg.layer, int):
         raise NotImplementedError(
-            "High-throughput loader only supports `content` and fixed `layer` mode for now."
+            "High-throughput loader only supports `special` or `content` with fixed `layer` mode for now."
         )
 
     assert cfg.layer in md.layers, f"Layer {cfg.layer} not in {md.layers}"
@@ -107,7 +107,7 @@ def _manager_main(
         # Check if labels.bin exists
         labels_mmap = None
         labels_path = cfg.shards / "labels.bin"
-        if labels_path.exists():
+        if labels_path.exists() and cfg.tokens == "content":
             labels_mmap = np.memmap(
                 labels_path,
                 mode="r",
@@ -121,7 +121,7 @@ def _manager_main(
             assert shard.n_examples == shard_info[0].n_examples == md.examples_per_shard
 
         # Calculate total number of samples
-        n_samples = md.n_examples * md.content_tokens_per_example
+        n_samples = len(index_map)
 
         logger.debug("Found %d samples.", n_samples)
 
@@ -162,7 +162,7 @@ def _manager_main(
                 batch_token_i.append(idx.content_token_idx)
 
                 # Add patch label if available
-                if labels_mmap is not None:
+                if labels_mmap is not None and idx.content_token_idx >= 0:
                     batch_token_labels.append(
                         labels_mmap[idx.example_idx, idx.content_token_idx]
                     )
@@ -176,7 +176,7 @@ def _manager_main(
                 }
 
                 # Add labels if available
-                if labels_mmap is not None:
+                if labels_mmap is not None and batch_token_labels:
                     batch["token_labels"] = torch.tensor(
                         batch_token_labels, dtype=torch.long
                     )
@@ -218,6 +218,10 @@ class DataLoader:
         self.cfg = cfg
         if not os.path.isdir(self.cfg.shards):
             raise RuntimeError(f"Activations are not saved at '{self.cfg.shards}'.")
+        if self.cfg.layer == "all":
+            raise NotImplementedError(
+                "High-throughput loader only supports a fixed integer `layer`."
+            )
 
         self.md = shards.Metadata.load(self.cfg.shards)
 
@@ -279,9 +283,13 @@ class DataLoader:
         )
         self.manager_proc.start()
 
-    def __iter__(self) -> collections.abc.Iterable[ExampleBatch]:
+    def __iter__(self) -> collections.abc.Iterator[ExampleBatch]:
         """Yields batches in order."""
         self._start_manager()
+        msg = "Manager state did not initialize correctly."
+        assert self.batch_queue is not None, msg
+        assert self.err_queue is not None, msg
+        assert self.manager_proc is not None, msg
         n = 0
 
         try:
@@ -352,6 +360,10 @@ class DataLoader:
 
     def _calculate_n_samples(self) -> int:
         """Helper to calculate total number of examples based on config."""
+        if self.cfg.tokens == "special":
+            msg = "tokens='special' requires shards with a CLS token."
+            assert self.md.cls_token, msg
+
         match (self.cfg.tokens, self.cfg.layer):
             case ("special", "all"):
                 return self.md.n_examples * len(self.md.layers)
@@ -366,7 +378,10 @@ class DataLoader:
                     * self.md.content_tokens_per_example
                 )
             case _:
-                tp.assert_never((self.cfg.tokens, self.cfg.layer))
+                msg = (
+                    f"Unsupported loader config: {self.cfg.tokens=}, {self.cfg.layer=}."
+                )
+                raise AssertionError(msg)
 
     def __len__(self) -> int:
         """Returns the number of batches in an epoch."""

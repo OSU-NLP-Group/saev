@@ -247,6 +247,19 @@ def test_constructor_validation(ordered_cfg):
         OrderedDataLoader(cfg)
 
 
+@pytest.mark.slow
+@pytest.mark.parametrize("tokens", ["content", "special"])
+def test_constructor_rejects_layer_all(tokens):
+    with pytest.helpers.tmp_shards_root() as shards_root:
+        shards_dir = pytest.helpers.write_shards(
+            shards_root, data=datasets.FakeImg(n_examples=4)
+        )
+        cfg = OrderedConfig(shards=shards_dir, tokens=tokens, layer="all")
+
+        with pytest.raises(NotImplementedError, match="fixed integer `layer`"):
+            OrderedDataLoader(cfg)
+
+
 def test_properties(ordered_cfg):
     """Test OrderedDataLoader properties."""
     dl = OrderedDataLoader(ordered_cfg)
@@ -358,6 +371,60 @@ def test_timeout_handling(ordered_cfg):
     it = iter(dl)
     batch = next(it)
     assert batch["act"].shape[0] > 0
+
+
+@pytest.mark.slow
+def test_special_tokens_smoke():
+    with pytest.helpers.tmp_shards_root() as shards_root:
+        shards_dir = pytest.helpers.write_shards(
+            shards_root, data=datasets.FakeImg(n_examples=5)
+        )
+        cfg = OrderedConfig(shards=shards_dir, tokens="special", layer=0, batch_size=3)
+        dl = OrderedDataLoader(cfg)
+
+        batch = next(iter(dl))
+
+        torch.testing.assert_close(
+            batch["example_idx"], torch.tensor([0, 1, 2], dtype=torch.long)
+        )
+        torch.testing.assert_close(
+            batch["token_idx"], torch.full((3,), -1, dtype=torch.long)
+        )
+
+
+@pytest.mark.slow
+def test_special_tokens_match_indexed_dataset():
+    with pytest.helpers.tmp_shards_root() as shards_root:
+        shards_dir = pytest.helpers.write_shards(
+            shards_root, data=datasets.FakeImg(n_examples=6)
+        )
+        ordered_cfg = OrderedConfig(
+            shards=shards_dir, tokens="special", layer=0, batch_size=4
+        )
+        dl = OrderedDataLoader(ordered_cfg)
+        indexed_cfg = IndexedConfig(shards=shards_dir, tokens="special", layer=0)
+        ds = IndexedDataset(indexed_cfg)
+
+        seen = 0
+        for batch in dl:
+            for i in range(batch["act"].shape[0]):
+                example_idx = batch["example_idx"][i].item()
+                token_idx = batch["token_idx"][i].item()
+                indexed_example = ds[seen]
+
+                assert example_idx == seen
+                assert token_idx == -1
+                assert indexed_example["example_idx"] == example_idx
+                assert indexed_example["token_idx"] == token_idx
+                torch.testing.assert_close(
+                    indexed_example["act"],
+                    batch["act"][i],
+                    rtol=1e-5,
+                    atol=1e-6,
+                )
+                seen += 1
+
+        assert seen == len(ds)
 
 
 @pytest.mark.slow
