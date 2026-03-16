@@ -381,7 +381,7 @@ class DataLoader:
                 msg = (
                     f"Unsupported loader config: {self.cfg.tokens=}, {self.cfg.layer=}."
                 )
-                raise AssertionError(msg)
+                raise ValueError(msg)
 
     def __len__(self) -> int:
         """Returns the number of batches in an epoch."""
