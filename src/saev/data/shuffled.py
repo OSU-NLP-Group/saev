@@ -707,7 +707,7 @@ class DataLoader:
                 msg = (
                     f"Unsupported loader config: {self.cfg.tokens=}, {self.cfg.layer=}."
                 )
-                raise AssertionError(msg)
+                raise ValueError(msg)
 
         # If no filtering, return max samples
         if not self.cfg.ignore_labels:
