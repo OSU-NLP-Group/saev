@@ -995,7 +995,7 @@ class IndexMap:
 
     md: Metadata
     tokens: tp.Literal["special", "content", "all"]
-    layer: int
+    layer: int | tp.Literal["all"]
     layer_idx_lookup: dict[int, int]
 
     def __init__(
@@ -1029,7 +1029,7 @@ class IndexMap:
                 # [CLS] tokens only right now
                 example_idx = idx
                 shard_idx = idx // self.md.examples_per_shard
-                example_idx_in_shard = idx // self.md.examples_per_shard
+                example_idx_in_shard = idx % self.md.examples_per_shard
                 return Index(
                     idx=idx,
                     example_idx=example_idx,
@@ -1101,4 +1101,5 @@ class IndexMap:
                     * self.md.tokens_per_example
                 )
             case _:
-                tp.assert_never((self.cfg.tokens, self.cfg.layer))
+                msg = f"Unsupported index map config: {self.tokens=}, {self.layer=}."
+                raise AssertionError(msg)

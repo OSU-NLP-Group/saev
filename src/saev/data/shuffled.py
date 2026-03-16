@@ -161,7 +161,7 @@ def _io_worker(
     shard_info = shards.ShardInfo.load(shards_path)
 
     # Pre-conditions
-    assert cfg.tokens == "content"
+    assert cfg.tokens in ("special", "content")
     assert isinstance(cfg.layer, int)
 
     # If we need to filter by labels, ensure we have the labels
@@ -200,6 +200,45 @@ def _io_worker(
             for start, end in helpers.batched_idx(
                 shard_info[shard_i].n_examples, chunk_size
             ):
+                if cfg.tokens == "special":
+                    t0 = time.perf_counter()
+                    acts = torch.from_numpy(mmap[start:end, layer_i, 0])
+                    t1 = time.perf_counter()
+
+                    meta = torch.full((end - start, 2), -1, dtype=torch.int32)
+                    meta[:, 0] = ex_i_offset + torch.arange(start, end)
+
+                    last_ex_i = int(meta[:, 0].max().item())
+                    if last_ex_i >= md.n_examples:
+                        err = ExampleOutOfBoundsError(md, last_ex_i)
+                        logger.warning(err.message)
+                        raise err
+
+                    fill_before = reservoir.fill()
+                    reservoir.put(acts, meta)
+                    t2 = time.perf_counter()
+                    fill_after = reservoir.fill()
+
+                    n_reads += 1
+                    bytes_sent += (
+                        acts.numel() * acts.element_size()
+                        + meta.numel() * meta.element_size()
+                    )
+
+                    now = time.time()
+                    if now - t_last_report >= cfg.log_every_s:
+                        logger.debug(
+                            "shard=%s mb_sent=%.1f read_ms=%.2f put_ms=%.2f fill-before=%.3f fill-after=%.3f",
+                            shard_i,
+                            bytes_sent / 1e6,
+                            (t1 - t0) * 1e3,
+                            (t2 - t1) * 1e3,
+                            fill_before,
+                            fill_after,
+                        )
+                        t_last_report = now
+                    continue
+
                 for t in range(md.content_tokens_per_example):
                     token_idx = t + int(md.cls_token)
 
@@ -240,7 +279,7 @@ def _io_worker(
                         meta = torch.full((end - start, 2), t, dtype=torch.int32)
                         meta[:, 0] = ex_i_offset + torch.arange(start, end)
 
-                    last_ex_i = meta[:, 0].max().item()
+                    last_ex_i = int(meta[:, 0].max().item())
                     if last_ex_i >= md.n_examples:
                         err = ExampleOutOfBoundsError(md, last_ex_i)
                         logger.warning(err.message)
@@ -315,9 +354,9 @@ def _manager_main(
     )
 
     # 0. PRE-CONDITIONS
-    if cfg.tokens != "content" or not isinstance(cfg.layer, int):
+    if cfg.tokens not in ("special", "content") or not isinstance(cfg.layer, int):
         raise NotImplementedError(
-            "High-throughput loader only supports `content` and fixed `layer` mode for now."
+            "High-throughput loader only supports `special` or `content` with fixed `layer` mode for now."
         )
 
     assert cfg.layer in metadata.layers, f"Layer {cfg.layer} not in {metadata.layers}"
@@ -506,6 +545,10 @@ class DataLoader:
     def __iter__(self) -> collections.abc.Iterator[ExampleBatch]:
         """Yields batches."""
         self._start_manager()
+        msg = "Manager state did not initialize correctly."
+        assert self.reservoir is not None, msg
+        assert self.err_queue is not None, msg
+        assert self.manager_proc is not None, msg
         n, b = 0, 0
 
         try:
@@ -641,12 +684,14 @@ class DataLoader:
         When ignore_labels is specified, this counts the actual number of patches
         that remain after filtering out the ignored labels.
         """
+        if self.cfg.tokens == "special":
+            msg = "tokens='special' requires shards with a CLS token."
+            assert self.metadata.cls_token, msg
+
         # First calculate the maximum possible samples
         max_samples = 0
         match (self.cfg.tokens, self.cfg.layer):
-            case ("cls", "all"):
-                max_samples = self.metadata.n_examples * len(self.metadata.layers)
-            case ("cls", int()):
+            case ("special", int()):
                 max_samples = self.metadata.n_examples
             case ("content", int()):
                 max_samples = (
@@ -659,7 +704,10 @@ class DataLoader:
                     * self.metadata.content_tokens_per_example
                 )
             case _:
-                tp.assert_never((self.cfg.tokens, self.cfg.layer))
+                msg = (
+                    f"Unsupported loader config: {self.cfg.tokens=}, {self.cfg.layer=}."
+                )
+                raise ValueError(msg)
 
         # If no filtering, return max samples
         if not self.cfg.ignore_labels:

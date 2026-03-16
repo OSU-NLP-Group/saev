@@ -15,7 +15,13 @@ import torch
 import torch.multiprocessing as mp
 
 import saev.data
-from saev.data import ShuffledConfig, ShuffledDataLoader, datasets
+from saev.data import (
+    IndexedConfig,
+    IndexedDataset,
+    ShuffledConfig,
+    ShuffledDataLoader,
+    datasets,
+)
 
 mp.set_start_method("spawn", force=True)
 
@@ -64,6 +70,80 @@ def test_iter_smoke(cfg):
     assert "act" in batch
     assert "example_idx" in batch
     assert "token_idx" in batch
+
+
+@pytest.mark.slow
+def test_special_tokens_cover_each_example_once():
+    with tmp_shards_root() as shards_root:
+        shards_dir = saev.data.shards.worker_fn(
+            family="fake-clip",
+            ckpt="hf-hub:hf-internal-testing/tiny-open-clip-model",
+            content_tokens_per_example=16,
+            cls_token=True,
+            d_model=128,
+            layers=[0],
+            data=datasets.FakeImg(n_examples=7),
+            batch_size=4,
+            n_workers=0,
+            max_tokens_per_shard=64,
+            shards_root=shards_root,
+            device="cpu",
+        )
+
+        cfg = ShuffledConfig(
+            shards=shards_dir, tokens="special", layer=0, batch_size=3, seed=17
+        )
+        dl = ShuffledDataLoader(cfg)
+        ds = IndexedDataset(IndexedConfig(shards=shards_dir, tokens="special", layer=0))
+
+        seen_example_i = set()
+        n_seen = 0
+        for batch in dl:
+            assert torch.all(batch["token_idx"] == -1)
+            for i in range(batch["act"].shape[0]):
+                example_idx = int(batch["example_idx"][i].item())
+                seen_example_i.add(example_idx)
+                indexed_example = ds[example_idx]
+                assert indexed_example["token_idx"] == -1
+                torch.testing.assert_close(
+                    indexed_example["act"],
+                    batch["act"][i],
+                    rtol=1e-5,
+                    atol=1e-6,
+                )
+                n_seen += 1
+
+        assert n_seen == len(ds)
+        assert seen_example_i == set(range(len(ds)))
+
+
+@pytest.mark.slow
+def test_special_tokens_reject_ignore_labels():
+    with tmp_shards_root() as shards_root:
+        shards_dir = saev.data.shards.worker_fn(
+            family="fake-clip",
+            ckpt="hf-hub:hf-internal-testing/tiny-open-clip-model",
+            content_tokens_per_example=16,
+            cls_token=True,
+            d_model=128,
+            layers=[0],
+            data=datasets.FakeImg(n_examples=4),
+            batch_size=4,
+            n_workers=0,
+            max_tokens_per_shard=64,
+            shards_root=shards_root,
+            device="cpu",
+        )
+        cfg = ShuffledConfig(
+            shards=shards_dir,
+            tokens="special",
+            layer=0,
+            batch_size=2,
+            ignore_labels=[0],
+        )
+
+        with pytest.raises(NotImplementedError, match="content"):
+            ShuffledDataLoader(cfg)
 
 
 def test_batches(cfg):
