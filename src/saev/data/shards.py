@@ -1101,5 +1101,4 @@ class IndexMap:
                     * self.md.tokens_per_example
                 )
             case _:
-                msg = f"Unsupported index map config: {self.tokens=}, {self.layer=}."
-                raise AssertionError(msg)
+                tp.assert_never((self.tokens, self.layer))

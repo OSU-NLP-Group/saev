@@ -174,6 +174,53 @@ def _io_worker(
 
     chunk_size = min(1024, math.ceil(cfg.batch_size * cfg.buffer_size / cfg.n_threads))
 
+    def put_chunk(
+        acts: Tensor,
+        meta: Int[Tensor, " n 2"],
+        *,
+        shard_i: int,
+        t0: float,
+        t1: float,
+    ) -> None:
+        nonlocal bytes_sent, n_reads, t_last_report
+
+        n_examples = acts.shape[0]
+        msg = f"{n_examples} != {meta.shape[0]}"
+        assert n_examples == meta.shape[0], msg
+        msg = f"Expected metadata shape {(n_examples, 2)}, got {tuple(meta.shape)}"
+        assert tuple(meta.shape) == (n_examples, 2), msg
+
+        last_ex_i = int(meta[:, 0].max().item())
+        if last_ex_i >= md.n_examples:
+            err = ExampleOutOfBoundsError(md, last_ex_i)
+            logger.warning(err.message)
+            raise err
+
+        fill_before = reservoir.fill()
+        reservoir.put(acts, meta)
+        t2 = time.perf_counter()
+        fill_after = reservoir.fill()
+
+        n_reads += 1
+        bytes_sent += (
+            acts.numel() * acts.element_size() + meta.numel() * meta.element_size()
+        )
+
+        now = time.time()
+        if now - t_last_report < cfg.log_every_s:
+            return
+
+        logger.debug(
+            "shard=%s mb_sent=%.1f read_ms=%.2f put_ms=%.2f fill-before=%.3f fill-after=%.3f",
+            shard_i,
+            bytes_sent / 1e6,
+            (t1 - t0) * 1e3,
+            (t2 - t1) * 1e3,
+            fill_before,
+            fill_after,
+        )
+        t_last_report = now
+
     reason = ""
 
     while not stop_event.is_set():
@@ -183,7 +230,6 @@ def _io_worker(
                 logger.debug("Got 'None' from work_queue; exiting.")
                 reason = "poison_pill"
                 break
-            t1 = time.perf_counter()
 
             fname = f"acts{shard_i:06}.bin"
             logger.info("Opening %s.", fname)
@@ -194,7 +240,6 @@ def _io_worker(
             mmap = np.memmap(
                 acts_fpath, mode="r", dtype=np.float32, shape=md.shard_shape
             )
-            t2 = time.perf_counter()
 
             # Only iterate over the actual number of examples in this shard
             for start, end in helpers.batched_idx(
@@ -207,36 +252,7 @@ def _io_worker(
 
                     meta = torch.full((end - start, 2), -1, dtype=torch.int32)
                     meta[:, 0] = ex_i_offset + torch.arange(start, end)
-
-                    last_ex_i = int(meta[:, 0].max().item())
-                    if last_ex_i >= md.n_examples:
-                        err = ExampleOutOfBoundsError(md, last_ex_i)
-                        logger.warning(err.message)
-                        raise err
-
-                    fill_before = reservoir.fill()
-                    reservoir.put(acts, meta)
-                    t2 = time.perf_counter()
-                    fill_after = reservoir.fill()
-
-                    n_reads += 1
-                    bytes_sent += (
-                        acts.numel() * acts.element_size()
-                        + meta.numel() * meta.element_size()
-                    )
-
-                    now = time.time()
-                    if now - t_last_report >= cfg.log_every_s:
-                        logger.debug(
-                            "shard=%s mb_sent=%.1f read_ms=%.2f put_ms=%.2f fill-before=%.3f fill-after=%.3f",
-                            shard_i,
-                            bytes_sent / 1e6,
-                            (t1 - t0) * 1e3,
-                            (t2 - t1) * 1e3,
-                            fill_before,
-                            fill_after,
-                        )
-                        t_last_report = now
+                    put_chunk(acts, meta, shard_i=shard_i, t0=t0, t1=t1)
                     continue
 
                 for t in range(md.content_tokens_per_example):
@@ -279,35 +295,7 @@ def _io_worker(
                         meta = torch.full((end - start, 2), t, dtype=torch.int32)
                         meta[:, 0] = ex_i_offset + torch.arange(start, end)
 
-                    last_ex_i = int(meta[:, 0].max().item())
-                    if last_ex_i >= md.n_examples:
-                        err = ExampleOutOfBoundsError(md, last_ex_i)
-                        logger.warning(err.message)
-                        raise err
-
-                    fill_before = reservoir.fill()
-                    reservoir.put(acts, meta)
-                    t2 = time.perf_counter()
-                    fill_after = reservoir.fill()
-
-                    n_reads += 1
-                    bytes_sent += (
-                        acts.numel() * acts.element_size()
-                        + meta.numel() * meta.element_size()
-                    )
-
-                    now = time.time()
-                    if now - t_last_report >= cfg.log_every_s:
-                        logger.debug(
-                            "shard=%s mb_sent=%.1f read_ms=%.2f put_ms=%.2f fill-before=%.3f fill-after=%.3f",
-                            shard_i,
-                            bytes_sent / 1e6,
-                            (t1 - t0) * 1e3,
-                            (t2 - t1) * 1e3,
-                            fill_before,
-                            fill_after,
-                        )
-                        t_last_report = now
+                    put_chunk(acts, meta, shard_i=shard_i, t0=t0, t1=t1)
         except queue.Empty:
             # Wait 0.1 seconds for new data.
             time.sleep(0.1)
@@ -704,10 +692,7 @@ class DataLoader:
                     * self.metadata.content_tokens_per_example
                 )
             case _:
-                msg = (
-                    f"Unsupported loader config: {self.cfg.tokens=}, {self.cfg.layer=}."
-                )
-                raise ValueError(msg)
+                tp.assert_never((self.cfg.tokens, self.cfg.layer))
 
         # If no filtering, return max samples
         if not self.cfg.ignore_labels:

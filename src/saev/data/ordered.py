@@ -378,10 +378,7 @@ class DataLoader:
                     * self.md.content_tokens_per_example
                 )
             case _:
-                msg = (
-                    f"Unsupported loader config: {self.cfg.tokens=}, {self.cfg.layer=}."
-                )
-                raise ValueError(msg)
+                tp.assert_never((self.cfg.tokens, self.cfg.layer))
 
     def __len__(self) -> int:
         """Returns the number of batches in an epoch."""
